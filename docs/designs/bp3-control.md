@@ -1,6 +1,10 @@
-# bp3-control: exploratory Quests, coordinated exps
+# bp3-control sketch: exploratory Quests, coordinated exps
 
-Status: proposed
+Status: **historical sketch, superseded by the [MVP](bp3-control-mvp.md).**
+
+Retained as design history. The MVP is the current scope and records which
+implementation decisions remain proposed. This sketch is not a second live
+specification; its open questions and delivery plan are historical.
 
 ## TL;DR
 
@@ -57,10 +61,11 @@ The predecessor documents are in the sibling bp3-docs project:
   Quest -> Milestone -> Task -> exp hierarchy, pi/Zellij on a Mac mini,
   separate Worker extraction, and fail-before-start checks.
 
-This document supersedes those proposals for this component where they
-conflict: use Quest -> exp, one CLI initially, explicit exp prerequisites,
-acceptance appropriate to exploration, `exp launch`, `exp land`, and
-`quest complete`. The predecessor files are not updated by this document.
+At the time of writing, this sketch superseded those proposals for this
+component where they conflicted: Quest -> exp, one CLI initially, explicit exp
+prerequisites, acceptance appropriate to exploration, `exp launch`, `exp land`,
+and `quest complete`. The [MVP](bp3-control-mvp.md) now governs this component.
+The predecessor files were not updated by this sketch.
 These are provenance paths in the original local workspace, not files shipped
 in this repository; bp3-docs has no configured public remote at writing time.
 This design is self-contained and does not require those files to be usable.
@@ -490,6 +495,6 @@ work, or executable acceptance tests are created by this document.
 
 ## Handoff
 
-When implementation begins, link the governing sign-off packet here and freeze
-this proposal. That packet supersedes this document; do not maintain competing
-live designs.
+This sketch is frozen as historical background. Continue design and link the
+governing implementation packet from the [MVP](bp3-control-mvp.md), not here.
+No implementation packet existed when this sketch was superseded.
