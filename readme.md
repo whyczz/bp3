@@ -1,7 +1,11 @@
-# bp3-control
+# bp3
 
 The state-aware harness/skills you talk to: an evolving Board, Worker
-coordination, review, and controlled integration.
+coordination, review, and controlled integration. One monorepo — this repo,
+git-renamed from bp3-control — with a core/plugins split (protocol, board,
+control, runtime as core; harness adapters, packs, and future wardens/cron
+as plugins) and all design docs. The generic bp3-yap-skills library stays a
+separate repo.
 
 **Status: MVP scope agreed; implementation design in progress. No implementation yet.**
 
@@ -21,7 +25,7 @@ history. It is superseded by the MVP, not a second live specification.
 - **Worker:** a dedicated execution session that produces artifacts and evidence, not its own approval.
 
 The goal is more learning and delivery per unit of human attention. Start with
-one OCaml codebase and CLI, SQLite, pi/Zellij, and cooperative Git worktrees.
+one OCaml monorepo and CLI, SQLite, pi/Zellij, and cooperative Git worktrees.
 All coding work goes through exps and Workers; the Controller coordinates,
 reviews, and owns landing mechanics, but does not author code. Ceremony scales
 with blast radius across micro, standard, and high-risk lanes, and one-off

@@ -1,4 +1,4 @@
-# bp3-control MVP: understandable coordination, useful delivery
+# bp3 MVP: understandable coordination, useful delivery
 
 Status: **MVP scope agreed; implementation design being scoped.**
 No implementation, Board records, or executable acceptance suite exists yet.
@@ -13,7 +13,7 @@ below are agreed; implementation proposals and open questions are labeled.
 Help the user **learn more and deliver more with less time and higher-signal
 human input/output**. The user directs intent; a lightweight Controller frames
 Quests and exps, delegates all coding execution to Workers, synthesizes
-evidence, and owns landing mechanics. Workers land exps into a Quest branch
+evidence, and owns landing mechanics. Exps land into a Quest branch
 automatically under strict gates; the human steps in at Quest-to-main, where
 they understand the integrated result and authorize promotion. Push needs its
 own explicit scope.
@@ -71,9 +71,12 @@ document.
    exceptions are the hand-built genesis kernel and emergency repair when bp3
    or its launcher is down; both are logged and reconciled.
 4. **Authority:** the human controls intent. An exp lands into its Quest
-   branch automatically only when exact checks and independent review pass,
-   the integration target is unchanged, the result kind satisfies its
-   prerequisites, and budget remains. The human steps in at Quest-to-main to
+   branch automatically only when its lane's gates pass — deterministic
+   checks for the micro lane, checks plus independent review for standard
+   and high-blast-radius lanes — the integration target is unchanged, the
+   result kind satisfies its prerequisites, and budget remains. Every
+   auto-land emits an IIUC/TL;DR land report (below) and moves the exp to
+   the `auto_landed` state. The human steps in at Quest-to-main to
    understand the integrated result and authorize promotion. Push is a
    separately scoped action; Quest-to-main approval does not imply it.
    Human touchpoints are Quest framing, Quest-to-main, and escalations
@@ -89,7 +92,10 @@ document.
    by watching panes.
 7. **Environment:** worktrees first, on one host, with SQLite and pi/Zellij.
    The codebase is OCaml, single-language; separate OS processes are fine.
-   Colima/Docker or stronger isolation is a follow-up, not a claimed property.
+   One monorepo named **bp3** holds core, plugins, Board-coupled control
+   skills, and all design docs (see Repository shape below); the generic
+   bp3-yap-skills library stays a separate repo. Colima/Docker or stronger
+   isolation is a follow-up, not a claimed property.
 8. **Dogfood:** bp3 builds bp3. First a hand-built genesis kernel (not claimed
    as dogfood), then bp3 coordinates its own features, then a one-week
    self-dogfood shakedown. esc3 is a follow-up transfer Quest. Projections
@@ -127,9 +133,12 @@ reversibility, not lines changed. The user experiences a lane, not a form.
 
 - **Micro lane:** one-line intent, auto-assembled brief, a warm Worker that
   already holds Quest context, deterministic checks, auto-land to the Quest
-  branch, one-line notification. For contained, easily reversed changes.
+  branch, land report. For contained, easily reversed changes. This lane is
+  the explicit checks-only exception to the independent-review gate; the
+  land report and revert handle are its audit trail.
 - **Standard lane:** short brief with acceptance basis, Worker execution,
-  independent review, auto-land. The default for normal features and fixes.
+  independent review, auto-land with land report. The default for normal
+  features and fixes.
 - **High-blast-radius lane:** auth, data migration, public API, concurrency,
   or anything hard to reverse. Design first, stronger review, explicit
   stopping conditions. A one-line auth change belongs here; a large generated
@@ -177,12 +186,24 @@ The Controller may synthesize multiple notifications into one briefing, but no
 blocker disappears through coalescing. A transport acknowledgement is not proof
 that a question was seen, answered, or handled.
 
-Every exp auto-land posts a compact notice to the main session: Quest and exp,
-integration commit, one-line outcome, check and review verdicts, files touched,
-exps unblocked or staled, and a revert handle. Notices inform; silence is never
-consent, and a notice is not an approval request. Notices may be coalesced for
-display, but none is dropped; blockers and escalations interrupt instead of
-waiting for the next digest.
+Every exp auto-land posts a compact land report to the main session, in
+IIUC/TL;DR style:
+
+- **TL;DR:** one line — what landed and why it matters.
+- **IIUC:** the intended outcome from the brief, and what the Worker actually
+  did against it.
+- **Demos:** the demo or smoke command run, with observed output or a link
+  to it; "none" is stated, never implied.
+- **Tests:** check and (per lane) review verdicts with receipts, including
+  failures that were waived and by what rule.
+- **Code pointers:** integration commit, Quest/exp/execution IDs, files and
+  key functions changed, exps unblocked or staled, and a revert handle.
+
+Reports inform; silence is never consent, and a report is not an approval
+request. Reports may be coalesced for display, but none is dropped; blockers
+and escalations interrupt instead of waiting for the next digest. The report
+is stored on the integration record, which carries the exp's `auto_landed`
+state (see Data models).
 
 Quest-to-main is a comprehension gate, not a rubber stamp on a raw diff. The
 Controller presents a promotion packet: a runnable demo with observed output,
@@ -200,9 +221,9 @@ the corresponding behavior; do not reopen settled product decisions.
 
 ### Architecture
 
-Keep one CLI/codebase with separate internal modules for operations, storage,
-launch, runtime, and integration. Start with pi; do not implement
-four production harness adapters before proving one.
+Keep one CLI/codebase — the bp3 monorepo — with separate internal modules
+for operations, storage, launch, runtime, and integration. Start with pi; do
+not implement four production harness adapters before proving one.
 
 ```text
 Human <-> Controller (pi; intent clarification and judgment)
@@ -230,6 +251,73 @@ Controller model is idle or its session exits. A thin pi bridge displays
 notifications and requests actionable turns. The runtime is not another
 LLM Controller and cannot invent work or approval. Its precise lifetime,
 singleton claim, and reconnect protocol are the second design slice below.
+
+### Repository shape: one monorepo named bp3
+
+Settled: there is one repo, **bp3**, reached by git-renaming the current
+bp3-control repo (history and docs move with it; no new repo is created and
+no design is re-homed by hand). Inside it, a **core/plugins** split: the
+irreducible coordination loop is core; everything replaceable is a plugin.
+The earlier launcher-repo and worker-repo proposals in bp3-docs are module
+designs inside bp3, not separate repositories; bp3-docs remains provenance.
+One exception stays separate by design: **bp3-yap-skills**, the generic,
+harness-portable skill library, is its own repo. bp3 keeps only the
+Board-coupled control skills and the harness packaging that wires skills
+into a Controller session.
+
+```text
+bp3/
+  core/protocol/   packet schema, ops types, shared IDs (the contract)
+  core/board/      SQLite store, state machines, migrations
+  core/control/    ops CLI, Controller context, review, land, promotion
+  core/runtime/    roster, event following, liveness, backpressure,
+                   plugin host
+  plugins/harness-pi/       first real plugin (intents/signals adapter)
+  plugins/harness-Muse/   second adapter, gated by conformance
+  plugins/packs/            expert packs and routed Worker content
+  plugins/warden-*/         future: event consumers that flag and question
+  plugins/cron-*/           future: obligation/timer sources only
+  skills/          Board-coupled control skills + harness packaging
+  docs/            this MVP, the historical sketch, imported provenance
+```
+
+Core is what bp3 cannot run without: protocol, board, control, runtime.
+Spawn mechanics live in runtime for the MVP; harness-specific adapters sit
+under it as plugins. Worker brief/finish is a protocol client, so
+core-adjacent; the packs it routes are plugin content.
+
+Plugin rules, settled with the layout:
+
+- Plugins never write the Board directly and never spawn work on their own.
+  They emit signals and call the same ops as every other caller; control
+  disposes. A plugin is never a second control plane.
+- The runtime hosts plugins: per-plugin event cursors, idempotent delivery,
+  a disable switch instead of restart loops, and no plugin-private durable
+  state — anything that matters goes through ops into the Board.
+- v1 plugins are compile-time OCaml modules behind a registry, toggled by
+  config. No dynamic loader. Out-of-process plugins (Board events over a
+  socket, crash-isolated) arrive only if a plugin needs untrusted code.
+- The plugin seam is proven by the harness adapters first (pi, then Muse
+  under the ControllerAdapter conformance suite), not designed for
+  hypothetical wardens. Warden and cron plugins inherit that seam.
+- A cron plugin may only create Board obligations and timers. It can never
+  wake a model directly; the runtime still decides what becomes a coalesced
+  actionable wake, per the tokenless-waiting contract.
+
+Why one repo: the packet/ops contract will churn during dogfood, and one
+commit must be able to change its producer and consumers together; bp3
+builds bp3 in the same tree it coordinates; one user, one host, and one
+language have no release-independence problem to solve. Module boundaries
+are the discipline instead: cross-module calls go through the protocol and
+Board operations, never around them.
+
+Split a module into its own repo only when a trigger fires: a second
+harness or non-bp3 caller needs it independently, a real privilege boundary
+appears (for example launcher-held credentials), or release cadences
+genuinely diverge. bp3-yap-skills already meets that bar — generic skills
+serve many harnesses and hosts — which is why it stays separate. Until a
+trigger fires inside bp3, separate launcher/worker/control repos are
+explicitly not required.
 
 ### Multiplexing 3-10 Workers
 
@@ -271,12 +359,12 @@ to be designed. Avoid a universal node/edge store for this control plane.
 | Record | Responsibility and essential data |
 |---|---|
 | Quest | Intent, why, success picture, constraints, state, human acceptance, optional prior-result provenance. |
-| exp | Quest ID, versioned brief, bounded contribution, expected result kind, acceptance basis, prerequisites, limits, selected result, disposition, ceremony lane. |
+| exp | Quest ID, versioned brief, bounded contribution, expected result kind, acceptance basis, prerequisites, limits, selected result, disposition and state (including `auto_landed`), ceremony lane. |
 | Execution | Exp ID, role, ownership generation, immutable brief/input revisions, harness/model/version, workspace, endpoint/session, desired state and observed liveness, intended file scope, resource namespace, warm-session reference. |
 | Result | Execution ID, exact output commits/artifacts, result kind, evidence claims, limitations; useful findings need no fabricated merge. |
 | Review | Exact result/brief, independent reviewer or verifier execution, check receipts, findings, verdict. Worker claims remain separate from verifier receipts. |
 | Question/reply | Execution and question identity, blocker, answer/decision reference, delivery and handling state. |
-| Approval/integration | Human decision reference, exact authorized action/target/revision, expected target commit, checked integration commit, durable operation journal. |
+| Approval/integration | Land kind (auto or human-promoted), land report (TL;DR, IIUC, demos, tests, code pointers), human decision reference where required, exact authorized action/target/revision, expected target commit, checked integration commit, resulting state, durable operation journal. |
 
 Idempotency receipts, revisions, ordered events, and consumer cursors are
 protocol machinery, not planning entities. Preserve `quest_id`, `exp_id`,
@@ -299,8 +387,13 @@ Load-bearing invariants:
   distinct observations. A stored `running` label proves none of the others.
 - Submission is not review; review is not human authorization; authorization
   for one revision/action is not permission for another.
-- An auto-land notice is not an approval request, and silence after a notice
+- An auto-land report is not an approval request, and silence after a report
   is not consent for Quest-to-main or push.
+- `auto_landed` is a distinct exp state: the selected result is integrated
+  into the Quest branch and carries its land report. It is not human
+  acceptance, not Quest completion, and not promotion to main; reverting an
+  auto-land returns the exp to an explicit non-landed disposition without
+  erasing the report.
 
 ### Functions and Worker protocol
 
@@ -312,7 +405,7 @@ Names describe responsibilities, not implemented command spellings.
 | Launch | Assign the ceremony lane; validate scope, prerequisites and capacity (3-10 child cap, reviewer reserve, review-backlog backpressure); warn on likely file-scope overlap; reserve execution ownership; freeze inputs; prepare worktree and resource namespace; start and handshake from the actual Worker environment. Reconcile partial launch instead of blindly retrying it. |
 | Report / ask / reply | Persist progress, blockers, candidates, and answers with stable identities. Workers cannot accept their own result or authorize land through reporting operations. |
 | Review | Dispatch independent inspection/check execution against exact outputs; retain receipts and return a bounded review packet to the Controller. |
-| Prepare / auto-land / promote | Compose and check the actual integration. Exp-to-Quest-branch land is automatic when the authority gates pass, followed by a compact main-session notice. Quest-to-main requires the human comprehension packet and explicit authorization, and conditionally updates only the authorized target. Journal partial progress for recovery. |
+| Prepare / auto-land / promote | Compose and check the actual integration. Exp-to-Quest-branch land is automatic when the lane's authority gates pass; it records the land report on the integration record, moves the exp to `auto_landed`, and posts the report to the main session. Quest-to-main requires the human comprehension packet and explicit authorization, and conditionally updates only the authorized target. Journal partial progress for recovery. |
 | Context / query / recap | Return the compact control snapshot and current coordination and evidence references, including unresolved obligations; full transcripts are fetched only when needed. |
 | Cancel / replace / complete | Record desired state, fence obsolete ownership, reconcile the process outcome, and explicitly dispose of remaining work before Quest completion. |
 
@@ -387,10 +480,12 @@ movement without a matching Board journal is an unreconciled-landing incident.
 Authority tiers:
 
 - **Worker commits** in its own worktree and branch: automatic, no gate.
-- **Exp-to-Quest-branch land:** automatic when deterministic checks and
-  independent review pass on the exact integration, the target is unchanged,
-  the result kind satisfies prerequisites, and budget remains. Followed by
-  the compact main-session notice. Auto-land changes who signs, not what is
+- **Exp-to-Quest-branch land:** automatic when the lane's gates pass on the
+  exact integration — deterministic checks for micro; checks plus independent
+  review for standard and high-blast-radius — the target is unchanged, the
+  result kind satisfies prerequisites, and budget remains. The land records
+  its IIUC/TL;DR report, sets the exp state to `auto_landed`, and posts the
+  report to the main session. Auto-land changes who signs, not what is
   verified.
 - **Quest-to-main promotion:** human, via the comprehension packet, bound to
   the exact checked integration commit.
@@ -422,7 +517,7 @@ movement requires re-preparation and, for promotion, renewed authorization.
 
 ## Scope boundaries and alternatives
 
-In: one host, one OCaml codebase/CLI, SQLite, pi/Zellij, worktrees, bounded
+In: one host, one bp3 monorepo (OCaml codebase/CLI), SQLite, pi/Zellij, worktrees, bounded
 Worker briefs, ceremony lanes, one-off taxi lane, 3-10 child multiplexing with
 backpressure, durable reports/questions, deterministic waiting, independent
 review, gated auto-land to Quest branches, human Quest-to-main promotion,
@@ -432,8 +527,9 @@ Retain small-scale fan-out/fan-in without building a general scheduler.
 Not required for the MVP:
 
 - A Task/Milestone planning hierarchy, universal graph engine, or workflow DSL.
-- Four production harness integrations, remote Workers, a web UI, or immediate
-  extraction into separate Controller/Worker/launcher products.
+- Four production harness integrations, remote Workers, a web UI, or splitting
+  the monorepo into separate control/launcher/worker repositories before an
+  extraction trigger fires (see Repository shape).
 - Colima/Docker isolation, hostile-Worker security claims, or unrestricted
   external actions. Isolation remains a follow-up, not a dismissed risk.
 - Automatic reruns of stale descendants, automatic Quest-to-main promotion,
@@ -463,7 +559,7 @@ Sequence:
    not dogfood, and is never described as bp3 building itself.
 2. **First self-hosted change.** bp3 coordinates one small real bp3 feature
    end-to-end: Worker implementation, independent review, auto-land to the
-   Quest branch with its main-session notice, human Quest-to-main promotion,
+   Quest branch with its land report, human Quest-to-main promotion,
    and one deliberate Controller kill mid-flight.
 3. **One-week shakedown.** All bp3 development goes through bp3. Before day
    one, write down the scorecard: accepted, reworked, and blocked exps;
@@ -511,11 +607,11 @@ is absent, not reported executions of a failing test suite.
 | Disposable Controller | Restart during work and during a pending question; replacement reconstructs current state and obligations without duplicate launches or repeated explanation from the user. |
 | Blocker briefing | A forced blocker reaches the user with IIUC, challenged next steps, and a recommendation; reply is traceable through handling. |
 | Lineage and composition | Fan-out/fan-in consumes exact inputs; selection changes, pins and invalid withdrawals do not silently validate incompatible or stale outputs. |
-| Review and authorized land | Independent checks bind to the actual integration; exp auto-land fires only when every gate passes and posts its notice; Quest-to-main refuses absent, mismatched, or stale human authorization and target movement. Crash recovery reconciles Git and Board; branch movement without a journal is detected and frozen, never silently adopted. |
+| Review and authorized land | Independent checks bind to the actual integration; exp auto-land fires only when its lane's gates pass, records the IIUC/TL;DR land report (demos, tests, code pointers), and sets `auto_landed`; Quest-to-main refuses absent, mismatched, or stale human authorization and target movement. Crash recovery reconciles Git and Board; branch movement without a journal is detected and frozen, never silently adopted. |
 | Limits and restore | Exhaust a configured limit; interrupt the runtime; restore Board plus referenced artifacts in a fresh location without lost or silently resumed obligations. |
 | Lanes and one-offs | A micro one-off goes from request to evidence-backed patch with no Quest conversation; a one-line high-blast-radius change is forced into the high lane; deterministic mechanical changes run without a model Worker. Per-lane ceremony cost is recorded. |
 | Multiplexing | Run 3, then 5, then 10 concurrent children including reviewers; review saturation stops new launches; a common blocker consolidates into one question; overlapping scopes warn before launch; resource namespaces keep parallel test runs apart; a snapshot after Controller restart reconstructs the full roster. |
-| Notice and promotion packet | Every auto-land produces exactly one main-session notice with a revert handle; silence is never treated as consent. The Quest-to-main packet explains the integrated diff by concept, binds receipts to the exact commit, and is invalidated by any later change; an oversized Quest is split before the gate. |
+| Land report and promotion packet | Every auto-land produces exactly one stored report — TL;DR, IIUC, demos, tests, code pointers, revert handle — posts it to the main session, and sets `auto_landed`; silence is never treated as consent; a revert restores a non-landed disposition without erasing the report. The Quest-to-main packet explains the integrated diff by concept, binds receipts to the exact commit, and is invalidated by any later change; an oversized Quest is split before the gate. |
 | Self-hosting | A Worker exp that would corrupt the Board, launcher, or land path is caught on a Board copy; the running build is unaffected; promotion switches atomically and rollback restores the prior build. |
 | Useful dogfood | bp3 builds bp3 through the one-week shakedown; the user gets inspectable accepted changes, the scorecard, and a hardening list without manual scheduling. esc3 transfer is a later, separate check. |
 
@@ -538,7 +634,7 @@ new Milestone entity**. Scope each exp around an inspectable output.
 | E2 — Tokenless waiting and multiplexing | Deterministic runtime/pi bridge and runtime roster for 3 concurrent children; idle, busy, restart, permission-wait and watcher-death traces meet the notification contract; control snapshot reconstructs the roster. | E1 |
 | E3 — Crash/replacement | Interrupt launch/report boundaries; competing Controllers and resumed old Workers cannot duplicate or corrupt committed work. | E1–E2 |
 | E4 — Evolving lineage | Executable fan-out/fan-in, pin, amendment, negative-finding and withdrawal cases; incompatible inputs fail before dispatch. | E1, E0 lineage rules |
-| E5 — Review, auto-land, promotion | Independent verification, gated exp auto-land with main-session notice, human comprehension packet and exact-commit Quest-to-main, Git/Board crash reconciliation, and self-hosting promotion/rollback on a scratch repo. | E1, E3–E4 |
+| E5 — Review, auto-land, promotion | Independent verification, gated exp auto-land with stored IIUC/TL;DR land report and `auto_landed` state, human comprehension packet and exact-commit Quest-to-main, Git/Board crash reconciliation, and self-hosting promotion/rollback on a scratch repo. | E1, E3–E4 |
 | E6 — Self-hosted bp3 and shakedown week | First self-hosted bp3 feature, concurrency ramped 3 to 5 to 10 under backpressure, then the one-week all-bp3-through-bp3 shakedown with the pre-registered scorecard, a forced blocker, a Controller restart, limits, and fresh-location restore. | E2–E5 |
 | E7 — Harden, then transfer | Prioritized keep/cut/fix list from the shakedown; loosen any lane whose ceremony exceeds its execution value; then run the esc3 transfer Quest as the away fixture. | E6 scorecard |
 
@@ -569,8 +665,9 @@ another product interview.
    than treating adapter documentation as an end-to-end guarantee; the core
    language is settled as OCaml.
 3. **Review, land, and promotion — owner: designer; human owns Quest-to-main.**
-   Define the auto-land gates and notice, how deliberate human promotion is
-   recorded, its exact action scope, the comprehension packet and Quest-size
+   Define the auto-land gates, land report, and `auto_landed` state; how
+   deliberate human promotion is recorded, its exact action scope, the
+   comprehension packet and Quest-size
    budget, verifier authority, integration target policy, the recovery
    journal, and self-hosting promotion/rollback. Recommend an explicitly named
    Quest integration branch; promotion and external push are separately scoped
@@ -583,7 +680,7 @@ another product interview.
    separate; both must be queryable, not only prose.
 
 The next design pass should produce small worked records and failure traces
-before detailed SQL, a full command catalog, or launcher extraction.
+before detailed SQL, a full command catalog, or any repo split.
 
 ## Red chair record
 
