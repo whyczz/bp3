@@ -27,7 +27,7 @@ reviews, and owns landing mechanics, but does not author code. Ceremony scales
 with blast radius across micro, standard, and high-risk lanes, and one-off
 fixes take a taxi lane with no Quest conversation.
 
-A deterministic supervisor multiplexes 3-10 Worker and reviewer processes;
+A deterministic runtime multiplexes 3-10 Worker and reviewer processes;
 the Controller multiplexes decisions from Board snapshots, not panes. Exps
 auto-land into their Quest branch under strict check, review, target, and
 budget gates, with a compact notice to the main session. The human steps in

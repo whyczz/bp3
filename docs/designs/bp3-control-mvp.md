@@ -84,7 +84,7 @@ document.
 6. **Waiting and multiplexing:** deterministic watchers, signals, timers, and
    long-polling are allowed. No model-driven polling or cron loops; routine
    notifications do not trigger model turns. Actionable events may trigger
-   coalesced paid turns. The deterministic supervisor multiplexes 3-10 child
+   coalesced paid turns. The deterministic runtime multiplexes 3-10 child
    processes; the Controller multiplexes decisions from Board snapshots, not
    by watching panes.
 7. **Environment:** worktrees first, on one host, with SQLite and pi/Zellij.
@@ -201,7 +201,7 @@ the corresponding behavior; do not reopen settled product decisions.
 ### Architecture
 
 Keep one CLI/codebase with separate internal modules for operations, storage,
-launch, runtime supervision, and integration. Start with pi; do not implement
+launch, runtime, and integration. Start with pi; do not implement
 four production harness adapters before proving one.
 
 ```text
@@ -222,19 +222,19 @@ predecessor's OCaml/SQLite core. The pi adapter crosses an explicit process
 or IPC boundary from OCaml; if pi only offers an in-process SDK in another
 language, that fact must surface in the pre-implementation spike, not after
 the core is built. One codebase does not require one OS process: CLI,
-supervisor, and bridge may be separate executables from the same source.
+runtime, and bridge may be separate executables from the same source.
 
-**Recommended runtime ownership:** a deterministic local supervisor owns
+**Recommended runtime ownership:** the deterministic local runtime owns
 reconciliation, event following, liveness, and enforced limits even when the
 Controller model is idle or its session exits. A thin pi bridge displays
-notifications and requests actionable turns. The supervisor is not another
+notifications and requests actionable turns. The runtime is not another
 LLM Controller and cannot invent work or approval. Its precise lifetime,
 singleton claim, and reconnect protocol are the second design slice below.
 
 ### Multiplexing 3-10 Workers
 
-The supervisor multiplexes processes; the Controller multiplexes decisions.
-The supervisor tracks the live roster — panes, heartbeats, worktrees,
+The runtime multiplexes processes; the Controller multiplexes decisions.
+The runtime tracks the live roster — panes, heartbeats, worktrees,
 resource namespaces, deaths, restarts — for 3-10 concurrent children,
 reviewers included. The Controller never watches panes or holds every
 Worker's context. On an actionable wake it reads one compact control
@@ -535,7 +535,7 @@ new Milestone entity**. Scope each exp around an inspectable output.
 | G0 — Genesis kernel and pi spike | Hand-built minimal OCaml CLI/Board plus proof, from OCaml, that a real pi Worker handshakes in a worktree, reads an exact brief, and reports a blocker/candidate. Surfaces the true pi boundary before the core grows. Not dogfood. | None |
 | E0 — Protocol counterexamples | Small transition/identity contract with executable fixtures for retries, ownership, result kinds, and races; each disputed transition has an expected outcome. | Worked records from design slice 1 |
 | E1 — Worker reaches Board | Genesis kernel plus immutable brief, blocker/candidate report, retry check, and one micro-lane one-off end-to-end (request, patch, evidence, decision). | G0, E0 |
-| E2 — Tokenless waiting and multiplexing | Deterministic runtime/pi bridge and supervisor roster for 3 concurrent children; idle, busy, restart, permission-wait and watcher-death traces meet the notification contract; control snapshot reconstructs the roster. | E1 |
+| E2 — Tokenless waiting and multiplexing | Deterministic runtime/pi bridge and runtime roster for 3 concurrent children; idle, busy, restart, permission-wait and watcher-death traces meet the notification contract; control snapshot reconstructs the roster. | E1 |
 | E3 — Crash/replacement | Interrupt launch/report boundaries; competing Controllers and resumed old Workers cannot duplicate or corrupt committed work. | E1–E2 |
 | E4 — Evolving lineage | Executable fan-out/fan-in, pin, amendment, negative-finding and withdrawal cases; incompatible inputs fail before dispatch. | E1, E0 lineage rules |
 | E5 — Review, auto-land, promotion | Independent verification, gated exp auto-land with main-session notice, human comprehension packet and exact-commit Quest-to-main, Git/Board crash reconciliation, and self-hosting promotion/rollback on a scratch repo. | E1, E3–E4 |
