@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# bp3 project tooling (pre-binary). The OCaml CLI absorbs these subcommands
-# later; the interface stays: bp3 skills install --harness=<name|all>.
+# Project entry point. Keep the existing skills installer independent of the
+# OCaml toolchain; all coordination commands go to an explicitly built binary.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -95,5 +95,11 @@ case "${1:-}" in
       *) echo "usage: bp3 skills install --harness=<pi|claude|codex|muse|all>" >&2; exit 2 ;;
     esac
     ;;
-  *) echo "usage: bp3 skills install --harness=<pi|claude|codex|muse|all>" >&2; exit 2 ;;
+  *)
+    # No implicit rebuild: running coordination must not change underneath a
+    # Worker. Live fixtures use a frozen binary; BP3_CORE selects one explicitly.
+    core="${BP3_CORE:-$root/_build/default/core/control/main.exe}"
+    [[ -x $core ]] || { echo 'build the genesis CLI first: dune build core/control/main.exe' >&2; exit 2; }
+    exec "$core" "$@"
+    ;;
 esac

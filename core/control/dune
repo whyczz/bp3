@@ -1,0 +1,4 @@
+(executable
+ (name main)
+ (public_name bp3-core)
+ (libraries bp3_runtime))

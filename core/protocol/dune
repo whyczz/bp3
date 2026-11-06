@@ -1,0 +1,4 @@
+(library
+ (name bp3_protocol)
+ (wrapped false)
+ (libraries unix yojson))

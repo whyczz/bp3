@@ -1,0 +1,15 @@
+opam-version: "2.0"
+synopsis: "Single-host Board and Worker coordination"
+maintainer: "bp3 maintainers"
+authors: ["bp3 maintainers"]
+license: "UNLICENSED"
+build: [["dune" "build" "-p" name "-j" jobs]]
+run-test: [["dune" "runtest" "-p" name]]
+depends: [
+  "ocaml" {>= "5.1"}
+  "dune" {>= "3.17"}
+  "yojson" {>= "2.0"}
+  "sqlite3" {>= "5.0"}
+  "lwt" {>= "5.6"}
+  "ounit2" {with-test}
+]

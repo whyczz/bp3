@@ -1,0 +1,4 @@
+(library
+ (name bp3_board)
+ (wrapped false)
+ (libraries bp3_protocol sqlite3))

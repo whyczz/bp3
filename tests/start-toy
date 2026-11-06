@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Live acceptance fixture, not part of the offline test suite. Starts a real pi
+# pane, but holds its brief: no model work starts until the explicit `brief` op.
+set -euo pipefail
+[[ $# -ge 2 && $# -le 4 && ! -e $1 ]] || { echo 'usage: tests/start-toy NEW_DIRECTORY SESSION [MODEL] [hello|blocker|recovery]' >&2; exit 2; }
+project=$(cd "$(dirname "$0")/.." && pwd)
+dir=$1
+session=$2
+model=${3:-}
+mode=${4:-hello}
+[[ $mode == hello || $mode == blocker || $mode == recovery ]] || { echo 'mode must be hello, blocker or recovery' >&2; exit 2; }
+for command in dune git jq zellij pi; do
+  command -v "$command" >/dev/null || { echo "missing $command" >&2; exit 1; }
+done
+# This script owns/cleans its test session; never attach to somebody else's.
+[[ $session =~ ^[A-Za-z0-9_-]{1,100}$ ]] || { echo 'invalid session slug' >&2; exit 2; }
+if zellij list-sessions --short --no-formatting 2>/dev/null | grep -Fxq -- "$session"; then
+  echo "session already exists: $session" >&2; exit 2
+fi
+(cd "$project" && dune build core/control/main.exe)
+mkdir -p "$dir"
+dir=$(cd "$dir" && pwd -P)
+mkdir -p "$dir/genesis" "$dir/worktrees"
+# A frozen bootstrap build, not an implicitly promoted candidate. Workers never
+# run directly from a changing _build tree. Preserve this directory as evidence.
+cp "$project/_build/default/core/control/main.exe" "$dir/genesis/bp3"
+cp "$project/plugins/harness-pi/bridge.ts" "$dir/genesis/bridge.ts"
+"$project/tests/materialize-toy" "$dir/toy"
+base=$(git -C "$dir/toy" rev-parse HEAD)
+board=$dir/board.sqlite
+bp3=$dir/genesis/bp3
+"$bp3" --board "$board" init
+jq -n --arg repo "$dir/toy" --arg base "$base" '{v:1,op_id:"create-toy-quest",op:"quest-create",payload:{id:"toy",intent:"MVP Exp 1: real Worker round-trip",repo:$repo,target:"refs/heads/quest/toy",base:$base}}' | "$bp3" --board "$board" op -
+# The recovery drill holds one shell tool, not a model polling loop. Its gate
+# lives outside the candidate so neither acceptance nor workspace cleanliness
+# depends on the Worker modifying a test harness.
+if [[ $mode == recovery ]]; then
+  # These variables belong to the generated gate, not the launcher shell.
+  # shellcheck disable=SC2016
+  printf '%s\n' '#!/bin/sh' \
+    'dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)' \
+    ': > "$dir/gate-entered"' \
+    'for _ in $(seq 1 240); do' \
+    '  if [ -f "$dir/gate-release" ]; then exec ./missing-check; fi' \
+    '  sleep 1' \
+    'done' \
+    'echo "recovery gate timed out" >&2; exit 1' > "$dir/recovery-gate"
+fi
+jq -n --arg mode "$mode" --arg gate "$dir/recovery-gate" '{
+  v:1, op_id:"create-hello-exp", op:"exp-create",
+  payload:{id:"hello",quest_id:"toy",brief:{
+    objective:(if $mode == "recovery" then "Controller-recovery drill. Before any edits, run check_argv exactly in one bash tool with a 300-second timeout; do not skip its external gate or use model polling. After it returns, block through the Board on the missing-check failure and wait. Do not edit or commit."
+      else "Implement hello.ml to print exactly hello plus newline. Add a short comment explaining the entry point." end),
+    acceptance:(if $mode == "recovery" then "Hold active work at the external test gate, then report the missing-check blocker without guessing an answer. Controller recovery must preserve this obligation."
+      elif $mode == "blocker" then "Run ./missing-check. If absent, block through the Board and wait for the human to select the check. Do not invent or create it."
+      else "dune runtest --root . passes and dune exec --root . ./hello.exe prints hello" end),
+    scope:"hello.ml only; expected.txt and test harness are fixed",
+    non_goals:"No changes to tests, no land, no push",
+    check_argv:(if $mode == "recovery" then ["/bin/sh",$gate]
+      elif $mode == "blocker" then ["./missing-check"] else ["dune","runtest","--root","."] end),
+    max_seconds:(if $mode == "blocker" then 86400 else 3600 end)
+  }}
+}' | "$bp3" --board "$board" op -
+zellij attach --create-background "$session"
+nohup "$bp3" --board "$board" runtime --binary "$bp3" --bridge "$dir/genesis/bridge.ts" >"$dir/runtime.log" 2>&1 </dev/null &
+printf '%s\n' "$!" > "$dir/runtime.pid"
+ready=false
+for _ in {1..100}; do
+  if "$bp3" --board "$board" ping >/dev/null 2>&1; then ready=true; break; fi
+  sleep 0.1
+done
+[[ $ready == true ]] || { echo "runtime failed; inspect $dir/runtime.log" >&2; exit 1; }
+jq -n --arg session "$session" --arg root "$dir/worktrees" --arg model "$model" '{execution_id:"hello-worker",exp_id:"hello",session_name:$session,root:$root} + (if $model == "" then {} else {model:$model} end)' > "$dir/launch.json"
+"$bp3" --board "$board" launch "$dir/launch.json"
+printf '\nWorker starting; brief is HELD.\nInspect: %q --board %q context\nWatch: zellij attach %q\n' "$bp3" "$board" "$session"
+printf 'Queue brief: printf '\''%%s\\n'\'' '\''{"v":1,"op_id":"deliver-hello","op":"brief","payload":{"execution_id":"hello-worker"}}'\'' | %q --board %q op -\n' "$bp3" "$board"

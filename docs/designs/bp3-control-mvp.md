@@ -1,7 +1,12 @@
 # bp3 MVP: understandable coordination, useful delivery
 
-Status: **MVP scope agreed; implementation design being scoped.**
-No implementation, Board records, or executable acceptance suite exists yet.
+Status: **MVP scope agreed; Exp 1 genesis acceptance passed.**
+The [genesis contract](bp3-genesis-contract.md) resolves the Exp 1 subset of the
+proposals below. See the [runbook and observed evidence](../genesis.md) and
+[active Quest](../quests/2026-11-05-bp3-mvp.md). Review/land/promotion and the
+broader runtime features remain proposed, not implemented guarantees. The
+[Exp 2 implementation packet](bp3-auto-land-contract.md) records the next
+integration design and the authorized genesis source-checkpoint handoff.
 
 This document is the current MVP scope. It supersedes the
 [original architecture sketch](bp3-control.md) where they differ. The sketch
@@ -33,8 +38,9 @@ and a recommendation when your judgment is needed, not a scheduling job.
 ## Context
 
 The repository at `2c8a08654d0d5fde83052c7fef3f1a04283a409b` contained only
-`readme.md` and the architecture sketch. There is no runtime to claim reliable.
-This MVP records the subsequent review and user clarification.
+`readme.md` and the architecture sketch. At that design baseline there was no
+runtime to claim reliable. This MVP records the subsequent review and user
+clarification; current implementation evidence is linked above.
 
 Three findings shape the next design:
 
@@ -754,8 +760,10 @@ reports, no manual scheduling, and zero unreconciled landings.
 
 ## Tests
 
-These are proposed acceptance checks. They are unmet because the implementation
-is absent, not reported executions of a failing test suite.
+These are product acceptance checks, not a claim that the whole matrix passes.
+At design time no implementation existed. The active Quest and genesis runbook
+now distinguish automated/live evidence from human observations still required;
+most broader checks below remain future work.
 
 | Check | Acceptance observation |
 |---|---|
@@ -782,8 +790,9 @@ settled, report these as friction to fix, not as an adoption verdict.
 
 ## Proposed delivery milestones
 
-These are design-stage experiment proposals, **not created Board records or a
-new Milestone entity**. Scope each exp around an inspectable output.
+These are the original design-stage experiment proposals, **not a new
+Milestone entity**. Current Board records and progress are tracked in the active
+Quest; do not infer completion from this proposal table.
 
 | Exp | Shippable output and decisive check | Depends on |
 |---|---|---|
@@ -867,9 +876,10 @@ before detailed SQL, a full command catalog, or any repo split.
 
 ## Handoff
 
-This document authorizes no launch, merge, push, or external action. When the
-implementation design is accepted, link the governing implementation packet
-here and freeze the superseded proposed details. The packet governs execution
-within this MVP scope; changes to agreed intent/scope remain explicit human
-decisions. Do not maintain competing live designs or silently rewrite the
-historical sketch.
+This document alone authorizes no launch, merge, push, or external action.
+The user's implementation request activated the MVP Quest. The governing
+[genesis implementation packet](bp3-genesis-contract.md) resolves the Exp 1
+subset of design slices 1–2; the broader proposals here remain historical
+inputs/future work, not a competing implemented contract. Exp 2/3 still need
+their review/integration/promotion packets. Changes to agreed intent/scope and
+Quest-to-master promotion remain explicit human decisions.

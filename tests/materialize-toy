@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Make a fresh, self-contained Git fixture; never reuse a user's repository.
+set -euo pipefail
+[[ $# == 1 && ! -e $1 ]] || { echo 'usage: tests/materialize-toy NEW_DIRECTORY' >&2; exit 2; }
+root=$(cd "$(dirname "$0")" && pwd)
+mkdir -p "$(dirname "$1")"
+cp -R "$root/toy-template" "$1"
+git -C "$1" init -q -b master
+git -C "$1" add .
+git -C "$1" -c user.name='bp3 fixture' -c user.email='fixture@bp3.invalid' commit -qm 'fixture: deliberately unimplemented hello'
+git -C "$1" branch quest/toy
+printf 'toy ready: %s\n' "$(cd "$1" && pwd)"

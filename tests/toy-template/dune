@@ -1,0 +1,7 @@
+(executable (name hello))
+(rule
+ (alias runtest)
+ (action (with-stdout-to actual.txt (run %{exe:hello.exe}))))
+(rule
+ (alias runtest)
+ (action (diff expected.txt actual.txt)))

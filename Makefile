@@ -1,11 +1,20 @@
-.PHONY: check test lint
+.PHONY: check test lint core-check format-check
 
-check: lint
+check: lint core-check format-check
 	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
 	./test/skills.sh
 
 lint:
-	shellcheck bin/bp3 scripts/check-skills test/skills.sh
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh tests/materialize-toy tests/start-toy
 
-test:
+test: core-check
 	./test/skills.sh
+
+core-check:
+	dune build @all
+	dune runtest
+	node --check tests/controller-recovery.mjs
+	node --test tests/bridge.test.mjs
+
+format-check:
+	find core tests -type f \( -name '*.ml' -o -name '*.mli' \) -not -path '*/toy-template/*' -exec ocamlformat --check {} +
