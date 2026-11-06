@@ -1,4 +1,9 @@
 (dirs :standard \ toy-template)
 (test
  (name test_genesis)
+ (modules test_genesis)
+ (libraries bp3_runtime ounit2))
+(test
+ (name test_workspace)
+ (modules test_workspace)
  (libraries bp3_runtime ounit2))

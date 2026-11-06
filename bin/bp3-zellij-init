@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Desktop workspace setup only; Board/runtime creation remains explicit.
+set -euo pipefail
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+exec node "$root/scripts/zellij-init.mjs" "$@"

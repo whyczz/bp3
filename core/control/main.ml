@@ -7,7 +7,8 @@ let usage =
   op FILE|-                    Apply v1 JSON mutation (stable op_id required)
   runtime --binary PATH --bridge PATH
                                Own signal socket and reconcile until stopped
-  launch FILE                  JSON: execution_id, exp_id, session_name, root, model?
+  launch FILE                  JSON: execution_id, exp_id, root, model?, session_name?
+                               BP3_SESSION supplies/binds session_name when set
   ping                         Probe runtime ownership
   snapshot PATH                Consistent SQLite copy (not a Git/session backup)
 
@@ -74,10 +75,15 @@ let run board args =
       Runtime.serve ~board ~binary:(Unix.realpath binary)
         ~bridge:(Unix.realpath bridge)
   | [ "launch"; path ] ->
+      let payload =
+        Workspace.bind_session
+          ~session:(Sys.getenv_opt "BP3_SESSION")
+          (read_json path)
+      in
       output
         (Lwt_main.run
            (Transport.call board
-              (obj [ ("command", str "launch"); ("payload", read_json path) ])))
+              (obj [ ("command", str "launch"); ("payload", payload) ])))
   | [ "ping" ] ->
       output
         (Lwt_main.run (Transport.call board (obj [ ("command", str "ping") ])))

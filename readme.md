@@ -70,6 +70,43 @@ hardening list. esc3 follows as the transfer test, not the first proof. Prove
 useful output, independent checks, blocker briefings, and Controller restart
 recovery—not just parallelism.
 
+## One Quest workspace in Ghostty + Zellij
+
+On macOS, with Ghostty, Zellij, pi and Node installed:
+
+```sh
+./bin/bp3-zellij-init docs/quests/2026-11-05-bp3-mvp.md \
+  "Read this Quest and recommend the next step; do not start work yet."
+# A unique slug works too: ./bin/bp3-zellij-init bp3-mvp "Your prompt"
+```
+
+This starts a dedicated Zellij session with a **Controller** tab and opens a new
+Ghostty window attached to it, with saved-window restoration disabled for that
+instance only (your normal Ghostty configuration is untouched). pi receives the
+prompt literally from a private file, not interpolated shell code or visible
+pane argv. The session name and reattach argv are printed as JSON. Local reservation/prompt/session files live
+under `.bp3/sessions/` (ignored; do not publish them).
+
+The Controller gets `BP3_QUEST_FILE` and `BP3_SESSION`. `bp3 launch` fills in a
+missing `session_name` from that binding and refuses a conflicting explicit
+name. The current launcher creates **one full-size Worker terminal per tab**,
+with tab/status bars and no focus stealing. Launch responses return diagnostic
+`tab` IDs; authoritative pane identity still comes from the bridge handshake.
+Outside a bound Controller shell, `session_name` remains required.
+
+The helper does **not** initialize or rewrite a Board, start a runtime, change a
+branch, send a brief, or authorize landing/pushing. Use a runtime built with the
+tab launcher, frozen as usual; existing frozen runtimes do not hot-upgrade.
+Desktop state is not Board authority or a pi readiness receipt.
+
+An existing session or local reservation is refused, not silently re-created or
+sent a second prompt. To reopen a live workspace, explicitly attach from Ghostty
+(`zellij attach SESSION`), or use
+`open -na Ghostty --args --window-save-state=never -e zellij attach SESSION`.
+After a partial failure, inspect the private reservation and real session first;
+no automatic respawn, input injection or deletion is attempted. A successful
+`open` means the OS accepted a window request, not that a human saw it.
+
 ## Project skill checks
 
 Install the tooling dependencies with `brew bundle` (Mike Farah yq v4, jq,

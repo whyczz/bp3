@@ -102,7 +102,7 @@ let launch db ~board ~binary ~bridge p =
         @ model_args
       in
       (* Zellij exposes argv in pane metadata. Keep local capabilities in a
-         private file, never in the new-pane command or diagnostic response.
+         private file, never in the new-tab command or diagnostic response.
          Shell quoting is mechanical; no brief/model content becomes shell code. *)
       let launch_file = Filename.concat root (execution_id ^ ".launch") in
       let fd =
@@ -123,28 +123,16 @@ let launch db ~board ~binary ~bridge p =
             ("exec "
             ^ String.concat " " (List.map Filename.quote command)
             ^ "\n"));
-      let pane =
+      let tab =
         Process.run
-          [
-            "zellij";
-            "--session";
-            session_name;
-            "action";
-            "new-pane";
-            "--name";
-            "bp3:" ^ execution_id;
-            "--cwd";
-            worktree;
-            "--";
-            "/bin/sh";
-            launch_file;
-          ]
+          (Workspace.tab_argv ~session:session_name ~execution_id ~worktree
+             ~launch_file)
       in
-      (* The pane returned here is diagnostic only. The bridge's actual endpoint
-      supplies authoritative pane/session identity in the ready signal. *)
+      (* The tab returned here is diagnostic only. The bridge's actual endpoint
+      still supplies authoritative pane/session identity in the ready signal. *)
       obj
         [
           ("execution_id", str execution_id);
           ("stage", str "spawning");
-          ("pane", str pane);
+          ("tab", str tab);
         ]
