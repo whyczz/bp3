@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# bp3 project tooling (pre-binary). The OCaml CLI absorbs these subcommands
+# later; the interface stays: bp3 skills install --harness=<name|all>.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+src_dir="$root/skills"
+
+# harness -> "skills_dir invocation"
+harness_target() {
+  case "$1" in
+    pi)     echo ".pi/skills /quest" ;;
+    claude) echo ".claude/skills /quest" ;;
+    codex)  echo ".agents/skills \$quest" ;;
+    muse)   echo ".agents/skills /quest" ;;
+    *) return 1 ;;
+  esac
+}
+
+install_one() {
+  local skill="$1" harness="$2" target_dir invocation dest
+  read -r target_dir invocation <<<"$(harness_target "$harness")"
+  dest="$root/$target_dir/$skill"
+  mkdir -p "$dest"
+  sed "s|{{ invocation }}|$invocation|g" "$src_dir/$skill/SKILL.md" \
+    | awk -v h="$harness" -v s="$skill" '
+        /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
+        { print }' > "$dest/SKILL.md"
+  echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness: $invocation)"
+}
+
+skills_install() {
+  local harness="all"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --harness=*) harness="${1#--harness=}" ;;
+      --harness) harness="$2"; shift ;;
+      *) echo "unknown arg: $1" >&2; exit 2 ;;
+    esac
+    shift
+  done
+
+  local harnesses
+  if [ "$harness" = "all" ]; then
+    harnesses="pi claude codex muse"
+  else
+    harnesses="$harness"
+  fi
+
+  local skill_dir skill h
+  for skill_dir in "$src_dir"/*/; do
+    skill="$(basename "$skill_dir")"
+    [ -f "$skill_dir/SKILL.md" ] || continue
+    for h in $harnesses; do
+      install_one "$skill" "$h"
+    done
+  done
+  # Note: codex and muse share .agents/skills; under --harness=all the muse
+  # render (same dir) is written last. Invocation text differs only in the
+  # trigger line; both harnesses accept the skill by name.
+}
+
+case "${1:-}" in
+  skills)
+    shift
+    case "${1:-}" in
+      install) shift; skills_install "$@" ;;
+      *) echo "usage: bp3 skills install --harness=<pi|claude|codex|muse|all>" >&2; exit 2 ;;
+    esac
+    ;;
+  *) echo "usage: bp3 skills install --harness=<pi|claude|codex|muse|all>" >&2; exit 2 ;;
+esac

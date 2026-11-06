@@ -19,8 +19,8 @@ they understand the integrated result and authorize promotion. Push needs its
 own explicit scope.
 
 Build the smallest reliable, single-host coordination loop, then use it to
-build **bp3 itself**. esc3 is the follow-up transfer test, not the first
-dogfood. Optimize for useful outcomes and human attention, not Worker count,
+build **bp3 itself**. esc3 follows as Quest 2, a separate one-week
+build-out, not the first dogfood. Optimize for useful outcomes and human attention, not Worker count,
 parallelism, or cheap tokens in isolation.
 
 ## ELI5
@@ -47,7 +47,7 @@ Three findings shape the next design:
   transaction boundaries, authority, retries, or reconciliation.
 - **A rewrite is not proof of value.** `esc2/docs/m1.md` reports successful
   logging but unused comparisons/metrics. Building bp3 with bp3 tests the
-  coordination loop on real work; esc3 follows as a transfer test so a good
+  coordination loop on real work; esc3 follows as Quest 2 so a good
   self-dogfood is not mistaken for general proof.
 
 Local provenance, not vendored dependencies: the sibling `bp3-docs` at
@@ -96,15 +96,17 @@ document.
    skills, and all design docs (see Repository shape below); the generic
    bp3-yap-skills library stays a separate repo. Colima/Docker or stronger
    isolation is a follow-up, not a claimed property.
-8. **Dogfood:** bp3 builds bp3. First a hand-built genesis kernel (not claimed
-   as dogfood), then bp3 coordinates its own features, then a one-week
-   self-dogfood shakedown. esc3 is a follow-up transfer Quest. Projections
-   mean recaps, not forecasts.
-9. **Success:** the shakedown week produces accepted bp3 changes through bp3,
-   independent checks, Controller restart recovery, a blocker briefing, no
-   unreconciled target movement, and a prioritized hardening list. bp3 is
-   adopted going forward; the week is a shakedown that prices friction, not
-   an adoption trial against a predecessor.
+8. **Dogfood:** two Quests, specced below. Quest 1 proves the loop on bp3
+   itself (genesis kernel, then exps 1-3) with a toy fixture as the permanent
+   conformance target. Quest 2 is the one-week esc3 MVP build-out, run
+   entirely through bp3, with the toy template as its daily dogfood gate and
+   cross-repo checks between bp3 and esc3. Projections mean recaps, not
+   forecasts.
+9. **Success:** Quest 1 ends with a self-hosted, human-promoted bp3 change,
+   Controller restart recovery, blocker briefings, and no unreconciled target
+   movement. Quest 2 ends with a usable esc3, the week's scorecard, and a
+   prioritized hardening list. bp3 is adopted going forward; measurement
+   prices friction, it is not an adoption trial against a predecessor.
 
 ### The human-facing model
 
@@ -239,11 +241,12 @@ Human <-> Controller (pi; intent clarification and judgment)
 ```
 
 **Settled:** the codebase is OCaml, single-language, preserving the
-predecessor's OCaml/SQLite core. The pi adapter crosses an explicit process
-or IPC boundary from OCaml; if pi only offers an in-process SDK in another
-language, that fact must surface in the pre-implementation spike, not after
-the core is built. One codebase does not require one OS process: CLI,
-runtime, and bridge may be separate executables from the same source.
+predecessor's OCaml/SQLite core. The pi adapter is a bridge extension inside
+the Worker's pi session (see Small runtime below), not a second language
+core; if pi's extension surface cannot carry it, that fact must surface in
+the Exp 1 spike, not after the core is built. One codebase does not require
+one OS process: CLI, runtime, and bridge may be separate executables from
+the same source.
 
 **Recommended runtime ownership:** the deterministic local runtime owns
 reconciliation, event following, liveness, and enforced limits even when the
@@ -251,6 +254,48 @@ Controller model is idle or its session exits. A thin pi bridge displays
 notifications and requests actionable turns. The runtime is not another
 LLM Controller and cannot invent work or approval. Its precise lifetime,
 singleton claim, and reconnect protocol are the second design slice below.
+
+### Small runtime, not a fortress
+
+FirstMate supervises a visible crew with a large bash estate because it
+owns neither the harness nor the state: many backends, status-log files,
+and pane-hash classification. bp3 owns one harness first and one Board, so
+the same visible, drivable crew is four pieces:
+
+- **core/runtime** — one OCaml process: spawn (worktree + Zellij pane + pi
+  with the bridge loaded), roster, a local signal socket, reconciliation.
+- **plugins/harness-pi/bridge** — one TypeScript extension file inside the
+  Worker's pi. It registers with the runtime, receives wake/steer over the
+  socket, injects via `pi.sendUserMessage`, and emits honest signals:
+  session ready, turn settled (`agent_settled`/`isIdle`, never `agent_end`),
+  permission prompt, exited, and `took_over` when an `input` event arrives
+  interactively instead of from the runtime.
+- **core/board** — SQLite holds briefs, reports, the steering inbox, and
+  signals. Content moves as data, never as keystrokes.
+- **Zellij** — pixels and keyboard only. Each Worker is a real TUI in its
+  own pane: the user can watch it, and typing in the pane is takeover.
+
+Rules that keep it small:
+
+- The runtime never reads pane text to decide anything. `dump-screen` is
+  forbidden as a state source; a human-facing `bp3 peek` may show a pane,
+  machines do not get to. Anything that would need screen classification
+  must become a bridge signal instead.
+- Briefs, answers, and steering are Board records delivered by the runtime;
+  Workers report by running `bp3` ops (`report`, `block`, `finish`) from
+  their own shell, not by declaring status lines for a watcher to parse.
+- Steering is durable first (`bp3 steer` writes the inbox), then delivered
+  (bridge `sendUserMessage` as steer/followUp). Delivery is proven by
+  bridge/turn signals, not by pane change.
+- Bridge size discipline: roughly 200 lines. Growth past that means policy
+  is leaking out of core. No backend abstraction until a second backend
+  exists; Zellij calls are just Zellij calls. The skipped FirstMate mass —
+  multi-backend adapters, secondmates, forge integrations, relay, project
+  modes, pane-hash classifiers — is out of scope by name, not by accident.
+- Fallback, stated honestly: if the bridge cannot carry brief, blocker, and
+  settled-idle signals in the Exp 1 spike, Workers run owned-process RPC
+  (`pi --mode rpc`) for Quest 1 and live view/drive becomes the harness
+  exp's acceptance test instead of a claim.
 
 ### Repository shape: one monorepo named bp3
 
@@ -277,9 +322,28 @@ bp3/
   plugins/packs/            expert packs and routed Worker content
   plugins/warden-*/         future: event consumers that flag and question
   plugins/cron-*/           future: obligation/timer sources only
-  skills/          Board-coupled control skills + harness packaging
+  skills/          project skill sources (quest + Board-coupled control skills)
   docs/            this MVP, the historical sketch, imported provenance
+  docs/quests/     one file per Quest: <date>-<slug>.md
 ```
+
+**Project skills install, explicit when working in bp3:** skill sources
+live in `skills/<id>/SKILL.md` with a `{{ invocation }}` placeholder.
+`bp3 skills install --harness=<pi|claude|codex|muse|all>` renders each
+source into that harness's project skill dir (`.pi/skills`,
+`.claude/skills`, `.agents/skills`) with its invocation spelling
+(`/quest`, `$quest`). Rendered files are generated — edit the source and
+re-run. `/quest` is a bp3 project skill and ships this way; the generic
+bp3-yap-skills library remains the separate personal layer.
+
+**Quest file convention, explicit when working in bp3:** every Quest gets
+exactly one human-facing file at `docs/quests/<date>-<slug>.md` in its home
+repo (`<date>` as `YYYY-MM-DD`, `<slug>` short lowercase kebab-case), written
+with the `$quest` skill — TL;DR, ELI5, goal, success picture, scope, human
+touchpoints, exps with acceptance checks, scorecard, red chair. The file is
+the record humans read and approve; the Board is the runtime truth once
+implementation exists. Cross-repo Quests keep their file in their home repo
+(the esc3 Quest's file lives in esc3), never copied into bp3.
 
 Core is what bp3 cannot run without: protocol, board, control, runtime.
 Spawn mechanics live in runtime for the MVP; harness-specific adapters sit
@@ -440,7 +504,7 @@ decisions, next actions, and available cost/attention observations, including
 ceremony cost per lane (intent-to-spawn latency, Controller framing and review
 turns versus Worker execution time) and every manual bypass. The control
 snapshot and the Quest-to-main promotion packet are projections of the same
-records, not second sources of truth. For the follow-up esc3 Quest, recaps
+records, not second sources of truth. For Quest 2 (esc3), recaps
 cover recorded activity, plans, contexts/goals, and metrics. These are
 separate domains/stores, not a shared generic graph schema. Historical
 "as known then" versus current-corrected views must be specified rather than
@@ -535,63 +599,157 @@ Not required for the MVP:
 - Automatic reruns of stale descendants, automatic Quest-to-main promotion,
   automatic push, forecast engines, archive mining, or model-routing
   optimization before end-to-end value exists.
-- esc3. It is the follow-up transfer Quest, not MVP dogfood.
+- Driving esc3 before Quest 1 completes. esc3 is Quest 2, a separate
+  one-week build-out Quest, not part of Quest 1's proof.
 
 Adoption is settled: bp3 is the way forward, with no predecessor fallback.
 That does not exempt it from measurement. Track human attention, ceremony
-cost per lane, bypasses, and rework across the shakedown week; cut lanes,
+cost per lane, bypasses, and rework across the Quest 2 week; cut lanes,
 gates, or reports that cost attention without buying recovery, evidence, or
 outcomes. Evaluate targeted protocol patterns rather than importing an entire
 orchestration platform. More parallelism is not itself an acceptance test.
 
-## bp3 dogfood: bp3 builds bp3
+## Quest 1: bp3 loop on itself
 
-The first dogfood is bp3 implementing its own follow-on features. This tests
-the coordination loop on real, consequential work without confounding it with
-a second product's design. It also creates the central self-hosting risk,
+Goal: bp3 coordinates one real change to itself, end-to-end, without human
+scheduling, and survives the Controller dying mid-flight. This tests the
+coordination loop on real, consequential work without confounding it with a
+second product's design. It also creates the central self-hosting risk,
 handled above: the running bp3 is always the last promoted build, Workers
 edit only the next build, and candidates rehearse against a Board copy.
 
-Sequence:
+Each core part gets its thinnest working version in this Quest: protocol
+(packet and report ops with stable IDs), board (Quest, exp, execution;
+idempotent reports), control (launch plus recovery briefing), runtime
+(spawn one visible pi Worker with the bridge extension, reconcile it
+after Controller death).
+Later exps deepen one part at a time; the whole system never grows
+uniformly ahead of evidence.
 
-1. **Genesis kernel, hand-built.** Minimal OCaml CLI and Board, immutable
-   brief, one real pi Worker round-trip. This is an exception in transport,
-   not dogfood, and is never described as bp3 building itself.
-2. **First self-hosted change.** bp3 coordinates one small real bp3 feature
-   end-to-end: Worker implementation, independent review, auto-land to the
-   Quest branch with its land report, human Quest-to-main promotion,
-   and one deliberate Controller kill mid-flight.
-3. **One-week shakedown.** All bp3 development goes through bp3. Before day
-   one, write down the scorecard: accepted, reworked, and blocked exps;
-   human-active minutes per accepted change; interventions and repeated
-   explanations; ceremony cost per lane; Controller restarts and their
-   recovery; manual bypasses (target zero unreconciled); blockers and their
-   resolution path. If bp3 is down, work directly to unblock, log it as an
-   incident, and reconcile it into the Board afterward — commitment to bp3
-   does not mean work stops when the coordinator does.
-4. **Hardening list.** The week's output is a prioritized list of keep, cut,
-   and fix decisions, each tied to a logged incident or measurement. A lane
-   whose framing and review cost more Controller turns than its Workers spend
-   executing is too heavy and gets loosened.
+### The toy fixture
 
-Do not call the genesis kernel, or any direct Controller-written code outside
-the logged emergency exception, "bp3 dogfood." Self-dogfood success is also
-not general proof: bp3-shaped work (OCaml, tests, docs, small exps) is the
-home fixture. esc3 is the away fixture.
+`tests/toy-template/` holds a minimal OCaml project — a `hello` command
+slot, one test harness, a README. A script materializes it as a scratch git
+repo wherever an exp needs one. It is the permanent conformance and dogfood
+target: boring, reproducible, and never graduated. Coordinator bugs are
+debugged against the toy, never inside real work.
 
-### Follow-up: esc3 transfer Quest
+### Exp 1 — One Worker round-trip
 
-After the shakedown and hardening, drive one esc3 Quest through bp3 as the
-transfer test. Use esc2's implemented MVP as the behavioral reference, not a
-requirement to copy its schema or preserve known reporting defects. Its
-capabilities include plan/done capture, temporal nesting, contexts, tags,
-declared metrics, corrections/history/provenance, plan copying,
-comparison/rollups, and text/JSON operation surfaces; any staged parity
-deferral must be explicit, not silently omitted. Add queryable daily/weekly
-recaps with concrete records and fixtures (nesting, overlaps, midnight,
-corrections, missing-data versus zero, multi-goal accounting where elapsed
-time must not multiply). Use a new project/database; leave esc2 data intact.
-The broader Python/web/auth/audio Escapement application is not the scope.
+Hand-build the genesis kernel (an exception in transport, never described
+as bp3 building itself). Exp 1 is staged; each substep is independently
+checkable and the exp is not done until all five pass on the toy repo.
+
+- **1.1 Board and ops skeleton.** OCaml CLI plus SQLite with Quest, exp,
+  and execution records; create-Quest/exp ops; immutable brief storage;
+  the toy template at `tests/toy-template/` with a materialize script.
+  Check: create a Quest and exp against a materialized toy repo and read
+  them back through `bp3 context`; no Worker exists yet.
+- **1.2 Visible Worker spawn.** Runtime creates the worktree and branch,
+  opens a Zellij pane running pi with `plugins/harness-pi/bridge` loaded,
+  and records the endpoint (pane, session, worktree) on the execution. The
+  bridge registers over the local socket and emits session-ready. Check:
+  the pane is watchable by the human, the Board endpoint agrees with
+  Zellij, and the runtime holds a ready signal — with no pane text read.
+- **1.3 Brief delivery and `hello`.** Control writes the brief to the Board
+  (add `hello`, its check, scope, limits); the runtime delivers it via the
+  bridge (`pi.sendUserMessage`), never keystrokes. The Worker implements
+  `hello` and reports a candidate (commit SHA, check output) by running
+  `bp3` ops from its shell. Check: `hello` test green on the exp branch,
+  candidate recorded against the exact brief revision.
+- **1.4 Blocker, steering, takeover.** The check named in the brief
+  deliberately does not exist, so the Worker blocks through the Board
+  instead of guessing. The human answers via the blocker briefing; the
+  answer is recorded (`bp3 steer`) and delivered by the bridge as a
+  follow-up. Then the human types directly in the pane: the bridge signals
+  `took_over`, the Controller pauses verification until release. Finally
+  the identical candidate report is resent. Check: blocker round-trips
+  through records only, takeover is detected and released, and the Board
+  still shows exactly one result.
+- **1.5 Death and recovery.** Kill the Controller mid-run and again with a
+  question pending; a fresh Controller's `bp3 context` briefing matches
+  reality both times with no user re-explanation. Kill the Worker pane;
+  the runtime reconciles the execution as stale from process/bridge facts
+  and does not spawn a duplicate. Check: no lost obligations, no duplicate
+  Workers or results, endpoint and liveness facts agree across Board,
+  runtime, and Zellij.
+
+If the 1.2 bridge spike fails — the extension cannot register, inject, or
+report settled-idle honestly — fall back to owned-process RPC Workers for
+the remaining substeps and record live view/drive as a harness-exp debt.
+
+### Exp 2 — Auto-land with land report
+
+A fresh reviewer Worker (never the author) reviews the candidate; gates bind
+to the exact integration; auto-land sets `auto_landed` and stores the
+IIUC/TL;DR land report (demos, tests, code pointers, revert handle). Revert
+is a revert commit; the report survives. Three refusal drills are
+mandatory: failing check, hand-moved Quest branch (target mismatch), and
+reviewer rejection returning as rework on the same exp. Still the toy repo;
+one Worker plus one reviewer, sequential.
+
+### Exp 3 — First self-hosted change, promoted by the human
+
+Make `bp3 context` (the recovery briefing) a real command, built by a Worker
+in a bp3 worktree against the next build only. Rehearse the candidate
+against a Board copy plus a green toy run. The human promotes from a
+comprehension packet (concept-ordered diff tour with file pointers, observed
+demo, risks, rollback plan); annex on demand. Pull the deliberate rollback
+once in-exp. Any change after authorization invalidates the packet
+mechanically. Quest completion is recorded with limitations stated;
+remaining exps get explicit dispositions.
+
+If bp3 is down during any of this, work directly to unblock, log it as an
+incident, and reconcile it into the Board afterward — commitment to bp3
+does not mean work stops when the coordinator does.
+
+## Quest 2: esc3 MVP build-out (one week)
+
+A separate Quest, framed fresh once Quest 1 completes. Goal: a usable esc3
+— esc2's MVP capabilities with clearer data, plus queryable day/week
+recaps — built entirely through bp3 in one week. bp3's loop is already
+proven on home turf, so this week tests transfer, not the coordinator's
+existence.
+
+Use esc2's implemented MVP as the behavioral reference, not a requirement
+to copy its schema or preserve known reporting defects: plan/done capture,
+temporal nesting, contexts, tags, declared metrics,
+corrections/history/provenance, plan copying, comparison/rollups, and
+text/JSON operation surfaces; any staged parity deferral (including MCP) is
+explicit, not silently omitted. Add queryable daily/weekly recaps with
+concrete records and fixtures (nesting, overlaps, midnight, corrections,
+missing-data versus zero, multi-goal accounting where elapsed time must not
+multiply). New project/database; leave esc2 data intact. The broader
+Python/web/auth/audio Escapement application is not the scope.
+
+- **Toy template as daily dogfood gate.** Before esc3 work each day, and
+  after any bp3 change, one toy run end-to-end (spawn, blocker, auto-land,
+  revert). A red toy run pauses esc3 work; the failure becomes a bp3
+  incident exp. New bp3 capabilities are dogfooded on the toy before esc3
+  ever sees them.
+- **Scorecard, running all week.** Accepted, reworked, and blocked exps;
+  human-active minutes per accepted change; interventions and repeated
+  explanations; ceremony cost per lane; Controller restarts and recovery;
+  manual bypasses (target zero unreconciled); blockers and their resolution
+  path. The week's second output is the prioritized hardening list: keep,
+  cut, and fix decisions tied to logged incidents or measurements. A lane
+  whose framing and review cost more Controller turns than its Workers
+  spend executing is too heavy and gets loosened.
+- **Cross-repo checks.** Every Quest names a home repo; its exps work and
+  land there. Findings are never fixed inside the wrong repo's exp: an
+  esc3-discovered bp3 bug becomes a linked bp3 exp (structural findings
+  earn their own bp3 Quest) with provenance to the exposing esc3 Quest/exp
+  and incident. Cross-repo prerequisites name exact commits; an esc3 exp
+  resumes only when the named bp3 commit exists and checks out. No
+  cross-repo atomic land — each repo lands on its own gates and the Board
+  links the commits. During the week, no bp3 change promotes unless the
+  toy run and a scripted bp3-driven esc3 smoke exp both pass; every esc3
+  change arrives through bp3's gates in the esc3 repo. The daily briefing
+  reviews new cross-repo bugs, waiting exps, and anything unreconciled.
+
+Success requires both halves: the user runs esc3 for real days and judges
+the recap useful, and every esc3 change arrived through bp3 with land
+reports, no manual scheduling, and zero unreconciled landings.
 
 ## Tests
 
@@ -613,7 +771,7 @@ is absent, not reported executions of a failing test suite.
 | Multiplexing | Run 3, then 5, then 10 concurrent children including reviewers; review saturation stops new launches; a common blocker consolidates into one question; overlapping scopes warn before launch; resource namespaces keep parallel test runs apart; a snapshot after Controller restart reconstructs the full roster. |
 | Land report and promotion packet | Every auto-land produces exactly one stored report — TL;DR, IIUC, demos, tests, code pointers, revert handle — posts it to the main session, and sets `auto_landed`; silence is never treated as consent; a revert restores a non-landed disposition without erasing the report. The Quest-to-main packet explains the integrated diff by concept, binds receipts to the exact commit, and is invalidated by any later change; an oversized Quest is split before the gate. |
 | Self-hosting | A Worker exp that would corrupt the Board, launcher, or land path is caught on a Board copy; the running build is unaffected; promotion switches atomically and rollback restores the prior build. |
-| Useful dogfood | bp3 builds bp3 through the one-week shakedown; the user gets inspectable accepted changes, the scorecard, and a hardening list without manual scheduling. esc3 transfer is a later, separate check. |
+| Useful dogfood | Quest 1: bp3 lands and promotes a change to itself through exps 1-3 without manual scheduling. Quest 2: esc3 is built entirely through bp3 in one week behind the daily toy gate, with the scorecard, hardening list, and cross-repo checks all exercised. |
 
 Measure human active time, interventions/repeated explanations, accepted
 outcomes, useful learning, elapsed time, ceremony cost per lane, and total
@@ -628,20 +786,20 @@ new Milestone entity**. Scope each exp around an inspectable output.
 
 | Exp | Shippable output and decisive check | Depends on |
 |---|---|---|
-| G0 — Genesis kernel and pi spike | Hand-built minimal OCaml CLI/Board plus proof, from OCaml, that a real pi Worker handshakes in a worktree, reads an exact brief, and reports a blocker/candidate. Surfaces the true pi boundary before the core grows. Not dogfood. | None |
-| E0 — Protocol counterexamples | Small transition/identity contract with executable fixtures for retries, ownership, result kinds, and races; each disputed transition has an expected outcome. | Worked records from design slice 1 |
-| E1 — Worker reaches Board | Genesis kernel plus immutable brief, blocker/candidate report, retry check, and one micro-lane one-off end-to-end (request, patch, evidence, decision). | G0, E0 |
-| E2 — Tokenless waiting and multiplexing | Deterministic runtime/pi bridge and runtime roster for 3 concurrent children; idle, busy, restart, permission-wait and watcher-death traces meet the notification contract; control snapshot reconstructs the roster. | E1 |
-| E3 — Crash/replacement | Interrupt launch/report boundaries; competing Controllers and resumed old Workers cannot duplicate or corrupt committed work. | E1–E2 |
-| E4 — Evolving lineage | Executable fan-out/fan-in, pin, amendment, negative-finding and withdrawal cases; incompatible inputs fail before dispatch. | E1, E0 lineage rules |
-| E5 — Review, auto-land, promotion | Independent verification, gated exp auto-land with stored IIUC/TL;DR land report and `auto_landed` state, human comprehension packet and exact-commit Quest-to-main, Git/Board crash reconciliation, and self-hosting promotion/rollback on a scratch repo. | E1, E3–E4 |
-| E6 — Self-hosted bp3 and shakedown week | First self-hosted bp3 feature, concurrency ramped 3 to 5 to 10 under backpressure, then the one-week all-bp3-through-bp3 shakedown with the pre-registered scorecard, a forced blocker, a Controller restart, limits, and fresh-location restore. | E2–E5 |
-| E7 — Harden, then transfer | Prioritized keep/cut/fix list from the shakedown; loosen any lane whose ceremony exceeds its execution value; then run the esc3 transfer Quest as the away fixture. | E6 scorecard |
+| Q1E1 — One Worker round-trip | Staged 1.1-1.5: Board/ops skeleton, visible bridge Worker spawn, brief + `hello`, blocker/steer/takeover with duplicate-report safety, death and recovery. Each substep independently checkable. | None |
+| Q1E2 — Auto-land with land report | Fresh reviewer, gated auto-land to `auto_landed` with stored land report, revert commit, and all three refusal drills (failing check, moved target, reviewer rejection) on the toy repo. | Q1E1 |
+| Q1E3 — Self-hosted promotion | `bp3 context` built by a Worker, rehearsed on a Board copy plus green toy run, human promotion from a comprehension packet, deliberate rollback. Quest 1 completes. | Q1E2 |
+| Q2 — esc3 MVP build-out week | Separate Quest: esc3 built entirely through bp3 in one week, toy template as daily gate, scorecard running, cross-repo checks active. | Quest 1 complete |
 
-Prioritize the G0 spike, E0, E1, and pi-only E2. E0 must stay small and feed
-the real round-trip, not become months of abstract protocol design. Other
-harnesses and isolation can be subsequent exps without blocking proof of the
-cooperative pi workflow.
+Named future exps, deliberately undated — each is specced from what the
+Quests teach, not designed in advance: protocol counterexample fixtures
+(retries, ownership, races) grown from Q1E1's live cases; tokenless waiting
+and the 3-to-10 multiplexing ramp under backpressure; evolving lineage
+(fan-out/fan-in, pins, withdrawals); lanes and one-off hardening from
+measured ceremony cost; the Muse harness adapter under the
+ControllerAdapter conformance suite (owned `muse serve` or ephemeral
+`muse exec`; never foreign-TUI typing); isolation. Other harnesses and
+isolation never block proof of the cooperative pi workflow.
 
 **Bootstrap:** the genesis kernel replaces the earlier temporary-file-ledger
 proposal. It is hand-built directly, kept deliberately Board-shaped, and its
@@ -675,7 +833,7 @@ another product interview.
    against a hostile process.
 4. **Queries and recaps — owner: designer with user evaluation.** Pin day/week
    windows, current-corrected versus historical semantics, traceability, the
-   shakedown scorecard fields, and the smallest useful output fixtures. Keep
+   Quest 2 scorecard fields, and the smallest useful output fixtures. Keep
    bp3 coordination projections and the later esc3 activity projections
    separate; both must be queryable, not only prose.
 
@@ -689,8 +847,8 @@ before detailed SQL, a full command catalog, or any repo split.
   clear Quests/exps and separates that requirement from esc3's storage choice.
 - **Problem space:** another Escapement rewrite or more parallel Workers could
   ship without reducing friction. The user settled this: bp3 builds bp3 first,
-  esc3 is the later transfer test, and adoption is not on trial. Measure human
-  attention, ceremony per lane, and bypasses during the shakedown week and cut
+  esc3 is Quest 2, and adoption is not on trial. Measure human
+  attention, ceremony per lane, and bypasses during Quest 2 and cut
   whatever does not buy recovery, evidence, or outcomes.
 - **Solution:** a CLI/worktree is not a security boundary, and a notification
   is not durable delivery. Carry forward tiered authority (gated auto-land to
@@ -704,7 +862,7 @@ before detailed SQL, a full command catalog, or any repo split.
   riskiest useful slice. Make the hand-built genesis kernel and the
   stable-host/promotion split explicit, prove one real round-trip and
   idle/restart behavior, multiplex 3-10 children under backpressure, then run
-  the shakedown week before the esc3 transfer.
+  Quest 2's esc3 build-out week behind the daily toy gate.
 
 ## Handoff
 
