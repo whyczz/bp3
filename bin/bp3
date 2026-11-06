@@ -6,27 +6,27 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 src_dir="$root/skills"
 
-# harness -> "skills_dir invocation"
+# harness -> skills_dir. Sources are plain Markdown: no templating in bp3.
+# The render is a copy plus a GENERATED notice after the frontmatter.
 harness_target() {
   case "$1" in
-    pi)     echo ".pi/skills /quest" ;;
-    claude) echo ".claude/skills /quest" ;;
-    codex)  echo ".agents/skills \$quest" ;;
-    muse)   echo ".agents/skills /quest" ;;
+    pi)     echo ".pi/skills" ;;
+    claude) echo ".claude/skills" ;;
+    codex)  echo ".agents/skills" ;;
+    muse)   echo ".agents/skills" ;;
     *) return 1 ;;
   esac
 }
 
 install_one() {
-  local skill="$1" harness="$2" target_dir invocation dest
-  read -r target_dir invocation <<<"$(harness_target "$harness")"
+  local skill="$1" harness="$2" target_dir dest
+  target_dir="$(harness_target "$harness")"
   dest="$root/$target_dir/$skill"
   mkdir -p "$dest"
-  sed "s|{{ invocation }}|$invocation|g" "$src_dir/$skill/SKILL.md" \
-    | awk -v h="$harness" -v s="$skill" '
-        /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
-        { print }' > "$dest/SKILL.md"
-  echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness: $invocation)"
+  awk -v h="$harness" -v s="$skill" '
+    /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
+    { print }' "$src_dir/$skill/SKILL.md" > "$dest/SKILL.md"
+  echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness)"
 }
 
 skills_install() {

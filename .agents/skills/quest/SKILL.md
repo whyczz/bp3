@@ -6,8 +6,8 @@ description: Turn a known intent into a bp3 Quest file at docs/quests/<date>-<sl
 
 # Quest
 
-Use when the user invokes `/quest` or asks to frame, spec, or
-start a new Quest in bp3. This skill is `design` applied to a Quest: it
+Use when the user invokes this skill by name (`/quest`, `$quest`) or asks
+to frame, spec, or start a new Quest in bp3. This skill is `design` applied to a Quest: it
 proposes the Quest; it does not launch Workers, create Board records, or
 land anything.
 

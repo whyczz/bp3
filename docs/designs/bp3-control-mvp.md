@@ -328,13 +328,14 @@ bp3/
 ```
 
 **Project skills install, explicit when working in bp3:** skill sources
-live in `skills/<id>/SKILL.md` with a `{{ invocation }}` placeholder.
-`bp3 skills install --harness=<pi|claude|codex|muse|all>` renders each
-source into that harness's project skill dir (`.pi/skills`,
-`.claude/skills`, `.agents/skills`) with its invocation spelling
-(`/quest`, `$quest`). Rendered files are generated — edit the source and
-re-run. `/quest` is a bp3 project skill and ships this way; the generic
-bp3-yap-skills library remains the separate personal layer.
+live in `skills/<id>/SKILL.md` as plain Markdown — no templating in bp3;
+skills are invoked by name (`/quest`, `$quest` is harness UI, not skill
+content). `bp3 skills install --harness=<pi|claude|codex|muse|all>`
+copies each source into that harness's project skill dir (`.pi/skills`,
+`.claude/skills`, `.agents/skills`) with a GENERATED notice. Rendered
+files are generated — edit the source and re-run. `/quest` is a bp3
+project skill and ships this way; the generic bp3-yap-skills library
+remains the separate personal layer.
 
 **Quest file convention, explicit when working in bp3:** every Quest gets
 exactly one human-facing file at `docs/quests/<date>-<slug>.md` in its home
