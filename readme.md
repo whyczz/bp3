@@ -7,6 +7,10 @@ control, runtime as core; harness adapters, packs, and future wardens/cron
 as plugins) and all design docs. The generic bp3-yap-skills library stays a
 separate repo.
 
+**Branch convention:** `master` is the default/integration branch, never `main`.
+Quest implementation stays on `quest/<name>` until explicitly promoted; pushing
+`master` does not authorize pushing or promoting Quest branches.
+
 **Status: MVP scope agreed; implementation design in progress. No implementation yet.**
 
 ## Design
@@ -35,7 +39,7 @@ A deterministic runtime multiplexes 3-10 Worker and reviewer processes;
 the Controller multiplexes decisions from Board snapshots, not panes. Exps
 auto-land into their Quest branch under strict check, review, target, and
 budget gates, with a compact notice to the main session. The human steps in
-at Quest-to-main to understand the integrated result and authorize promotion;
+at Quest-to-master to understand the integrated result and authorize promotion;
 push is separately scoped. Waiting is event-driven, not a model polling loop.
 
 First dogfood: use bp3 to build **bp3 itself**, after a hand-built genesis
@@ -44,8 +48,31 @@ hardening list. esc3 follows as the transfer test, not the first proof. Prove
 useful output, independent checks, blocker briefings, and Controller restart
 recovery—not just parallelism.
 
+## Project skill checks
+
+Install the tooling dependencies with `brew bundle` (Mike Farah yq v4, jq,
+and ShellCheck), then run `make check`. This validates the YAML frontmatter
+of canonical and installed skills and runs the installer regression tests.
+No OCaml toolchain is required for these checks.
+Descriptions containing a colon followed by a space must be quoted or use
+a YAML block scalar; the installer validates every source before writing
+any generated copies.
+
+Regenerate project skills with `./bin/bp3 skills install --harness=all`.
+Pi installs also merge per-skill exclusions into `.pi/settings.json`, so
+Pi loads `.pi/skills` rather than warning about duplicate `.agents/skills`
+copies. Codex/Muse files and unrelated skills remain intact; existing Pi
+settings are preserved. The project exclusions are committed so a fresh
+clone gets the same discovery behavior.
+
+Optional verification against an installed Pi (Node.js required):
+
+```sh
+PI_PACKAGE_ROOT=/path/to/@earendil-works/pi-coding-agent node test/pi-discovery.mjs
+```
+
 The product scope is agreed; the implementation design remains proposed.
 Command names are not implemented commands. Worktrees are not a security
-boundary; bypass is detectable, not preventable, and the Quest-to-main
+boundary; bypass is detectable, not preventable, and the Quest-to-master
 approval entry path and runtime reliability still need concrete design and
 verification.

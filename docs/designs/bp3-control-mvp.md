@@ -14,7 +14,7 @@ Help the user **learn more and deliver more with less time and higher-signal
 human input/output**. The user directs intent; a lightweight Controller frames
 Quests and exps, delegates all coding execution to Workers, synthesizes
 evidence, and owns landing mechanics. Exps land into a Quest branch
-automatically under strict gates; the human steps in at Quest-to-main, where
+automatically under strict gates; the human steps in at Quest-to-master, where
 they understand the integrated result and authorize promotion. Push needs its
 own explicit scope.
 
@@ -76,10 +76,10 @@ document.
    and high-blast-radius lanes — the integration target is unchanged, the
    result kind satisfies its prerequisites, and budget remains. Every
    auto-land emits an IIUC/TL;DR land report (below) and moves the exp to
-   the `auto_landed` state. The human steps in at Quest-to-main to
+   the `auto_landed` state. The human steps in at Quest-to-master to
    understand the integrated result and authorize promotion. Push is a
-   separately scoped action; Quest-to-main approval does not imply it.
-   Human touchpoints are Quest framing, Quest-to-main, and escalations
+   separately scoped action; Quest-to-master approval does not imply it.
+   Human touchpoints are Quest framing, Quest-to-master, and escalations
    (success-picture change, budget exhaustion, integration conflict, stale
    downstream results).
 5. **Blockers:** every blocked Worker notifies the user through an IIUC-style
@@ -161,14 +161,14 @@ decision.
 - Inside an active Quest, a one-off attaches as a micro-exp.
 - With no active Quest, bp3 creates a hidden single-exp Quest. Its exp
   auto-lands to the integration branch; the human does a proportionate
-  Quest-to-main review of the final diff.
+  Quest-to-master review of the final diff.
 - Urgent breakage expedites the same path; it does not preempt or kill
   unrelated running Workers unless the user says so.
 - A read-only investigation is a scout execution returning a report; no
   patch or landing follows unless it becomes an exp.
 - Do not accumulate one-offs in a standing miscellaneous Quest. Batch only
   independent one-offs the user deliberately promotes together, so the
-  Quest-to-main review stays comprehensible.
+  Quest-to-master review stays comprehensible.
 
 ### The human interface
 
@@ -207,7 +207,7 @@ and escalations interrupt instead of waiting for the next digest. The report
 is stored on the integration record, which carries the exp's `auto_landed`
 state (see Data models).
 
-Quest-to-main is a comprehension gate, not a rubber stamp on a raw diff. The
+Quest-to-master is a comprehension gate, not a rubber stamp on a raw diff. The
 Controller presents a promotion packet: a runnable demo with observed output,
 a diff tour ordered by concept (what changed and why), check receipts bound to
 the exact integration commit, risks and limitations, the auto-land log,
@@ -453,10 +453,10 @@ Load-bearing invariants:
 - Submission is not review; review is not human authorization; authorization
   for one revision/action is not permission for another.
 - An auto-land report is not an approval request, and silence after a report
-  is not consent for Quest-to-main or push.
+  is not consent for Quest-to-master or push.
 - `auto_landed` is a distinct exp state: the selected result is integrated
   into the Quest branch and carries its land report. It is not human
-  acceptance, not Quest completion, and not promotion to main; reverting an
+  acceptance, not Quest completion, and not promotion to master; reverting an
   auto-land returns the exp to an explicit non-landed disposition without
   erasing the report.
 
@@ -470,7 +470,7 @@ Names describe responsibilities, not implemented command spellings.
 | Launch | Assign the ceremony lane; validate scope, prerequisites and capacity (3-10 child cap, reviewer reserve, review-backlog backpressure); warn on likely file-scope overlap; reserve execution ownership; freeze inputs; prepare worktree and resource namespace; start and handshake from the actual Worker environment. Reconcile partial launch instead of blindly retrying it. |
 | Report / ask / reply | Persist progress, blockers, candidates, and answers with stable identities. Workers cannot accept their own result or authorize land through reporting operations. |
 | Review | Dispatch independent inspection/check execution against exact outputs; retain receipts and return a bounded review packet to the Controller. |
-| Prepare / auto-land / promote | Compose and check the actual integration. Exp-to-Quest-branch land is automatic when the lane's authority gates pass; it records the land report on the integration record, moves the exp to `auto_landed`, and posts the report to the main session. Quest-to-main requires the human comprehension packet and explicit authorization, and conditionally updates only the authorized target. Journal partial progress for recovery. |
+| Prepare / auto-land / promote | Compose and check the actual integration. Exp-to-Quest-branch land is automatic when the lane's authority gates pass; it records the land report on the integration record, moves the exp to `auto_landed`, and posts the report to the main session. Quest-to-master requires the human comprehension packet and explicit authorization, and conditionally updates only the authorized target. Journal partial progress for recovery. |
 | Context / query / recap | Return the compact control snapshot and current coordination and evidence references, including unresolved obligations; full transcripts are fetched only when needed. |
 | Cancel / replace / complete | Record desired state, fence obsolete ownership, reconcile the process outcome, and explicitly dispose of remaining work before Quest completion. |
 
@@ -504,7 +504,7 @@ For bp3, proposed day/week and Quest recaps cover outcomes, learning, blockers,
 decisions, next actions, and available cost/attention observations, including
 ceremony cost per lane (intent-to-spawn latency, Controller framing and review
 turns versus Worker execution time) and every manual bypass. The control
-snapshot and the Quest-to-main promotion packet are projections of the same
+snapshot and the Quest-to-master promotion packet are projections of the same
 records, not second sources of truth. For Quest 2 (esc3), recaps
 cover recorded activity, plans, contexts/goals, and metrics. These are
 separate domains/stores, not a shared generic graph schema. Historical
@@ -519,7 +519,7 @@ and test restore in a fresh location.
 **Self-hosting:** because bp3 builds bp3, the running system is always the
 last promoted build. Workers edit only the next build in worktrees; candidate
 changes are tested against a scratch copy of the Board, never the live Board.
-Promotion is an explicit Quest-to-main act: candidate build, checks on a Board
+Promotion is an explicit Quest-to-master act: candidate build, checks on a Board
 copy, human acceptance, atomic switch with a retained rollback build. A bad
 exp must never be able to corrupt the coordinator that would repair it; if it
 does, the emergency direct-repair exception applies and is reconciled into
@@ -536,7 +536,7 @@ not fix that. Do not claim a sandbox or safe execution of hostile checks.
 Run independent checks in a separate verifier environment with the narrowest
 practical authority, not inside the Controller session merely because a Worker
 supplied a command. The later isolation exp must cover both Workers and check
-runners. The concrete human approval entry path for Quest-to-main remains a
+runners. The concrete human approval entry path for Quest-to-master remains a
 pre-promotion design gate; a model-supplied `actor=human` field is not proof
 of permission. Because worktrees are cooperative, bypass of the protocol by a
 same-user process cannot be prevented; it must be detectable — target-branch
@@ -552,10 +552,10 @@ Authority tiers:
   its IIUC/TL;DR report, sets the exp state to `auto_landed`, and posts the
   report to the main session. Auto-land changes who signs, not what is
   verified.
-- **Quest-to-main promotion:** human, via the comprehension packet, bound to
+- **Quest-to-master promotion:** human, via the comprehension packet, bound to
   the exact checked integration commit.
 - **Push or publishing:** separately scoped human authorization; neither
-  auto-land nor Quest-to-main approval implies it.
+  auto-land nor Quest-to-master approval implies it.
 
 Proposed land transaction (both tiers): record expected target **B**,
 construct integration commit **I**, check **I**, apply the tier's authority
@@ -585,7 +585,7 @@ movement requires re-preparation and, for promotion, renewed authorization.
 In: one host, one bp3 monorepo (OCaml codebase/CLI), SQLite, pi/Zellij, worktrees, bounded
 Worker briefs, ceremony lanes, one-off taxi lane, 3-10 child multiplexing with
 backpressure, durable reports/questions, deterministic waiting, independent
-review, gated auto-land to Quest branches, human Quest-to-main promotion,
+review, gated auto-land to Quest branches, human Quest-to-master promotion,
 recovery, self-hosting safeguards, and queryable evidence-backed recaps.
 Retain small-scale fan-out/fan-in without building a general scheduler.
 
@@ -597,7 +597,7 @@ Not required for the MVP:
   extraction trigger fires (see Repository shape).
 - Colima/Docker isolation, hostile-Worker security claims, or unrestricted
   external actions. Isolation remains a follow-up, not a dismissed risk.
-- Automatic reruns of stale descendants, automatic Quest-to-main promotion,
+- Automatic reruns of stale descendants, automatic Quest-to-master promotion,
   automatic push, forecast engines, archive mining, or model-routing
   optimization before end-to-end value exists.
 - Driving esc3 before Quest 1 completes. esc3 is Quest 2, a separate
@@ -766,11 +766,11 @@ is absent, not reported executions of a failing test suite.
 | Disposable Controller | Restart during work and during a pending question; replacement reconstructs current state and obligations without duplicate launches or repeated explanation from the user. |
 | Blocker briefing | A forced blocker reaches the user with IIUC, challenged next steps, and a recommendation; reply is traceable through handling. |
 | Lineage and composition | Fan-out/fan-in consumes exact inputs; selection changes, pins and invalid withdrawals do not silently validate incompatible or stale outputs. |
-| Review and authorized land | Independent checks bind to the actual integration; exp auto-land fires only when its lane's gates pass, records the IIUC/TL;DR land report (demos, tests, code pointers), and sets `auto_landed`; Quest-to-main refuses absent, mismatched, or stale human authorization and target movement. Crash recovery reconciles Git and Board; branch movement without a journal is detected and frozen, never silently adopted. |
+| Review and authorized land | Independent checks bind to the actual integration; exp auto-land fires only when its lane's gates pass, records the IIUC/TL;DR land report (demos, tests, code pointers), and sets `auto_landed`; Quest-to-master refuses absent, mismatched, or stale human authorization and target movement. Crash recovery reconciles Git and Board; branch movement without a journal is detected and frozen, never silently adopted. |
 | Limits and restore | Exhaust a configured limit; interrupt the runtime; restore Board plus referenced artifacts in a fresh location without lost or silently resumed obligations. |
 | Lanes and one-offs | A micro one-off goes from request to evidence-backed patch with no Quest conversation; a one-line high-blast-radius change is forced into the high lane; deterministic mechanical changes run without a model Worker. Per-lane ceremony cost is recorded. |
 | Multiplexing | Run 3, then 5, then 10 concurrent children including reviewers; review saturation stops new launches; a common blocker consolidates into one question; overlapping scopes warn before launch; resource namespaces keep parallel test runs apart; a snapshot after Controller restart reconstructs the full roster. |
-| Land report and promotion packet | Every auto-land produces exactly one stored report — TL;DR, IIUC, demos, tests, code pointers, revert handle — posts it to the main session, and sets `auto_landed`; silence is never treated as consent; a revert restores a non-landed disposition without erasing the report. The Quest-to-main packet explains the integrated diff by concept, binds receipts to the exact commit, and is invalidated by any later change; an oversized Quest is split before the gate. |
+| Land report and promotion packet | Every auto-land produces exactly one stored report — TL;DR, IIUC, demos, tests, code pointers, revert handle — posts it to the main session, and sets `auto_landed`; silence is never treated as consent; a revert restores a non-landed disposition without erasing the report. The Quest-to-master packet explains the integrated diff by concept, binds receipts to the exact commit, and is invalidated by any later change; an oversized Quest is split before the gate. |
 | Self-hosting | A Worker exp that would corrupt the Board, launcher, or land path is caught on a Board copy; the running build is unaffected; promotion switches atomically and rollback restores the prior build. |
 | Useful dogfood | Quest 1: bp3 lands and promotes a change to itself through exps 1-3 without manual scheduling. Quest 2: esc3 is built entirely through bp3 in one week behind the daily toy gate, with the scorecard, hardening list, and cross-repo checks all exercised. |
 
@@ -823,7 +823,7 @@ another product interview.
    control snapshot format. Test the actual pi interface from OCaml rather
    than treating adapter documentation as an end-to-end guarantee; the core
    language is settled as OCaml.
-3. **Review, land, and promotion — owner: designer; human owns Quest-to-main.**
+3. **Review, land, and promotion — owner: designer; human owns Quest-to-master.**
    Define the auto-land gates, land report, and `auto_landed` state; how
    deliberate human promotion is recorded, its exact action scope, the
    comprehension packet and Quest-size
@@ -853,7 +853,7 @@ before detailed SQL, a full command catalog, or any repo split.
   whatever does not buy recovery, evidence, or outcomes.
 - **Solution:** a CLI/worktree is not a security boundary, and a notification
   is not durable delivery. Carry forward tiered authority (gated auto-land to
-  Quest branches, human comprehension-gated Quest-to-main, separately scoped
+  Quest branches, human comprehension-gated Quest-to-master, separately scoped
   push), atomic events, idempotency, ownership, independent receipts, exact
   integration binding, and unreconciled-movement detection. The unresolved
   concrete mechanisms are gates in design slices 1–3, not implemented

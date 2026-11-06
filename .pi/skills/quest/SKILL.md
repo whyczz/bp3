@@ -59,7 +59,7 @@ ELI5
 <the outcome pursued, in the user's words where possible>
 
 ## Success picture
-<what the human will see, run, and judge at Quest-to-main; how completion
+<what the human will see, run, and judge at Quest-to-master; how completion
 is recorded, with limitations stated>
 
 ## Scope
@@ -67,7 +67,7 @@ In: <...>
 Out: <...>
 
 ## Human touchpoints
-<framing, escalations, Quest-to-main promotion; everything else is
+<framing, escalations, Quest-to-master promotion; everything else is
 automated or it is listed here>
 
 ## Exps

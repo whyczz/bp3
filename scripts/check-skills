@@ -1,0 +1,25 @@
+#!/bin/bash
+# Validate actual YAML before the installer propagates a malformed source.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+command -v jq >/dev/null || { echo 'jq is required (brew bundle)' >&2; exit 2; }
+command -v yq >/dev/null || { echo 'Mike Farah yq v4 is required (brew bundle)' >&2; exit 2; }
+[[ $(yq --version) == *github.com/mikefarah/yq/*'version v4.'* ]] || { echo 'Mike Farah yq v4 is required' >&2; exit 2; }
+[[ $# -gt 0 ]] || set -- "$root/skills"
+count=0
+for dir in "$@"; do
+  for source in "$dir"/*/SKILL.md; do
+    [[ -f $source ]] || { echo "no SKILL.md files in $dir" >&2; exit 1; }
+    id=$(basename "$(dirname "$source")")
+    [[ $id =~ ^[a-z][a-z0-9-]*$ ]] || { echo "invalid skill id: $id" >&2; exit 1; }
+    IFS= read -r first < "$source"
+    if [[ $first != --- ]] || ! awk '/^---$/ {n++} END {exit (n < 2)}' "$source"; then
+      echo "$source: missing frontmatter delimiters" >&2
+      exit 1
+    fi
+    yq --front-matter=extract -o=json '.' "$source" |
+      jq -se --arg id "$id" 'length == 1 and (.[0] | type == "object" and .name == $id and (.description | type == "string" and test("\\S")))' >/dev/null || { echo "$source: invalid YAML frontmatter/name/description" >&2; exit 1; }
+    count=$((count + 1))
+  done
+done
+printf 'skills check: ok (%s files)\n' "$count"

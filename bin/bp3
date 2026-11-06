@@ -34,7 +34,7 @@ skills_install() {
   while [ $# -gt 0 ]; do
     case "$1" in
       --harness=*) harness="${1#--harness=}" ;;
-      --harness) harness="$2"; shift ;;
+      --harness) [ $# -ge 2 ] || { echo '--harness needs a value' >&2; exit 2; }; harness="$2"; shift ;;
       *) echo "unknown arg: $1" >&2; exit 2 ;;
     esac
     shift
@@ -47,7 +47,31 @@ skills_install() {
     harnesses="$harness"
   fi
 
-  local skill_dir skill h
+  # Preflight every source and the selected harness before writing any render.
+  "$root/scripts/check-skills" "$src_dir"
+  local h
+  for h in $harnesses; do
+    harness_target "$h" >/dev/null || { echo "unknown harness: $h" >&2; exit 2; }
+  done
+
+  # Pi discovers .agents as well as .pi. Prefer our Pi copies per project,
+  # without deleting Codex/Muse skills or hiding unrelated .agents skills.
+  local settings_plan='' existing='{}' ids
+  case " $harnesses " in
+    *" pi "*)
+      if [ -e "$root/.pi/settings.json" ]; then
+        existing="$(jq -sce 'select(length == 1) | .[0] | select(type == "object")' "$root/.pi/settings.json")" || { echo 'invalid .pi/settings.json' >&2; exit 1; }
+      fi
+      ids="$(find "$src_dir" -mindepth 2 -maxdepth 2 -name SKILL.md | while IFS= read -r file; do basename "$(dirname "$file")"; done | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')"
+      settings_plan="$(jq -ce --argjson ids "$ids" '
+        if has("skills") and (.skills | type != "array" or any(.[]; type != "string")) then error("skills must be an array of strings") else . end |
+        (.skills // []) as $existing |
+        .skills = ($existing + [$ids[] | "!**/.agents/skills/" + . + "/SKILL.md" | select(. as $p | $existing | index($p) | not)])
+      ' <<< "$existing")" || { echo 'invalid .pi/settings.json skills list' >&2; exit 1; }
+      ;;
+  esac
+
+  local skill_dir skill
   for skill_dir in "$src_dir"/*/; do
     skill="$(basename "$skill_dir")"
     [ -f "$skill_dir/SKILL.md" ] || continue
@@ -55,6 +79,9 @@ skills_install() {
       install_one "$skill" "$h"
     done
   done
+  if [ -n "$settings_plan" ]; then
+    printf '%s\n' "$settings_plan" | jq . > "$root/.pi/settings.json"
+  fi
   # Note: codex and muse share .agents/skills; under --harness=all the muse
   # render (same dir) is written last. Invocation text differs only in the
   # trigger line; both harnesses accept the skill by name.

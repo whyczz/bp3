@@ -102,7 +102,8 @@ Each exp is tiny: one output, one check, minutes not hours.
 
 - Intent: commit and push everything above plus Quest 2's file.
 - Lane: micro
-- Output: commit(s) on `main` in `whyczz/bp3`.
+- Output: commit(s) on the default branch in `whyczz/bp3`
+  (`main` at completion; subsequently renamed to `master`).
 - Acceptance: `git status` clean after push. Observed: done — landed in
   `4467ab6` and pushed; follow-up gatekeepers landed in `b72b97b`.
 - Depends on: Exp 1-4

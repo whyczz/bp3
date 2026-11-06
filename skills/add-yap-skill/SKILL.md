@@ -1,6 +1,6 @@
 ---
 name: add-yap-skill
-description: Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests.
+description: "Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests."
 ---
 
 # Add Yap Skill

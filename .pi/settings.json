@@ -1,0 +1,7 @@
+{
+  "skills": [
+    "!**/.agents/skills/add-bp3-skill/SKILL.md",
+    "!**/.agents/skills/add-yap-skill/SKILL.md",
+    "!**/.agents/skills/quest/SKILL.md"
+  ]
+}
