@@ -1,8 +1,10 @@
-# bp3 skills install
+---
+status: complete
+home_repo: bp3
+date: 2026-11-05
+---
 
-Status: active
-Home repo: bp3
-Date: 2026-11-05
+# bp3 skills install
 
 TL;DR
 bp3 gets a lightweight project-skills installer — `bp3 skills install
@@ -101,8 +103,8 @@ Each exp is tiny: one output, one check, minutes not hours.
 - Intent: commit and push everything above plus Quest 2's file.
 - Lane: micro
 - Output: commit(s) on `main` in `whyczz/bp3`.
-- Acceptance: `git status` clean after push. Observed: unmet — awaiting
-  human commit call.
+- Acceptance: `git status` clean after push. Observed: done — landed in
+  `4467ab6` and pushed; follow-up gatekeepers landed in `b72b97b`.
 - Depends on: Exp 1-4
 
 ## Scorecard

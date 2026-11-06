@@ -41,11 +41,13 @@ Use `design` instead for a component design that is not a Quest.
 ## File shape
 
 ```markdown
-# <Quest name>
+---
+status: proposed | active | complete
+home_repo: <repo>
+date: <YYYY-MM-DD>
+---
 
-Status: proposed | active | complete
-Home repo: <repo>
-Date: <YYYY-MM-DD>
+# <Quest name>
 
 TL;DR
 <what will be true when this Quest completes, and the one decision it makes>
