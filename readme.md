@@ -15,7 +15,7 @@ Quest implementation stays on `quest/<name>` until explicitly promoted; pushing
 checkpoint is on `quest/bp3-mvp`, not promoted to `master`. Exp 2 review/auto-land
 and self-hosted promotion are not implemented.**
 
-Start with the [genesis runbook](docs/genesis.md) for build instructions,
+Start with the [Exp 1 record](docs/exp/2026-11-05-genesis.md) for build instructions,
 verified live Worker/recovery evidence, code map, limitations, and reproducible
 drills. The [active Quest](docs/quests/2026-11-05-bp3-mvp.md) tracks progress.
 
@@ -33,7 +33,7 @@ success-shaped stubs for review, land, promotion, or push.
 
 ## Design
 
-The [genesis contract](docs/designs/bp3-genesis-contract.md) resolves the current
+The [genesis implementation contract](docs/exp/2026-11-05-genesis.md#mini-design-and-implementation-contract) resolves the current
 Exp 1 implementation boundary. The broader product direction below is not a
 claim that every proposed capability is already built.
 
@@ -106,6 +106,15 @@ sent a second prompt. To reopen a live workspace, explicitly attach from Ghostty
 After a partial failure, inspect the private reservation and real session first;
 no automatic respawn, input injection or deletion is attempted. A successful
 `open` means the OS accepted a window request, not that a human saw it.
+
+## Exp records and writing
+
+Each exp has one detailed record at `docs/exp/<date>-<slug>.md`: mini-design,
+code tour, acceptance evidence, runbook and next steps. The parent Quest keeps
+the plan, dependencies and concise acceptance summary; broad architecture stays
+in `docs/designs/`. `/bp3-writer` writes the detailed record and can compose with
+`/anon-writer` for voice/OODA presentation without changing evidence or scope.
+The style skill must be available separately; bp3 does not vendor or install it.
 
 ## Project skill checks
 

@@ -1,11 +1,11 @@
 # bp3 MVP: understandable coordination, useful delivery
 
 Status: **MVP scope agreed; Exp 1 genesis acceptance passed.**
-The [genesis contract](bp3-genesis-contract.md) resolves the Exp 1 subset of the
-proposals below. See the [runbook and observed evidence](../genesis.md) and
+The [genesis exp record](../exp/2026-11-05-genesis.md) resolves the Exp 1 subset
+of the proposals below and holds its runbook and observed evidence. See the
 [active Quest](../quests/2026-11-05-bp3-mvp.md). Review/land/promotion and the
 broader runtime features remain proposed, not implemented guarantees. The
-[Exp 2 implementation packet](bp3-auto-land-contract.md) records the next
+[Exp 2 record](../exp/2026-11-05-auto-land.md) records the next
 integration design and the authorized genesis source-checkpoint handoff.
 
 This document is the current MVP scope. It supersedes the
@@ -331,6 +331,7 @@ bp3/
   skills/          project skill sources (quest + Board-coupled control skills)
   docs/            this MVP, the historical sketch, imported provenance
   docs/quests/     one file per Quest: <date>-<slug>.md
+  docs/exp/        one detailed record per exp: <date>-<slug>.md
 ```
 
 **Project skills install, explicit when working in bp3:** skill sources
@@ -351,6 +352,14 @@ touchpoints, exps with acceptance checks, scorecard, red chair. The file is
 the record humans read and approve; the Board is the runtime truth once
 implementation exists. Cross-repo Quests keep their file in their home repo
 (the esc3 Quest's file lives in esc3), never copied into bp3.
+
+**Exp record convention:** detailed mini-designs, code tours, acceptance evidence
+and runbooks live together at `docs/exp/<date>-<slug>.md`, one canonical record
+per exp, linked from its parent Quest. The Quest retains ordering, dependencies,
+intent and the acceptance summary; the exp file is not another plan or Board.
+`bp3-writer` owns this format and evidence discipline; an explicitly requested
+`anon-writer` may supply voice/OODA presentation. Cross-exp architecture remains
+in `docs/designs/`. Neither writer authorizes execution, landing or promotion.
 
 Core is what bp3 cannot run without: protocol, board, control, runtime.
 Spawn mechanics live in runtime for the MVP; harness-specific adapters sit
@@ -878,7 +887,7 @@ before detailed SQL, a full command catalog, or any repo split.
 
 This document alone authorizes no launch, merge, push, or external action.
 The user's implementation request activated the MVP Quest. The governing
-[genesis implementation packet](bp3-genesis-contract.md) resolves the Exp 1
+[genesis exp record](../exp/2026-11-05-genesis.md) resolves the Exp 1
 subset of design slices 1–2; the broader proposals here remain historical
 inputs/future work, not a competing implemented contract. Exp 2/3 still need
 their review/integration/promotion packets. Changes to agreed intent/scope and

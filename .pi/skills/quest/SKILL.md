@@ -27,8 +27,11 @@ Use `design` instead for a component design that is not a Quest.
    explicit assumption or an open question in the file.
 4. Draft the file at `docs/quests/<date>-<slug>.md` in the Quest's home
    repo, where `<date>` is today as `YYYY-MM-DD` and `<slug>` is a short
-   lowercase kebab-case summary of the goal. One Quest per file; exps live
-   inside it, never as separate files.
+   lowercase kebab-case summary of the goal. One Quest per file. Keep each
+   exp's intent, order, dependencies and acceptance summary here; detailed
+   mini-designs, code tours, evidence and runbooks live in linked canonical
+   `docs/exp/<date>-<slug>.md` records written with `bp3-writer`. Those records
+   elaborate the exp; they do not create a second plan or Board authority.
 5. Break the Quest into exps. Each exp gets an inspectable output and an
    acceptance check that fails today. A check that cannot fail is a hope,
    not an exp. Stage large exps as numbered substeps (1.1, 1.2, ...) when

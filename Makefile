@@ -14,7 +14,7 @@ core-check:
 	dune build @all
 	dune runtest
 	node --check tests/controller-recovery.mjs
-	node --test tests/bridge.test.mjs tests/workspace.test.mjs
+	node --test tests/bridge.test.mjs tests/workspace.test.mjs tests/docs.test.mjs
 
 format-check:
 	find core tests -type f \( -name '*.ml' -o -name '*.mli' \) -not -path '*/toy-template/*' -exec ocamlformat --check {} +

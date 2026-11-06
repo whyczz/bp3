@@ -15,7 +15,7 @@ let usage =
 Controller ops: quest-create, exp-create, brief, steer, cancel.
 Worker ops: block, answer-handled, report; credentials supplied by BP3_* env.
 No review, auto-land, promotion or push commands exist in genesis.
-See docs/designs/bp3-genesis-contract.md and docs/genesis.md.
+See docs/exp/2026-11-05-genesis.md for the contract and runbook.
 |}
 
 let output j = print_endline (Yojson.Safe.pretty_to_string j)
