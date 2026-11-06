@@ -52,7 +52,7 @@ let () =
                  "/bin/sh";
                  "/tmp/private launch";
                ]
-               (Workspace.tab_argv ~session:"bp3-test" ~execution_id:"worker"
+               (Workspace.tab_argv ~session:"bp3-test" ~run_id:"worker"
                   ~worktree:"/tmp/work tree" ~launch_file:"/tmp/private launch")
            );
          ])

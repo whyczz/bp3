@@ -87,7 +87,7 @@ let reserve f =
             ("session_name", str "test");
           ]))
 
-let auth f = Board.request_auth (Store.execution f.db "x")
+let auth f = Board.request_auth (Store.run f.db "x")
 let worker_request f op payload = envelope ~auth:(auth f) op payload
 let worker f op p = Board.apply f.db Board.Worker (worker_request f op p)
 
@@ -103,7 +103,7 @@ let ready f =
     (fun stage ->
       ignore
         (runtime f "launch-stage"
-           (obj [ ("execution_id", str "x"); ("stage", str stage) ])))
+           (obj [ ("run_id", str "x"); ("stage", str stage) ])))
     [ "worktree"; "spawning" ];
   ignore
     (signal f "ready"
@@ -135,7 +135,7 @@ let rejects thunk =
 let assert_field expected j key =
   assert_equal ~printer:encode expected (get j key)
 
-let exec f = Store.execution f.db "x"
+let run f = Store.run f.db "x"
 let test name body = name >:: fun _ -> fixture body
 
 let block f =
@@ -155,10 +155,85 @@ let reply f =
        (obj
           [
             ("id", str "reply");
-            ("execution_id", str "x");
+            ("run_id", str "x");
             ("question_id", str "question");
             ("text", str "use dune runtest");
           ]))
+
+(* The pre-rename schema, kept only to prove the v1-to-v2 migration. *)
+let v1_schema =
+  {|
+CREATE TABLE quests (
+ id TEXT PRIMARY KEY, intent TEXT NOT NULL, repo TEXT NOT NULL,
+ target TEXT NOT NULL, base TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'working');
+CREATE TABLE exps (
+ id TEXT PRIMARY KEY, quest_id TEXT NOT NULL REFERENCES quests(id), brief TEXT NOT NULL,
+ base TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'working', generation INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE executions (
+ id TEXT PRIMARY KEY, exp_id TEXT NOT NULL REFERENCES exps(id), generation INTEGER NOT NULL,
+ token TEXT NOT NULL, brief TEXT NOT NULL, base TEXT NOT NULL,
+ worktree TEXT NOT NULL, branch TEXT NOT NULL, session_name TEXT NOT NULL,
+ launch_stage TEXT NOT NULL DEFAULT 'reserved', desired TEXT NOT NULL DEFAULT 'run',
+ observed TEXT NOT NULL DEFAULT 'unknown', ready INTEGER NOT NULL DEFAULT 0,
+ idle INTEGER NOT NULL DEFAULT 0, takeover INTEGER NOT NULL DEFAULT 0,
+ permission INTEGER NOT NULL DEFAULT 0, endpoint TEXT, last_seen REAL,
+ last_meaningful REAL, created REAL NOT NULL, deadline REAL NOT NULL,
+ UNIQUE(exp_id, generation));
+CREATE UNIQUE INDEX one_live_author ON executions((1)) WHERE desired='run';
+CREATE TABLE results (
+ id TEXT PRIMARY KEY, execution_id TEXT NOT NULL UNIQUE REFERENCES executions(id),
+ commit_sha TEXT NOT NULL, evidence TEXT NOT NULL, brief TEXT NOT NULL);
+CREATE TABLE questions (
+ id TEXT PRIMARY KEY, execution_id TEXT NOT NULL REFERENCES executions(id),
+ iiuc TEXT NOT NULL, challenge TEXT NOT NULL, recommendation TEXT NOT NULL,
+ state TEXT NOT NULL DEFAULT 'open', answer TEXT);
+CREATE TABLE inbox (
+ id TEXT PRIMARY KEY, execution_id TEXT NOT NULL REFERENCES executions(id),
+ text TEXT NOT NULL, question_id TEXT REFERENCES questions(id),
+ stage TEXT NOT NULL DEFAULT 'queued', created REAL NOT NULL);
+CREATE TABLE receipts (id TEXT PRIMARY KEY, request TEXT NOT NULL, response TEXT NOT NULL);
+CREATE TABLE events (
+ seq INTEGER PRIMARY KEY AUTOINCREMENT, op_id TEXT NOT NULL UNIQUE,
+ kind TEXT NOT NULL, payload TEXT NOT NULL, at REAL NOT NULL);
+PRAGMA user_version=1;
+|}
+
+let test_migration _ =
+  let root = Filename.temp_file "bp3-migrate-" "" in
+  Sys.remove root;
+  Unix.mkdir root 0o700;
+  Fun.protect
+    ~finally:(fun () -> remove_tree root)
+    (fun () ->
+      let path = Filename.concat root "board.sqlite" in
+      let old = Sqlite3.db_open path in
+      Store.exec old v1_schema;
+      Store.exec old
+        "INSERT INTO quests \
+         VALUES('q','intent','/repo','refs/heads/quest/test','base','working')";
+      Store.exec old "INSERT INTO exps VALUES('e','q','{}','base','working',1)";
+      Store.exec old
+        "INSERT INTO executions \
+         VALUES('x','e',1,'tok','{}','base','/wt','bp3/x','s','ready','run','live',1,1,0,0,NULL,NULL,NULL,0,4102444800)";
+      Store.exec old "INSERT INTO results VALUES('r','x','sha','ev','{}')";
+      Store.exec old
+        "INSERT INTO questions VALUES('qq','x','i','c','rec','open',NULL)";
+      Store.exec old "INSERT INTO inbox VALUES('m','x','text',NULL,'queued',0)";
+      Store.close old;
+      rejects (fun () -> Store.with_db path (fun _ -> ()));
+      let backup = Store.migrate path in
+      assert_equal (path ^ ".v1-backup") backup;
+      assert_bool "v1 backup kept" (Sys.file_exists backup);
+      Store.with_db path (fun db ->
+          assert_equal 1 (count db "runs");
+          assert_equal 1 (count db "run_outputs");
+          assert_equal 1 (count db "questions");
+          let snapshot = Store.snapshot_json db in
+          assert_equal 1 (List.length (list (get snapshot "runs")));
+          assert_field (str "x")
+            (List.hd (list (get snapshot "run_outputs")))
+            "run_id");
+      rejects (fun () -> Store.migrate path))
 
 let tests =
   [
@@ -196,12 +271,12 @@ let tests =
         let request = report f in
         let first = Board.apply f.db Board.Worker request in
         assert_equal first (Board.apply f.db Board.Worker request);
-        assert_equal 1 (count f.db "results"));
-    test "semantic duplicate candidate has one result" (fun f ->
+        assert_equal 1 (count f.db "run_outputs"));
+    test "semantic duplicate report has one Run Outputs" (fun f ->
         started f;
         ignore (Board.apply f.db Board.Worker (report f));
         ignore (Board.apply f.db Board.Worker (report f));
-        assert_equal 1 (count f.db "results"));
+        assert_equal 1 (count f.db "run_outputs"));
     test "operation identity conflict refused" (fun f ->
         started f;
         let request = report f in
@@ -216,18 +291,18 @@ let tests =
           | _ -> assert false
         in
         rejects (fun () -> Board.apply f.db Board.Worker altered));
-    test "candidate immutability" (fun f ->
+    test "Run Outputs immutability" (fun f ->
         started f;
         ignore (Board.apply f.db Board.Worker (report f));
         rejects (fun () ->
             worker f "report"
               (obj
                  [ ("commit", str f.sha); ("evidence", str "different claim") ])));
-    test "dirty candidate refused" (fun f ->
+    test "dirty Run Outputs refused" (fun f ->
         started f;
         write_file (Filename.concat f.repo "untracked") "not in commit";
         rejects (fun () -> Board.apply f.db Board.Worker (report f)));
-    test "candidate SHA must be exact" (fun f ->
+    test "Run Outputs SHA must be exact" (fun f ->
         started f;
         rejects (fun () ->
             worker f "report"
@@ -239,9 +314,7 @@ let tests =
         let wrong =
           obj
             [
-              ("execution_id", str "x");
-              ("generation", int 1);
-              ("token", str "wrong");
+              ("run_id", str "x"); ("generation", int 1); ("token", str "wrong");
             ]
         in
         let altered =
@@ -254,28 +327,26 @@ let tests =
         started f;
         let request = report f in
         let response = Board.apply f.db Board.Worker request in
-        ignore (controller f "cancel" (obj [ ("execution_id", str "x") ]));
+        ignore (controller f "cancel" (obj [ ("run_id", str "x") ]));
         assert_equal response (Board.apply f.db Board.Worker request);
         rejects (fun () -> Board.apply f.db Board.Worker (report f)));
-    test "cross-execution report refused" (fun f ->
+    test "cross-run report refused" (fun f ->
         started f;
         rejects (fun () ->
             worker f "report"
               (obj
                  [
-                   ("execution_id", str "somebody-else");
+                   ("run_id", str "somebody-else");
                    ("commit", str f.sha);
                    ("evidence", str "test");
                  ])));
     test "Worker cannot manufacture Controller authority" (fun f ->
         started f;
-        rejects (fun () ->
-            worker f "cancel" (obj [ ("execution_id", str "x") ])));
+        rejects (fun () -> worker f "cancel" (obj [ ("run_id", str "x") ])));
     test "not ready cannot receive brief" (fun f ->
         seed f;
         reserve f;
-        rejects (fun () ->
-            controller f "brief" (obj [ ("execution_id", str "x") ])));
+        rejects (fun () -> controller f "brief" (obj [ ("run_id", str "x") ])));
     test "session change rejected" (fun f ->
         started f;
         let request =
@@ -286,7 +357,7 @@ let tests =
         rejects (fun () -> Board.apply f.db Board.Bridge request));
     test "takeover blocks autonomous delivery and report" (fun f ->
         started f;
-        ignore (controller f "brief" (obj [ ("execution_id", str "x") ]));
+        ignore (controller f "brief" (obj [ ("run_id", str "x") ]));
         ignore (signal f "took_over" []);
         assert_field `Null (signal f "heartbeat" []) "inbox";
         rejects (fun () -> Board.apply f.db Board.Worker (report f));
@@ -298,18 +369,18 @@ let tests =
         ignore (signal f "busy" []);
         rejects (fun () -> signal f "release" [ ("idle", `Bool false) ]);
         ignore (signal f "permission-start" []);
-        assert_field (int 1) (exec f) "permission";
-        assert_field (int 0) (exec f) "idle";
+        assert_field (int 1) (run f) "permission";
+        assert_field (int 0) (run f) "idle";
         ignore (signal f "permission-end" []);
-        assert_field (int 0) (exec f) "idle");
+        assert_field (int 0) (run f) "idle");
     test "settled must attest actual idle" (fun f ->
         started f;
         rejects (fun () -> signal f "settled" [ ("idle", `Bool false) ]);
         ignore (signal f "settled" [ ("idle", `Bool true) ]);
-        assert_field (int 1) (exec f) "idle");
+        assert_field (int 1) (run f) "idle");
     test "lost offer response replays but fresh poll never duplicates" (fun f ->
         started f;
-        ignore (controller f "brief" (obj [ ("execution_id", str "x") ]));
+        ignore (controller f "brief" (obj [ ("run_id", str "x") ]));
         let request = signal_request f "heartbeat" [] in
         let offered = Board.apply f.db Board.Bridge request in
         assert_bool "got inbox" (get offered "inbox" <> `Null);
@@ -319,21 +390,21 @@ let tests =
           (field (Store.one f.db "SELECT * FROM inbox" []) "stage"));
     test "cancelled bridge cannot replay an old delivery offer" (fun f ->
         started f;
-        ignore (controller f "brief" (obj [ ("execution_id", str "x") ]));
+        ignore (controller f "brief" (obj [ ("run_id", str "x") ]));
         let request = signal_request f "heartbeat" [] in
         ignore (Board.apply f.db Board.Bridge request);
-        ignore (controller f "cancel" (obj [ ("execution_id", str "x") ]));
+        ignore (controller f "cancel" (obj [ ("run_id", str "x") ]));
         rejects (fun () -> Board.apply f.db Board.Bridge request));
     test "expired bridge cannot replay an old delivery offer" (fun f ->
         started f;
-        ignore (controller f "brief" (obj [ ("execution_id", str "x") ]));
+        ignore (controller f "brief" (obj [ ("run_id", str "x") ]));
         let request = signal_request f "heartbeat" [] in
         ignore (Board.apply f.db Board.Bridge request);
-        Store.execute f.db "UPDATE executions SET deadline=0" [];
+        Store.execute f.db "UPDATE runs SET deadline=0" [];
         rejects (fun () -> Board.apply f.db Board.Bridge request));
     test "takeover or permission cannot replay an old delivery offer" (fun f ->
         started f;
-        ignore (controller f "brief" (obj [ ("execution_id", str "x") ]));
+        ignore (controller f "brief" (obj [ ("run_id", str "x") ]));
         let request = signal_request f "heartbeat" [] in
         ignore (Board.apply f.db Board.Bridge request);
         ignore (signal f "took_over" []);
@@ -359,36 +430,36 @@ let tests =
     test "cancellation preserves unresolved questions" (fun f ->
         started f;
         block f;
-        ignore (controller f "cancel" (obj [ ("execution_id", str "x") ]));
+        ignore (controller f "cancel" (obj [ ("run_id", str "x") ]));
         assert_equal "open"
           (field (Store.one f.db "SELECT * FROM questions" []) "state"));
     test "snapshot has no credentials and persists obligations" (fun f ->
         started f;
         block f;
         let snapshot = Store.snapshot_json f.db in
-        let e = List.hd (list (get snapshot "executions")) in
-        assert_field `Null e "token";
+        let r = List.hd (list (get snapshot "runs")) in
+        assert_field `Null r "token";
         Store.with_db f.path (fun reopened ->
             assert_equal 1
               (List.length
                  (list (get (Store.snapshot_json reopened) "questions")))));
     test "expired budget fences and never respawns" (fun f ->
         started f;
-        Store.execute f.db "UPDATE executions SET deadline=0" [];
+        Store.execute f.db "UPDATE runs SET deadline=0" [];
         ignore (runtime f "reconcile" (obj []));
-        assert_field (str "expired") (exec f) "desired";
+        assert_field (str "expired") (run f) "desired";
         rejects (fun () -> signal f "heartbeat" []);
-        assert_equal 1 (count f.db "executions"));
+        assert_equal 1 (count f.db "runs"));
     test "stale heartbeat does not erase question or spawn" (fun f ->
         started f;
         block f;
-        Store.execute f.db "UPDATE executions SET last_seen=0" [];
+        Store.execute f.db "UPDATE runs SET last_seen=0" [];
         ignore (runtime f "reconcile" (obj []));
-        assert_field (str "stale") (exec f) "observed";
+        assert_field (str "stale") (run f) "observed";
         assert_equal 1 (count f.db "questions");
-        assert_equal 1 (count f.db "executions");
+        assert_equal 1 (count f.db "runs");
         ignore (signal f "heartbeat" []);
-        assert_field (str "live") (exec f) "observed");
+        assert_field (str "live") (run f) "observed");
     test "Board copy is consistent and refuses overwrite" (fun f ->
         started f;
         block f;
@@ -401,7 +472,7 @@ let tests =
           assert_failure "snapshot overwrote destination"
         with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
     test "future schema fails closed" (fun f ->
-        Store.exec f.db "PRAGMA user_version=2";
+        Store.exec f.db "PRAGMA user_version=3";
         rejects (fun () -> Store.with_db f.path (fun _ -> ())));
     test "partial steering failure rolls back answer and event" (fun f ->
         started f;
@@ -412,7 +483,7 @@ let tests =
               (obj
                  [
                    ("id", str "bad-reply");
-                   ("execution_id", str "x");
+                   ("run_id", str "x");
                    ("question_id", str "question");
                    ("text", str "");
                  ]));
@@ -438,7 +509,7 @@ let tests =
                    ("branch", str "bp3/second");
                    ("session_name", str "test");
                  ]));
-        assert_equal 1 (count f.db "executions");
+        assert_equal 1 (count f.db "runs");
         assert_field (int 0)
           (Store.one f.db "SELECT * FROM exps WHERE id='second'" [])
           "generation");
@@ -458,7 +529,7 @@ let tests =
         let payload =
           obj
             [
-              ("execution_id", str "x");
+              ("run_id", str "x");
               ("exp_id", str "e");
               ("session_name", str "test");
               ("root", str f.root);
@@ -538,10 +609,10 @@ let tests =
                       ("command", str "signal");
                       ("request", signal_request f "heartbeat" []);
                     ]));
-            assert_field (str "live") (exec f) "observed";
-            Store.execute f.db "UPDATE executions SET last_seen=0" [];
-            await 100 (fun () -> get (exec f) "observed" = str "stale");
-            assert_equal 1 (count f.db "executions");
+            assert_field (str "live") (run f) "observed";
+            Store.execute f.db "UPDATE runs SET last_seen=0" [];
+            await 100 (fun () -> get (run f) "observed" = str "stale");
+            assert_equal 1 (count f.db "runs");
             assert_equal 1 (count f.db "questions");
             stop second));
     test "concurrent report retries commit one receipt" (fun f ->
@@ -560,11 +631,12 @@ let tests =
         List.iter
           (fun pid -> assert_equal (Unix.WEXITED 0) (Process.wait pid))
           children;
-        assert_equal 1 (count f.db "results");
+        assert_equal 1 (count f.db "run_outputs");
         assert_equal 1
           (List.length
              (Store.query f.db "SELECT * FROM receipts WHERE id=?"
                 [ get request "op_id" ])));
+    "schema v1 migrates to runs and run_outputs" >:: test_migration;
   ]
 
 let () =

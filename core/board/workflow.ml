@@ -4,9 +4,9 @@ open Authority
 
 (* Workflow mutations run only inside Board.apply's transaction. They describe
    outcomes/questions, not process liveness. No function here starts a process. *)
-let set_exp db execution state =
+let set_exp db run state =
   execute db "UPDATE exps SET state=? WHERE id=?"
-    [ str state; get execution "exp_id" ]
+    [ str state; get run "exp_id" ]
 
 let create_quest db payload =
   let id = Packet.id (field payload "id") in
@@ -31,84 +31,79 @@ let create_exp db payload =
     [ str id; get payload "quest_id"; brief; get quest "base" ];
   obj [ ("exp_id", str id) ]
 
-let queue db id execution_id text question =
+let queue db id run_id text question =
   execute db
-    "INSERT INTO inbox(id,execution_id,text,question_id,created) \
-     VALUES(?,?,?,?,?)"
-    [
-      str (Packet.id id); str execution_id; str text; question; `Float (now ());
-    ]
+    "INSERT INTO inbox(id,run_id,text,question_id,created) VALUES(?,?,?,?,?)"
+    [ str (Packet.id id); str run_id; str text; question; `Float (now ()) ]
 
-let brief_text execution =
-  "You are a bp3 Worker. Frozen brief:\n" ^ field execution "brief"
+let brief_text run =
+  "You are a bp3 Worker. Frozen brief:\n" ^ field run "brief"
   ^ {|
 Work only in this worktree. No landing, promotion or push.
 Report using "$BP3_BIN" --board "$BP3_BOARD" op FILE (v=1, unique op_id,
 op, payload). Credentials are added from your environment. Keep report JSON
-outside the worktree so it does not dirty the candidate. stdin (op -) also works.
+outside the worktree so it does not dirty the Run Outputs. stdin (op -) also works.
 For a missing check or decision: op=block,
 payload={id,iiuc,challenge,recommendation}; stop until a Board reply.
 On a reply: op=answer-handled, payload={inbox_id}; then continue.
 To submit: commit your work, op=report, payload={commit:FULL_SHA,evidence:TEXT}.
-Do not replace a missing check by guessing. A candidate is not acceptance.
+Do not replace a missing check by guessing. Run Outputs are not acceptance.
 Stop after reporting. Use stable operation IDs when retrying.
 |}
 
 let deliver_brief db payload =
-  let execution = Store.execution db (field payload "execution_id") in
-  live db execution;
-  autonomous execution;
-  expect (get execution "ready" = int 1) "bridge not ready";
-  let id = "brief-" ^ field execution "id" in
-  queue db id (field execution "id") (brief_text execution) `Null;
+  let run = Store.run db (field payload "run_id") in
+  live db run;
+  autonomous run;
+  expect (get run "ready" = int 1) "bridge not ready";
+  let id = "brief-" ^ field run "id" in
+  queue db id (field run "id") (brief_text run) `Null;
   obj [ ("queued", str id) ]
 
 let steer db payload =
-  let execution = Store.execution db (field payload "execution_id") in
-  live db execution;
+  let run = Store.run db (field payload "run_id") in
+  live db run;
   let question_id = get payload "question_id" in
   if question_id <> `Null then (
     let question =
-      one db "SELECT * FROM questions WHERE id=? AND execution_id=?"
-        [ question_id; get execution "id" ]
+      one db "SELECT * FROM questions WHERE id=? AND run_id=?"
+        [ question_id; get run "id" ]
     in
     expect (field question "state" = "open") "question already answered";
     execute db "UPDATE questions SET state='answered',answer=? WHERE id=?"
       [ get payload "text"; question_id ]);
   expect (String.trim (field payload "text") <> "") "empty steering";
-  queue db (field payload "id") (field execution "id") (field payload "text")
+  queue db (field payload "id") (field run "id") (field payload "text")
     question_id;
   obj [ ("queued", get payload "id") ]
 
-let block db execution payload =
-  autonomous execution;
+let block db run payload =
+  autonomous run;
   expect
-    (query db "SELECT id FROM results WHERE execution_id=?"
-       [ get execution "id" ]
-    = [])
-    "candidate already submitted";
+    (query db "SELECT id FROM run_outputs WHERE run_id=?" [ get run "id" ] = [])
+    "Run Outputs already submitted";
   List.iter
     (fun key ->
       expect (String.trim (field payload key) <> "") ("empty blocker " ^ key))
     [ "iiuc"; "challenge"; "recommendation" ];
   execute db
-    "INSERT INTO questions(id,execution_id,iiuc,challenge,recommendation) \
+    "INSERT INTO questions(id,run_id,iiuc,challenge,recommendation) \
      VALUES(?,?,?,?,?)"
     [
       str (Packet.id (field payload "id"));
-      get execution "id";
+      get run "id";
       get payload "iiuc";
       get payload "challenge";
       get payload "recommendation";
     ];
-  set_exp db execution "blocked";
+  set_exp db run "blocked";
   obj [ ("question_id", get payload "id") ]
 
-let answer_handled db execution payload =
-  autonomous execution;
+let answer_handled db run payload =
+  autonomous run;
   let message =
-    one db "SELECT * FROM inbox WHERE id=? AND execution_id=?"
-      [ get payload "inbox_id"; get execution "id" ]
+    one db "SELECT * FROM inbox WHERE id=? AND run_id=?"
+      [ get payload "inbox_id"; get run "id" ]
   in
   (* Observation is a bridge fact; handling is an explicit Worker assertion.
      A settled turn, successful send or Controller reply cannot substitute. *)
@@ -119,59 +114,55 @@ let answer_handled db execution payload =
     [ get message "question_id" ];
   execute db "UPDATE inbox SET stage='handled' WHERE id=?" [ get message "id" ];
   if
-    query db
-      "SELECT id FROM questions WHERE execution_id=? AND state!='handled'"
-      [ get execution "id" ]
+    query db "SELECT id FROM questions WHERE run_id=? AND state!='handled'"
+      [ get run "id" ]
     = []
-  then set_exp db execution "working";
+  then set_exp db run "working";
   obj [ ("handled", get message "id") ]
 
-let report db execution payload =
-  autonomous execution;
-  expect (get execution "ready" = int 1) "bridge not ready";
+let report db run payload =
+  autonomous run;
+  expect (get run "ready" = int 1) "bridge not ready";
   expect
-    (query db
-       "SELECT id FROM questions WHERE execution_id=? AND state!='handled'"
-       [ get execution "id" ]
+    (query db "SELECT id FROM questions WHERE run_id=? AND state!='handled'"
+       [ get run "id" ]
     = [])
     "unresolved question";
   expect (String.trim (field payload "evidence") <> "") "evidence required";
-  let result_id = "result-" ^ field execution "id" in
+  let run_output_id = "run-output-" ^ field run "id" in
   (match
-     query db "SELECT * FROM results WHERE execution_id=?"
-       [ get execution "id" ]
+     query db "SELECT * FROM run_outputs WHERE run_id=?" [ get run "id" ]
    with
   | [] ->
       execute db
-        "INSERT INTO results(id,execution_id,commit_sha,evidence,brief) \
+        "INSERT INTO run_outputs(id,run_id,commit_sha,evidence,brief) \
          VALUES(?,?,?,?,?)"
         [
-          str result_id;
-          get execution "id";
+          str run_output_id;
+          get run "id";
           get payload "commit";
           get payload "evidence";
-          get execution "brief";
+          get run "brief";
         ]
-  | [ result ] ->
+  | [ output ] ->
       (* Also deduplicate a semantic retry under a different operation ID.
-         Evidence/commit changes require a new execution, never overwrite. *)
+         Evidence/commit changes require a new run, never overwrite. *)
       expect
-        (get result "commit_sha" = get payload "commit"
-        && get result "evidence" = get payload "evidence")
-        "execution already has a different candidate"
+        (get output "commit_sha" = get payload "commit"
+        && get output "evidence" = get payload "evidence")
+        "run already has different Run Outputs"
   | _ -> assert false);
-  set_exp db execution "ready";
-  obj [ ("result_id", str result_id) ]
+  set_exp db run "ready";
+  obj [ ("run_output_id", str run_output_id) ]
 
 let cancel db payload =
-  let execution = Store.execution db (field payload "execution_id") in
-  execute db "UPDATE executions SET desired='cancel' WHERE id=?"
-    [ get execution "id" ];
+  let run = Store.run db (field payload "run_id") in
+  execute db "UPDATE runs SET desired='cancel' WHERE id=?" [ get run "id" ];
   execute db
     "UPDATE exps SET generation=generation+1,state='cancelled' WHERE id=?"
-    [ get execution "exp_id" ];
+    [ get run "exp_id" ];
   obj
     [
-      ("cancelled", get execution "id");
+      ("cancelled", get run "id");
       ("process", str "not killed; close the owned pane explicitly");
     ]

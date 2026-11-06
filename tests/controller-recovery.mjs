@@ -40,11 +40,11 @@ async function controller(phase, killAfterRead) {
 Your only source of truth is this command: ${quoted(binary)} --board ${quoted(board)} context
 Run it with bash. Do not read code, other files, sessions, or transcripts. Do not mutate
 anything, launch, answer a question, or call other commands. After reading the Board,
-return ONLY a JSON object, no markdown, with: quest_id, exp_id, execution_id,
-idle (integer 0 or 1, copied exactly from the execution record),
+return ONLY a JSON object, no markdown, with: quest_id, exp_id, run_id,
+idle (integer 0 or 1, copied exactly from the run record),
 launch_required (boolean), open_question_ids (array), obligation (brief summary),
 next_action (brief recommendation). Infer the current obligation from the records;
-settled-idle is not completion, and an existing execution must not be duplicated.`;
+settled-idle is not completion, and an existing run must not be duplicated.`;
   const output = createWriteStream(join(logs, "events.jsonl"));
   const errors = createWriteStream(join(logs, "stderr.log"));
   const child = spawn("pi", [
@@ -68,7 +68,7 @@ settled-idle is not completion, and an existing execution must not be duplicated
         // read lets the test prove exactly which obligation the dead session saw.
         const text = event.result.content.filter((p) => p.type === "text").map((p) => p.text).join("\n");
         snapshot = JSON.parse(text);
-        assert.equal(snapshot.executions.length, 1);
+        assert.equal(snapshot.runs.length, 1);
         if (killAfterRead && !killed) {
           killed = true;
           process.kill(-child.pid, "SIGKILL");
@@ -100,8 +100,8 @@ settled-idle is not completion, and an existing execution must not be duplicated
   const briefing = JSON.parse(finalText);
   assert.equal(briefing.quest_id, snapshot.quests[0].id);
   assert.equal(briefing.exp_id, snapshot.exps[0].id);
-  assert.equal(briefing.execution_id, snapshot.executions[0].id);
-  assert.equal(briefing.idle, snapshot.executions[0].idle);
+  assert.equal(briefing.run_id, snapshot.runs[0].id);
+  assert.equal(briefing.idle, snapshot.runs[0].idle);
   assert.equal(briefing.launch_required, false);
   assert.deepEqual(briefing.open_question_ids.sort(), snapshot.questions.filter((q) => q.state === "open").map((q) => q.id).sort());
   assert.ok(briefing.obligation && briefing.next_action);
@@ -112,37 +112,37 @@ settled-idle is not completion, and an existing execution must not be duplicated
 
 execFileSync("tests/start-toy", [root, session, model, "recovery"], { stdio: "inherit" });
 try {
-  await until("Worker ready", () => context().executions[0]?.ready === 1);
-  op("recovery-deliver", "brief", { execution_id: "hello-worker" });
-  await until("Worker in active tool", () => existsSync(join(root, "gate-entered")) && context().executions[0].idle === 0);
+  await until("Worker ready", () => context().runs[0]?.ready === 1);
+  op("recovery-deliver", "brief", { run_id: "hello-worker" });
+  await until("Worker in active tool", () => existsSync(join(root, "gate-entered")) && context().runs[0].idle === 0);
   const active = await controller("active-killed", true);
-  assert.equal(active.executions[0].idle, 0);
+  assert.equal(active.runs[0].idle, 0);
   const activeRecovered = await controller("active-recovered", false);
-  assert.equal(activeRecovered.executions[0].idle, 0);
+  assert.equal(activeRecovered.runs[0].idle, 0);
   assert.deepEqual(activeRecovered.questions, []);
   // Release a deterministic test barrier, not a human answer or synthetic pane input.
   await writeFile(join(root, "gate-release"), "release test barrier\n");
   await until("durable pending question and settled Worker", () => {
     const state = context();
-    return state.questions.some((q) => q.state === "open") && state.executions[0].idle === 1;
+    return state.questions.some((q) => q.state === "open") && state.runs[0].idle === 1;
   });
   const blocked = await controller("blocked-killed", true);
   const blockedRecovered = await controller("blocked-recovered", false);
   assert.deepEqual(blockedRecovered.questions, blocked.questions);
-  assert.equal(blockedRecovered.results.length, 0);
-  const pane = JSON.parse(blockedRecovered.executions[0].endpoint).pane_id;
+  assert.equal(blockedRecovered.run_outputs.length, 0);
+  const pane = JSON.parse(blockedRecovered.runs[0].endpoint).pane_id;
   execFileSync("zellij", ["--session", session, "action", "close-pane", "--pane-id", `terminal_${pane}`]);
-  await until("dead Worker becomes stale without respawn", () => context().executions[0].observed === "stale", 20);
+  await until("dead Worker becomes stale without respawn", () => context().runs[0].observed === "stale", 20);
   const final = context();
-  assert.equal(final.executions.length, 1);
-  assert.equal(final.results.length, 0);
+  assert.equal(final.runs.length, 1);
+  assert.equal(final.run_outputs.length, 0);
   assert.deepEqual(final.questions, blocked.questions);
   await writeFile(join(root, "recovery-receipt.json"), JSON.stringify(final, null, 2));
   console.log("Controller death during work and pending question; fresh-session recovery; pane death: PASS");
 } finally {
   // Preserve evidence, but abandon this deliberately unanswered test exp. Use
   // only the runtime PID owned by this fixture, never a stored Worker PID.
-  op("recovery-cleanup", "cancel", { execution_id: "hello-worker" });
+  op("recovery-cleanup", "cancel", { run_id: "hello-worker" });
   execFileSync("zellij", ["kill-session", session]);
   const pid = Number((await readFile(join(root, "runtime.pid"), "utf8")).trim());
   assert.equal(call("ping").pid, pid);

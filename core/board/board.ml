@@ -6,7 +6,7 @@ type caller = Authority.caller = Controller | Worker | Bridge | Runtime
 
 let request_auth = Authority.request_auth
 
-(* External reads happen before the transaction. They establish candidate
+(* External reads happen before the transaction. They establish Run Outputs
    identity, NOT an independent verification receipt or permission to land. *)
 let preflight db operation payload =
   match operation with
@@ -27,30 +27,29 @@ let preflight db operation payload =
           obj (("repo", str repo) :: List.remove_assoc "repo" fields)
       | _ -> fail "expected payload object")
   | "report" ->
-      let execution = Store.execution db (field payload "execution_id") in
-      let worktree = field execution "worktree"
-      and sha = field payload "commit" in
+      let run = Store.run db (field payload "run_id") in
+      let worktree = field run "worktree" and sha = field payload "commit" in
       expect
         (String.length sha = 40 || String.length sha = 64)
-        "candidate must be full commit SHA";
-      expect (Process.commit worktree sha = sha) "candidate commit not found";
+        "Run Outputs commit must be full commit SHA";
+      expect (Process.commit worktree sha = sha) "Run Outputs commit not found";
       expect
         (Process.commit worktree "HEAD" = sha)
-        "candidate is not workspace HEAD";
+        "Run Outputs commit is not workspace HEAD";
       expect
         (Process.git worktree [ "status"; "--porcelain" ] = "")
-        "candidate workspace is dirty";
+        "Run Outputs workspace is dirty";
       ignore
         (Process.git worktree
-           [ "merge-base"; "--is-ancestor"; field execution "base"; sha ]);
+           [ "merge-base"; "--is-ancestor"; field run "base"; sha ]);
       payload
   | _ -> payload
 
 let dispatch db caller operation payload auth =
   let owned () =
-    let execution = execution_auth db auth in
-    live db execution;
-    execution
+    let run = run_auth db auth in
+    live db run;
+    run
   in
   (* Caller permission is checked before this dispatch. Each handler is small
      enough to review its transition and SQL together. *)
@@ -63,10 +62,10 @@ let dispatch db caller operation payload auth =
   | Worker, "block" -> Workflow.block db (owned ()) payload
   | Worker, "answer-handled" -> Workflow.answer_handled db (owned ()) payload
   | Worker, "report" -> Workflow.report db (owned ()) payload
-  | Bridge, "signal" -> Execution_ops.signal db (owned ()) payload
-  | Runtime, "reserve" -> Execution_ops.reserve db payload
-  | Runtime, "launch-stage" -> Execution_ops.launch_stage db payload
-  | Runtime, "reconcile" -> Execution_ops.reconcile db
+  | Bridge, "signal" -> Run_ops.signal db (owned ()) payload
+  | Runtime, "reserve" -> Run_ops.reserve db payload
+  | Runtime, "launch-stage" -> Run_ops.launch_stage db payload
+  | Runtime, "reconcile" -> Run_ops.reconcile db
   | _ -> fail "operation not permitted for caller"
 
 let cached db operation_id encoded =
@@ -81,21 +80,21 @@ let cached db operation_id encoded =
 
 let replay db caller auth payload response =
   (* A report receipt acknowledges past work; a bridge offer can START work.
-     Replaying that offer must not resurrect withdrawn execution authority.
+     Replaying that offer must not resurrect withdrawn run authority.
      Fail closed if an in-flight offer became ambiguous during takeover. *)
   (match caller with
   | Bridge ->
-      let execution = execution_auth db auth in
-      live db execution;
-      let endpoint = get execution "endpoint" in
+      let run = run_auth db auth in
+      live db run;
+      let endpoint = get run "endpoint" in
       if endpoint <> `Null then
         expect
           (field (decode (string endpoint)) "session_id"
           = field payload "session_id")
-          "pi session changed; execution fenced";
+          "pi session changed; run fenced";
       if get response "inbox" <> `Null then (
-        autonomous execution;
-        expect (get execution "ready" = int 1) "ready required")
+        autonomous run;
+        expect (get run "ready" = int 1) "ready required")
   | _ -> ());
   response
 
@@ -115,11 +114,10 @@ let apply db caller request =
      not mint another. Bridge replay additionally revalidates live authority. *)
   (match caller with
   | Worker | Bridge ->
-      let execution = execution_auth db auth in
+      let run = run_auth db auth in
       expect
-        (get payload "execution_id" = `Null
-        || get payload "execution_id" = get execution "id")
-        "cross-execution mutation"
+        (get payload "run_id" = `Null || get payload "run_id" = get run "id")
+        "cross-run mutation"
   | _ -> ());
   let encoded = encode request in
   match cached db operation_id encoded with
@@ -129,8 +127,8 @@ let apply db caller request =
         match (caller, payload) with
         | Worker, `Assoc fields ->
             obj
-              (("execution_id", get auth "execution_id")
-              :: List.remove_assoc "execution_id" fields)
+              (("run_id", get auth "run_id")
+              :: List.remove_assoc "run_id" fields)
         | _ -> payload
       in
       let prepared = preflight db operation attributed in
@@ -146,9 +144,5 @@ let apply db caller request =
                 "INSERT INTO receipts(id,request,response) VALUES(?,?,?)"
                 [ str operation_id; str encoded; response ];
               event db operation_id operation
-                (obj
-                   [
-                     ("payload", payload);
-                     ("execution_id", get auth "execution_id");
-                   ]);
+                (obj [ ("payload", payload); ("run_id", get auth "run_id") ]);
               response)

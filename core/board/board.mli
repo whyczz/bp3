@@ -9,5 +9,5 @@ val apply : Store.t -> caller -> Packet.json -> Packet.json
     authority. *)
 
 val request_auth : Packet.json -> Packet.json
-(** Extract the local execution capability for runtime launch/test clients.
-    Never include its result in a public context projection. *)
+(** Extract the local run capability for runtime launch/test clients. Never
+    include its result in a public context projection. *)

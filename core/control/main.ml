@@ -2,19 +2,21 @@ open Packet
 
 let usage =
   {|bp3 --board PATH COMMAND
-  init                         Create schema v1 Board (refuses overwrite)
+  init                         Create schema v2 Board (refuses overwrite)
+  migrate                      Migrate a schema v1 Board to v2 (renames only;
+                               stop the runtime first; keeps a .v1-backup)
   context                      JSON recovery snapshot, no model call
   op FILE|-                    Apply v1 JSON mutation (stable op_id required)
   runtime --binary PATH --bridge PATH
                                Own signal socket and reconcile until stopped
-  launch FILE                  JSON: execution_id, exp_id, root, model?, session_name?
+  launch FILE                  JSON: run_id, exp_id, root, model?, session_name?
                                BP3_SESSION supplies/binds session_name when set
   ping                         Probe runtime ownership
   snapshot PATH                Consistent SQLite copy (not a Git/session backup)
 
 Controller ops: quest-create, exp-create, brief, steer, cancel.
 Worker ops: block, answer-handled, report; credentials supplied by BP3_* env.
-No review, auto-land, promotion or push commands exist in genesis.
+No review, auto-land, promotion or push commands exist yet.
 See docs/exp/2026-11-05-genesis.md for the contract and runbook.
 |}
 
@@ -33,13 +35,13 @@ let read_json path =
     decode (Buffer.contents buffer)
 
 let env_auth () =
-  match Sys.getenv_opt "BP3_EXECUTION" with
+  match Sys.getenv_opt "BP3_RUN" with
   | None -> None
-  | Some execution_id ->
+  | Some run_id ->
       Some
         (obj
            [
-             ("execution_id", str execution_id);
+             ("run_id", str run_id);
              ("generation", int (int_of_string (Sys.getenv "BP3_GENERATION")));
              ("token", str (Sys.getenv "BP3_TOKEN"));
            ])
@@ -47,7 +49,7 @@ let env_auth () =
 let run board args =
   let auth = env_auth () in
   (* Cooperative authority: accidental Controller calls from Worker shells fail.
-    A same-user malicious process can bypass env/SQLite; this is not isolation. *)
+     A same-user malicious process can bypass env/SQLite; this is not isolation. *)
   if
     auth <> None
     &&
@@ -58,7 +60,16 @@ let run board args =
   match args with
   | [ "init" ] ->
       Store.init board;
-      output (obj [ ("board", str (Unix.realpath board)); ("schema", int 1) ])
+      output (obj [ ("board", str (Unix.realpath board)); ("schema", int 2) ])
+  | [ "migrate" ] ->
+      let backup = Store.migrate board in
+      output
+        (obj
+           [
+             ("board", str (Unix.realpath board));
+             ("schema", int 2);
+             ("backup", str backup);
+           ])
   | [ "context" ] ->
       Store.with_db board (fun db -> output (Store.snapshot_json db))
   | [ "op"; path ] ->

@@ -70,7 +70,7 @@ for _ in {1..100}; do
   sleep 0.1
 done
 [[ $ready == true ]] || { echo "runtime failed; inspect $dir/runtime.log" >&2; exit 1; }
-jq -n --arg session "$session" --arg root "$dir/worktrees" --arg model "$model" '{execution_id:"hello-worker",exp_id:"hello",session_name:$session,root:$root} + (if $model == "" then {} else {model:$model} end)' > "$dir/launch.json"
+jq -n --arg session "$session" --arg root "$dir/worktrees" --arg model "$model" '{run_id:"hello-worker",exp_id:"hello",session_name:$session,root:$root} + (if $model == "" then {} else {model:$model} end)' > "$dir/launch.json"
 "$bp3" --board "$board" launch "$dir/launch.json"
 printf '\nWorker starting; brief is HELD.\nInspect: %q --board %q context\nWatch: zellij attach %q\n' "$bp3" "$board" "$session"
-printf 'Queue brief: printf '\''%%s\\n'\'' '\''{"v":1,"op_id":"deliver-hello","op":"brief","payload":{"execution_id":"hello-worker"}}'\'' | %q --board %q op -\n' "$bp3" "$board"
+printf 'Queue brief: printf '\''%%s\\n'\'' '\''{"v":1,"op_id":"deliver-hello","op":"brief","payload":{"run_id":"hello-worker"}}'\'' | %q --board %q op -\n' "$bp3" "$board"

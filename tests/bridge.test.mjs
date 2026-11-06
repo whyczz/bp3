@@ -19,7 +19,7 @@ async function fixture(t, respond = () => ({ ok: { inbox: null } })) {
   const directory = await mkdtemp("/tmp/bp3-bridge-test-");
   const socket = `${directory}/bridge.sock`;
   Object.assign(process.env, {
-    BP3_SOCKET: socket, BP3_EXECUTION: "test-worker", BP3_GENERATION: "1", BP3_TOKEN: "test-only",
+    BP3_SOCKET: socket, BP3_RUN: "test-worker", BP3_GENERATION: "1", BP3_TOKEN: "test-only",
   });
   const requests = [];
   const server = net.createServer((client) => {
@@ -109,8 +109,8 @@ test("Board message uses followUp, input ACK, interactive takeover and explicit 
 });
 
 test("a protocol fence stops automation and aborts work", async (t) => {
-  const f = await fixture(t, () => ({ error: "execution budget exhausted" }));
-  await assert.rejects(f.emit("session_start"), /execution budget exhausted/);
+  const f = await fixture(t, () => ({ error: "run budget exhausted" }));
+  await assert.rejects(f.emit("session_start"), /run budget exhausted/);
   assert.equal(f.aborted(), true);
   assert.equal(f.messages.length, 0);
   await assert.rejects(f.commands.get("bp3-release").handler("", f.context), /bridge stopped/);

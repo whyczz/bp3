@@ -7,11 +7,11 @@ import { randomUUID } from "node:crypto";
 export default function bridge(pi: ExtensionAPI) {
   const socketPath = process.env.BP3_SOCKET;
   const auth = {
-    execution_id: process.env.BP3_EXECUTION,
+    run_id: process.env.BP3_RUN,
     generation: Number(process.env.BP3_GENERATION),
     token: process.env.BP3_TOKEN,
   };
-  if (!socketPath || !auth.execution_id || !auth.token) throw new Error("bp3 bridge environment missing");
+  if (!socketPath || !auth.run_id || !auth.token) throw new Error("bp3 bridge environment missing");
   let ctx: ExtensionContext;
   let stopped = true;
   let takeover = false;
@@ -123,8 +123,8 @@ export default function bridge(pi: ExtensionAPI) {
   });
   pi.on("ui_prompt_start", () => { permission = true; void signal("permission-start").catch(() => {}); });
   pi.on("ui_prompt_end", () => { permission = false; void signal("permission-end").catch(() => {}); });
-  // Session navigation would discard the frozen execution's context. A fresh
-  // execution must be explicit; this is not a resumable arbitrary pi session.
+  // Session navigation would discard the frozen run's context. A fresh
+  // run must be explicit; this is not a resumable arbitrary pi session.
   pi.on("session_before_switch", async () => ({ cancel: true }));
   pi.on("session_before_fork", async () => ({ cancel: true }));
   pi.on("session_before_tree", async () => ({ cancel: true }));

@@ -33,7 +33,7 @@ let tab_layout =
 }
 |}
 
-let tab_argv ~session ~execution_id ~worktree ~launch_file =
+let tab_argv ~session ~run_id ~worktree ~launch_file =
   [
     "zellij";
     "--session";
@@ -41,7 +41,7 @@ let tab_argv ~session ~execution_id ~worktree ~launch_file =
     "action";
     "new-tab";
     "--name";
-    "bp3:" ^ execution_id;
+    "bp3:" ^ run_id;
     "--cwd";
     worktree;
     "--no-focus";

@@ -33,7 +33,7 @@ if (name === 'pi') console.log(JSON.stringify({ args, session: process.env.BP3_S
   fs.writeFileSync(path.join(root, 'mock-bin/mock.mjs'), mock, { mode: 0o700 });
   for (const name of ['open', 'zellij', 'pi']) fs.symlinkSync('mock.mjs', path.join(root, 'mock-bin', name));
   const env = { ...process.env, PATH: `${path.join(root, 'mock-bin')}:${process.env.PATH}`, MOCK_LOG: path.join(root, 'calls') };
-  delete env.BP3_EXECUTION;
+  delete env.BP3_RUN;
   const run = (args = [quest, 'hello'], extra = {}) => spawnSync('/bin/bash', [path.join(root, 'bin/bp3-zellij-init'), ...args], { cwd: root, env: { ...env, ...extra }, encoding: 'utf8' });
   const calls = () => fs.existsSync(env.MOCK_LOG) ? fs.readFileSync(env.MOCK_LOG, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse) : [];
   return { root, quest, env, run, calls };
@@ -115,7 +115,7 @@ test('foreign Quest, empty prompt and Worker invocation are refused', desktop, t
   assert.equal(f.run([f.quest, ' ']).status, 1);
   fs.writeFileSync(path.join(f.root, 'foreign.md'), '# foreign');
   assert.equal(f.run(['foreign.md', 'hello']).status, 1);
-  assert.equal(f.run(undefined, { BP3_EXECUTION: 'worker' }).status, 1);
+  assert.equal(f.run(undefined, { BP3_RUN: 'worker' }).status, 1);
   assert.deepEqual(f.calls(), []);
 });
 test('symlinked workspace storage refuses writes', desktop, t => {

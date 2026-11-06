@@ -51,7 +51,7 @@ function directory(name) {
 function main(args) {
   if (args.length === 1 && ['--help', '-h'].includes(args[0])) { console.log(usage); return; }
   if (args.length !== 2 || args.some(value => !value.trim())) fail(usage);
-  if (process.env.BP3_EXECUTION !== undefined) fail('workspace initialization is unavailable to Workers');
+  if (process.env.BP3_RUN !== undefined) fail('workspace initialization is unavailable to Workers');
   if (process.platform !== 'darwin') fail('Ghostty workspace initialization currently supports macOS only');
   const quest = questFile(args[0]);
   const zellij = executable('zellij');
