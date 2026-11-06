@@ -6,7 +6,12 @@ of the proposals below and holds its runbook and observed evidence. See the
 [active Quest](../quests/2026-11-05-bp3-mvp.md). Review/land/promotion and the
 broader runtime features remain proposed, not implemented guarantees. The
 [Exp 2 record](../exp/2026-11-05-auto-land.md) records the next
-integration design and the authorized genesis source-checkpoint handoff.
+integration design and source-checkpoint handoff. For Exp 2, its user-approved
+Run / Run Outputs terminology and Git-authoritative landing/recovery supersede
+the older terminology, `auto_landed` state and mandatory integration-journal
+proposals below. In particular, exact approved outputs already at the target
+may qualify as observed integration. Separate human authorization for master
+promotion and push is unchanged.
 
 This document is the current MVP scope. It supersedes the
 [original architecture sketch](bp3-control.md) where they differ. The sketch
@@ -572,7 +577,9 @@ Authority tiers:
 - **Push or publishing:** separately scoped human authorization; neither
   auto-land nor Quest-to-master approval implies it.
 
-Proposed land transaction (both tiers): record expected target **B**,
+Earlier proposed land transaction (superseded for Exp 2 by its
+[Git-authoritative recovery contract](../exp/2026-11-05-auto-land.md#source-of-truth-and-landing-recovery)):
+record expected target **B**,
 construct integration commit **I**, check **I**, apply the tier's authority
 (auto-gates or human authorization for the exact action/target and **I**),
 then conditionally update the target only if it still equals **B**. Persist
