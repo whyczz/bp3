@@ -1,0 +1,6 @@
+quest_type: direct
+stages: [author, land]
+review:
+  required: false
+  max_cycles: 0
+checks: required

@@ -58,16 +58,14 @@ let write_file path text =
   output_string oc text;
   close_out oc
 
-let append_file path text =
-  let oc = open_out_gen [ Open_append; Open_creat ] 0o644 path in
-  output_string oc text;
-  close_out oc
 
 (* Minimal YAML reader for the plan/state subset bp3 itself writes:
    flat scalars, one nested review: map, inline string lists.
    Unknown keys and shapes fail closed. *)
 let parse_plan path =
   let quest_type = ref None and max_cycles = ref 1 in
+  let review_required = ref true in
+  let depends_on = ref [] in
   let in_review = ref false in
   List.iter
     (fun raw ->
@@ -84,18 +82,27 @@ let parse_plan path =
           | None -> fail "bad plan line: %s" raw
         in
         if !in_review && (key = "required" || key = "max_cycles") then (
-          if key = "max_cycles" then
+          if key = "required" then
+            review_required := value = "true"
+          else if key = "max_cycles" then
             max_cycles :=
               (try int_of_string value with _ -> fail "max_cycles not an int"))
         else (
           in_review := false;
           match key with
           | "quest_type" -> quest_type := Some value
+          | "depends_on" ->
+              depends_on :=
+                value
+                |> String.map (fun c -> if c = '[' || c = ']' then ' ' else c)
+                |> String.split_on_char ','
+                |> List.map String.trim
+                |> List.filter (fun s -> s <> "")
           | "stages" | "checks" -> ()
           | k -> fail "unknown plan key: %s" k))
     (read_lines path);
   match !quest_type with
-  | Some qt -> (qt, !max_cycles)
+  | Some qt -> (qt, !max_cycles, !review_required, !depends_on)
   | None -> fail "plan missing quest_type"
 
 type state = { stage : string; commit : string option; cycle : int; seq : int }
@@ -110,6 +117,25 @@ let assoc j k =
 
 let str_field j k =
   match assoc j k with Some (`String s) -> s | _ -> "controller"
+
+let ledger_stage qdir =
+  match
+    ledger qdir
+    |> List.filter (fun e -> assoc e "result" <> Some (`String "refused"))
+    |> List.rev
+  with
+  | [] -> "author"
+  | last :: _ -> str_field last "to_stage"
+
+let unmet_deps qdir depends_on =
+  let qroot = Filename.dirname qdir in
+  List.filter
+    (fun dep ->
+      let dep_dir = Filename.concat qroot dep in
+      not (Sys.file_exists (Filename.concat dep_dir "fsm.yaml"))
+      || ledger_stage dep_dir <> "landed")
+    depends_on
+
 
 let load_state qdir =
   let entries = ledger qdir in
@@ -143,17 +169,55 @@ let load_state qdir =
 let legal_moves st =
   match st.stage with
   | "author" | "fix" | "blocked" -> [ "submit"; "block"; "cancel" ]
-  | "review" -> [ "review"; "block"; "cancel" ]
-  | "ready" -> [ "land"; "cancel" ]
+  | "review" -> [ "review"; "check"; "block"; "cancel" ]
+  | "ready" -> [ "check"; "land"; "cancel" ]
   | _ -> []
 
+let has_passing_check qdir st =
+  match st.commit with
+  | None -> false
+  | Some c ->
+      ledger qdir
+      |> List.exists (fun e ->
+             assoc e "edge" = Some (`String "check")
+             && assoc e "verdict" = Some (`String "pass")
+             && assoc e "to_commit" = Some (`String c))
+
 let append_ledger qdir fields =
-  let seq = List.length (ledger qdir) + 1 in
-  let entry = `Assoc (("seq", `Int seq) :: fields) in
-  append_file
-    (Filename.concat qdir "ledger.jsonl")
-    (Yojson.Safe.to_string entry ^ "\n");
-  seq
+  (* Count and write on the locked fd itself: opening any second fd
+     on this file (even to read) drops POSIX locks on macOS/Linux. *)
+  let path = Filename.concat qdir "ledger.jsonl" in
+  let fd =
+    Unix.openfile path [ Unix.O_RDWR; Unix.O_CREAT; Unix.O_APPEND ] 0o644
+  in
+  Fun.protect
+    ~finally:(fun () -> Unix.close fd)
+    (fun () ->
+      Unix.lockf fd Unix.F_LOCK 0;
+      Fun.protect
+        ~finally:(fun () -> Unix.lockf fd Unix.F_ULOCK 0)
+        (fun () ->
+          ignore (Unix.lseek fd 0 Unix.SEEK_SET);
+          let buf = Buffer.create 1024 in
+          let chunk = Bytes.create 4096 in
+          let rec rd () =
+            let n = Unix.read fd chunk 0 4096 in
+            if n > 0 then (
+              Buffer.add_subbytes buf chunk 0 n;
+              rd ())
+          in
+          rd ();
+          let seq =
+            Buffer.contents buf
+            |> String.split_on_char '\n'
+            |> List.filter (fun l -> String.trim l <> "")
+            |> List.length
+            |> ( + ) 1
+          in
+          let entry = `Assoc (("seq", `Int seq) :: fields) in
+          let line = Yojson.Safe.to_string entry ^ "\n" in
+          ignore (Unix.write_substring fd line 0 (String.length line));
+          seq))
 
 let json_state qdir st moves =
   Printf.printf "%s\n%!"
@@ -213,7 +277,7 @@ let resolve_quest arg =
     if Sys.file_exists (Filename.concat cand "fsm.yaml") then cand
     else fail "quest not found: %s" arg
 
-let init name qtype engine =
+let init name qtype engine deps =
   let plan_path = Filename.concat (Filename.concat root "plans") (qtype ^ ".yaml") in
   if not (Sys.file_exists plan_path) then fail "unknown quest_type: %s" qtype;
   let qdir =
@@ -242,7 +306,11 @@ let init name qtype engine =
         ## Open questions\n<ranked, each with an owner>\n"
        qtype engine name);
   write_file (Filename.concat qdir "fsm.yaml")
-    (String.concat "\n" (read_lines plan_path) ^ "\n");
+    (String.concat "\n" (read_lines plan_path)
+    ^ (match deps with
+       | Some d -> "\ndepends_on: [" ^ d ^ "]"
+       | None -> "")
+    ^ "\n");
   write_file (Filename.concat qdir "ledger.jsonl") "";
   let _ = load_state qdir in
   let seq =
@@ -261,9 +329,19 @@ let init name qtype engine =
 
 let () =
   let args = Array.to_list Sys.argv |> List.tl in
+  let args =
+    match args with
+    | "quest" :: "list" :: rest -> "list" :: rest
+    | "quest" :: "create" :: rest -> "init" :: rest
+    | "quest" :: "show" :: q :: _ -> [ q ]
+    | "quest" :: "invoke" :: rest -> rest
+    | "quest" :: q :: rest -> q :: rest
+    | "tools" :: "worktree" :: verb :: q :: rest -> q :: verb :: rest
+    | other -> other
+  in
   match args with
-  | [] -> fail "usage: bp3 invoke <quest> [edge] [--commit SHA] [--verdict V] [--reason TEXT]"
-  | "list" :: _ ->
+  | [] -> fail "usage: bp3 quest list|create|show|invoke, or bp3 invoke <quest> [edge]"
+  | "list" :: rest ->
       let qroot = Filename.concat (Filename.concat root "docs") "quests" in
       let names =
         if Sys.file_exists qroot then Sys.readdir qroot |> Array.to_list else []
@@ -285,8 +363,13 @@ let () =
                 |> Option.value ~default:"unknown"
               in
               let st = load_state qdir in
-              Some
-                (`Assoc
+              if
+                (not (List.mem "--all" rest))
+                && status <> "proposed" && status <> "active"
+              then None
+              else
+                Some
+                  (`Assoc
                   [
                     ("quest", `String name);
                     ("status", `String status);
@@ -302,10 +385,12 @@ let () =
       let name = match rest with n :: _ -> n | [] -> fail "init needs a name" in
       let qtype = Option.value (opt_arg rest "--type") ~default:"default" in
       let engine = Option.value (opt_arg rest "--engine") ~default:"single" in
-      init name qtype engine
+      init name qtype engine (opt_arg rest "--depends-on")
   | q :: rest ->
       let qdir = resolve_quest q in
-      let quest_type, max_cycles = parse_plan (Filename.concat qdir "fsm.yaml") in
+      let quest_type, max_cycles, review_required, depends_on =
+        parse_plan (Filename.concat qdir "fsm.yaml")
+      in
       ignore quest_type;
       let st = load_state qdir in
       let repo = git qdir [ "rev-parse"; "--show-toplevel" ] in
@@ -322,16 +407,68 @@ let () =
                      match st.commit with Some c -> `String c | None -> `Null );
                    ("cycle", `Int st.cycle);
                    ("ledger_seq", `Int st.seq);
+                   ( "depends_on",
+                     `List (List.map (fun d -> `String d) depends_on) );
+                   ( "blocked_by",
+                     `List
+                       (List.map (fun d -> `String d) (unmet_deps qdir depends_on)) );
                    ("legal_moves", `List (List.map (fun m -> `String m) (legal_moves st)));
                  ]))
       | edge :: eargs ->
           let reason = Option.value (opt_arg eargs "--reason") ~default:"" in
+          let actor =
+            Option.value (opt_arg eargs "--actor") ~default:"controller"
+          in
+          (match edge with
+          | "prepare" | "release" ->
+              let run_id =
+                match opt_arg eargs "--run" with
+                | Some r -> r
+                | None -> fail "%s needs --run" edge
+              in
+              let wt =
+                Filename.concat
+                  (Filename.concat repo ".bp3/worktrees")
+                  (Filename.basename qdir ^ "-" ^ run_id)
+              in
+              if edge = "prepare" then (
+                let base =
+                  Option.value st.commit
+                    ~default:(git repo [ "rev-parse"; "HEAD" ])
+                in
+                ignore
+                  (run_argv
+                     [
+                       "git"; "-C"; repo; "worktree"; "add"; "-b";
+                       "bp3/" ^ Filename.basename qdir ^ "-" ^ run_id;
+                       wt; base;
+                     ]);
+                Printf.printf "worktree %s\n%!" wt)
+              else ignore (run_argv [ "git"; "-C"; repo; "worktree"; "remove"; "--force"; wt ]);
+              let seq =
+                append_ledger qdir
+                  [
+                    ("edge", `String edge);
+                    ("actor", `String actor);
+                    ("from_stage", `String st.stage);
+                    ("to_stage", `String st.stage);
+                    ( "to_commit",
+                      match st.commit with Some c -> `String c | None -> `Null );
+                    ("cycle", `Int st.cycle);
+                    ("run", `String run_id);
+                    ("reason", `String reason);
+                  ]
+              in
+              let st2 = load_state qdir in
+              json_state qdir { st2 with seq } (legal_moves st2);
+              exit 0
+          | _ -> ());
           if not (List.mem edge (legal_moves st)) then (
             let seq =
               append_ledger qdir
                 [
                   ("edge", `String edge);
-                  ("actor", `String "controller");
+                  ("actor", `String actor);
                   ("result", `String "refused");
                   ("from_stage", `String st.stage);
                   ("to_stage", `String st.stage);
@@ -353,11 +490,22 @@ let () =
                   | Some c -> c
                   | None -> fail "submit needs --commit"
                 in
+                (match unmet_deps qdir depends_on with
+                | [] -> ()
+                | deps ->
+                    fail "dependency not landed: %s" (String.concat ", " deps));
                 to_commit := Some (check_commit repo qdir st c);
-                "review"
+                if review_required then "review" else "ready"
+            | "check" ->
+                if reason = "" then fail "check needs --reason";
+                (match opt_arg eargs "--verdict" with
+                | Some ("pass" | "fail") -> st.stage
+                | _ -> fail "check needs --verdict pass|fail")
             | "review" ->
                 let verdict = opt_arg eargs "--verdict" in
                 if reason = "" then fail "review needs --reason";
+                if opt_arg eargs "--actor" = None then
+                  fail "review needs --actor (who is judging?)";
                 (match verdict with
                 | Some "ship" -> "ready"
                 | Some "fix_first" ->
@@ -368,13 +516,42 @@ let () =
                 | _ -> fail "review needs --verdict ship|fix_first")
             | "land" ->
                 if reason = "" then fail "land needs --reason";
+                if not (has_passing_check qdir st) then
+                  fail "land refused: no passing check for current commit";
+                let cur = Option.get st.commit in
+                let head = git repo [ "rev-parse"; "HEAD" ] in
+                if head <> cur then
+                  fail "land refused: HEAD %s is not state commit %s" head cur;
+                let branch =
+                  git repo [ "rev-parse"; "--abbrev-ref"; "HEAD" ]
+                in
+                let target =
+                  Option.value (opt_arg eargs "--target") ~default:branch
+                in
+                if target <> branch then (
+                  let old = git repo [ "rev-parse"; target ] in
+                  let pid =
+                    Unix.create_process "git"
+                      [|
+                        "git"; "-C"; repo; "merge-base"; "--is-ancestor"; old;
+                        cur;
+                      |]
+                      Unix.stdin Unix.stdout Unix.stderr
+                  in
+                  match snd (Unix.waitpid [] pid) with
+                  | Unix.WEXITED 0 ->
+                      ignore
+                        (git repo
+                           [ "update-ref"; "refs/heads/" ^ target; cur; old ])
+                  | _ ->
+                      fail "land refused: %s moved or diverged" target);
                 "landed"
             | "block" ->
                 if reason = "" then fail "block needs --reason";
                 "blocked"
             | "cancel" ->
                 if reason = "" then fail "cancel needs --reason";
-                "cancelled"
+                "canceled"
             | _ -> st.stage
           in
           let verdict_field =
@@ -386,7 +563,7 @@ let () =
             append_ledger qdir
               ([
                  ("edge", `String edge);
-                 ("actor", `String "controller");
+                 ("actor", `String actor);
                  ("from_stage", `String st.stage);
                  ("to_stage", `String to_stage);
                  ( "to_commit",

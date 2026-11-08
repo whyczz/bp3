@@ -93,6 +93,10 @@ case "${1:-}" in
     [[ -x $invoke_bin ]] || { echo 'build the invoke binary first: dune build invoke/main.exe' >&2; exit 2; }
     BP3_ROOT="$root" exec "$invoke_bin" "$@" ;;
   init) shift; skills_install "$@" ;;
+  quest) shift
+    invoke_bin="${BP3_INVOKE_BIN:-$root/_build/default/invoke/main.exe}"
+    [[ -x $invoke_bin ]] || { echo 'build the invoke binary first: dune build invoke/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$invoke_bin" quest "$@" ;;
   skills)
     shift
     case "${1:-}" in
