@@ -35,12 +35,13 @@ other repos point at it.
 
 ```sh
 ./bin/bp3 init   # one-time repo setup: renders skills for all harnesses
-./bin/bp3 invoke init <name> --type default --engine single
+./bin/bp3 quest create <name> --type default --engine single
 ./bin/bp3 invoke <quest>            # JSON: stage, commit, legal moves
 ./bin/bp3 invoke <quest> submit --commit <sha> --reason "..."
 ./bin/bp3 invoke <quest> review --verdict ship|fix_first --reason "..."
 ./bin/bp3 invoke <quest> land --reason "..."
-./bin/bp3 invoke list               # every quest: status, stage, commit
+./bin/bp3 quest list                 # active quests; --all includes landed/canceled
+./bin/bp3 quest show <quest>          # one quest, JSON
 dune build invoke/main.exe          # (make check does this)
 make check                          # lint, skills, invoke fixture tests
 ```

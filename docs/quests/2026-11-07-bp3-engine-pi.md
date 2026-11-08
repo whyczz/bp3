@@ -22,8 +22,8 @@ Fastest honest player wins; lying about being finished loses.
 
 ## Goal and why
 
-The [engine MVP Quest](2026-11-07-bp3-mvp-engine/QUEST.md) proves the
-commit-state FSM with Muse workflows as first executor. Pi is
+The [bp3-mvp-engine-core Quest](../2026-11-07-bp3-mvp-engine-core/QUEST.md) proves the
+commit-state FSM; [bp3-mvp-muse-workflows](2026-11-07-bp3-mvp-muse-workflows/QUEST.md) proves Muse as first executor. Pi is
 where the human already lives day to day, and the
 [Pi basics dossier](../dossiers/bp3-pi-basics.md) shows the
 subagent field is crowded and fast-moving: oh-my-pi (hard fork,
@@ -51,7 +51,7 @@ In: oh-my-pi evaluation, subagent-extension evaluation, a
 build-our-own investigation with a working minimal prototype if
 the borrow options fail, honesty/fencing fixtures, and executor
 interchange with the Muse test. Sibling:
-[Pi quality of life Quest](2026-11-07-bp3-pi-basics.md) owns the
+[Pi quality of life Quest](2026-11-07-bp3-pi-qol.md) owns the
 general Pi speed meta; this Quest owns only the subagent system.
 Out: adopting a fork wholesale without the verdict, general
 extension curation, and bridge contract changes (engine Quest).
@@ -75,7 +75,7 @@ proposed, escalations, and Quest-to-master promotion.
   in-flight work); revival by message beats respawn on cost, or
   the claim is falsified with numbers. Fails today: omp never run
   under bp3; launcher pins Pi bare.
-- Depends on: engine MVP Quest Exps 2–3 (seam, FSM).
+- Depends on: bp3-mvp-engine-core Exps 2–3 (scaffold, FSM).
 
 ### Exp 2 — Subagent extension as executor
 
@@ -87,7 +87,7 @@ proposed, escalations, and Quest-to-master promotion.
 - Acceptance: toy green with fan-out; prompt cache survives child
   loading; stale-generation child report rejected. Fails today:
   no extension installed; `--no-extensions` is the law.
-- Depends on: engine MVP Quest Exps 2–3.
+- Depends on: bp3-mvp-engine-core Exps 2–3.
 
 ### Exp 3 — Build versus borrow: our own minimal subagent system
 
@@ -116,7 +116,7 @@ proposed, escalations, and Quest-to-master promotion.
 - Acceptance: interchange passes with identical guards; the real
   exp lands with its report; cost per edge recorded. Fails
   today: no Pi executor exists.
-- Depends on: Exp 3; engine MVP Quest Exp 4 (Muse test states).
+- Depends on: Exp 3; bp3-mvp-muse-workflows Exp 1 (Muse test states).
 
 ## Scorecard
 

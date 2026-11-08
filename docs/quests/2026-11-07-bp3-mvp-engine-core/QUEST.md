@@ -4,15 +4,14 @@ home_repo: bp3
 date: 2026-11-07
 ---
 
-# bp3 engine MVP: concepts, tested with Muse + workflows
+# bp3-mvp-engine-core: the quest state machine
 
 TL;DR
-bp3 gains its engine concepts — a contract judged on context rent,
-and a state machine whose states are clean commits plus Board
-metadata — proven by test on Muse workflows, the fastest honest
-testbed available. When this Quest lands, the toy exp travels
-author → review → land as commit-states taken by workflow
-children, measurably cheaper than today's fresh-context Pi crew.
+bp3 gains its core: a CLI and state engine where work moves as
+clean commits through a small state machine, written only by
+bp3 invoke. When this Quest lands, a quest folder carries its own
+state, any executor can take the next edge, and the Muse
+executor test lives in its own Quest downstream of a stable core.
 
 ELI5
 Today every helper starts blank and pays full price to re-learn the
@@ -38,9 +37,11 @@ and rebuilds only how work executes.
 
 The four hours are attributed with numbers; today's Pi launcher
 sits behind a named engine contract with zero behavior change; and
-the commit-state machine runs the toy exp end to end on Muse
-workflow children — author edge, review edge, land — with guards
-intact. Landing is recorded here with the baseline breakdown, the
+the commit-state machine runs the toy exp end to end — submit,
+review, check, CAS land — with guards intact. The Muse executor
+test that proves interchangeability downstream lives in
+[bp3-mvp-muse-workflows](../2026-11-07-bp3-mvp-muse-workflows/QUEST.md).
+Landing is recorded here with the baseline breakdown, the
 measured context cost per edge, and limitations. Record layer as
 decided after red chair: no SQLite Board — quest state lives in
 the quest folder (`state.yaml` derived from `ledger.jsonl`),
@@ -51,14 +52,15 @@ tests in `test/invoke.sh`.
 ## Scope
 
 In: a timed baseline of the current Pi loop; extracting today's Pi
-launcher behind an engine contract with zero behavior change; the
-commit-state FSM concepts (states, edges, guards, registry
-flavors); and testing all of it with Muse + workflows as the
-first executor. Inherited by reference: the canceled Quest's Exp 2
+launcher behind an engine contract with zero behavior change; and
+the commit-state FSM (states, edges, guards, YAML quest_type
+plans). Inherited by reference: the canceled Quest's Exp 2
 auto-land kernel candidate `9e1b1d0` and its gated-landing
-contract. Sibling Quests: [bp3 engine, Pi executors](../2026-11-07-bp3-engine-pi.md)
-(oh-my-pi, subagent extensions, or our own) and
-[bp3 Pi quality of life](../2026-11-07-bp3-pi-basics.md) (the Pi speed
+contract. Downstream Quests:
+[bp3-mvp-muse-workflows](../2026-11-07-bp3-mvp-muse-workflows/QUEST.md)
+(Muse executor test), [bp3 engine, Pi executors](../2026-11-07-bp3-engine-pi.md)
+(oh-my-pi, subagent extensions, or our own), and
+[bp3 pi qol](../2026-11-07-bp3-pi-qol.md) (the Pi speed
 meta), written alongside this one.
 Out: warden/hook substrate (decided: not yet; the contract sketch
 waits in the [hooks dossier](../../dossiers/muse-workflows-hooks.md)),
@@ -94,17 +96,17 @@ promotion. Everything else is automated or it is listed here.
   provider dominates, this Quest cancels early with that finding.
 - Depends on: none.
 
-### Exp 2 — Engine contract, Pi-as-is extracted
+### Exp 2 — CLI scaffold: invoke, discover, CRUD
 
 - Intent: name the seam without behavior change.
 - Lane: standard
-- Output: today's launcher behind an explicit engine contract
-  (reserve, prepare worktree, spawn, deliver, steer, cancel,
-  snapshot; signals ready/heartbeat/busy/settled/observed/
-  took_over/release/permission/exited with opaque endpoints), with
-  each Run recording its context provisioning mode. Zero behavior
-  change to the frozen Exp 2 path; the extraction lives on a
-  separate branch/worktree until adopted.
+- Output: the bp3 CLI scaffold — `bp3 quest list|create|show|invoke`
+  for discover and CRUD over quest folders, `bp3 invoke` edges
+  (submit, review, land, block, cancel) with guards, and adoption
+  of pre-existing quest folders. Landed first slice: OCaml invoke
+  binary, `default` plan, fixture tests. Executor launching
+  (spawn/deliver across harnesses) builds on this scaffold in
+  later exps, not inside it.
 - Acceptance: toy substeps 1.1–1.5 stay green, unchanged, on the
   extracted Pi engine, `bp3 context` shows the provisioning mode
   per Run, and the Pi/Zellij argv exists only inside the Pi engine
@@ -112,7 +114,7 @@ promotion. Everything else is automated or it is listed here.
   argv and Zellij calls are hardcoded in the launcher.
 - Depends on: Exp 1 (the baseline this must not regress).
 
-### Exp 3 — Commit-state FSM: the engine concepts
+### Exp 3 — Commit-state FSM
 
 - Intent: define state and moves so any executor can play.
 - Lane: high-blast-radius
@@ -136,27 +138,7 @@ promotion. Everything else is automated or it is listed here.
   accepted unconditionally.
 - Depends on: Exp 2.
 
-### Exp 4 — Concepts test: Muse + workflows as first executor
-
-- Intent: prove the concepts on the fastest honest testbed before
-  Pi executors exist.
-- Lane: standard
-- Output: the toy exp executed by a Muse main session whose
-  workflow children take FSM edges and report through Board ops,
-  plus probes: the V8 engine actually executes on this machine; a
-  child can (or cannot) reach the bp3 CLI through its tool grant;
-  per-call model routing fails as documented and the
-  separate-parent workaround is priced. Background:
-  [Muse workflows dossier](../../dossiers/muse-workflows-hooks.md).
-- Acceptance: a child takes the author edge and a fresh child the
-  review edge against the same commit-state; block is honored as
-  block-then-respawn with no lost question; context cost per edge
-  recorded against Exp 1 — lower, or the test records why not.
-  Fails today: no Muse engine, no saved workflows, no live run.
-- Depends on: Exp 3. Block/resume stays out unless the test proves
-  steering live.
-
-### Exp 5 — Tape and hooks: capture everything, emit only facts
+### Exp 4 — Tape and hooks
 
 - Intent: every run leaves a complete tape and a factual ledger
   without screen-scraping.
@@ -204,7 +186,7 @@ data and session usage; unmeasured values are stated, never zero.
    keep this Quest alive at all? Owner: human, at the Exp 1 gate.
    A cancel-early outcome is a success, not a failure.
 2. Block/resume versus block-then-respawn. Default: respawn.
-   Owner: human, with Exp 4 evidence.
+   Owner: human, with bp3-mvp-muse-workflows evidence.
 3. May a reviewer take a fix edge, or only authors? Default: yes,
    as a new commit-state with provenance; verdicts still require
    a fresh reviewer. Owner: human, before Exp 3.

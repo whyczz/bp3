@@ -137,7 +137,7 @@ Shelved without landing. The pane-crew center of this Quest was
 retired: watchability and takeover were judged comfort, speed
 (context reuse) the requirement. Execution history, exp records,
 and the full disposition live on the `quest/bp3-mvp` branch.
-Successors: [bp3 engine MVP](../2026-11-07-bp3-mvp-engine/QUEST.md),
+Successors: [bp3 engine MVP](../2026-11-07-bp3-mvp-engine-core/QUEST.md),
 [bp3 engine, Pi executors](../2026-11-07-bp3-engine-pi.md), and
-[bp3 Pi quality of life](../2026-11-07-bp3-pi-basics.md). Dropped
+[bp3 Pi quality of life](../2026-11-07-bp3-pi-qol.md). Dropped
 gates are dropped, never passed.

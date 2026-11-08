@@ -133,11 +133,11 @@ implementer of the engine seam and the Muse workflow test. Evidence date:
 1. Block/resume versus block-then-respawn for ephemeral children.
    Changes the blocker contract everywhere. Recommended default:
    block-then-respawn with a new generation; revisit only if a spike
-   proves resumable steering. Owner: human, with engine MVP Quest Exp 4 evidence.
+   proves resumable steering. Owner: human, with bp3-mvp-muse-workflows Exp 1 evidence.
 2. Does the V8 workflow engine actually execute on this machine,
    and can a child reach the bp3 CLI through its tool grant? Gates
    the whole Muse spike. Default: assume CLI-only until a live
-   child run proves otherwise. Owner: implementer, in engine MVP Quest Exp 4.
+   child run proves otherwise. Owner: implementer, in bp3-mvp-muse-workflows Exp 1.
 3. Warden scope: pointers-only versus audited content fetch.
    Changes the privacy surface permanently. Default: pointers only.
    Owner: human.

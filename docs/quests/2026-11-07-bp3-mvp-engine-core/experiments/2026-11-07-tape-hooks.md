@@ -1,11 +1,11 @@
 ---
 date: 2026-11-07
 quest: ../QUEST.md
-exp: 5
+exp: 4
 status: proposed
 ---
 
-# Exp 5 — Tape and hooks: capture everything, emit only facts
+# Exp 4 — Tape and hooks: capture everything, emit only facts
 
 ## TL;DR
 
