@@ -22,7 +22,7 @@ Fastest honest player wins; lying about being finished loses.
 
 ## Goal and why
 
-The [engine MVP Quest](2026-11-07-bp3-mvp-engine.md) proves the
+The [engine MVP Quest](2026-11-07-bp3-mvp-engine/QUEST.md) proves the
 commit-state FSM with Muse workflows as first executor. Pi is
 where the human already lives day to day, and the
 [Pi basics dossier](../dossiers/bp3-pi-basics.md) shows the

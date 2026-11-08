@@ -26,7 +26,7 @@ summary, not the workshop floor.
 Replace the pane-crew execution model with an engine model whose
 contract is context provisioning: `cold | warm | fork | subagent`.
 The predecessor Quest
-[bp3 MVP: the loop on itself](2026-11-05-bp3-mvp.md) proved the
+[bp3 MVP: the loop on itself](../2026-11-05-bp3-mvp/QUEST.md) proved the
 Board, brief/report ops, and gated landing, but its center bet —
 fresh-context Workers in watched Zellij panes — makes every Run
 re-buy its context. Four-hour coder/reviewer bounces were observed;
@@ -41,10 +41,12 @@ sits behind a named engine contract with zero behavior change; and
 the commit-state machine runs the toy exp end to end on Muse
 workflow children — author edge, review edge, land — with guards
 intact. Landing is recorded here with the baseline breakdown, the
-measured context cost per edge, and limitations. Assumption: the
-Board (OCaml/SQLite) survives as the record layer; if Exp 1 shows
-it is the bottleneck instead, that becomes an open question for
-the human, not a silent rewrite.
+measured context cost per edge, and limitations. Record layer as
+decided after red chair: no SQLite Board — quest state lives in
+the quest folder (`state.yaml` derived from `ledger.jsonl`),
+written only by `bp3 invoke`. First slice landed: `bp3 invoke`
+with the `default` quest_type (one review round) and fixture
+tests in `test/invoke.sh`.
 
 ## Scope
 
@@ -52,14 +54,14 @@ In: a timed baseline of the current Pi loop; extracting today's Pi
 launcher behind an engine contract with zero behavior change; the
 commit-state FSM concepts (states, edges, guards, registry
 flavors); and testing all of it with Muse + workflows as the
-first executor. Inherited by reference: the archived Quest's Exp 2
+first executor. Inherited by reference: the canceled Quest's Exp 2
 auto-land kernel candidate `9e1b1d0` and its gated-landing
-contract. Sibling Quests: [bp3 engine, Pi executors](2026-11-07-bp3-engine-pi.md)
+contract. Sibling Quests: [bp3 engine, Pi executors](../2026-11-07-bp3-engine-pi.md)
 (oh-my-pi, subagent extensions, or our own) and
-[bp3 Pi quality of life](2026-11-07-bp3-pi-basics.md) (the Pi speed
+[bp3 Pi quality of life](../2026-11-07-bp3-pi-basics.md) (the Pi speed
 meta), written alongside this one.
 Out: warden/hook substrate (decided: not yet; the contract sketch
-waits in the [hooks dossier](../dossiers/muse-workflows-hooks.md)),
+waits in the [hooks dossier](../../dossiers/muse-workflows-hooks.md)),
 resurrecting pane takeover as a requirement (Zellij remains a
 debug view only), foreign-TUI typing, multi-host or remote Workers,
 arbitrary per-Quest graph editing (a DAG), and any change to the
@@ -82,14 +84,14 @@ promotion. Everything else is automated or it is listed here.
   framing, spawn-to-ready, context load, execution, checks, review,
   and idle-blocked time, plus context tokens per Run.
 - Acceptance: the breakdown exists with numbers observed from Board
-  timestamps and session usage. Fails today: the archived Quest's
+  timestamps and session usage. Fails today: the canceled Quest's
   scorecard records human-active minutes and provider cost as
   unmeasured, and the Board snapshot hardcodes cost to null.
 - Substeps: 1.1 add token/usage accounting to the snapshot (turn
   events with input/output/cache tokens); 1.2 run one toy exp and
   publish the phase breakdown; 1.3 state the verdict: context,
   ceremony, provider, or scheduling dominates. If ceremony or
-  provider dominates, this Quest archives early with that finding.
+  provider dominates, this Quest cancels early with that finding.
 - Depends on: none.
 
 ### Exp 2 — Engine contract, Pi-as-is extracted
@@ -114,17 +116,18 @@ promotion. Everything else is automated or it is listed here.
 
 - Intent: define state and moves so any executor can play.
 - Lane: high-blast-radius
-- Output: state = (clean commit SHA, Board metadata: kind,
-  verdicts, evidence, generation); edges author/review/fix/land
-  with guards (clean tree, HEAD equals the state commit, verdict
-  bound to the exact commit, cycle/budget bounds, generation
-  fencing). Flavors live in a code registry with lane presets —
-  micro: author → checks → land; standard: author ↔ review, at
-  most 3 cycles; high: design gate → author ↔ review → explicit
-  stop. New flavors are code changes with tests, never runtime
-  graph editing. A reviewer refactor is a fix edge producing a
-  new state with provenance, never an in-place edit of another
-  executor's worktree.
+- Output: state = (clean commit SHA, stage, cycle) in the quest
+  folder's `state.yaml`, derived from `ledger.jsonl`; edges
+  author/review/fix/land taken only through `bp3 invoke` with
+  guards (clean tree outside the quest folder, descendant of the
+  current commit, verdict bound to the exact commit, cycle
+  bound). Plans are YAML: `quest_type` resolves from `plans/`
+  into the quest's `fsm.yaml`; two dimensions stay independent —
+  `quest_type` (the plan) and `engine` (who executes). First
+  plan landed: `default`, one review round (`max_cycles: 1`).
+  A reviewer refactor is a fix edge producing a new state with
+  provenance, never an in-place edit of another executor's
+  worktree.
 - Acceptance: two executors alternate edges on one exp with
   identical guard behavior; a verdict on commit A is refused
   after commit B supersedes it; the machine halts at its bound
@@ -144,7 +147,7 @@ promotion. Everything else is automated or it is listed here.
   child can (or cannot) reach the bp3 CLI through its tool grant;
   per-call model routing fails as documented and the
   separate-parent workaround is priced. Background:
-  [Muse workflows dossier](../dossiers/muse-workflows-hooks.md).
+  [Muse workflows dossier](../../dossiers/muse-workflows-hooks.md).
 - Acceptance: a child takes the author edge and a fresh child the
   review edge against the same commit-state; block is honored as
   block-then-respawn with no lost question; context cost per edge
@@ -152,6 +155,28 @@ promotion. Everything else is automated or it is listed here.
   Fails today: no Muse engine, no saved workflows, no live run.
 - Depends on: Exp 3. Block/resume stays out unless the test proves
   steering live.
+
+### Exp 5 — Tape and hooks: capture everything, emit only facts
+
+- Intent: every run leaves a complete tape and a factual ledger
+  without screen-scraping.
+- Lane: standard
+- Output: two layers. (1) The launcher wraps every executor in
+  `tee` so `runs/<id>/tape.log` captures verbatim output including
+  crashes, with zero agent cooperation. (2) Hooks annotate and
+  emit facts: the Pi bridge extension and Muse settings hooks
+  write tool/turn markers into the tape and deliberate events
+  (edge taken, verdict, usage, settled) as ledger lines through
+  `bp3 invoke`. Hooks may annotate the tape; the tape is never
+  parsed to build the ledger. Record:
+  [Tape and hooks](experiments/2026-11-07-tape-hooks.md).
+- Acceptance: killing an executor mid-tool-call still leaves a
+  complete tape; ledger lines exist for each edge with no line
+  derived from tape text; disabling hooks degrades to tape-only
+  capture with no lost run. Fails today: no tape, no hook events,
+  cost is hardcoded null in the Board snapshot.
+- Depends on: Exp 2 (the seam owns launching). Warden consumption
+  of the ledger stays out of scope (decided: not yet).
 
 ## Scorecard
 
@@ -169,7 +194,7 @@ data and session usage; unmeasured values are stated, never zero.
   harness and fan-out shape are recorded per Run.
 - Strongest attack on order: the baseline is Exp 1 because the
   four-hour bounce is unattributed; if ceremony or provider limits
-  dominate, engines change nothing and this Quest should archive
+  dominate, engines change nothing and this Quest should cancel
   early with that finding. Remaining open: whether watchability's
   loss hides a real debugging need the debug view cannot cover.
 
@@ -177,7 +202,7 @@ data and session usage; unmeasured values are stated, never zero.
 
 1. Does Exp 1 verdict (context, ceremony, provider, scheduling)
    keep this Quest alive at all? Owner: human, at the Exp 1 gate.
-   An archive-early outcome is a success, not a failure.
+   A cancel-early outcome is a success, not a failure.
 2. Block/resume versus block-then-respawn. Default: respawn.
    Owner: human, with Exp 4 evidence.
 3. May a reviewer take a fix edge, or only authors? Default: yes,
