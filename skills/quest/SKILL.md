@@ -44,7 +44,7 @@ Use `design` instead for a component design that is not a Quest.
 
 ```markdown
 ---
-status: proposed | active | landed | archived
+status: proposed | active | landed | canceled
 home_repo: <repo>
 date: <YYYY-MM-DD>
 ---
@@ -97,14 +97,14 @@ restarts, bypasses; where the numbers are recorded>
 - `landed` — terminal success: the success picture was met and the human
   Quest-to-master promotion is recorded with its exact commit and
   limitations. Only a landed Quest claims its acceptance passed.
-- `archived` — terminal non-success: shelved without landing
+- `canceled` — terminal non-success: stopped without landing
   (superseded, abandoned, or retired at any stage, proposed included).
-  Archiving requires a disposition in the file: why it stopped, each
+  Canceling requires a disposition in the file: why it stopped, each
   exp's disposition (done, dropped, or carried into a named successor),
   and what evidence is frozen. Dropped gates are dropped, never passed.
-- There is no canceled status and no deletion. Transitions:
-  `proposed → active → landed`, or `proposed | active → archived`.
-  Landed and archived files stay in `docs/quests/`; exp records parent
+- There is no deletion. Transitions:
+  `proposed → active → landed`, or `proposed | active → canceled`.
+  Landed and canceled files stay in `docs/quests/`; exp records parent
   them there, so nothing moves.
 - Quest status is not exp status: exps keep `proposed | active |
   complete` (bp3-writer), and `auto_landed` stays an exp-level state.
