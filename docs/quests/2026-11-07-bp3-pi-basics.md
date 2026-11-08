@@ -1,0 +1,132 @@
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-07
+---
+
+# bp3 Pi quality of life: the speed meta, measured
+
+TL;DR
+Figure out how Pi is actually used well — extension meta, context
+and cache discipline, model routing, session reuse — and make it
+bp3's named daily setup with measured gains. When this Quest
+lands, "our Pi" is a short pinned list with numbers, and the
+folklore is either confirmed or buried.
+
+ELI5
+Pi goes fast when its memory stays small, its toolbox stays
+closed mid-job, and cheap models do the cheap errands. Everyone
+has a favorite setup; almost nobody measured it. We measure ours.
+
+## Goal and why
+
+Every bp3 engine executor ultimately sits on someone's Pi habits.
+Today those habits are folklore: the launcher pins Pi bare, cost
+accounting is null, and vendor claims (98% reductions, 70–80%
+savings) circulate unverified. The
+[Pi basics dossier](../dossiers/bp3-pi-basics.md) maps the meta:
+one-proxy MCP access, web access, lint-on-edit, todo that survives
+compaction, cache-safe tool loading, role-based model routing,
+parked-session revival. This Quest turns the map into bp3's
+measured quality-of-life baseline. Subagent system selection is
+explicitly not here — the
+[Pi executors Quest](2026-11-07-bp3-engine-pi.md) owns it.
+
+## Success picture
+
+The toy exp and a week of real bp3 Pi use run on the named setup;
+before/after tokens, cache behavior, wall time, and human
+interventions are recorded; each adopted item names its measured
+gain and its cost. The setup is a short list a fresh session can
+be handed verbatim.
+
+## Scope
+
+In: extension meta shortlist and pinning (non-subagent), tool-
+surface budget, context/compaction discipline, cache discipline,
+role-based model routing for everyday work, session reuse habits
+(fork/resume/continue, parked revival), and verification of
+circulating vendor claims on our fixtures. Out: subagent system
+selection (Pi executors Quest), fork adoption verdicts, bridge
+contract changes, and MCP sprawl beyond one proxy tool.
+
+## Human touchpoints
+
+Quest framing, adopting the named setup as the daily default,
+escalations, and Quest-to-master promotion.
+
+## Exps
+
+### Exp 1 — Cost floor and the tool-surface budget
+
+- Intent: know what bare Pi costs before decorating it.
+- Lane: standard
+- Output: bare Pi on the toy exp with per-Run tokens, cache
+  behavior, and wall time; a written budget (max tool schemas,
+  lazy-load rule, no mid-session tool churn) stated as a check.
+- Acceptance: numbers exist; the budget is falsifiable. Fails
+  today: no accounting; Board cost is null.
+- Depends on: engine MVP Quest Exp 1, or standalone timing.
+
+### Exp 2 — Extension meta, tried in anger
+
+- Intent: adopt only what pays.
+- Lane: standard
+- Output: the shortlist (MCP proxy, web access, lint-on-edit,
+  compaction-proof todo, plan review) each tried on the toy exp
+  and real work, pinned by version, with token overhead per item.
+- Acceptance: each item is adopt/drop with a measured reason; the
+  adopted set fits the Exp 1 budget. Fails today: nothing
+  installed; ranks are download counts, not evidence.
+- Depends on: Exp 1.
+
+### Exp 3 — Context, cache, and compaction discipline
+
+- Intent: make the boring speed rules executable.
+- Lane: standard
+- Output: a named discipline (stable prefix, compaction policy,
+  recon offloaded to fresh contexts, session fork/resume habits)
+  encoded as settings plus a checklist, run for a week of real
+  Pi use.
+- Acceptance: measured cache behavior and tokens per task improve
+  against Exp 1, or the discipline is revised with the numbers
+  that indicted it. Fails today: discipline is oral tradition.
+- Depends on: Exp 2.
+
+### Exp 4 — Role routing for everyday work
+
+- Intent: cheap models for cheap jobs, proven.
+- Lane: standard
+- Output: role map (scout/title/commit versus implement/review)
+  with per-role model assignments; disagreement and rework rates
+  measured on real exps.
+- Acceptance: routing saves tokens without raising rework, or
+  the map shrinks to what the numbers support. Fails today: one
+  writer default for everything.
+- Depends on: Exp 3.
+
+## Scorecard
+
+Tokens per task by role, cache behavior, wall time, interventions,
+and per-extension overhead. Recorded here and in exp records;
+vendor claims labeled claims until a fixture confirms them.
+
+## Risks and red chair
+
+- Strongest attack: QoL tuning is procrastination with charts.
+  What changed: every exp has a kill/adopt decision and rides
+  fixtures the engines also need; nothing is tuned twice.
+- Strongest attack: download meta is churn dressed as signal.
+  What changed: popularity only orders the try-list; Exp 2
+  evidence decides, pins freeze the result.
+- Remaining open: discipline decay — a checklist nobody re-reads
+  is folklore again by March. The scorecard review is the Quest's
+  landing gate, not an afterthought.
+
+## Open questions
+
+1. How much setup is enough before it becomes its own tax?
+   Default: the Exp 1 budget decides; additions must displace.
+   Owner: implementer.
+2. Standing quarterly meta re-check — worth it? Default: no;
+   revisit at engine milestones. Owner: human.
