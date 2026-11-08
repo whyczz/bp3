@@ -26,8 +26,11 @@ Use `design` instead for a component design that is not a Quest.
    explicit assumption or an open question in the file.
 4. Draft the file at `docs/quests/<date>-<slug>.md` in the Quest's home
    repo, where `<date>` is today as `YYYY-MM-DD` and `<slug>` is a short
-   lowercase kebab-case summary of the goal. One Quest per file; exps live
-   inside it, never as separate files.
+   lowercase kebab-case summary of the goal. One Quest per file. Keep each
+   exp's intent, order, dependencies and acceptance summary here; detailed
+   mini-designs, code tours, evidence and runbooks live in linked canonical
+   `docs/exp/<date>-<slug>.md` records written with `bp3-writer`. Those records
+   elaborate the exp; they do not create a second plan or Board authority.
 5. Break the Quest into exps. Each exp gets an inspectable output and an
    acceptance check that fails today. A check that cannot fail is a hope,
    not an exp. Stage large exps as numbered substeps (1.1, 1.2, ...) when
@@ -41,7 +44,7 @@ Use `design` instead for a component design that is not a Quest.
 
 ```markdown
 ---
-status: proposed | active | complete
+status: proposed | active | landed | archived
 home_repo: <repo>
 date: <YYYY-MM-DD>
 ---
@@ -49,7 +52,7 @@ date: <YYYY-MM-DD>
 # <Quest name>
 
 TL;DR
-<what will be true when this Quest completes, and the one decision it makes>
+<what will be true when this Quest lands, and the one decision it makes>
 
 ELI5
 <the whole Quest in plain words, repeatable by a smart non-specialist>
@@ -58,7 +61,7 @@ ELI5
 <the outcome pursued, in the user's words where possible>
 
 ## Success picture
-<what the human will see, run, and judge at Quest-to-master; how completion
+<what the human will see, run, and judge at Quest-to-master; how landing
 is recorded, with limitations stated>
 
 ## Scope
@@ -87,6 +90,24 @@ restarts, bypasses; where the numbers are recorded>
 ## Open questions
 <ranked by what their answers would change, each with an owner>
 ```
+
+## Lifecycle
+
+- `proposed` — framed, not started. `active` — building.
+- `landed` — terminal success: the success picture was met and the human
+  Quest-to-master promotion is recorded with its exact commit and
+  limitations. Only a landed Quest claims its acceptance passed.
+- `archived` — terminal non-success: shelved without landing
+  (superseded, abandoned, or retired at any stage, proposed included).
+  Archiving requires a disposition in the file: why it stopped, each
+  exp's disposition (done, dropped, or carried into a named successor),
+  and what evidence is frozen. Dropped gates are dropped, never passed.
+- There is no canceled status and no deletion. Transitions:
+  `proposed → active → landed`, or `proposed | active → archived`.
+  Landed and archived files stay in `docs/quests/`; exp records parent
+  them there, so nothing moves.
+- Quest status is not exp status: exps keep `proposed | active |
+  complete` (bp3-writer), and `auto_landed` stays an exp-level state.
 
 ## Rules
 
