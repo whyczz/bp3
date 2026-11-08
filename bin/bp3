@@ -88,12 +88,17 @@ skills_install() {
 }
 
 case "${1:-}" in
+  invoke) shift
+    invoke_bin="${BP3_INVOKE_BIN:-$root/_build/default/invoke/main.exe}"
+    [[ -x $invoke_bin ]] || { echo 'build the invoke binary first: dune build invoke/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$invoke_bin" "$@" ;;
+  init) shift; skills_install "$@" ;;
   skills)
     shift
     case "${1:-}" in
       install) shift; skills_install "$@" ;;
-      *) echo "usage: bp3 skills install --harness=<pi|claude|codex|muse|all>" >&2; exit 2 ;;
+      *) echo "usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 invoke ..." >&2; exit 2 ;;
     esac
     ;;
-  *) echo "usage: bp3 skills install --harness=<pi|claude|codex|muse|all>" >&2; exit 2 ;;
+  *) echo "usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 invoke ..." >&2; exit 2 ;;
 esac
