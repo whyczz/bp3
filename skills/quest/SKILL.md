@@ -24,7 +24,14 @@ Use `design` instead for a component design that is not a Quest.
 3. Ask only questions whose answers change the Quest's shape: home repo,
    success picture, lane, or the first exp. Everything else becomes an
    explicit assumption or an open question in the file.
-4. Draft the file at `docs/quests/<date>-<slug>.md` in the Quest's home
+4. Names first, presented under a Concepts header. With the
+   `naming` skill, propose the Quest name, its slug, the exp
+   names, and every term the Quest coins, listed with one-line
+   definitions in the design's Concepts section, before drafting
+   anything else. Names are load-bearing: they
+   become folder paths, CLI addresses, link targets, and the words
+   every later session thinks in. A wrong name discovered after
+   exps reference it is a migration, not an edit. Draft the file at `docs/quests/<date>-<slug>.md` in the Quest's home
    repo, where `<date>` is today as `YYYY-MM-DD` and `<slug>` is a short
    lowercase kebab-case summary of the goal. One Quest per file. Keep each
    exp's intent, order, dependencies and acceptance summary here; detailed
@@ -56,6 +63,11 @@ TL;DR
 
 ELI5
 <the whole Quest in plain words, repeatable by a smart non-specialist>
+
+## Concepts
+<every name and term this Quest uses or coins — quest name, slug,
+exp names, states, moves — one line each: the word, what it means.
+Chosen with the naming skill; existing vocabulary wins>
 
 ## Goal and why
 <the outcome pursued, in the user's words where possible>
