@@ -219,6 +219,33 @@ let append_ledger qdir fields =
           ignore (Unix.write_substring fd line 0 (String.length line));
           seq))
 
+(* QUEST.md status is authored frontmatter, but cancel is a binary
+   move: sync the field so quest list filtering sees the terminal
+   state the ledger already recorded. The plan in fsm.yaml is never
+   touched by a move. *)
+let set_quest_status qdir status =
+  let path = Filename.concat qdir "QUEST.md" in
+  let lines = read_lines path in
+  let seen = ref false in
+  let lines =
+    List.map
+      (fun l ->
+        if (not !seen) && String.starts_with ~prefix:"status:" (String.trim l)
+        then (
+          seen := true;
+          "status: " ^ status)
+        else l)
+      lines
+  in
+  let lines =
+    if !seen then
+      match lines with
+      | "---" :: rest -> "---" :: ("status: " ^ status) :: rest
+      | _ -> ("status: " ^ status) :: lines
+    else lines
+  in
+  write_file path (String.concat "\n" lines ^ "\n")
+
 let json_state qdir st moves =
   Printf.printf "%s\n%!"
     (Yojson.Safe.to_string
@@ -573,5 +600,6 @@ let () =
                ]
               @ verdict_field)
           in
+          if edge = "cancel" then set_quest_status qdir "canceled";
           let st2 = load_state qdir in
           json_state qdir { st2 with seq } (legal_moves st2))

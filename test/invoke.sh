@@ -86,6 +86,16 @@ bp3 gated-demo | jq -e '.blocked_by == []' >/dev/null
 out=$(bp3 gated-demo submit --commit "$C" --reason "now allowed")
 echo "$out" | jq -e '.stage == "review"' >/dev/null
 
+# cancel syncs QUEST.md status (not the fsm.yaml plan) and list filtering
+bp3 init cancel-demo >/dev/null
+cp docs/quests/cancel-demo/fsm.yaml "$work/fsm-before.yaml"
+out=$(bp3 cancel-demo cancel --reason "called off")
+echo "$out" | jq -e '.stage == "canceled"' >/dev/null
+grep -q "^status: canceled" docs/quests/cancel-demo/QUEST.md
+cmp -s docs/quests/cancel-demo/fsm.yaml "$work/fsm-before.yaml"
+BP3_INVOKE_BIN="$work/repo/invoke-bin" ./bin/bp3 quest list --all | jq -e 'any(.[]; .quest == "cancel-demo" and .status == "canceled")' >/dev/null
+BP3_INVOKE_BIN="$work/repo/invoke-bin" ./bin/bp3 quest list | jq -e 'all(.[]; .quest != "cancel-demo")' >/dev/null
+
 # ledger has refusals recorded
 jq -s -e 'any(.[]; .result == "refused")' docs/quests/demo/ledger.jsonl >/dev/null
 echo "invoke tests: ok"
