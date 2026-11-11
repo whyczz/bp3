@@ -1,0 +1,7 @@
+quest_type: default
+stages: [author, review, land]
+review:
+  required: true
+  max_cycles: 1
+checks: required
+depends_on: [2026-11-09-bp3-mvp-plugin-git-cas-lands]
