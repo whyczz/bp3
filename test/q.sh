@@ -5,7 +5,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/invoke/main.exe" "$work/repo/q-bin"
+cp "$root/_build/default/q/main.exe" "$work/repo/q-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
 cd "$work/repo"
 git init -q -b master
@@ -88,6 +88,16 @@ tbl=$(q r demo --format table)
 echo "$tbl" | grep -q "demo" || fail "table missing quest"
 echo "$tbl" | grep -q "parser-fix2" || fail "table missing blocked exp"
 echo "$tbl" | grep -q "blocked" || fail "table missing blocked state"
+
+# tree format: the human view (git-status alphabet: + todo, u in-flight, - deleted, blank landed)
+tree=$(q r demo --format tree)
+echo "$tree" | grep -q "^demo " || fail "tree missing quest root: $tree"
+echo "$tree" | grep -q "u parser-fix2 - blocked" || fail "tree blocked marker: $tree"
+echo "$tree" | grep -q "(human owed)" || fail "tree human owed: $tree"
+echo "$tree" | grep -q "human owed:" || fail "tree inbox header: $tree"
+etree=$(q demo r parser-fix2 --format tree)
+echo "$etree" | grep -q "u parser-fix2 - blocked" || fail "exp tree marker: $etree"
+echo "$etree" | grep -q "legal: resume, delete" || fail "exp tree legal edges: $etree"
 
 # delete spellings (d / delete) on a scratch exp
 out=$(q demo c scratch-exp)

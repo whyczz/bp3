@@ -412,8 +412,67 @@ let quest_view q =
         ("rollup", json_str rollup); ("inbox", `List inbox);
       ], inbox, rollup, qs)
 
+let tree_marker = function
+  | "todo" -> "+"
+  | "submitted" | "approved" | "blocked" -> "u"
+  | "deleted" -> "-"
+  | _ -> " " (* landed: clean, like git status *)
+
+let short_commit = function
+  | Some c when String.length c > 7 -> String.sub c 0 7
+  | Some c -> c
+  | None -> "-"
+
+let render_tree fields =
+  let get k = List.assoc_opt k fields in
+  let str k = match get k with Some (`String s) -> s | _ -> "?" in
+  Printf.printf "%s [%s] rollup: %s\n" (str "quest") (str "state") (str "rollup");
+  let exps = match get "exps" with Some (`List xs) -> xs | _ -> [] in
+  let n = List.length exps in
+  List.iteri (fun i item ->
+    match item with
+    | `Assoc fs ->
+        let g k = List.assoc_opt k fs in
+        let s k = match g k with Some (`String x) -> x | _ -> "?" in
+        let state = s "state" in
+        let cycle = match g "cycle" with Some (`Int c) -> c | _ -> 0 in
+        let commit = match g "commit" with Some (`String c) -> Some c | _ -> None in
+        let branch = if i = n - 1 then "`-- " else "|-- " in
+        let owed = if state = "blocked" then "  (human owed)" else "" in
+        Printf.printf "%s%s %s - %s, cycle %d, commit %s%s\n"
+          branch (tree_marker state) (s "exp") state cycle (short_commit commit) owed
+    | _ -> ()) exps;
+  (match get "inbox" with
+   | Some (`List (_ :: _ as xs)) ->
+       Printf.printf "human owed:\n";
+       List.iter (fun item ->
+         match item with
+         | `Assoc fs ->
+             let s k = match List.assoc_opt k fs with Some (`String x) -> x | _ -> "?" in
+             Printf.printf "  u %s - %S (since %s)\n" (s "exp") (s "reason") (s "since")
+         | _ -> ()) xs
+   | _ -> ())
+
+let render_tree_exp fields =
+  let g k = List.assoc_opt k fields in
+  let s k = match g k with Some (`String x) -> x | _ -> "?" in
+  let state = s "state" in
+  let cycle = match g "cycle" with Some (`Int c) -> c | _ -> 0 in
+  let commit = match g "commit" with Some (`String c) -> Some c | _ -> None in
+  let legal = match g "legal_edges" with
+    | Some (`List xs) ->
+        String.concat ", " (List.map (function `String x -> x | o -> Yojson.Safe.to_string o) xs)
+    | _ -> "" in
+  Printf.printf "%s\n`-- %s %s - %s, cycle %d, commit %s\n    legal: %s\n"
+    (s "quest") (tree_marker state) (s "exp") state cycle
+    (short_commit commit) (if legal = "" then "none" else legal)
+
 let print_verdict ~fmt v =
   match fmt, v with
+  | "tree", `Assoc fields when List.mem_assoc "exps" fields ->
+      render_tree fields
+  | "tree", `Assoc fields when List.mem_assoc "exp" fields ->
+      render_tree_exp fields
   | "table", `Assoc fields ->
       List.iter (fun (k, v) ->
         match v with
@@ -468,7 +527,7 @@ let parse_flags args =
     | "type" -> if acc.typ <> None then usage "duplicate flag --type" else loop { acc with typ = Some v } rest
     | "depends-on" -> if acc.depends_on <> None then usage "duplicate flag --depends-on" else loop { acc with depends_on = Some v } rest
     | "format" ->
-        if v <> "json" && v <> "table" then usage "--format must be json or table";
+        if v <> "json" && v <> "table" && v <> "tree" then usage "--format must be json, table, or tree";
         loop { acc with fmt = v } rest
     | _ -> usage ("unknown flag --" ^ name)
   in

@@ -85,6 +85,16 @@ LLM MISFIRE (observed on exp-2 before its submit)
   todo + land -> E_ILLEGAL_EDGE {state: todo, legal_edges:
   [submit, block, delete]}   state unchanged, nothing ledgered
 
+FINAL HUMAN VIEW (bp3 q r <quest> --format tree, observed)
+  2026-11-07-bp3-mvp-engine-core [proposed] rollup: landed
+  |--   exp-2-cli-scaffold - landed, cycle 1, commit 4d9ceaa
+  |--   exp-3-fsm - landed, cycle 1, commit 4d9ceaa
+  |--   exp-4-tape-hooks - landed, cycle 1, commit a43bcd6
+  `--   exp-5-muse-engine - landed, cycle 1, commit a43bcd6
+  (markers: + todo, u submitted/approved/blocked, - deleted,
+   blank landed — the git-status alphabet; per-exp view:
+   bp3 q <quest> r <exp> --format tree)
+
 LIVE ENGINE (toy-drive/parser-fix via induct-exp, observed)
   induct-exp children took submit/review/check/land; outcome: landed
   ledger: 5 lines on bp3/exp/toy-drive/parser-fix, verdicts on the
