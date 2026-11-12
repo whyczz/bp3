@@ -61,9 +61,12 @@ for h in .pi .agents .claude; do
   assert test "$(yq --front-matter=extract '.description' "$root/$h/skills/add-yap-skill/SKILL.md")" = "$(yq --front-matter=extract '.description' "$source")"
   assert test -f "$root/$h/skills/quest/SKILL.md"
 done
+assert test -f "$root/.agents/workflows/induct-exp.js"
+assert cmp "$root/skills/induct/workflows/induct-exp.js" "$root/.agents/workflows/induct-exp.js"
 cp "$root/.pi/settings.json" "$work/settings.before"
 "$root/bin/bp3" skills install --harness=pi > /dev/null
 assert cmp "$work/settings.before" "$root/.pi/settings.json"
+assert cmp "$root/skills/induct/workflows/induct-exp.js" "$root/.agents/workflows/induct-exp.js"
 
 # Corrupt settings must fail BEFORE rewriting any installed files.
 printf 'sentinel\n' > "$root/.pi/skills/quest/SKILL.md"

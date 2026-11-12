@@ -42,7 +42,11 @@ human wants the landing writeup. A design under review is
 5. Otherwise take the next landable exp and launch the
    `induct-exp` workflow for that exp (installed with this
    skill by `bp3 skills install`; if it is missing, stop and
-   say so rather than improvising children). It loops the exp's
+   say so rather than improvising children). Pass the workflow
+   args `{quest, exp, ts}`: `ts` is a UTC compact timestamp
+   (for example `20261107T143022Z`) supplied by this skill in
+   args because workflow scripts cannot read the clock, and
+   children embed it in every run-id. It loops the exp's
    inner FSM — one fresh child Run per edge, review and
    check in parallel on the exact commit in `submitted`,
    autoland at `approved` — until the exp exits `landed`,
