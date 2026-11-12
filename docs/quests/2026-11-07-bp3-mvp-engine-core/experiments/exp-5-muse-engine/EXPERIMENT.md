@@ -27,7 +27,7 @@ through bp3 q u; ledger on the exp branch); probes answered:
 (b) child CLI reach — yes, direct; (c) per-call model routing —
 unprobed, children inherit the parent session. First attempt
 refused on string-form args (fixed); children first recorded
-unknown identity (fixed via args; next live run confirms).
+unknown identity (fixed via args; second live run, toy-drive/identity-check, confirmed: every ledger line signed muse-code / muse-wonder-1.0, outcome landed).
 First piece landed ahead of the
 exp: the `induct` skill (`skills/induct/SKILL.md`, installed for
 all harnesses 2026-11-11) — renamed from `drive` the same day,
