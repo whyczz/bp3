@@ -1,6 +1,5 @@
 quest_type: default
-stages: [author, review, land]
+max_cycles: 1
 review:
   required: true
-  max_cycles: 1
 checks: required
