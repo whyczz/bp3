@@ -15,7 +15,7 @@ screen-scraping: the launcher captures verbatim output with
 through `bp3 q u`. Tape is evidence; the ledger is truth;
 neither is built from the other.
 
-Status: **proposed, not implemented or verified.** The earlier
+Status: **landed through bp3 q 2026-11-12** (commit `a43bcd6`; `test/tape.sh` green). One gap stands, recorded not hidden: Muse settings hooks are not wired (no `.claude/settings.json` exists in this repo and none was invented); fact emission is performed by induct-exp children calling `bp3 q u`, and the tape layer carries the guarantee alone. The earlier
 record for this exp lives at
 [../2026-11-07-tape-hooks.md](../2026-11-07-tape-hooks.md) and
 predates the settled design; this record supersedes it where

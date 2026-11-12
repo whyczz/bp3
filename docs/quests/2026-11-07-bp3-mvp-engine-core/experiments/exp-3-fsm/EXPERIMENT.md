@@ -14,9 +14,9 @@ ledgers at derivable branch tips, CAS landing with three
 outcomes, the railway with autoland, and a human-gated
 `resume`. Any executor can play.
 
-Status: **proposed, not implemented or verified.**
+Status: **landed through bp3 q 2026-11-12** (commit `4d9ceaa`; every Acceptance case below has a scenario fixture in `test/q.sh`, green under `make check`).
 
-## Demo (design traces — nothing here has run yet)
+## Demos (observed 2026-11-12 — the blocked trace ran on toy-drive; design traces follow)
 
 ```text
 HAPPY PATH (one exp, end to end)

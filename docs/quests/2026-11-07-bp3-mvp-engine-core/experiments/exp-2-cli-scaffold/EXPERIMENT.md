@@ -14,9 +14,14 @@ named error codes with structured facts and guidance, strict
 argv, env-only identity, and the blocked inbox. The update is
 the only writer of FSM state.
 
-Status: **proposed, not implemented or verified.**
+Status: **landed through bp3 q 2026-11-12** (exp ledger on `bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-2-cli-scaffold`; commit `4d9ceaa`). Fixture suite below is green.
 
-## Demo (design trace — nothing here has run yet)
+## Demo (observed 2026-11-12 — this ran; design trace kept below the observed run)
+
+```text
+$ bp3 q demo u parser-fix land --reason "ship it"   # shape proven live on exp-2:
+{"ok":false,"error":{"code":"E_ILLEGAL_EDGE","facts":{"state":"todo","legal_edges":["submit","block","delete"]},"guidance":"..."}}
+```
 
 ```text
 $ bp3 q demo c parser-fix

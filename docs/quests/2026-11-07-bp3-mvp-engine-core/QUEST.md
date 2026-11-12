@@ -68,57 +68,31 @@ executor test lives in its own Quest downstream of a stable core.
   Code, Codex). Harness and model are recorded per
   ledger line.
 
-## Demos (design traces — no binary exists yet; nothing here has run)
+## Demos (observed 2026-11-12 — the binary exists; these ran)
 
 ```text
-HAPPY PATH
-  todo --submit c1--> submitted --review ship + check pass--> approved
-       --engine autoland--> landed        (quest tip moves once)
+HAPPY PATH (this quest's own exps, driven through bp3 q)
+  exp-2..exp-5: todo --submit--> submitted --review ship + check pass-->
+  approved --land--> landed        (rollup: landed, inbox: [])
 
-BLOCKED RAILWAY
-  submitted --needs_fix @ max_cycles--> blocked  [checkpoint committed]
-  engine bubbles -> human: "resume, go simpler" (attested human)
-  blocked --resume--> todo c2 -> fresh Run -> new commit -> submit
+BLOCKED RAILWAY (toy-drive/blocked-demo)
+  submitted --needs_fix @ max_cycles--> blocked  [human_action_required]
+  bp3 q r toy-drive -> inbox: [{exp: blocked-demo, reason, cycle, since}]
+  resume without BP3_DECIDER=human -> E_HUMAN_REQUIRED (exit 1)
+  resume as human -> todo c2 -> submit -> ship+pass -> landed
 
-LLM MISFIRE
-  todo + land -> E_ILLEGAL_EDGE {state: todo, legal_edges: [submit, block]}
-  state unchanged, nothing ledgered, agent picks a legal edge
+LLM MISFIRE (observed on exp-2 before its submit)
+  todo + land -> E_ILLEGAL_EDGE {state: todo, legal_edges:
+  [submit, block, delete]}   state unchanged, nothing ledgered
 
-SESSION LOST
-  machine dies at blocked -> clone anywhere -> bp3 q r
-  inbox: [{quest, exp, reason, checkpoint, cycle, since}]  (folded live)
-
-ENGINE INDUCT (Exp 5, design trace)
-  human: "induct quest toy" -> engine reads railway + inbox
-  workflow children take submit/review/check via bp3 q u
-  approved -> autoland -> landed; induct stops at terminal rollup
-  blocked or fan-out group -> induct stops, human decides, fresh Runs
+LIVE ENGINE (toy-drive/parser-fix via induct-exp, observed)
+  induct-exp children took submit/review/check/land; outcome: landed
+  ledger: 5 lines on bp3/exp/toy-drive/parser-fix, verdicts on the
+  exact commit; tape+notes on the quest branch for the submit Run
+  first live attempt refused: workflow args arrive as a JSON string
+  (script now parses both); children first recorded unknown/unknown
+  identity (env now passed explicitly in args)
 ```
-
-## Induct
-
-`induct(quest)` is the quest-level engine input. A bp3-enabled
-repo supplies it as a single main-session skill, also named
-`induct`: the skill loops the quest railway, and its saved
-workflow, `induct-exp`, loops one exp's inner FSM at a time.
-The workflow and child choreography are Exp 5's implementation
-detail, not part of this quest-level contract.
-
-```python
-def induct(quest):
-    # Read the quest live, dispatch work along its railway,
-    # and keep going until the quest is terminal or a human
-    # decision is owed. Everything below that line is figured
-    # out in Exp 5.
-    ...
-```
-
-| Input | Source | Quest-level rule |
-|---|---|---|
-| `quest` | human invokes the `induct` skill with one argument | the only argument; no edge list and no per-exp plan |
-| Railway, exp states, blocked inbox | `bp3 q r <quest>`, read live by the engine | derived from bp3 state, never supplied by the human or trusted from session memory |
-| Fan-out group choice | human, when the induct reaches a group | the induct stops and asks through the main session |
-| Blocked resolution | human's words in the main session | captured by the engine and attested as the human decision; the human calls no bp3 command and supplies no commit |
 
 ELI5
 Today every helper starts blank and pays full price to re-learn the
@@ -234,6 +208,16 @@ per Run (provisioning mode noted), human-active minutes,
 interventions and repeated explanations, review/rework cycles, and
 manual bypasses. Recorded here and in each exp record from Board
 data and session usage; unmeasured values are stated, never zero.
+
+Observed 2026-11-12 (this quest's own drive): four exps landed
+through bp3 q, one ledger line per accepted transition, zero
+manual state edits. Toy live run: parser-fix submit-to-land in
+about three minutes of wall time (ledger timestamps). Context
+tokens per Run and human-active minutes: unmeasured. Two
+dogfood defects found and fixed in flight (dune artifacts vs
+the dirty-tree guard; workflow args as JSON string; a third,
+unknown child identity, is fixed in induct-exp and awaits its
+next live run for confirmation).
 
 ## Risks and red chair
 

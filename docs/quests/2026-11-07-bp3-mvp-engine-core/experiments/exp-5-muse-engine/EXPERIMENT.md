@@ -17,10 +17,18 @@ human-facing main session.
 All state moves through `bp3 q u`; the engine never writes
 state itself.
 
-Status: **proposed, not implemented or verified.** Pulled into
+Status: **landed through bp3 q 2026-11-12, live engine run observed.** Pulled into
 this quest from the downstream bp3-mvp-muse-workflows quest
 (red-ink, 2026-11-11); only its executor-test exp came
-with it. First piece landed ahead of the
+with it. Live evidence 2026-11-12: `induct-exp` drove
+toy-drive/parser-fix todo -> landed (children took every edge
+through bp3 q u; ledger on the exp branch); probes answered:
+(a) V8 workflow executes on this machine — yes, two live runs;
+(b) child CLI reach — yes, direct; (c) per-call model routing —
+unprobed, children inherit the parent session. First attempt
+refused on string-form args (fixed); children first recorded
+unknown identity (fixed via args; next live run confirms).
+First piece landed ahead of the
 exp: the `induct` skill (`skills/induct/SKILL.md`, installed for
 all harnesses 2026-11-11) — renamed from `drive` the same day,
 since induction names its two-level loop. `induct-exp` and
