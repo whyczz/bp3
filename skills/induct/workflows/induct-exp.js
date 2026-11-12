@@ -56,6 +56,10 @@ export default async function workflow(host) {
   const quest = rawArgs.quest;
   const exp = rawArgs.exp;
   const ts = rawArgs.ts;
+  const harness = rawArgs.harness || "muse-code";
+  const model = rawArgs.model || "unknown";
+  const envPrefix =
+    "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
   const refusals = [];
   const runIds = [];
   if (!quest || !exp || !ts) {
@@ -74,7 +78,7 @@ export default async function workflow(host) {
     const result = await host.agent({
       label: "read " + exp,
       input:
-        "Run exactly `./bin/bp3 q " + quest + " r " + exp +
+        "Run exactly `"+envPrefix+"./bin/bp3 q " + quest + " r " + exp +
         "` from the repository root and return only its stdout JSON " +
         "verdict verbatim as your entire reply, with no prose and no " +
         "code fences. If the command fails, return its stdout JSON " +
@@ -112,7 +116,7 @@ export default async function workflow(host) {
   }
 
   function tapePreamble(edge, cycle) {
-    const folder = runFolder(edge, cycle, "<harness>-<model>");
+    const folder = runFolder(edge, cycle, harness + "-" + model);
     return (
       "Your run folder is `" + folder + "`, where <harness> is the " +
       "value of $BP3_HARNESS (or `unknown` when unset) and <model> " +
@@ -166,7 +170,7 @@ export default async function workflow(host) {
           " Do the exp's work in the repository, then commit the " +
           "work as a clean git commit and note its full sha. Then " +
           "call the state edge directly yourself: " +
-          "`./bin/bp3 q " + quest + " u " + exp +
+          "`"+envPrefix+"./bin/bp3 q " + quest + " u " + exp +
           " submit --commit <your-commit-sha> --reason \"<short reason>\"`. " +
           "Children call `bp3 q u` directly; never only return a " +
           "verdict for the parent to relay. Reply with only a JSON " +
@@ -184,7 +188,7 @@ export default async function workflow(host) {
         " Review the work at the bound commit on its merits and " +
         "judge only; do not edit the work. Then call the state " +
         "edge directly yourself, binding the exact commit: " +
-        "`./bin/bp3 q " + quest + " u " + exp +
+        "`"+envPrefix+"./bin/bp3 q " + quest + " u " + exp +
         " review --verdict ship --commit " + bound +
         " --reason \"<short reason>\"` when the work is correct, " +
         "or the same call with `--verdict needs_fix` when it is " +
@@ -200,7 +204,7 @@ export default async function workflow(host) {
         " Run the exp's checks against the bound commit and judge " +
         "only; do not edit the work. Then call the state edge " +
         "directly yourself, binding the exact commit: " +
-        "`./bin/bp3 q " + quest + " u " + exp +
+        "`"+envPrefix+"./bin/bp3 q " + quest + " u " + exp +
         " check --verdict pass --commit " + bound +
         " --reason \"<short reason>\"` when every check passes, " +
         "or the same call with `--verdict fail` when any check " +
@@ -220,7 +224,7 @@ export default async function workflow(host) {
           quest + "`, currently in state `approved` at cycle " +
           String(before.cycle) + ". " + tapePreamble("land", before.cycle) +
           " Call the state edge directly yourself: " +
-          "`./bin/bp3 q " + quest + " u " + exp +
+          "`"+envPrefix+"./bin/bp3 q " + quest + " u " + exp +
           " land --reason \"<short reason>\"`. Children call " +
           "`bp3 q u` directly; never only return a verdict for " +
           "the parent to relay. Reply with only a JSON object " +

@@ -43,10 +43,14 @@ human wants the landing writeup. A design under review is
    `induct-exp` workflow for that exp (installed with this
    skill by `bp3 skills install`; if it is missing, stop and
    say so rather than improvising children). Pass the workflow
-   args `{quest, exp, ts}`: `ts` is a UTC compact timestamp
-   (for example `20261107T143022Z`) supplied by this skill in
-   args because workflow scripts cannot read the clock, and
-   children embed it in every run-id. It loops the exp's
+   args `{quest, exp, ts, harness, model}`: `ts` is a UTC
+   compact timestamp (for example `20261107T143022Z`) supplied
+   by this skill in args because workflow scripts cannot read
+   the clock, and children embed it in every run-id; `harness`
+   and `model` carry this session's identity (`muse-code` and
+   its model), because workflow children do not inherit the
+   launching session's env and would otherwise record
+   `unknown`. It loops the exp's
    inner FSM — one fresh child Run per edge, review and
    check in parallel on the exact commit in `submitted`,
    autoland at `approved` — until the exp exits `landed`,
