@@ -380,12 +380,39 @@ let dep_satisfied dep =
           match fold_exp dep e with Some (_, s, _) -> s.st = "landed" || s.st = "deleted" | None -> false) exps
 
 (* ---------- verdict builders ---------- *)
+(* The proposed changeset of the bound commit: what a reviewer is
+   actually being asked to judge, visible before land. Diff of the
+   commit against its first parent. +/-/u alphabet, same as tree. *)
+let commit_changes = function
+  | None -> None (* unsure: nothing bound yet *)
+  | Some c ->
+      let out, code = git_out ["diff-tree"; "--no-commit-id"; "--name-status"; "-r"; c] in
+      if code <> 0 then None (* unsure: unreadable diff *) else
+      Some (List.filter_map (fun line ->
+        match String.split_on_char '\t' line with
+        | [st; path] ->
+            let kind = if st = "" then "u" else
+              (match st.[0] with 'A' -> "+" | 'D' -> "-" | _ -> "u") in
+            Some (`Assoc [("change", json_str kind); ("path", json_str path)])
+        | [st; _old; path] -> (* rename/copy: show the new path as updated *)
+            let kind = if st <> "" && st.[0] = 'C' then "+" else "u" in
+            Some (`Assoc [("change", json_str kind); ("path", json_str path)])
+        | _ -> None)
+      (List.filter (fun l -> l <> "") (String.split_on_char '\n' out)))
+
 let exp_json _q e s =
   `Assoc [
     ("exp", json_str e); ("state", json_str s.st); ("cycle", `Int s.cycle);
     ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
     ("legal_edges", `List (List.map json_str (legal_edges s.st)));
+    ("changes", (match commit_changes s.last_commit with
+       | Some xs -> `List xs | None -> `Null)); (* null = unsure *)
   ]
+
+let exp_verdict quest e s =
+  match exp_json quest e s with
+  | `Assoc fs -> `Assoc (("ok", `Bool true) :: ("quest", json_str quest) :: fs)
+  | other -> other
 
 let quest_view q =
   match fold_quest q with
@@ -439,8 +466,17 @@ let render_tree fields =
         let commit = match g "commit" with Some (`String c) -> Some c | _ -> None in
         let branch = if i = n - 1 then "`-- " else "|-- " in
         let owed = if state = "blocked" then "  (human owed)" else "" in
-        Printf.printf "%s%s %s - %s, cycle %d, commit %s%s\n"
-          branch (tree_marker state) (s "exp") state cycle (short_commit commit) owed
+        let counts = match g "changes" with
+          | Some (`List xs) when xs <> [] ->
+              let cnt k = List.length (List.filter (fun item ->
+                match item with `Assoc fs ->
+                  (match List.assoc_opt "change" fs with Some (`String x) -> x = k | _ -> false)
+                | _ -> false) xs) in
+              Printf.sprintf "  [+%d u%d -%d]" (cnt "+") (cnt "u") (cnt "-")
+          | Some (`List []) -> ""
+          | _ -> "  [?]" in
+        Printf.printf "%s%s %s - %s, cycle %d, commit %s%s%s\n"
+          branch (tree_marker state) (s "exp") state cycle (short_commit commit) counts owed
     | _ -> ()) exps;
   (match get "inbox" with
    | Some (`List (_ :: _ as xs)) ->
@@ -465,7 +501,18 @@ let render_tree_exp fields =
     | _ -> "" in
   Printf.printf "%s\n`-- %s %s - %s, cycle %d, commit %s\n    legal: %s\n"
     (s "quest") (tree_marker state) (s "exp") state cycle
-    (short_commit commit) (if legal = "" then "none" else legal)
+    (short_commit commit) (if legal = "" then "none" else legal);
+  (match g "changes" with
+   | Some (`List (_ :: _ as xs)) ->
+       Printf.printf "    changes (%d):\n" (List.length xs);
+       List.iter (fun item ->
+         match item with
+         | `Assoc fs ->
+             let c k = match List.assoc_opt k fs with Some (`String x) -> x | _ -> "?" in
+             Printf.printf "      %s %s\n" (c "change") (c "path")
+         | _ -> ()) xs
+   | Some (`List []) -> Printf.printf "    changes: none\n"
+   | _ -> Printf.printf "    changes: ?\n")
 
 let print_verdict ~fmt v =
   match fmt, v with
@@ -862,13 +909,7 @@ let run argv =
            (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
            (match fold_exp quest exp with
             | None -> not_found "exp" exp
-            | Some (_, s, _) ->
-                print_verdict ~fmt:"json"
-                  (`Assoc [("ok", `Bool true); ("quest", json_str quest)] |>
-                   fun _ -> `Assoc ([("ok", `Bool true); ("quest", json_str quest); ("exp", json_str exp);
-                     ("state", json_str s.st); ("cycle", `Int s.cycle);
-                     ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
-                     ("legal_edges", `List (List.map json_str (legal_edges s.st)))])); 0)
+            | Some (_, s, _) -> print_verdict ~fmt:"json" (exp_verdict quest exp s); 0)
        | "r", exp :: tail ->
            let (pos, fl) = split_flags (exp :: tail) in
            (match pos with
@@ -876,12 +917,7 @@ let run argv =
                 (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
                 (match fold_exp quest e with
                  | None -> not_found "exp" e
-                 | Some (_, s, _) ->
-                     print_verdict ~fmt:fl.fmt
-                       (`Assoc [("ok", `Bool true); ("quest", json_str quest); ("exp", json_str e);
-                         ("state", json_str s.st); ("cycle", `Int s.cycle);
-                         ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
-                         ("legal_edges", `List (List.map json_str (legal_edges s.st)))]); 0)
+                 | Some (_, s, _) -> print_verdict ~fmt:fl.fmt (exp_verdict quest e s); 0)
             | _ -> usage "exp read takes at most one exp")
        | "u", exp :: edge :: tail ->
            let (pos, fl) = split_flags tail in

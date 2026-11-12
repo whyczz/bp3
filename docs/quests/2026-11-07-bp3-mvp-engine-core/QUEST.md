@@ -33,6 +33,15 @@ executor test lives in its own Quest downstream of a stable core.
   `induct`; a step that changes nothing (refusals, no commit)
   also exits as `refused` for `induct` to re-judge. It loops
   the exp's inner FSM; it does not navigate the quest railway.
+- Tree view: the human read of a quest or exp
+  (`bp3 q r --format tree`), the presentation /quest and
+  red-ink show the owner. Exp markers: `+` todo, `u`
+  submitted/approved/blocked, `-` deleted, blank landed
+  (clean, like git status). Each exp also carries its
+  proposed file changes — `+` added, `u` updated, `-`
+  deleted, from the bound commit's diff — so wrong files are
+  spotted up front, before land. Unsure (nothing bound, or
+  the diff cannot be read) is `?`, never an empty list.
 - State: a condition of an exp (`todo`, `submitted`,
   `approved`, `blocked`, `landed`, `deleted`) — never a role,
   a command, or a “stage.”
@@ -87,12 +96,13 @@ LLM MISFIRE (observed on exp-2 before its submit)
 
 FINAL HUMAN VIEW (bp3 q r <quest> --format tree, observed)
   2026-11-07-bp3-mvp-engine-core [proposed] rollup: landed
-  |--   exp-2-cli-scaffold - landed, cycle 1, commit 4d9ceaa
-  |--   exp-3-fsm - landed, cycle 1, commit 4d9ceaa
-  |--   exp-4-tape-hooks - landed, cycle 1, commit a43bcd6
-  `--   exp-5-muse-engine - landed, cycle 1, commit a43bcd6
+  |--   exp-2-cli-scaffold - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
+  |--   exp-3-fsm - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
+  |--   exp-4-tape-hooks - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
+  `--   exp-5-muse-engine - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
   (markers: + todo, u submitted/approved/blocked, - deleted,
-   blank landed — the git-status alphabet; per-exp view:
+   blank landed — the git-status alphabet; counts are each
+   exp's proposed file changes, listed in full by:
    bp3 q <quest> r <exp> --format tree)
 
 LIVE ENGINE (toy-drive/parser-fix via induct-exp, observed)

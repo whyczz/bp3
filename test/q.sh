@@ -362,4 +362,31 @@ out=$(clone_q r demo)
 echo "$out" | jq -e '.rollup == "blocked" and ([.inbox[] | select(.exp == "clone-blocked" and .reason == "clone blocked reason")] | length == 1)' >/dev/null || fail "clone rollup/inbox: $out"
 cd "$work/repo"
 
+# --- proposed changes: the bound commit's changeset, visible before land ---
+q c chg >/dev/null
+q chg c files >/dev/null
+echo new > added.txt; echo change >> a.txt; git rm -q b.txt 2>/dev/null || rm -f b.txt
+git add -A; git commit -qm "add+modify+delete"
+CHG=$(git rev-parse HEAD)
+out=$(q chg u files submit --commit "$CHG" --reason "changeset demo")
+echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "chg submit: $out"
+out=$(q chg r files)
+echo "$out" | jq -e '[.changes[] | select(.change == "+" and .path == "added.txt")] | length == 1' >/dev/null || fail "changes +: $out"
+echo "$out" | jq -e '[.changes[] | select(.change == "u" and .path == "a.txt")] | length == 1' >/dev/null || fail "changes u: $out"
+echo "$out" | jq -e '[.changes[] | select(.change == "-" and .path == "b.txt")] | length == 1' >/dev/null || fail "changes -: $out"
+ctree=$(q chg r files --format tree)
+echo "$ctree" | grep -q "changes (3):" || fail " exp tree changes header: $ctree"
+echo "$ctree" | grep -q "^      + added.txt" || fail "exp tree + line: $ctree"
+echo "$ctree" | grep -q "^      u a.txt" || fail "exp tree u line: $ctree"
+echo "$ctree" | grep -q "^      - b.txt" || fail "exp tree - line: $ctree"
+qtree=$(q r chg --format tree)
+echo "$qtree" | grep -q "\[+1 u1 -1\]" || fail "quest tree counts: $qtree"
+git checkout -q HEAD -- a.txt 2>/dev/null || true
+# unsure changeset renders as ?, never a fake empty
+q chg c fresh >/dev/null
+ftree=$(q chg r fresh --format tree)
+echo "$ftree" | grep -q "changes: ?" || fail "unsure changes marker: $ftree"
+out=$(q chg r fresh)
+echo "$out" | jq -e '.changes == null' >/dev/null || fail "unsure changes json: $out"
+
 echo "q tests: ok"
