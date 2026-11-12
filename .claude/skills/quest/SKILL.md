@@ -6,47 +6,134 @@ description: Turn a known intent into a bp3 Quest file at docs/quests/<date>-<sl
 
 # Quest
 
-Use when the user invokes this skill by name (`/quest`, `$quest`) or asks
-to frame, spec, or start a new Quest in bp3. This skill is `design` applied to a Quest: it
-proposes the Quest; it does not launch Workers, create Board records, or
-land anything.
+```text
+known intent
+    |
+    v
+ sync -> research -> names -> exps -> red chair
+    |                                   |
+    +-------> docs/quests/<date>-<slug>.md
+                        |
+                 human approves
+                        |
+                   governs build
+```
 
-Use `ask` instead when the goal, user, or success test is still unclear.
-Use `design` instead for a component design that is not a Quest.
+```python
+def quest(intent):
+    assert known(intent)                 # fuzzy goal -> ask()
+    play_back(intent)                    # iiuc, when two reads exist
+    ground = research(mvp_doc, repo, prior_quests)
+    names = define_terms(intent)         # spellings synced with code/data
+    exps = break_down(intent, acceptance="fails today")
+    attack(goal, scope, exp_order)       # red chair, recorded
+    return write_quest_file(names, exps)  # governs after human approval
+```
+
+One output: a Quest file a build can run against.
+
+## Context
+
+Reading map for this skill: prose carries context, why, and how
+we got here. Diagrams, pseudocode, and tables carry what we do.
+
+Work here used to live in the coordinator's head: helpers started
+blank, re-learned the job, and the plan evaporated between
+sessions. A Quest file moves that intent into the repo, where
+every later session reads the same map.
+
+How we get there shapes the procedure below. Sync comes first
+because a dictated intent usually has two honest reads, and
+speccing the wrong one costs a whole Quest. Research comes
+before questions because the repo already holds most answers.
+Names come before exps because names harden into paths, CLI
+addresses, and ledger fields. Acceptance must fail today
+because a gate that starts green certifies nothing.
+
+## When this fires
+
+| Case | Fire |
+|---|---|
+| “frame this as a quest”, `/quest` | this skill |
+| goal or success test still fuzzy | `ask` first |
+| component design, no Quest shape | `design` |
+| idea shelved for a future quest | `icebox` |
+| advancing existing quest state | `using-bp3` |
 
 ## Procedure
 
-1. Sync first. If the request is dictated or can be read two ways, run the
-   iiuc playback and get a go before speccing the wrong Quest.
-2. Research the actual ground: the MVP doc
-   (`docs/designs/bp3-control-mvp.md`), the home repo's current state, and
-   any prior Quest files under `docs/quests/`. Never spec against imagined
-   state.
-3. Ask only questions whose answers change the Quest's shape: home repo,
-   success picture, lane, or the first exp. Everything else becomes an
-   explicit assumption or an open question in the file.
-4. Names first, presented under a Concepts header. With the
-   `naming` skill, propose the Quest name, its slug, the exp
-   names, and every term the Quest coins, listed with one-line
-   definitions in the design's Concepts section, before drafting
-   anything else. Names are load-bearing: they
-   become folder paths, CLI addresses, link targets, and the words
-   every later session thinks in. A wrong name discovered after
-   exps reference it is a migration, not an edit. Draft the file at `docs/quests/<date>-<slug>.md` in the Quest's home
-   repo, where `<date>` is today as `YYYY-MM-DD` and `<slug>` is a short
-   lowercase kebab-case summary of the goal. One Quest per file. Keep each
-   exp's intent, order, dependencies and acceptance summary here; detailed
-   mini-designs, code tours, evidence and runbooks live in linked canonical
-   `docs/exp/<date>-<slug>.md` records written with `bp3-writer`. Those records
-   elaborate the exp; they do not create a second plan or Board authority.
-5. Break the Quest into exps. Each exp gets an inspectable output and an
-   acceptance check that fails today. A check that cannot fail is a hope,
-   not an exp. Stage large exps as numbered substeps (1.1, 1.2, ...) when
-   parts can pass independently.
-6. Run the red-chair passes as you write, proportionately: attack the goal
-   (is this the real ask, or a solution in disguise), the scope (what is
-   cut and why it is safe to cut), and the exp order (is the riskiest
-   useful slice first). Record the strongest attack and what it changed.
+| # | Step | Gate before moving on |
+|---|---|---|
+| 1 | Sync: play the intent back (iiuc) when it can be read two ways | human confirms the read |
+| 2 | Research the ground: MVP doc, home repo state, prior Quests in `docs/quests/` | every claim traces to a file read this session |
+| 3 | Ask questions whose answers change the shape: home repo, success picture, lane, first exp | the rest become assumptions or open questions in the file |
+| 4 | Names first, under a Concepts/Terms header, with `naming` | every term defined in one line before any exp spends it |
+| 5 | Draft `docs/quests/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) | one Quest per file |
+| 6 | Break into exps with failing-today acceptance | a check that cannot fail gets rewritten |
+| 7 | Red-chair passes on goal, scope, exp order | strongest attack + what it changed, recorded |
+| 8 | Stage fat exps as numbered substeps (1.1, 1.2, ...) | each substep passes on its own |
+
+Keep exp detail inside the Quest file: intent, order, dependencies,
+acceptance. Deep runbooks live in linked exp records; the Quest
+file stays the plan of record.
+
+## Names sync with code and data
+
+Names become folder paths, CLI addresses, ledger fields, and the
+words later sessions think in.
+
+| Term becomes | Spelling rule |
+|---|---|
+| CLI verb / flag | exact identifier from the CLI |
+| state / variant | exact spelling from the FSM or type |
+| ledger field | exact key the binary writes |
+| file / branch | exact path or ref the tools derive |
+| coined fresh | the Quest's spelling; implementation adopts it |
+
+| Case | Move |
+|---|---|
+| code or data already has a name | Quest adopts that spelling |
+| Quest coins a name | code, schemas, tests, skills take the Quest spelling |
+| rename after exps reference it | treat it as a migration; price it before agreeing |
+
+## Exps
+
+The Quest file keeps the railway: one TL;DR row per exp, with a
+relative link to its record. Full Output, Acceptance, and
+Substeps live in `experiments/exp-<n>-<slug>/EXPERIMENT.md`
+inside the quest folder — the same folder that later holds the
+exp's generated ledger, state, and runs.
+
+Every exp record is written in this shape, in this order:
+
+```text
+TL;DR -> demo -> diagram (ascii) -> pseudocode (python)
+      -> tables -> acceptance test (goal block) -> prose
+prose = context, why, how we got here, edge cases
+code  = what we're gonna do
+```
+
+| Part | Carries |
+|---|---|
+| Demo | up front: one worked trace (happy path at minimum), labeled `observed` or `design trace` |
+| ASCII diagram | the flow at a glance: inputs, outputs, where it can stop |
+| Python pseudocode | the mechanism, readable by human and agent in one pass |
+| Tables | fields (Intent, Lane, Output, Acceptance, Depends on), cases, gates |
+| Acceptance test | one goal-shaped block a session can run cold: `objective` (one sentence), `prove by` (fixtures/commands), `done when` (the exact observation) |
+| Prose | context, why this exp exists, how we got here, edge cases and what they do |
+
+An exp with no demo and no runnable goal block is unfinished
+spec, however good its prose reads. The Quest file itself
+follows the same law at its scale: Terms, then a Demos section
+(the quest's own traces, honestly labeled), then the railway.
+
+| Field | Carries |
+|---|---|
+| Intent | the bounded contribution |
+| Lane | micro \| standard \| high-blast-radius |
+| Output | an artifact someone can inspect |
+| Acceptance | a check that fails today, with its expected observation |
+| Depends on | prior exps, exact commits, or none |
 
 ## File shape
 
@@ -60,78 +147,58 @@ date: <YYYY-MM-DD>
 # <Quest name>
 
 TL;DR
-<what will be true when this Quest lands, and the one decision it makes>
+<what will be true when this Quest lands; the one decision made>
 
 ELI5
-<the whole Quest in plain words, repeatable by a smart non-specialist>
+<the whole Quest in plain words>
 
-## Concepts
-<every name and term this Quest uses or coins — quest name, slug,
-exp names, states, moves — one line each: the word, what it means.
-Chosen with the naming skill; existing vocabulary wins>
+## Terms
+<every name and term, one line each; spellings match the code
+and data structures they name, exactly>
+
+## Demos
+<the quest's own worked traces, up front, each labeled
+observed or design trace>
 
 ## Goal and why
-<the outcome pursued, in the user's words where possible>
-
 ## Success picture
-<what the human will see, run, and judge at Quest-to-master; how landing
-is recorded, with limitations stated>
-
-## Scope
-In: <...>
-Out: <...>
-
+## Scope            (In: / Out: as a table)
 ## Human touchpoints
-<framing, escalations, Quest-to-master promotion; everything else is
-automated or it is listed here>
-
 ## Exps
-### Exp 1 — <name>
-- Intent: <bounded contribution>
-- Lane: micro | standard | high-blast-radius
-- Output: <inspectable artifact>
-- Acceptance: <check that fails today, and its expected observation>
-- Depends on: <prior exps, exact commits, or none>
-
+### Exp 1 — <name>   (one TL;DR row + relative link; the record
+carries diagram, pseudocode, tables, and prose per the Exps
+section above)
 ## Scorecard
-<what gets measured: human-active minutes, interventions, ceremony,
-restarts, bypasses; where the numbers are recorded>
-
 ## Risks and red chair
-<strongest attacks, what changed because of them, what remains open>
-
-## Open questions
-<ranked by what their answers would change, each with an owner>
+## Open questions    (ranked, each with an owner)
 ```
 
 ## Lifecycle
 
-- `proposed` — framed, not started. `active` — building.
-- `landed` — terminal success: the success picture was met and the human
-  Quest-to-master promotion is recorded with its exact commit and
-  limitations. Only a landed Quest claims its acceptance passed.
-- `canceled` — terminal non-success: stopped without landing
-  (superseded, abandoned, or retired at any stage, proposed included).
-  Canceling requires a disposition in the file: why it stopped, each
-  exp's disposition (done, dropped, or carried into a named successor),
-  and what evidence is frozen. Dropped gates are dropped, never passed.
-- There is no deletion. Transitions:
-  `proposed → active → landed`, or `proposed | active → canceled`.
-  Landed and canceled files stay in `docs/quests/`; exp records parent
-  them there, so nothing moves.
-- Quest status is not exp status: exps keep `proposed | active |
-  complete` (bp3-writer), and `auto_landed` stays an exp-level state.
+| Status | Meaning | Landing evidence |
+|---|---|---|
+| `proposed` | framed, unstarted | the file itself |
+| `active` | building | exps moving under `using-bp3` |
+| `landed` | success picture met | human promotion recorded with exact commit + limitations |
+| `canceled` | stopped, terminal | disposition: why, each exp's fate, frozen evidence |
 
-## Rules
+Transitions: `proposed -> active -> landed`; `proposed | active -> canceled`.
+Files stay in `docs/quests/` for life — exp records point at them.
 
-- The Quest file is the human-facing record; the Board is the runtime
-  truth once implementation exists. Keep the file in sync at Quest gates,
-  not after every exp event.
-- Preserve the MVP vocabulary exactly: Quest, exp, execution, `auto_landed`,
-  ceremony lanes, home repo. Do not introduce Task/Milestone or graph terms.
-- Every exp's acceptance must be observable without reading transcripts or
-  raw SQL.
-- Quest files never claim implementation state that has not been observed:
-  mark proposed checks as unmet, not as results.
-- When the Quest is accepted and building starts, the accepted file
-  governs; changes to goal or scope are explicit edits the human approves.
+At `landed`, run `quest-landing-demo` and record its Landing IIUC
+(decision record, demo traces, verification, open items) under
+Success picture.
+
+| Boundary | Rule |
+|---|---|
+| Quest status vs exp status | exps keep `proposed \| active \| complete`; `auto_landed` stays exp-level |
+| file sync | update at Quest gates; runtime truth lives in bp3 once implementation exists |
+
+## Traps
+
+| Case | Move |
+|---|---|
+| acceptance reads like a hope | rewrite until it can fail today |
+| file claims a result never observed | mark it proposed / unmet |
+| new planning vocabulary creeps in | Quest, exp, Run carry the load; send the rest back |
+| accepted Quest needs a goal change mid-build | explicit edit, human-approved |
