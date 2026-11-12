@@ -464,7 +464,7 @@ let render_tree fields =
         let state = s "state" in
         let cycle = match g "cycle" with Some (`Int c) -> c | _ -> 0 in
         let commit = match g "commit" with Some (`String c) -> Some c | _ -> None in
-        let branch = if i = n - 1 then "`-- " else "|-- " in
+        let branch = if i = n - 1 then "`___> " else "|___> " in
         let owed = if state = "blocked" then "  (human owed)" else "" in
         let counts = match g "changes" with
           | Some (`List xs) when xs <> [] ->
@@ -499,7 +499,7 @@ let render_tree_exp fields =
     | Some (`List xs) ->
         String.concat ", " (List.map (function `String x -> x | o -> Yojson.Safe.to_string o) xs)
     | _ -> "" in
-  Printf.printf "%s\n`-- %s %s - %s, cycle %d, commit %s\n    legal: %s\n"
+  Printf.printf "%s\n`___> %s %s - %s, cycle %d, commit %s\n    legal: %s\n"
     (s "quest") (tree_marker state) (s "exp") state cycle
     (short_commit commit) (if legal = "" then "none" else legal);
   (match g "changes" with

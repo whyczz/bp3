@@ -96,10 +96,10 @@ LLM MISFIRE (observed on exp-2 before its submit)
 
 FINAL HUMAN VIEW (bp3 q r <quest> --format tree, observed)
   2026-11-07-bp3-mvp-engine-core [proposed] rollup: landed
-  |--   exp-2-cli-scaffold - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
-  |--   exp-3-fsm - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
-  |--   exp-4-tape-hooks - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
-  `--   exp-5-muse-engine - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
+  |___>   exp-2-cli-scaffold - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
+  |___>   exp-3-fsm - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
+  |___>   exp-4-tape-hooks - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
+  `___>   exp-5-muse-engine - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
   (markers: + todo, u submitted/approved/blocked, - deleted,
    blank landed — the git-status alphabet; counts are each
    exp's proposed file changes, listed in full by:
