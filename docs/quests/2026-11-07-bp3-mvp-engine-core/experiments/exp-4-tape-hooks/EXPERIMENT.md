@@ -61,7 +61,7 @@ def run(edge, exp):
 |---|---|
 | Intent | Every run leaves a complete tape and a factual ledger without screen-scraping |
 | Lane | standard |
-| Output | Tape capture by the launcher; hook annotation + fact emission (Pi bridge extension, Muse settings hooks) |
+| Output | Tape capture by the launcher; hook annotation + fact emission (Muse settings hooks; tape capture itself is harness-agnostic) |
 | Depends on | Exp 2 (the seam owns launching) + Exp 3 (facts land in the FSM ledger) |
 
 ## Acceptance (fails today: no tape, no hook events, cost hardcoded null)

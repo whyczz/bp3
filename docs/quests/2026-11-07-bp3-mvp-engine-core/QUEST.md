@@ -18,6 +18,21 @@ executor test lives in its own Quest downstream of a stable core.
 - Quest: one unit of work with an authored railway of exps.
 - Exp: one entry on a quest's railway, running the inner FSM.
 - Run: one execution that takes an edge and leaves a tape.
+- Induct: one engine loop over a quest — read the railway and
+  inbox, dispatch Runs for the next legal edges, autoland at
+  `approved`, and stop only when the rollup is terminal or a
+  human decision is owed (`blocked`, a fan-out choice). A
+  induct is a session of work, not an edge: many Runs, one
+  induct. Recovery from a dead induct is a fresh induct, never a
+  resumed one.
+- Induct-exp: the saved Muse workflow `induct` launches
+  for one exp. From mathematical induction: take the exp's
+  current state as true, apply one legal step, re-read the
+  state, and repeat. Base cases (exits): the state is
+  `landed`, `blocked`, or `deleted`, so it returns to
+  `induct`; a step that changes nothing (refusals, no commit)
+  also exits as `refused` for `induct` to re-judge. It loops
+  the exp's inner FSM; it does not navigate the quest railway.
 - State: a condition of an exp (`todo`, `submitted`,
   `approved`, `blocked`, `landed`, `deleted`) — never a role,
   a command, or a “stage.”
@@ -50,7 +65,7 @@ executor test lives in its own Quest downstream of a stable core.
   execution system that takes edges and runs work.
 - Harness: the third-party app host and its bundle —
   model, skills, hooks, and extensions (e.g. Muse
-  Code, Pi, Codex). Harness and model are recorded per
+  Code, Codex). Harness and model are recorded per
   ledger line.
 
 ## Demos (design traces — no binary exists yet; nothing here has run)
@@ -72,7 +87,38 @@ LLM MISFIRE
 SESSION LOST
   machine dies at blocked -> clone anywhere -> bp3 q r
   inbox: [{quest, exp, reason, checkpoint, cycle, since}]  (folded live)
+
+ENGINE INDUCT (Exp 5, design trace)
+  human: "induct quest toy" -> engine reads railway + inbox
+  workflow children take submit/review/check via bp3 q u
+  approved -> autoland -> landed; induct stops at terminal rollup
+  blocked or fan-out group -> induct stops, human decides, fresh Runs
 ```
+
+## Induct
+
+`induct(quest)` is the quest-level engine input. A bp3-enabled
+repo supplies it as a single main-session skill, also named
+`induct`: the skill loops the quest railway, and its saved
+workflow, `induct-exp`, loops one exp's inner FSM at a time.
+The workflow and child choreography are Exp 5's implementation
+detail, not part of this quest-level contract.
+
+```python
+def induct(quest):
+    # Read the quest live, dispatch work along its railway,
+    # and keep going until the quest is terminal or a human
+    # decision is owed. Everything below that line is figured
+    # out in Exp 5.
+    ...
+```
+
+| Input | Source | Quest-level rule |
+|---|---|---|
+| `quest` | human invokes the `induct` skill with one argument | the only argument; no edge list and no per-exp plan |
+| Railway, exp states, blocked inbox | `bp3 q r <quest>`, read live by the engine | derived from bp3 state, never supplied by the human or trusted from session memory |
+| Fan-out group choice | human, when the induct reaches a group | the induct stops and asks through the main session |
+| Blocked resolution | human's words in the main session | captured by the engine and attested as the human decision; the human calls no bp3 command and supplies no commit |
 
 ELI5
 Today every helper starts blank and pays full price to re-learn the
@@ -116,14 +162,13 @@ and rebuilds only how work executes.
 
 ## Success picture
 
-The founding evidence is the owner's: the Pi loop was run by
-hand and it sucks — no baseline exp is run. The engine contract
-is specified (Pi extraction against it is frozen in the
-[pi-engine icebox entry](../../icebox/2026-11-11-pi-engine.md));
-the commit-state machine runs the toy exp end to end — submit,
-review, check, CAS land — with guards intact. The Muse executor
-test that proves interchangeability downstream lives in
-[bp3-mvp-muse-workflows](../2026-11-07-bp3-mvp-muse-workflows/QUEST.md).
+The founding evidence is the owner's: the predecessor loop
+was run by hand and it sucks — no baseline exp is run. The
+engine contract is specified; the commit-state machine runs the toy exp end to end — submit,
+review, check, CAS land — with guards intact. The Muse engine
+(Exp 5) runs that machine end to end on workflow children and
+dogfoods this quest's own build; the separate Muse executor
+quest was deleted (2026-11-11) and folded in here.
 Landing is recorded here with the
 measured context cost per edge, and limitations. Record layer as
 decided after red chair: no SQLite Board — bookkeeping lives in
@@ -137,17 +182,15 @@ binary, tests, docs, skills) with the `default` quest_type
 ## Scope
 
 In: the `bp3 q` CLI
-scaffold; and the commit-state FSM (states, edges, guards,
-YAML quest_type plans). Pi engine extraction is out — frozen
-in the [pi-engine icebox entry](../../icebox/2026-11-11-pi-engine.md).
+scaffold; the commit-state FSM (states, edges, guards,
+YAML quest_type plans); and the Muse engine (Exp 5:
+the `induct` skill, `induct-exp`, Muse hooks) that dogfoods the
+railway.
 Inherited by reference: the canceled Quest's Exp 2
 auto-land kernel candidate `9e1b1d0` and its gated-landing
-contract. Downstream Quests:
-[bp3-mvp-muse-workflows](../2026-11-07-bp3-mvp-muse-workflows/QUEST.md)
-(Muse executor test), [bp3 engine, Pi executors](../2026-11-07-bp3-engine-pi.md)
-(oh-my-pi, subagent extensions, or our own), and
-[bp3 pi qol](../2026-11-07-bp3-pi-qol.md) (the Pi speed
-meta), written alongside this one.
+contract. The former Muse executor
+quest (bp3-mvp-muse-workflows) was deleted 2026-11-11; its
+executor test is Exp 5 here.
 Out: warden/hook substrate (decided: not yet; the contract sketch
 waits in the [hooks dossier](../../dossiers/muse-workflows-hooks.md)),
 resurrecting pane takeover as a requirement (Zellij remains a
@@ -172,15 +215,17 @@ own record under `experiments/`; this file keeps the railway.
 | 2 — CLI scaffold | The `bp3 q` CLI: verdicts, error codes, strict argv, identity env, blocked inbox | Fixture suite green: verdict shapes, error codes, both verb spellings, strict argv, identity, blocked inbox | none |
 | 3 — Commit-state FSM | Six-state machine per exp, ledgers at branch tips, railway, autoland | Two executors alternate with identical guards; stale verdict refused; halt at the bound | Exp 2 |
 | 4 — Tape and hooks | Tape per Run, hooks emit ledger facts, tape never parsed | Killed executor still leaves a complete tape; no ledger line derived from tape text | Exp 2 + Exp 3 |
+| 5 — Muse engine | The dogfood engine: `induct` skill + `induct-exp` workflow + Muse hooks driving the railway | Toy exp travels `todo → landed` on workflow children; forced `blocked` bubbles to the main session and resumes on the human's word | Exp 2 + Exp 3 + Exp 4 |
 
 Records:
 
-- Exp 1 — Timed baseline: **killed by the owner** (ran the Pi
-  loop by hand; it sucks — measurement unnecessary). Record kept
+- Exp 1 — Timed baseline: **killed by the owner** (ran the
+  predecessor loop by hand; it sucks — measurement unnecessary). Record kept
   as a fossil: [exp-1-baseline](experiments/exp-1-baseline/EXPERIMENT.md)
 - Exp 2 — [CLI scaffold: u, discover, CRUD](experiments/exp-2-cli-scaffold/EXPERIMENT.md)
 - Exp 3 — [Commit-state FSM](experiments/exp-3-fsm/EXPERIMENT.md)
 - Exp 4 — [Tape and hooks](experiments/exp-4-tape-hooks/EXPERIMENT.md) (the older [2026-11-07-tape-hooks.md](experiments/2026-11-07-tape-hooks.md) record predates the settled design and is kept as history)
+- Exp 5 — [Muse engine](experiments/exp-5-muse-engine/EXPERIMENT.md) (pulled into this quest for dogfooding from the deleted downstream quest)
 
 ## Scorecard
 
@@ -198,23 +243,23 @@ data and session usage; unmeasured values are stated, never zero.
   harness and fan-out shape are recorded per Run.
 - Strongest attack on order: the baseline was Exp 1 because the
   four-hour bounce was unattributed. The owner killed it — the
-  Pi loop was run by hand and convicted directly. The order now
+  predecessor loop was run by hand and convicted directly. The order now
   rests on that first-hand evidence instead of a measurement
   gate. Remaining open: whether watchability's
   loss hides a real debugging need the debug view cannot cover.
 
 ## Open questions
 
-1. Exp 1 baseline: killed by the owner, who ran the Pi loop by
-   hand and convicted it directly. No measurement gate; the
+1. Exp 1 baseline: killed by the owner, who ran the predecessor
+   loop by hand and convicted it directly. No measurement gate; the
    Quest proceeds on that evidence.
 2. Block/resume versus block-then-respawn. Default: respawn.
-   Owner: human, with bp3-mvp-muse-workflows evidence.
+   Owner: human, with Exp 5 evidence.
 3. Reviewer may fix, with a fresh reviewer required — direction
    settled, implementation deferred to a future quest:
    [reviewer-fix icebox entry](../../icebox/2026-11-11-reviewer-fix.md).
    In this Quest, reviewers judge only; fix commits come from
    author Runs.
-4. How fat may the engine contract grow before it encodes Pi-pane
-   assumptions? Default: no new signal kinds without a second
+4. How fat may the engine contract grow before it encodes one
+   harness's pane assumptions? Default: no new signal kinds without a second
    engine needing them. Owner: implementer, in Exp 2.

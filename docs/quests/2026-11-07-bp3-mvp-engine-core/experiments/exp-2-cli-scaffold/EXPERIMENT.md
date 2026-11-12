@@ -145,6 +145,6 @@ re-judges from the new tip — a machine retry, never an
 escalation. A malformed ledger, plan, or exp_type stops the
 call with a named code; the tool invents no fields and repairs
 nothing, so corruption gets a human. Quest folders that
-predate this CLI are adopted, not converted by hand. Pi engine
-extraction was removed from this exp and frozen in the
-[pi-engine icebox entry](../../../../icebox/2026-11-11-pi-engine.md).
+predate this CLI are adopted, not converted by hand. Engine
+extraction beyond the Muse engine (Exp 5) is out of this
+quest's scope.

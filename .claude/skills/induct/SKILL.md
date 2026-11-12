@@ -1,16 +1,16 @@
 ---
-name: drive
-description: Drive one bp3 quest along its railway from the main session — dispatch Runs edge by edge through bp3 q until the quest is terminal or a human decision is owed.
+name: induct
+description: Induct one bp3 quest along its railway from the main session — loop the railway with induct-exp workflows until the quest is terminal or a human decision is owed.
 ---
-<!-- GENERATED from skills/drive/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->
+<!-- GENERATED from skills/induct/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->
 
-# Drive
+# Induct
 
 Use when a human in a bp3-enabled repo invokes this skill by
-name (`/drive <quest>`, `$drive <quest>`) or asks to "drive",
+name (`/induct <quest>`, `$induct <quest>`) or asks to "induct",
 "run", or "keep going on" a named quest until it lands or
-blocks. One quest per drive. One output: Runs dispatched
-through `bp3 q`, ending in a drive report — what landed, what
+blocks. One quest per induct. One output: Runs dispatched
+through `bp3 q`, ending in an induct report — what landed, what
 is blocked, and what human decision is owed next.
 
 Use `quest` instead to frame a new quest. Use `using-bp3`
@@ -18,7 +18,7 @@ instead for a single state operation by hand (one submit, one
 review, recovery after a dead session). Use
 `quest-landing-demo` instead when the quest is done and the
 human wants the landing writeup. A design under review is
-`red-ink`'s job, not a drive.
+`red-ink`'s job, not an induct.
 
 ## Procedure
 
@@ -40,13 +40,20 @@ human wants the landing writeup. A design under review is
 4. At a fan-out group, stop and ask the human which members
    run. Members are exploration only and never landable; when
    they settle, ask which result feeds the follow-up exp.
-5. Otherwise take the next landable exp. Dispatch one fresh
-   Run per edge through the engine's workflow: an author Run
-   commits work and `submit`s the exact commit; review and
-   check Runs judge that exact commit and may run in parallel;
-   at `approved`, autoland with `land`. Every state move goes
-   through `bp3 q <quest> u <exp> <edge>` — no exceptions.
-6. Re-read after every dispatch (`bp3 q r <quest>`). A
+5. Otherwise take the next landable exp and launch the
+   `induct-exp` workflow for that exp (installed with this
+   skill by `bp3 skills install`; if it is missing, stop and
+   say so rather than improvising children). It loops the exp's
+   inner FSM — one fresh child Run per edge, review and
+   check in parallel on the exact commit in `submitted`,
+   autoland at `approved` — until the exp exits `landed`,
+   `blocked`, or `deleted`, or a step changes nothing
+   (refusals, no commit) and it returns `refused` to this
+   skill for re-judging. It never loops on an unchanged state.
+   The skill itself never dispatches edges one by one. Every
+   state move goes through `bp3 q <quest> u <exp> <edge>` —
+   no exceptions.
+6. Re-read after every workflow return (`bp3 q r <quest>`). A
    refusal is information, not failure: read its error code,
    facts, and guidance, pick a legal edge, continue. Never
    retry an edge unchanged against a moved tip; re-judge from

@@ -9,9 +9,9 @@ status: canceled
 
 ## TL;DR
 
-**Killed by the owner (2026-11-11): the owner ran the Pi loop by
-hand and convicted it directly — “I ran the Pi myself and it
-sucks.”** Measuring a convicted system is ceremony, so no
+**Killed by the owner (2026-11-11): the owner ran the
+predecessor loop by hand and convicted it directly — “I ran
+it myself and it sucks.”** Measuring a convicted system is ceremony, so no
 baseline is run and nothing here gates the Quest. What follows
 is the original sketch, kept as a fossil.
 
@@ -19,7 +19,7 @@ Status: **canceled, never run.**
 
 - Intent: attribute the current loop's cost before changing it.
 - Lane: standard
-- Output: a recorded breakdown for one toy exp on today's Pi crew:
+- Output: a recorded breakdown for one toy exp on today's pane crew:
   framing, spawn-to-ready, context load, execution, checks, review,
   and idle-blocked time, plus context tokens per Run.
 - Acceptance: the breakdown exists with numbers observed from Board

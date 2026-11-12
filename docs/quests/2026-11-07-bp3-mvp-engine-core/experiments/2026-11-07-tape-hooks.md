@@ -20,9 +20,8 @@ checks below are unrun.
 
 ## Context and scope
 
-Today a run's output lives in a Zellij pane and dies with it. The
-Pi bridge (`plugins/harness-pi/bridge.ts` on the quest branch)
-emits lifecycle signals to the Board, but there is no durable
+Today a run's output lives in a Zellij pane and dies with it.
+Harness bridges emit lifecycle signals to the Board, but there is no durable
 per-run output artifact, no tool/turn structure, and cost is
 hardcoded null in the Board snapshot
 (`core/board/store.ml` on the quest branch). The hooks dossier
@@ -31,7 +30,7 @@ sketches event kinds and cursor-based consumption; this exp covers
 only production of the tape and facts. Warden consumption is out
 of scope (decided: not yet).
 
-In: launcher-level `tee` capture; Pi bridge markers and ledger
+In: launcher-level `tee` capture; bridge markers and ledger
 emission; Muse settings hooks doing the same; per-run folder
 layout (`runs/<id>/tape.log`, `runs/<id>/notes.md` for authored
 lessons). Out: parsing tape text into events, warden subscribers,
@@ -47,7 +46,7 @@ launcher:  exec > >(tee runs/<id>/tape.log) 2>&1
               hook failure; gitignored by default, promoted
               into git only when it becomes evidence
 
-hooks:     Pi extension events (agent_start, agent_settled,
+hooks:     harness extension events (agent_start, agent_settled,
            input, tool boundaries) and Muse settings hooks
            (PreToolUse/PostToolUse/Stop equivalents)
            ├─ append markers into tape.log (tool/turn structure)
@@ -111,6 +110,6 @@ exactly as today.
 - Risk: hook surfaces differ per harness and drift per version.
   Mitigation: the tape layer carries the guarantee; hooks are
   best-effort structure on top.
-- Next step: confirm Muse hook names and Pi tool-event coverage
+- Next step: confirm Muse hook names and harness tool-event coverage
   live, then implement the launcher wrap first (smallest slice
   with standalone value).
