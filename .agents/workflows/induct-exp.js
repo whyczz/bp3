@@ -50,9 +50,12 @@ function errorText(result) {
 }
 
 export default async function workflow(host) {
-  const quest = host.args.quest;
-  const exp = host.args.exp;
-  const ts = host.args.ts;
+  const rawArgs = typeof host.args === "string"
+    ? JSON.parse(host.args)
+    : (host.args || {});
+  const quest = rawArgs.quest;
+  const exp = rawArgs.exp;
+  const ts = rawArgs.ts;
   const refusals = [];
   const runIds = [];
   if (!quest || !exp || !ts) {
