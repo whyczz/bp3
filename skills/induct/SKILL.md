@@ -50,7 +50,10 @@ human wants the landing writeup. A design under review is
    and `model` carry this session's identity (`muse-code` and
    its model), because workflow children do not inherit the
    launching session's env and would otherwise record
-   `unknown`. It loops the exp's
+   `unknown`. Children load role skills themselves: the author
+   child loads `code-writer`, the review child loads
+   `code-reviewer` (its `fix_first` becomes `needs_fix`), and
+   the check child judges in the `verify` stance. It loops the exp's
    inner FSM — one fresh child Run per edge, review and
    check in parallel on the exact commit in `submitted`,
    autoland at `approved` — until the exp exits `landed`,

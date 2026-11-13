@@ -60,6 +60,20 @@ export default async function workflow(host) {
   const model = rawArgs.model || "unknown";
   const envPrefix =
     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
+  const authorLoad =
+    "First load the code-writer skill (read_skill \"code-writer\") " +
+    "and follow its procedure, including naming discipline and " +
+    "its language references. ";
+  const reviewLoad =
+    "First load the code-reviewer skill (read_skill " +
+    "\"code-reviewer\") and review by its procedure: correctness, " +
+    "design patterns, tests, and comments that must agree with " +
+    "the code. Its verdict maps ship -> ship, fix_first -> " +
+    "needs_fix. ";
+  const checkLoad =
+    "First apply the verify stance (read_skill \"verify\" when " +
+    "available): judge only on fresh output from the project's " +
+    "own check command, never on claimed green. ";
   const refusals = [];
   const runIds = [];
   if (!quest || !exp || !ts) {
@@ -166,7 +180,7 @@ export default async function workflow(host) {
         input:
           "You are the author child for exp `" + exp + "` of quest `" +
           quest + "`, currently in state `todo` at cycle " +
-          String(before.cycle) + ". " + tapePreamble("submit", before.cycle) +
+          String(before.cycle) + ". " + authorLoad + tapePreamble("submit", before.cycle) +
           " Do the exp's work in the repository, then commit the " +
           "work as a clean git commit and note its full sha. Then " +
           "call the state edge directly yourself: " +
@@ -184,7 +198,7 @@ export default async function workflow(host) {
         "You are the review child for exp `" + exp + "` of quest `" +
         quest + "`, currently in state `submitted` at cycle " +
         String(before.cycle) + ", bound to commit `" + bound + "`. " +
-        tapePreamble("review", before.cycle) +
+        reviewLoad + tapePreamble("review", before.cycle) +
         " Review the work at the bound commit on its merits and " +
         "judge only; do not edit the work. Then call the state " +
         "edge directly yourself, binding the exact commit: " +
@@ -200,7 +214,7 @@ export default async function workflow(host) {
         "You are the check child for exp `" + exp + "` of quest `" +
         quest + "`, currently in state `submitted` at cycle " +
         String(before.cycle) + ", bound to commit `" + bound + "`. " +
-        tapePreamble("check", before.cycle) +
+        checkLoad + tapePreamble("check", before.cycle) +
         " Run the exp's checks against the bound commit and judge " +
         "only; do not edit the work. Then call the state edge " +
         "directly yourself, binding the exact commit: " +
