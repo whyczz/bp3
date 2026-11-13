@@ -365,7 +365,7 @@ cd "$work/repo"
 # --- proposed changes: the bound commit's changeset, visible before land ---
 q c chg >/dev/null
 q chg c files >/dev/null
-echo new > added.txt; echo change >> a.txt; git rm -q b.txt 2>/dev/null || rm -f b.txt
+echo new > added.txt; mkdir -p sub; echo deep > sub/deep.txt; echo change >> a.txt; git rm -q b.txt 2>/dev/null || rm -f b.txt
 git add -A; git commit -qm "add+modify+delete"
 CHG=$(git rev-parse HEAD)
 out=$(q chg u files submit --commit "$CHG" --reason "changeset demo")
@@ -376,11 +376,13 @@ echo "$out" | jq -e '[.changes[] | select(.change == "u" and .path == "a.txt")] 
 echo "$out" | jq -e '[.changes[] | select(.change == "-" and .path == "b.txt")] | length == 1' >/dev/null || fail "changes -: $out"
 ctree=$(q chg r files --format tree)
 echo "$ctree" | grep -q "├── + added.txt" || fail "exp tree files: $ctree"
+echo "$ctree" | grep -q "├── sub" || fail "exp tree dir branch: $ctree"
+echo "$ctree" | grep -q "└── + deep.txt" || fail "exp tree nested leaf: $ctree"
 echo "$ctree" | grep -qF "+ added.txt" || fail "exp tree + line: $ctree"
 echo "$ctree" | grep -qF "u a.txt" || fail "exp tree u line: $ctree"
 echo "$ctree" | grep -qF -- "- b.txt" || fail "exp tree - line: $ctree"
 qtree=$(q r chg --format tree)
-echo "$qtree" | grep -q "\[+1 u1 -1\]" || fail "quest tree counts: $qtree"
+echo "$qtree" | grep -q "\[+2 u1 -1\]" || fail "quest tree counts: $qtree"
 git checkout -q HEAD -- a.txt 2>/dev/null || true
 # unsure changeset renders as ?, never a fake empty
 q chg c fresh >/dev/null

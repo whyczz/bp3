@@ -451,18 +451,45 @@ let short_commit = function
   | None -> "-"
 
 (* tree(1)-style rendering: quest is the root, exps are branches,
-   their proposed files are leaves. *)
+   and each exp's proposed files expand per directory, like the
+   tree command walks a filesystem. *)
+type pnode = { pname : string; pchange : string option; pkids : pnode list ref }
+
+let build_ptree xs =
+  let roots : pnode list ref = ref [] in
+  let find_dir siblings name =
+    match List.find_opt (fun nd -> nd.pname = name && nd.pchange = None) !siblings with
+    | Some nd -> nd
+    | None ->
+        let nd = { pname = name; pchange = None; pkids = ref [] } in
+        siblings := !siblings @ [nd]; nd in
+  List.iter (fun item ->
+    match item with
+    | `Assoc fs ->
+        let c k = match List.assoc_opt k fs with Some (`String x) -> x | _ -> "?" in
+        let rec go siblings = function
+          | [] -> ()
+          | [f] -> siblings := !siblings @ [{ pname = f; pchange = Some (c "change"); pkids = ref [] }]
+          | d :: rest -> go (find_dir siblings d).pkids rest in
+        go roots (String.split_on_char '/' (c "path"))
+    | _ -> ()) xs;
+  !roots
+
+let rec render_ptree ?(keep_open = false) prefix nodes =
+  let n = List.length nodes in
+  List.iteri (fun i nd ->
+    let last = i = n - 1 && not keep_open in
+    Printf.printf "%s%s%s\n" prefix (if last then "└── " else "├── ")
+      (match nd.pchange with Some ch -> ch ^ " " ^ nd.pname | None -> nd.pname);
+    render_ptree ~keep_open:false (prefix ^ (if last then "    " else "│   ")) !(nd.pkids)) nodes
+
 let file_leaves prefix = function
-  | Some (`List xs) ->
-      let n = List.length xs in
-      List.iteri (fun j item ->
-        match item with
-        | `Assoc fs ->
-            let c k = match List.assoc_opt k fs with Some (`String x) -> x | _ -> "?" in
-            let conn = if j = n - 1 then "└── " else "├── " in
-            Printf.printf "%s%s%s %s\n" prefix conn (c "change") (c "path")
-        | _ -> ()) xs
+  | Some (`List xs) -> render_ptree prefix (build_ptree xs)
   | _ -> Printf.printf "%s└── ? changes unknown\n" prefix
+
+let file_leaves_open prefix = function
+  | Some (`List xs) -> render_ptree ~keep_open:true prefix (build_ptree xs)
+  | _ -> Printf.printf "%s├── ? changes unknown\n" prefix
 
 let render_tree fields =
   let get k = List.assoc_opt k fields in
@@ -519,15 +546,7 @@ let render_tree_exp fields =
   Printf.printf "%s\n└── %s %s - %s, cycle %d, commit %s\n"
     (s "quest") (tree_marker state) (s "exp") state cycle
     (short_commit commit);
-  (match g "changes" with
-   | Some (`List xs) ->
-       List.iter (fun item ->
-         match item with
-         | `Assoc fs ->
-             let c k = match List.assoc_opt k fs with Some (`String x) -> x | _ -> "?" in
-             Printf.printf "    ├── %s %s\n" (c "change") (c "path")
-         | _ -> ()) xs
-   | _ -> Printf.printf "    ├── ? changes unknown\n");
+  file_leaves_open "    " (g "changes");
   Printf.printf "    └── legal: %s\n" (if legal = "" then "none" else legal)
 
 let print_verdict ~fmt v =

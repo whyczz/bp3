@@ -98,30 +98,39 @@ FINAL HUMAN VIEW (bp3 q r <quest> --format tree, observed)
   2026-11-07-bp3-mvp-engine-core [proposed] rollup: landed
   ├──   exp-2-cli-scaffold - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
   │   ├── u Makefile
-  │   ├── u bin/bp3
-  │   ├── + invoke/dune
-  │   ├── + invoke/main.ml
-  │   ├── u plans/default.yaml
-  │   ├── u plans/direct.yaml
-  │   ├── - test/invoke.sh
-  │   └── + test/q.sh
+  │   ├── bin
+  │   │   └── u bp3
+  │   ├── invoke
+  │   │   ├── + dune
+  │   │   └── + main.ml
+  │   ├── plans
+  │   │   ├── u default.yaml
+  │   │   └── u direct.yaml
+  │   └── test
+  │       ├── - invoke.sh
+  │       └── + q.sh
   ├──   exp-3-fsm - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
   │   └── (same changeset as exp-2: the FSM rides the core commit)
   ├──   exp-4-tape-hooks - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
-  │   ├── u .agents/skills/induct/SKILL.md
-  │   ├── + .agents/workflows/induct-exp.js
-  │   ├── u .claude/skills/induct/SKILL.md
-  │   ├── u .pi/skills/induct/SKILL.md
-  │   ├── u skills/induct/SKILL.md
-  │   ├── + skills/induct/workflows/induct-exp.js
-  │   ├── u test/skills.sh
-  │   └── + test/tape.sh
+  │   ├── .agents
+  │   │   ├── skills/induct/SKILL.md (u)
+  │   │   └── workflows/induct-exp.js (+)
+  │   ├── .claude, .pi (same induct renders, u)
+  │   ├── skills
+  │   │   └── induct
+  │   │       ├── u SKILL.md
+  │   │       └── workflows
+  │   │           └── + induct-exp.js
+  │   └── test
+  │       ├── u skills.sh
+  │       └── + tape.sh
   └──   exp-5-muse-engine - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
       └── (same changeset as exp-4: the engine commit)
-  (tree(1) style: quest is the root, exps are branches, their
-   proposed files are leaves; markers + todo/added,
-   u in-flight/updated, - deleted, blank landed, ? unsure;
-   per-exp view: bp3 q <quest> r <exp> --format tree)
+  (tree(1) style, per directory: quest is the root, exps are
+   branches, proposed files expand by directory as leaves;
+   markers + todo/added, u in-flight/updated, - deleted,
+   blank landed, ? unsure; per-exp view adds legal edges:
+   bp3 q <quest> r <exp> --format tree)
 
 LIVE ENGINE (toy-drive/parser-fix via induct-exp, observed)
   induct-exp children took submit/review/check/land; outcome: landed
