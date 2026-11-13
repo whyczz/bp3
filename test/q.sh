@@ -5,7 +5,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/q/main.exe" "$work/repo/q-bin"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
 cd "$work/repo"
 git init -q -b master

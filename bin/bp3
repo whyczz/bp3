@@ -101,8 +101,8 @@ skills_install() {
 usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ...'
 case "${1:-}" in
   q|quest) shift
-    q_bin="${BP3_Q_BIN:-$root/_build/default/q/main.exe}"
-    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build q/main.exe' >&2; exit 2; }
+    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
     BP3_ROOT="$root" exec "$q_bin" "$@" ;;
   init) shift; skills_install "$@" ;;
   skills)

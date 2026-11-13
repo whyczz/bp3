@@ -9,7 +9,7 @@ DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build
 check: lint
 	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
 	./test/skills.sh
-	$(DUNE_BUILD) q/main.exe
+	$(DUNE_BUILD) src/quest/main.exe
 	./test/q.sh
 	./test/tape.sh
 
