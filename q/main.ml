@@ -450,6 +450,20 @@ let short_commit = function
   | Some c -> c
   | None -> "-"
 
+(* tree(1)-style rendering: quest is the root, exps are branches,
+   their proposed files are leaves. *)
+let file_leaves prefix = function
+  | Some (`List xs) ->
+      let n = List.length xs in
+      List.iteri (fun j item ->
+        match item with
+        | `Assoc fs ->
+            let c k = match List.assoc_opt k fs with Some (`String x) -> x | _ -> "?" in
+            let conn = if j = n - 1 then "└── " else "├── " in
+            Printf.printf "%s%s%s %s\n" prefix conn (c "change") (c "path")
+        | _ -> ()) xs
+  | _ -> Printf.printf "%s└── ? changes unknown\n" prefix
+
 let render_tree fields =
   let get k = List.assoc_opt k fields in
   let str k = match get k with Some (`String s) -> s | _ -> "?" in
@@ -464,7 +478,9 @@ let render_tree fields =
         let state = s "state" in
         let cycle = match g "cycle" with Some (`Int c) -> c | _ -> 0 in
         let commit = match g "commit" with Some (`String c) -> Some c | _ -> None in
-        let branch = if i = n - 1 then "`___> " else "|___> " in
+        let last = i = n - 1 in
+        let branch = if last then "└── " else "├── " in
+        let prefix = if last then "    " else "│   " in
         let owed = if state = "blocked" then "  (human owed)" else "" in
         let counts = match g "changes" with
           | Some (`List xs) when xs <> [] ->
@@ -476,7 +492,8 @@ let render_tree fields =
           | Some (`List []) -> ""
           | _ -> "  [?]" in
         Printf.printf "%s%s %s - %s, cycle %d, commit %s%s%s\n"
-          branch (tree_marker state) (s "exp") state cycle (short_commit commit) counts owed
+          branch (tree_marker state) (s "exp") state cycle (short_commit commit) counts owed;
+        file_leaves prefix (g "changes")
     | _ -> ()) exps;
   (match get "inbox" with
    | Some (`List (_ :: _ as xs)) ->
@@ -499,20 +516,19 @@ let render_tree_exp fields =
     | Some (`List xs) ->
         String.concat ", " (List.map (function `String x -> x | o -> Yojson.Safe.to_string o) xs)
     | _ -> "" in
-  Printf.printf "%s\n`___> %s %s - %s, cycle %d, commit %s\n    legal: %s\n"
+  Printf.printf "%s\n└── %s %s - %s, cycle %d, commit %s\n"
     (s "quest") (tree_marker state) (s "exp") state cycle
-    (short_commit commit) (if legal = "" then "none" else legal);
+    (short_commit commit);
   (match g "changes" with
-   | Some (`List (_ :: _ as xs)) ->
-       Printf.printf "    changes (%d):\n" (List.length xs);
+   | Some (`List xs) ->
        List.iter (fun item ->
          match item with
          | `Assoc fs ->
              let c k = match List.assoc_opt k fs with Some (`String x) -> x | _ -> "?" in
-             Printf.printf "      %s %s\n" (c "change") (c "path")
+             Printf.printf "    ├── %s %s\n" (c "change") (c "path")
          | _ -> ()) xs
-   | Some (`List []) -> Printf.printf "    changes: none\n"
-   | _ -> Printf.printf "    changes: ?\n")
+   | _ -> Printf.printf "    ├── ? changes unknown\n");
+  Printf.printf "    └── legal: %s\n" (if legal = "" then "none" else legal)
 
 let print_verdict ~fmt v =
   match fmt, v with

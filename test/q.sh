@@ -375,17 +375,17 @@ echo "$out" | jq -e '[.changes[] | select(.change == "+" and .path == "added.txt
 echo "$out" | jq -e '[.changes[] | select(.change == "u" and .path == "a.txt")] | length == 1' >/dev/null || fail "changes u: $out"
 echo "$out" | jq -e '[.changes[] | select(.change == "-" and .path == "b.txt")] | length == 1' >/dev/null || fail "changes -: $out"
 ctree=$(q chg r files --format tree)
-echo "$ctree" | grep -q "changes (3):" || fail " exp tree changes header: $ctree"
-echo "$ctree" | grep -q "^      + added.txt" || fail "exp tree + line: $ctree"
-echo "$ctree" | grep -q "^      u a.txt" || fail "exp tree u line: $ctree"
-echo "$ctree" | grep -q "^      - b.txt" || fail "exp tree - line: $ctree"
+echo "$ctree" | grep -q "├── + added.txt" || fail "exp tree files: $ctree"
+echo "$ctree" | grep -qF "+ added.txt" || fail "exp tree + line: $ctree"
+echo "$ctree" | grep -qF "u a.txt" || fail "exp tree u line: $ctree"
+echo "$ctree" | grep -qF -- "- b.txt" || fail "exp tree - line: $ctree"
 qtree=$(q r chg --format tree)
 echo "$qtree" | grep -q "\[+1 u1 -1\]" || fail "quest tree counts: $qtree"
 git checkout -q HEAD -- a.txt 2>/dev/null || true
 # unsure changeset renders as ?, never a fake empty
 q chg c fresh >/dev/null
 ftree=$(q chg r fresh --format tree)
-echo "$ftree" | grep -q "changes: ?" || fail "unsure changes marker: $ftree"
+echo "$ftree" | grep -q "? changes unknown" || fail "unsure changes marker: $ftree"
 out=$(q chg r fresh)
 echo "$out" | jq -e '.changes == null' >/dev/null || fail "unsure changes json: $out"
 

@@ -96,14 +96,32 @@ LLM MISFIRE (observed on exp-2 before its submit)
 
 FINAL HUMAN VIEW (bp3 q r <quest> --format tree, observed)
   2026-11-07-bp3-mvp-engine-core [proposed] rollup: landed
-  |___>   exp-2-cli-scaffold - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
-  |___>   exp-3-fsm - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
-  |___>   exp-4-tape-hooks - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
-  `___>   exp-5-muse-engine - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
-  (markers: + todo, u submitted/approved/blocked, - deleted,
-   blank landed — the git-status alphabet; counts are each
-   exp's proposed file changes, listed in full by:
-   bp3 q <quest> r <exp> --format tree)
+  ├──   exp-2-cli-scaffold - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
+  │   ├── u Makefile
+  │   ├── u bin/bp3
+  │   ├── + invoke/dune
+  │   ├── + invoke/main.ml
+  │   ├── u plans/default.yaml
+  │   ├── u plans/direct.yaml
+  │   ├── - test/invoke.sh
+  │   └── + test/q.sh
+  ├──   exp-3-fsm - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
+  │   └── (same changeset as exp-2: the FSM rides the core commit)
+  ├──   exp-4-tape-hooks - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
+  │   ├── u .agents/skills/induct/SKILL.md
+  │   ├── + .agents/workflows/induct-exp.js
+  │   ├── u .claude/skills/induct/SKILL.md
+  │   ├── u .pi/skills/induct/SKILL.md
+  │   ├── u skills/induct/SKILL.md
+  │   ├── + skills/induct/workflows/induct-exp.js
+  │   ├── u test/skills.sh
+  │   └── + test/tape.sh
+  └──   exp-5-muse-engine - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
+      └── (same changeset as exp-4: the engine commit)
+  (tree(1) style: quest is the root, exps are branches, their
+   proposed files are leaves; markers + todo/added,
+   u in-flight/updated, - deleted, blank landed, ? unsure;
+   per-exp view: bp3 q <quest> r <exp> --format tree)
 
 LIVE ENGINE (toy-drive/parser-fix via induct-exp, observed)
   induct-exp children took submit/review/check/land; outcome: landed
