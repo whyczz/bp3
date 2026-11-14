@@ -1,0 +1,14 @@
+[quest/bp3-mvp-engine 9720e14] bp3: exp-6 cycle-2 check/review/land run tapes (verbatim, unedited)
+ 6 files changed, 802 insertions(+)
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-check-muse-code-muse-wonder-1.0-c2/notes.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-check-muse-code-muse-wonder-1.0-c2/tape.log
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-land-muse-code-muse-wonder-1.0-c2/notes.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-land-muse-code-muse-wonder-1.0-c2/tape.log
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-review-muse-code-muse-wonder-1.0-c2/notes.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-review-muse-code-muse-wonder-1.0-c2/tape.log
+9720e14 bp3: exp-6 cycle-2 check/review/land run tapes (verbatim, unedited)
+adc2a1d feat(skills): deliver Muse hooks at .muse/hooks.json
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/EXPERIMENT.md
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/LIVE.md
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
