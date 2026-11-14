@@ -1,2 +1,3 @@
 _build/
 bp3.install
+.bp3/

@@ -115,4 +115,82 @@ echo "$out" | jq -e '.ok == false and .error.code == "E_NOT_FOUND"' >/dev/null |
 if out=$(wt inspect "$pb" 2>&1); then fail "inspect of missing worktree accepted"; fi
 echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "missing inspect code: $out"
 
+# --- bookkeeping: prepare is idempotent per Run ID ---
+out=$(wt prepare demo exp-a --run RA)
+echo "$out" | jq -e '.ok == true and .run_id == "RA" and .path == ".bp3/worktrees/demo/exp-a/RA" and .ref == "bp3/exp/demo/exp-a"' >/dev/null || fail "prepare RA: $out"
+pa_path=$(wt derive demo exp-a RA | jq -r '.path')
+[ -f "$pa_path/a.txt" ] || fail "prepared worktree files missing"
+out=$(wt prepare demo exp-a --run RA)
+echo "$out" | jq -e '.ok == true and .existing == true and .path == ".bp3/worktrees/demo/exp-a/RA"' >/dev/null || fail "prepare RA again (existing): $out"
+[ "$(git worktree list --porcelain | grep -c '^worktree ')" = "2" ] || fail "prepare twice made extra worktrees"
+
+# check recomputes dirty/stale live by Run ID
+out=$(wt check --run RA)
+echo "$out" | jq -e '.ok == true and .dirty == false and .ref == "bp3/exp/demo/exp-a" and .stale_s >= 0' >/dev/null || fail "check RA clean: $out"
+echo stray >> "$pa_path/a.txt"
+out=$(wt check --run RA)
+echo "$out" | jq -e '.dirty == true' >/dev/null || fail "check RA dirty: $out"
+if out=$(wt check 2>&1); then fail "check without a Run ID accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "check no-run code: $out"
+
+# exit and release refuse a dirty worktree; record stays intact
+if out=$(cd "$pa_path" && BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" worktree exit 2>&1); then fail "dirty exit accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DIRTY_TREE"' >/dev/null || fail "dirty exit code: $out"
+[ -d "$pa_path" ] || fail "dirty exit deleted the worktree"
+if out=$(wt release --run RA 2>&1); then fail "dirty release accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DIRTY_TREE"' >/dev/null || fail "dirty release code: $out"
+out=$(wt check --run RA)
+echo "$out" | jq -e '.ok == true' >/dev/null || fail "record lost after dirty release: $out"
+
+# force release removes worktree and record (no tombstone)
+out=$(wt release --run RA --force)
+echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "force release RA: $out"
+[ ! -e "$pa_path" ] || fail "force release left the worktree"
+if out=$(wt check --run RA 2>&1); then fail "check after release accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "check released code: $out"
+out=$(wt prepare demo exp-a --run RA)
+echo "$out" | jq -e '.ok == true and (.existing // false) == false' >/dev/null || fail "re-prepare after release (tombstone?): $out"
+
+# exit from inside a clean worktree releases it and prints the conductor path
+out=$(cd "$pa_path" && BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" worktree exit)
+conductor=$(cd "$work/repo" && pwd -P)
+echo "$out" | jq -e --arg c "$conductor" '.ok == true and .released == true and .conductor_path == $c' >/dev/null || fail "clean exit: $out"
+[ ! -e "$pa_path" ] || fail "clean exit left the worktree"
+if out=$(wt check --run RA 2>&1); then fail "check after exit accepted"; fi
+
+# --path override is recorded under the same Run ID
+override="$work/override-wt"
+out=$(wt prepare demo exp-a --run RO --path "$override")
+echo "$out" | jq -e --arg p "$override" '.ok == true and .path == $p' >/dev/null || fail "prepare override: $out"
+out=$(wt check --run RO)
+echo "$out" | jq -e --arg p "$override" '.ok == true and .path == $p and .dirty == false' >/dev/null || fail "check override by Run ID: $out"
+out=$(wt release --run RO)
+echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "release override: $out"
+[ ! -e "$override" ] || fail "release left the override worktree"
+
+# prepare --commit gives a detached worktree addressable by Run ID
+out=$(wt prepare demo exp-a --run RC --commit "$SHA")
+echo "$out" | jq -e --arg s "$SHA" '.ok == true and .ref == $s and .detached == true' >/dev/null || fail "prepare commit: $out"
+out=$(wt release RC)
+echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "release positional Run ID: $out"
+
+# list shows every record plus orphans flagged; --quest filters
+out=$(wt prepare demo exp-a --run RL)
+echo "$out" | jq -e '.ok == true' >/dev/null || fail "prepare RL: $out"
+porph=$(wt derive demo exp-a ORPH | jq -r '.path')
+wt create "$porph" --commit "$SHA" >/dev/null
+out=$(wt list)
+echo "$out" | jq -e '[.worktrees[] | select(.run_id == "RL" and (.orphan == false))] | length == 1' >/dev/null || fail "list record RL: $out"
+echo "$out" | jq -e '[.worktrees[] | select(.run_id == "ORPH" and .orphan == true)] | length == 1' >/dev/null || fail "list orphan ORPH: $out"
+out=$(wt list --quest nope)
+echo "$out" | jq -e '.worktrees == []' >/dev/null || fail "list quest filter: $out"
+out=$(wt release --run RL)
+echo "$out" | jq -e '.ok == true' >/dev/null || fail "release RL: $out"
+out=$(wt remove "$porph")
+echo "$out" | jq -e '.ok == true' >/dev/null || fail "remove orphan cleanup: $out"
+out=$(wt list)
+echo "$out" | jq -e '.worktrees == []' >/dev/null || fail "list after all released: $out"
+if out=$(wt release --run GONE 2>&1); then fail "release of unknown Run ID accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "release unknown code: $out"
+
 echo "worktree tests: ok"
