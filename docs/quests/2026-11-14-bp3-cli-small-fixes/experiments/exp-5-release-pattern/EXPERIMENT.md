@@ -92,6 +92,23 @@ Version meaning (the contract a bump signs):
 | MINOR | backwards-compatible addition: old binary still folds new ledgers correctly, may not know the new thing | new door, new verb, new optional ledger field, new `--format` value |
 | PATCH | no semantic change at all | bug fix, table rendering, help text, speed |
 
+## Mapping to git releases
+
+The release *is* a git release — one annotated tag, one
+GitHub Release, assets built locally and uploaded with
+`gh` (installed; repo is `whyczz/bp3` on GitHub, no tags
+exist yet today). CI-built release assets are out until a
+second platform actually needs one.
+
+| Layer | Name | Carries |
+|---|---|---|
+| version source | `bp3_version` in `gitx.ml` | the only number anyone edits |
+| git tag | `v<MAJOR.MINOR.PATCH>` (annotated, at the release commit) | the human "this commit is that version" act; `make release` refuses without it |
+| staging | `dist/bp3-q-v<version>-<os>-<arch>` + `.sha256` | `make release` output |
+| GitHub Release | release for that tag, title `v<version>` | assets = the `dist/` files; notes = the release commit's bp3-format body (TL;DR section) |
+| publish | `make publish` = `make release` + `gh release create v<version> dist/*` | refuses if the GitHub Release already exists (a version is published once, never overwritten) |
+| fetch (Exp 6) | `gh release download v<version>` or the asset URL | installs verify the `.sha256` before anything touches PATH |
+
 ## Tables
 
 | Field | Value |
@@ -107,6 +124,8 @@ Version meaning (the contract a bump signs):
 | `bp3 q --version` | prints exactly `bp3_version` from `gitx.ml`, exit 0, works outside any repo |
 | `make release` with matching tag | `dist/bp3-q-v<version>-<os>-<arch>` + `.sha256`; checksum verifies; artifact runs `--version` |
 | `make release` with missing/mismatched tag | refuses, names the expected tag, builds nothing |
+| `make publish` on a fresh version | GitHub Release `v<version>` exists with both assets; asset bytes hash to the published `.sha256` |
+| `make publish` on an already-published version | refuses; published assets are never overwritten (a fix is a new PATCH) |
 | version bump with no other change | only `bp3_version` edited; artifact name, `--version`, and ledger stamps follow |
 | ledger stamped newer than binary: read | verdict answers, carries `W_VERSION_AHEAD` warning with both versions |
 | ledger stamped newer **MAJOR**: write | `E_VERSION_AHEAD` (exit 1), ledger unchanged — verified by ledger hash before/after |
@@ -142,9 +161,10 @@ that makes the guard mean something: the guard can only
 trust stamps if a semantics change always pays a MAJOR. Why a git tag gates the release: the tag
 is the human's "this commit is that version" act, and
 `make release` merely refuses to counterfeit it. What this
-exp deliberately is not: a package registry, CI publishing,
-or auto-update — artifacts are local files with checksums;
-moving them is Exp 6's problem.
+exp deliberately is not: a package registry beyond GitHub
+Releases, CI-built assets, or auto-update — `gh` uploads
+local artifacts with checksums; fetching them is Exp 6's
+problem.
 
 ## Tests
 

@@ -10,8 +10,11 @@ status: proposed
 ## TL;DR
 
 bp3 becomes usable from a repo that is not this one:
-`make install` (this repo) copies the Exp 5 release
-artifact to `~/.local/bin/bp3-q` (prefix overridable) —
+`make install` copies the Exp 5 release artifact — from
+`dist/` in this repo, or fetched from the GitHub Release
+(`gh release download`) when no checkout is at hand — to
+`~/.local/bin/bp3-q` (prefix overridable), checksum
+verified either way —
 never a symlink into `_build`, so a rebuild here never
 silently changes the binary esc3 is running; re-running
 install after a new release is the upgrade, and it prints

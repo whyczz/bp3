@@ -114,7 +114,7 @@ outside a bp3 repo or with an unbuilt binary.
 | Delivery via `bp3 init` / `bp3 skills install` | editing the user's shell rc files; completion that errors visibly |
 | `bp3 q icebox r`: list/search `docs/icebox/` entries, read one by slug (read-only) | any icebox write verb (create, promote, thaw) through `q`; parsing entries as state or pointing the ledger at them |
 | `-h`/`--help` at every door (wrapper, `q`, quest door, exp door): plain text, stdout, exit 0 | help as a JSON verdict; changing any error verdict or exit code; help positions beyond the named slots |
-| Release pattern: `--version`, `make release` artifacts + checksums, version-ahead guard | package registries, CI publishing, auto-update, prerelease version suffixes |
+| Release pattern: `--version`, `make release` artifacts + checksums, version-ahead guard, mapped to git releases (annotated tag `v<version>` → GitHub Release via `gh`, publish-once) | package registries beyond GitHub Releases, CI-built assets, auto-update, prerelease version suffixes |
 | Installable bp3: `make install` (copied artifact), cwd-rooted shim, `init-repo` plan scaffolding; esc3 dogfood | symlinks into `_build`, side-by-side multi-version installs, overwriting a repo's differing `plans/` |
 
 ## Human touchpoints
