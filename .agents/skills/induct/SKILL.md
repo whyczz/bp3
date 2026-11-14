@@ -16,7 +16,7 @@ is blocked, and what human decision is owed next.
 Use `quest` instead to frame a new quest. Use `using-bp3`
 instead for a single state operation by hand (one submit, one
 review, recovery after a dead session). Use
-`quest-landing-demo` instead when the quest is done and the
+`red-ink-quest-landing-demo` instead when the quest is done and the
 human wants the landing writeup. A design under review is
 `red-ink`'s job, not an induct.
 

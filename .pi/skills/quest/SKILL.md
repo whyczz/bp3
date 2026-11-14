@@ -70,6 +70,7 @@ because a gate that starts green certifies nothing.
 | 4 | Names first, under a Concepts/Terms header, with `naming` | every term defined in one line before any exp spends it |
 | 5 | Draft `docs/quests/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) | one Quest per file |
 | 6 | Break into exps with failing-today acceptance | a check that cannot fail gets rewritten |
+| 6.5 | Diligence gate per exp: design settled (no open questions), acceptance fails today, demo defined up front | an exp with open design questions is not ready for `induct`; settle it with `red-ink` first — Exp 4 of the MVP quest shipped unsettled design and the landing review caught it late |
 | 7 | Red-chair passes on goal, scope, exp order | strongest attack + what it changed, recorded |
 | 8 | Stage fat exps as numbered substeps (1.1, 1.2, ...) | each substep passes on its own |
 
@@ -185,7 +186,7 @@ section above)
 Transitions: `proposed -> active -> landed`; `proposed | active -> canceled`.
 Files stay in `docs/quests/` for life — exp records point at them.
 
-At `landed`, run `quest-landing-demo` and record its Landing IIUC
+At `landed`, run `red-ink-quest-landing-demo` and record its Landing IIUC
 (decision record, demo traces, verification, open items) under
 Success picture.
 
