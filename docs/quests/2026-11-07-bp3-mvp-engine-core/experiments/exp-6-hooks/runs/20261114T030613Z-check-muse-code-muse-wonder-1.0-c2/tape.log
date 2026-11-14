@@ -1,0 +1,278 @@
+=== quest root ===
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs:
+20261114T025213Z-check-muse-code-muse-wonder-1.0-c1
+20261114T025213Z-review-muse-code-muse-wonder-1.0-c1
+20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1
+20261114T030613Z-check-muse-code-muse-wonder-1.0-c2
+20261114T030613Z-review-muse-code-muse-wonder-1.0-c2
+20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-check-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-review-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-check-muse-code-muse-wonder-1.0-c2:
+tape.log
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-review-muse-code-muse-wonder-1.0-c2:
+tape.log
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+=== git HEAD ===
+44cab82bc30a0fbc3423a5fc7ca3765439e7c960
+44cab82 bp3: run 20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2 tape (submit verdict)
+7433e59 bp3: cycle-1 check/review run tapes (verbatim, unedited)
+ad2a57d bp3: run 20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2 tape
+ M docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-check-muse-code-muse-wonder-1.0-c2/
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-review-muse-code-muse-wonder-1.0-c2/
+== bound commit ==
+31f362b fix(q): stale-gated run_unsettled sweep and settings.json hook delivery
+b091c18 bp3: run 20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1 tape (submit verdict)
+69e1ffa bp3: run 20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1 tape
+cc115c5 feat(q): bp3 q hooks emitter and hooks.json delivery
+d0a6032 docs(quest): settle Exp 4 red-ink, adopt over the old record
+== bound show stat ==
+commit 31f362b755f581469cbf865f812f749467fa3f5c
+Author: whycz <whyczz@gmail.com>
+Date:   Fri Nov 13 22:10:25 2026 -0500
+
+    fix(q): stale-gated run_unsettled sweep and settings.json hook delivery
+    
+    SessionStart now sweeps only bindings untouched for 900s (last_seen_epoch), so live parallel Runs no longer mark each other run_unsettled. bp3 skills install also merges hooks into .claude/settings.json, the file Claude Code actually loads (live-probed). Adds exp-6 EXPERIMENT.md and live-parallel fixtures.
+
+ .claude/settings.json                              |  94 ++++
+ bin/bp3                                            |  13 +
+ .../experiments/exp-6-hooks/EXPERIMENT.md          |  77 +++
+ .../notes.md                                       |  35 ++
+ .../tape.log                                       | 596 +++++++++++++++++++++
+ src/quest/hooks.ml                                 |  32 +-
+ test/hooks.sh                                      |  28 +
+ test/skills.sh                                     |   6 +
+ 8 files changed, 873 insertions(+), 8 deletions(-)
+== HEAD vs bound ==
+44cab82 bp3: run 20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2 tape (submit verdict)
+7433e59 bp3: cycle-1 check/review run tapes (verbatim, unedited)
+ad2a57d bp3: run 20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2 tape
+== diff bound..HEAD stat ==
+ .../notes.md                                       |   12 +
+ .../tape.log                                       |  613 ++++++
+ .../notes.md                                       |   43 +
+ .../tape.log                                       | 2081 ++++++++++++++++++++
+ .../tape.log                                       |   12 +
+ 5 files changed, 2761 insertions(+)
+== invoke verdict ==
+{"ok":true,"quest":"2026-11-07-bp3-mvp-engine-core","exp":"exp-6-hooks","state":"submitted","cycle":2,"commit":"31f362b755f581469cbf865f812f749467fa3f5c","legal_edges":["review","check","block","delete"],"changes":[{"change":"+","path":".claude/settings.json"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/EXPERIMENT.md"},{"change":"+","path":"docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/notes.md"},{"change":"+","path":"docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/tape.log"},{"change":"u","path":"src/quest/hooks.ml"},{"change":"u","path":"test/hooks.sh"},{"change":"u","path":"test/skills.sh"}]}
+== Makefile ==
+.PHONY: check test lint
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/induct.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/tape.sh test/hooks.sh test/induct.sh
+	node --check skills/induct/workflows/induct-exp.js
+
+test:
+	./test/skills.sh
+== test dir ==
+hooks.sh
+induct-exp.test.mjs
+induct.sh
+pi-discovery.mjs
+q.sh
+skills.sh
+tape.sh
+fatal: not a git repository (or any of the parent directories): .git
+AGENTS.md
+bin
+Brewfile
+CLAUDE.md
+docs
+dune-project
+Makefile
+plans
+readme.md
+scripts
+skills
+src
+test
+--- bound files present ---
+src/quest/hooks.ml
+test/hooks.sh
+test/skills.sh
+31f362b755f581469cbf865f812f749467fa3f5c
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/tape.sh test/hooks.sh test/induct.sh
+node --check skills/induct/workflows/induct-exp.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (32 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (46 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+MAKE_CHECK_EXIT:0
+4
+118:age_binding() { # $1 = session_id: backdate last_seen past the stale gate
+121:  jq --arg s "$1" '.sessions[$s].last_seen_epoch -= 7200' "$reg" > "$tmp"
+125:# --- killed session: next SessionStart sweeps run_unsettled ---
+133:echo "$out" | jq -e --arg r "$RUN2" '.event_line.event == "run_unsettled" and .event_line.run_id == $r and (.event_line | has("last_seen_ts"))' >/dev/null || fail "run_unsettled verdict: $out"
+136:[ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "1" ] || fail "run_unsettled count"
+149:[ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "1" ] || fail "live parallel run marked unsettled"
+150:if ledger parallel-exp | grep -q '"event":"run_unsettled"'; then fail "live parallel-exp run marked unsettled"; fi
+153:echo "$out" | jq -e --arg r "$RUN5" '.event_line.event == "run_unsettled" and .event_line.run_id == $r' >/dev/null || fail "stale-only sweep verdict: $out"
+154:[ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "2" ] || fail "stale-only sweep count"
+155:if ledger parallel-exp | grep -q '"event":"run_unsettled"'; then fail "fresh parallel-exp run swept with stale sibling"; fi
+16:  assert jq -e --arg pattern "!**/.agents/skills/$id/SKILL.md" '.skills | index($pattern) != null' "$repo/.pi/settings.json"
+56:printf '{"defaultModel":"keep","skills":["/extra","!**/ignored/**"]}\n' > "$root/.pi/settings.json"
+59:assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink-quest-landing-demo/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
+66:assert test -f "$root/.claude/hooks.json"
+67:assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.claude/hooks.json"
+68:assert test -f "$root/.claude/settings.json"
+69:assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+71:printf '{"keepMe":true}\n' > "$root/.claude/settings.json"
+73:assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+74:cp "$root/.pi/settings.json" "$work/settings.before"
+76:assert cmp "$work/settings.before" "$root/.pi/settings.json"
+82:  printf '%s\n' "$settings" > "$root/.pi/settings.json"
+87:printf '{broken' > "$root/.pi/settings.json"
+89:assert grep -qx '{broken' "$root/.pi/settings.json"
+{"ok":true,"quest":"2026-11-07-bp3-mvp-engine-core","exp":"exp-6-hooks","state":"submitted","cycle":2,"commit":"31f362b755f581469cbf865f812f749467fa3f5c","legal_edges":["review","check","block","delete"]}
+{"ok":true,"quest":"2026-11-07-bp3-mvp-engine-core","exp":"exp-6-hooks","state":"submitted","cycle":2,"commit":"31f362b755f581469cbf865f812f749467fa3f5c","legal_edges":["review","check","block","delete"],"changes":[{"change":"+","path":".claude/settings.json"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/EXPERIMENT.md"},{"change":"+","path":"docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/notes.md"},{"change":"+","path":"docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/tape.log"},{"change":"u","path":"src/quest/hooks.ml"},{"change":"u","path":"test/hooks.sh"},{"change":"u","path":"test/skills.sh"}]}
+dune
+gitx.ml
+hooks.ml
+main.ml
+render.ml
+store.ml
+src/quest/main.ml:204:      let approved_now = (not knobs.review_required) && (not knobs.checks_required) in
+src/quest/main.ml:205:      let ns = { s with st = (if approved_now then "approved" else "submitted");
+src/quest/main.ml:239:        let now_approved =
+src/quest/main.ml:242:        let nst = if now_approved then "approved" else "submitted" in
+src/quest/main.ml:249:      if s.st <> "approved" then illegal s.st edge;
+src/quest/main.ml:278:          let line2 = ledger_line ~edge:"land" ~from:"approved" ~to_:"todo" ~cycle:s.cycle
+src/quest/main.ml:301:      if not (List.mem s.st ["todo"; "submitted"; "approved"]) then illegal s.st edge;
+src/quest/render.ml:67:  | "submitted" | "approved" | "blocked" -> "u"
+src/quest/store.ml:196:  | "approved" -> ["land"; "block"; "delete"]
+      ("legal_edges", `List (List.map json_str (legal_edges ns.st)))] in
+  match edge with
+  | "submit" ->
+      if s.st <> "todo" then illegal s.st edge;
+      let raw = (match fl.commit with Some c -> c | None -> usage "--commit is required for submit") in
+      let full = (match resolve_commit raw with Some f -> f
+        | None -> err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str raw)])
+            "Commit does not exist; bind an existing commit." 1) in
+      if worktree_dirty () then
+        err "E_DIRTY_TREE" (`Assoc []) "Worktree is dirty; clean it and retry." 1;
+      let blocked_by = List.filter (fun d -> not (dep_satisfied d)) deps in
+      if blocked_by <> [] then
+        err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str blocked_by))])
+          "Dependencies are not landed yet." 1;
+      let approved_now = (not knobs.review_required) && (not knobs.checks_required) in
+      let ns = { s with st = (if approved_now then "approved" else "submitted");
+                 bound = Some full; has_bound = true; last_commit = Some full;
+                 review_ok = false; check_ok = false } in
+      let line = ledger_line ~edge ~from:s.st ~to_:ns.st ~cycle:s.cycle
+        ~commit:(Some full) ~verdict:None ~reason ~id () in
+      finish ns line
+  | "review" | "check" ->
+      if s.st <> "submitted" then illegal s.st edge;
+      let v = (match fl.verdict with Some v -> v | None -> usage "--verdict is required") in
+      let valid = if edge = "review" then (v = "ship" || v = "needs_fix") else (v = "pass" || v = "fail") in
+      if not valid then usage ("invalid verdict for " ^ edge ^ ": " ^ v);
+      (match fl.commit with
+       | Some c ->
+           let rc = (match resolve_commit c with Some f -> f | None -> c) in
+           let bound = (match s.bound with Some b -> b | None -> "") in
+           if rc <> bound then
+             err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str c); ("bound", json_str bound)])
+               "Verdict must bind the exact current commit; re-read and retry." 1
+       | None -> ());
+      let positive = (v = "ship" || v = "pass") in
+      if not positive then begin
+        let (nst, ncyc) =
+          if s.cycle >= knobs.max_cycles then ("blocked", s.cycle) else ("todo", s.cycle + 1) in
+        let ns = { s with st = nst; cycle = ncyc; review_ok = false; check_ok = false } in
+        if nst = "blocked" then begin ns.blocked_reason <- reason; ns.blocked_since <- now_ts () end;
+        let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:ncyc
+          ~commit:s.last_commit ~verdict:(Some v) ~reason ~id () in
+        let base = finish ns line in
+        if nst = "blocked" then
+          (match base with `Assoc fs -> `Assoc (fs @ [("human_action_required", `Bool true)]) | o -> o)
+        else base
+      end else begin
+        let ns = { s with review_ok = (if edge = "review" then true else s.review_ok);
+                          check_ok = (if edge = "check" then true else s.check_ok) } in
+        let now_approved =
+          ((not knobs.review_required) || ns.review_ok) &&
+          ((not knobs.checks_required) || ns.check_ok) in
+        let nst = if now_approved then "approved" else "submitted" in
+        let ns = { ns with st = nst } in
+        let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:s.cycle
+          ~commit:s.last_commit ~verdict:(Some v) ~reason ~id () in
+        finish ns line
+      end
+  | "land" ->
+      if s.st <> "approved" then illegal s.st edge;
+      (match fl.commit with
+       | Some c ->
+           let rc = (match resolve_commit c with Some f -> f | None -> c) in
+           let bound = (match s.bound with Some b -> b | None -> "") in
+           if rc <> bound then
+             err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str c)])
+               "Verdict must bind the exact current commit." 1
+       | None -> ());
+      (* 1. landed line on exp branch *)
+      let ns = { s with st = "landed" } in
+      let line = ledger_line ~edge ~from:s.st ~to_:"landed" ~cycle:s.cycle
+total 40
+-rw-r--r--@ 1 whycz  staff   1304 Nov 13 22:11 notes.md
+-rw-r--r--@ 1 whycz  staff  15496 Nov 13 22:12 tape.log
+      let ns = { s with st = "landed" } in
+      let line = ledger_line ~edge ~from:s.st ~to_:"landed" ~cycle:s.cycle
+total 40
+-rw-r--r--@ 1 whycz  staff   1304 Nov 13 22:11 notes.md
+-rw-r--r--@ 1 whycz  staff  15496 Nov 13 22:12 tape.log

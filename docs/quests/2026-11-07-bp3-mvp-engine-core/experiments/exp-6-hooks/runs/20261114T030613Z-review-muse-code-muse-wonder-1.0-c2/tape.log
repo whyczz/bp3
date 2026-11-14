@@ -1,0 +1,424 @@
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs:
+20261114T025213Z-check-muse-code-muse-wonder-1.0-c1
+20261114T025213Z-review-muse-code-muse-wonder-1.0-c1
+20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1
+20261114T030613Z-review-muse-code-muse-wonder-1.0-c2
+20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-check-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-review-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-review-muse-code-muse-wonder-1.0-c2:
+tape.log
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+44cab82 bp3: run 20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2 tape (submit verdict)
+7433e59 bp3: cycle-1 check/review run tapes (verbatim, unedited)
+ad2a57d bp3: run 20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2 tape
+31f362b fix(q): stale-gated run_unsettled sweep and settings.json hook delivery
+b091c18 bp3: run 20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1 tape (submit verdict)
+69e1ffa bp3: run 20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1 tape
+cc115c5 feat(q): bp3 q hooks emitter and hooks.json delivery
+d0a6032 docs(quest): settle Exp 4 red-ink, adopt over the old record
+---
+commit 31f362b755f581469cbf865f812f749467fa3f5c
+Author: whycz <whyczz@gmail.com>
+Date:   Fri Nov 13 22:10:25 2026 -0500
+
+    fix(q): stale-gated run_unsettled sweep and settings.json hook delivery
+    
+    SessionStart now sweeps only bindings untouched for 900s (last_seen_epoch), so live parallel Runs no longer mark each other run_unsettled. bp3 skills install also merges hooks into .claude/settings.json, the file Claude Code actually loads (live-probed). Adds exp-6 EXPERIMENT.md and live-parallel fixtures.
+
+ .claude/settings.json                              |  94 ++++
+ bin/bp3                                            |  13 +
+ .../experiments/exp-6-hooks/EXPERIMENT.md          |  77 +++
+ .../notes.md                                       |  35 ++
+ .../tape.log                                       | 596 +++++++++++++++++++++
+ src/quest/hooks.ml                                 |  32 +-
+ test/hooks.sh                                      |  28 +
+ test/skills.sh                                     |   6 +
+ 8 files changed, 873 insertions(+), 8 deletions(-)
+commit 31f362b755f581469cbf865f812f749467fa3f5c
+Author: whycz <whyczz@gmail.com>
+Date:   Fri Nov 13 22:10:25 2026 -0500
+
+    fix(q): stale-gated run_unsettled sweep and settings.json hook delivery
+    
+    SessionStart now sweeps only bindings untouched for 900s (last_seen_epoch), so live parallel Runs no longer mark each other run_unsettled. bp3 skills install also merges hooks into .claude/settings.json, the file Claude Code actually loads (live-probed). Adds exp-6 EXPERIMENT.md and live-parallel fixtures.
+
+diff --git a/.claude/settings.json b/.claude/settings.json
+new file mode 100644
+index 0000000..6ed0e20
+--- /dev/null
++++ b/.claude/settings.json
+@@ -0,0 +1,94 @@
++{
++  "hooks": {
++    "SessionStart": [
++      {
++        "hooks": [
++          {
++            "type": "command",
++            "command": "./bin/bp3 q hooks"
++          }
++        ]
++      }
++    ],
++    "PreToolUse": [
++      {
++        "hooks": [
++          {
++            "type": "command",
++            "command": "./bin/bp3 q hooks"
++          }
++        ]
++      }
++    ],
++    "PostToolUse": [
++      {
++        "hooks": [
++          {
++            "type": "command",
++            "command": "./bin/bp3 q hooks"
++          }
++        ]
++      }
++    ],
++    "PostToolUseFailure": [
++      {
++        "hooks": [
++          {
++            "type": "command",
++            "command": "./bin/bp3 q hooks"
++          }
++        ]
++      }
++    ],
++    "PostLLMCall": [
++      {
++        "hooks": [
++          {
++            "type": "command",
++            "command": "./bin/bp3 q hooks"
++          }
++        ]
++      }
++    ],
++    "SubagentStart": [
++      {
++        "hooks": [
++          {
++            "type": "command",
++            "command": "./bin/bp3 q hooks"
++          }
++        ]
++      }
++    ],
++    "SubagentStop": [
++      {
++        "hooks": [
++          {
++            "type": "command",
++            "command": "./bin/bp3 q hooks"
++          }
++        ]
++      }
++    ],
++    "Stop": [
++      {
++        "hooks": [
++          {
++            "type": "command",
++            "command": "./bin/bp3 q hooks"
++          }
++        ]
++      }
++    ],
++    "SessionEnd": [
++      {
++        "hooks": [
++          {
++            "type": "command",
++            "command": "./bin/bp3 q hooks"
++          }
++        ]
++      }
++    ]
++  }
++}
+diff --git a/bin/bp3 b/bin/bp3
+index d764417..153b82b 100755
+--- a/bin/bp3
++++ b/bin/bp3
+@@ -112,6 +112,19 @@ skills_install() {
+ }
+ HOOKS_JSON
+   echo "installed hooks -> .claude/hooks.json"
++  # Claude Code loads hooks from settings.json, not hooks.json
++  # (live probe 2026-11-14: hooks.json alone never fired; the
++  # same hooks under settings.json produced ledger event lines).
++  # Merge into any existing settings, preserving other keys.
++  local claude_settings="$root/.claude/settings.json"
++  local existing_settings='{}'
++  if [ -e "$claude_settings" ]; then
++    existing_settings="$(cat "$claude_settings")"
++  fi
++  printf '%s\n' "$existing_settings" | jq --slurpfile hj "$root/.claude/hooks.json" \
++    '.hooks = $hj[0].hooks' > "$claude_settings.tmp"
++  mv "$claude_settings.tmp" "$claude_settings"
++  echo "installed hooks -> .claude/settings.json"
+   # Note: codex and muse share .agents/skills; under --harness=all the muse
+   # render (same dir) is written last. Invocation text differs only in the
+   # trigger line; both harnesses accept the skill by name.
+diff --git a/src/quest/hooks.ml b/src/quest/hooks.ml
+index ebf550b..83096f5 100644
+--- a/src/quest/hooks.ml
++++ b/src/quest/hooks.ml
+@@ -102,7 +102,7 @@ let refusal_code j =
+ type binding = {
+   quest : string; exp : string; run_id : string; session_id : string;
+   started_ts : string; started_epoch : float;
+-  mutable last_seen_ts : string;
++  mutable last_seen_ts : string; mutable last_seen_epoch : float;
+   mutable settled : bool; mutable unsettled : bool;
+   mutable emitted : string list;
+   mutable in_tok : int; mutable out_tok : int;
+@@ -121,6 +121,7 @@ let binding_to_json b =
+     ("run_id", json_str b.run_id); ("started_ts", json_str b.started_ts);
+     ("started_epoch", `Float b.started_epoch);
+     ("last_seen_ts", json_str b.last_seen_ts);
++    ("last_seen_epoch", `Float b.last_seen_epoch);
+     ("settled", `Bool b.settled); ("unsettled", `Bool b.unsettled);
+     ("emitted", `List (List.map json_str b.emitted));
+     ("input_tokens", `Int b.in_tok); ("output_tokens", `Int b.out_tok);
+@@ -135,6 +136,8 @@ let binding_of_json sid j =
+     run_id = member_str j "run_id"; session_id = sid;
+     started_ts = member_str j "started_ts"; started_epoch = f "started_epoch";
+     last_seen_ts = member_str j "last_seen_ts";
++    last_seen_epoch = (let e = f "last_seen_epoch" in
++      if e > 0. then e else f "started_epoch");
+     settled = bl "settled"; unsettled = bl "unsettled";
+     emitted = (try match Yojson.Safe.Util.member "emitted" j with
+       | `List xs -> List.filter_map (function `String s -> Some s | _ -> None) xs
+@@ -167,6 +170,16 @@ let save_registry bindings =
+     Sys.rename tmp path
+   with _ -> ()
+ 
++(* A binding is stale only when nothing has touched it for this
++   long: a SessionStart from a new session proves nothing about a
++   Run that is still live in parallel, so the sweep below must
++   not mark fresh bindings run_unsettled. *)
++let stale_after_s = 900.
++
++let touch b =
++  b.last_seen_ts <- now_ts ();
++  b.last_seen_epoch <- Unix.time ()
++
+ (* ---------- fact writer: appends one event line to the exp
+    ledger on its branch. The only ledger door hooks may use;
+    it writes no state.yaml because event lines change no state. ---------- *)
+@@ -233,7 +246,7 @@ let handle () =
+             | "PreToolUse" ->
+                 (match find session with
+                  | Some b ->
+-                     b.last_seen_ts <- now_ts ();
++                     touch b;
+                      finish (no_write "already bound")
+                  | None ->
+                      (match extract_preset command "BP3_RUN_ID",
+@@ -251,7 +264,8 @@ let handle () =
+                             let b = { quest = q; exp = e; run_id;
+                               session_id = session; started_ts = now_ts ();
+                               started_epoch = Unix.time ();
+-                              last_seen_ts = now_ts (); settled = false;
++                              last_seen_ts = now_ts ();
++                              last_seen_epoch = Unix.time (); settled = false;
+                               unsettled = false; emitted = [];
+                               in_tok = 0; out_tok = 0; cached_tok = 0;
+                               reasoning_tok = 0; llm_calls = 0 } in
+@@ -267,7 +281,8 @@ let handle () =
+             | "SessionStart" ->
+                 let swept = ref None in
+                 List.iter (fun b ->
+-                  if b.session_id <> session && not b.settled && not b.unsettled then
++                  if b.session_id <> session && not b.settled && not b.unsettled
++                     && Unix.time () -. b.last_seen_epoch > stale_after_s then
+                     match emit !bindings b "run_unsettled"
+                       [("last_seen_ts", json_str b.last_seen_ts)]
+                       (b.run_id ^ "|run_unsettled") with
+@@ -277,7 +292,7 @@ let handle () =
+                       end
+                     | None -> ()) !bindings;
+                 (match find session with
+-                 | Some b -> b.last_seen_ts <- now_ts ()
++                 | Some b -> touch b
+                  | None -> ());
+                 finish (match !swept with
+                   | Some line -> verdict line None
+@@ -295,13 +310,13 @@ let handle () =
+                         if c <> 0 then c else member_int usage "cache_read_tokens");
+                      b.reasoning_tok <- b.reasoning_tok + member_int usage "reasoning_tokens";
+                      b.llm_calls <- b.llm_calls + 1;
+-                     b.last_seen_ts <- now_ts ();
++                     touch b;
+                      finish (no_write "usage tallied"))
+             | "PostToolUse" | "PostToolUseFailure" ->
+                 (match find session with
+                  | None -> no_write "no binding witnessed for session"
+                  | Some b ->
+-                     b.last_seen_ts <- now_ts ();
++                     touch b;
+                      let failure = event = "PostToolUseFailure" in
+                      let is_update =
+                        contains_sub command "bp3" &&
+@@ -354,12 +369,13 @@ let handle () =
+                           (b.run_id ^ "|run_settled") with
+                         | Some line -> b.settled <- true;
+                             b.last_seen_ts <- settled_ts;
++                            b.last_seen_epoch <- Unix.time ();
+                             finish (verdict line None)
+                         | None -> finish (no_write "duplicate or unwritable fact"))
+                      end)
+             | "Stop" ->
+                 (match find session with
+-                 | Some b -> b.last_seen_ts <- now_ts ();
++                 | Some b -> touch b;
+                      finish (no_write "checkpoint only")
+                  | None -> no_write "no binding witnessed for session")
+             | "SubagentStart" ->
+diff --git a/test/hooks.sh b/test/hooks.sh
+index 749cce2..0006eec 100755
+--- a/test/hooks.sh
++++ b/test/hooks.sh
+@@ -114,11 +114,20 @@ out=$(hooks "$end")
+ echo "$out" | jq -e '.event_line == null' >/dev/null || fail "second settle not deduped: $out"
+ [ "$(ledger parser-fix | grep -c '"event":"usage_recorded"')" = "1" ] || fail "second settle duplicated usage"
+ 
++registry() { printf '%s/bp3-run-registry.json' "$(git rev-parse --absolute-git-dir)"; }
++age_binding() { # $1 = session_id: backdate last_seen past the stale gate
++  local reg; reg=$(registry)
++  local tmp; tmp=$(mktemp)
++  jq --arg s "$1" '.sessions[$s].last_seen_epoch -= 7200' "$reg" > "$tmp"
++  mv "$tmp" "$reg"
++}
++
+ # --- killed session: next SessionStart sweeps run_unsettled ---
+ RUN2=20260101T010000Z-submit-muse-code-test-model-c1
+ mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN2"
+ bind2=$(printf '{"hook_event_name":"PreToolUse","session_id":"S2","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parser-fix echo work"}}' "$repo" "$RUN2")
+ hooks "$bind2" >/dev/null
++age_binding S2
+ sweep=$(printf '{"hook_event_name":"SessionStart","session_id":"S3","cwd":"%s"}' "$repo")
+ out=$(hooks "$sweep")
+ echo "$out" | jq -e --arg r "$RUN2" '.event_line.event == "run_unsettled" and .event_line.run_id == $r and (.event_line | has("last_seen_ts"))' >/dev/null || fail "run_unsettled verdict: $out"
+@@ -126,6 +135,25 @@ out=$(hooks "$sweep")
+ echo "$out" | jq -e '.event_line == null' >/dev/null || fail "second sweep not deduped: $out"
+ [ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "1" ] || fail "run_unsettled count"
+ 
++# --- live parallel Runs: a fresh SessionStart sweeps nothing ---
++RUN5=20260101T030000Z-submit-muse-code-test-model-c1
++RUN6=20260101T030000Z-review-muse-code-test-model-c1
++mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN5" "docs/quests/demo/experiments/parallel-exp/runs/$RUN6"
++bind5=$(printf '{"hook_event_name":"PreToolUse","session_id":"S6","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parser-fix echo live-a"}}' "$repo" "$RUN5")
++bind6=$(printf '{"hook_event_name":"PreToolUse","session_id":"S7","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parallel-exp echo live-b"}}' "$repo" "$RUN6")
++hooks "$bind5" >/dev/null
++hooks "$bind6" >/dev/null
++live_sweep=$(printf '{"hook_event_name":"SessionStart","session_id":"S8","cwd":"%s"}' "$repo")
++out=$(hooks "$live_sweep")
++echo "$out" | jq -e '.event_line == null' >/dev/null || fail "live parallel sweep verdict: $out"
++[ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "1" ] || fail "live parallel run marked unsettled"
++if ledger parallel-exp | grep -q '"event":"run_unsettled"'; then fail "live parallel-exp run marked unsettled"; fi
++age_binding S6
++out=$(hooks "$live_sweep")
++echo "$out" | jq -e --arg r "$RUN5" '.event_line.event == "run_unsettled" and .event_line.run_id == $r' >/dev/null || fail "stale-only sweep verdict: $out"
++[ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "2" ] || fail "stale-only sweep count"
++if ledger parallel-exp | grep -q '"event":"run_unsettled"'; then fail "fresh parallel-exp run swept with stale sibling"; fi
++
+ # --- parallel Runs: distinct bindings, no cross-talk ---
+ RUN3=20260101T020000Z-submit-muse-code-test-model-c1
+ RUN4=20260101T020000Z-review-muse-code-test-model-c1
+diff --git a/test/skills.sh b/test/skills.sh
+index f6e6cd8..d5e9ee2 100755
+--- a/test/skills.sh
++++ b/test/skills.sh
+@@ -65,6 +65,12 @@ assert test -f "$root/.agents/workflows/induct-exp.js"
+ assert cmp "$root/skills/induct/workflows/induct-exp.js" "$root/.agents/workflows/induct-exp.js"
+ assert test -f "$root/.claude/hooks.json"
+ assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.claude/hooks.json"
++assert test -f "$root/.claude/settings.json"
++assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
++mkdir -p "$root/.claude"
++printf '{"keepMe":true}\n' > "$root/.claude/settings.json"
++"$root/bin/bp3" skills install --harness=claude > /dev/null
++assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+ cp "$root/.pi/settings.json" "$work/settings.before"
+ "$root/bin/bp3" skills install --harness=pi > /dev/null
+ assert cmp "$work/settings.before" "$root/.pi/settings.json"
+commit cc115c5cc05b628de469fa0b8b7ad89c984a7ec7
+Author: whycz <whyczz@gmail.com>
+Date:   Fri Nov 13 21:59:10 2026 -0500
+
+    feat(q): bp3 q hooks emitter and hooks.json delivery
+    
+    Muse hook payloads on stdin become past-tense event lines (run_started, run_settled, run_unsettled, usage_recorded, refused, lint_checked) in the exp ledger through an internal fact writer. Fail-open: exit 0, no writes for garbage, foreign repos, unbound sessions, or reentrant calls. Binding is witnessed from the env preset in PreToolUse commands; the registry lives in the git dir so witnessing never dirties the tree. Event lines carry no edge/from/to keys, so the fold skips them. bp3 skills install delivers .claude/hooks.json; test/hooks.sh covers every Exp 6 acceptance case and make check is green.
+
+ .claude/hooks.json                                 |   13 +
+ Makefile                                           |    3 +-
+ bin/bp3                                            |   19 +
+ .../notes.md                                       |   28 +
+ .../tape.log                                       | 1081 ++++++++++++++++++++
+ src/quest/hooks.ml                                 |  378 +++++++
+ src/quest/main.ml                                  |    3 +
+ test/hooks.sh                                      |  155 +++
+ test/skills.sh                                     |    2 +
+ 9 files changed, 1681 insertions(+), 1 deletion(-)
+ M docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-check-muse-code-muse-wonder-1.0-c2/
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-review-muse-code-muse-wonder-1.0-c2/
+44cab82bc30a0fbc3423a5fc7ca3765439e7c960
+DIFF_DONE
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/tape.sh test/hooks.sh test/induct.sh
+node --check skills/induct/workflows/induct-exp.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (32 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (46 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+MAKE_CHECK_EXIT:0
+notes.md
+tape.log
+{"ok":true,"quest":"2026-11-07-bp3-mvp-engine-core","exp":"exp-6-hooks","state":"approved","cycle":2,"commit":"31f362b755f581469cbf865f812f749467fa3f5c","legal_edges":["land","block","delete"]}
