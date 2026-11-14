@@ -140,12 +140,16 @@ HOOKS_JSON
   # trigger line; both harnesses accept the skill by name.
 }
 
-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ...'
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 worktree derive|create|inspect|remove ...'
 case "${1:-}" in
   q|quest) shift
     q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
     [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
     BP3_ROOT="$root" exec "$q_bin" "$@" ;;
+  worktree) shift
+    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" worktree "$@" ;;
   init) shift; skills_install "$@" ;;
   skills)
     shift
