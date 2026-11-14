@@ -44,6 +44,10 @@ induct (skill, main session)
     landed    -> next exp on the railway
 ```
 
+- Every step Runs from a prepared worktree desk
+  (`bp3 worktree prepare`, per the bp3-worktrees quest):
+  author on the exp branch, graders detached at the bound
+  commit, conductor's tree never moved.
 - `induct-exp` shrinks to implementation only: author
   child, clean commit, `submit` edge. It never judges.
 - `induct-grade` is new and judge-only: no edits, no
@@ -68,6 +72,20 @@ induct (skill, main session)
   workflows: it belongs to the landing pass
   (`red-ink-quest-landing-demo`), after the railway.
 
+TODO — two-level worktree closing (owner, 2026-11-14):
+
+- Run level is the normal path: each build/grade step's
+  child exits its own worktree on clean settle
+  (`bp3 worktree exit`). If it blocks with dirty work,
+  checkpoint first when possible; otherwise preserve the
+  worktree and surface its path in the human inbox.
+- Quest level is the audit/sweep: when `induct` finishes
+  or the quest lands, the conductor lists all worktrees
+  for the quest, releases clean stragglers, and treats
+  any dirty worktree as a landing blocker until a human
+  decides. After correct Run-level exits, this sweep
+  should normally find zero.
+
 ## Blockers
 
 - Grade contract must be designed, not just moved: the
@@ -77,9 +95,12 @@ induct (skill, main session)
 - Run/tape conventions per step: run-ids, env preset, and
   tape folders currently assume the monolith's stage
   names; the split must keep them derivable.
-- Parallel review/check children share one worktree
-  today; a judge-only workflow makes read-only isolation
-  (worktree or bound-commit checkout) worth deciding.
+- Worktree isolation is owned by the
+  [bp3-worktrees quest](../quests/2026-11-14-bp3-worktrees/QUEST.md):
+  v2 consumes its `bp3 worktree` verbs (author desk on the
+  exp branch, grader desks detached at the bound commit)
+  rather than inventing isolation mid-split. This quest
+  lands first, or v2's Exp on adoption absorbs proving it.
 - Migration: `induct-exp.js`, its mock-host contract test
   (`test/induct-exp.test.mjs`), and the `induct` skill
   text all describe the monolith and move together.
