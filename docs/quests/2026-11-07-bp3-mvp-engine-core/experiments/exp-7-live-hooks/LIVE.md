@@ -58,3 +58,47 @@ Demo grep after landing reads N >= 6 across submit,
 review, and check. Until such a Run, the Acceptance table
 stays red on its first three rows; the state fold is
 unaffected (`bp3 q r` reads this exp `todo`, cycle 1).
+
+---
+
+# Cycle 2 — submit Run (author record)
+
+Run: `20261114T142529Z-submit-muse-code-muse-wonder-1.0-c2`
+Harness/model: muse-code / muse-wonder-1.0. Cycle 2.
+Session: `727f5e85-9ce1-78f7-8436-fddd6139e8ff`.
+
+## Step 1 — delivery confirmed
+
+- `.muse/hooks.json` exists at the repo root and names
+  `./bin/bp3 q hooks` for all nine events (9 command
+  entries, verified by grep): SessionStart, PreToolUse,
+  PostToolUse, PostToolUseFailure, PostLLMCall,
+  SubagentStart, SubagentStop, Stop, SessionEnd.
+- This session's first shell command carried the env
+  preset (`BP3_RUN_ID=20261114T142529Z-submit-muse-code-muse-wonder-1.0-c2
+  BP3_QUEST=2026-11-07-bp3-mvp-engine-core BP3_EXP=exp-7-live-hooks
+  BP3_HARNESS=muse-code BP3_MODEL=muse-wonder-1.0`).
+
+## Step 2 — live witness check (while this Run is live)
+
+- Result: **present.** Read mid-Run via
+  `git show bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-7-live-hooks:.../ledger.jsonl`:
+  the hook itself committed `run_started` for this Run.
+- Event lines seen for this run_id at author time
+  (Demo grep `grep -c '"event"'` on the exp branch
+  ledger returns **2**):
+  - `{"event":"run_started","ts":"2026-11-14T14:26:04Z","run_id":"20261114T142529Z-submit-muse-code-muse-wonder-1.0-c2","cycle":2,"session_id":"727f5e85-9ce1-78f7-8436-fddd6139e8ff"}`
+  - `{"event":"lint_checked","ts":"2026-11-14T14:26:39Z","run_id":"20261114T142529Z-submit-muse-code-muse-wonder-1.0-c2","check":"make check","result":"pass"}`
+- Run ids seen in this ledger: `20261114T142529Z-submit-muse-code-muse-wonder-1.0-c2`
+  (run_id match: yes; session_id matches this session).
+  Each event line carries `ts` + `run_id` and no
+  `edge`/`from`/`to`. The registry
+  `.git/bp3-run-registry.json` binds this session to
+  this run_id with `run_started` emitted.
+- Before count (cycle 1 close): 0. After this Run
+  started: >0. `usage_recorded` + `run_settled` for
+  this Run land at settle, after the author session
+  ends; review/check Runs verify them from the ledger.
+- No event line was typed by hand. `make check` is
+  green and `bp3 q r` still folds this exp as
+  `todo`, cycle 2 — the state fold is unaffected.
