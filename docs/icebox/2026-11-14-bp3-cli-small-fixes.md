@@ -1,7 +1,7 @@
 ---
 status: frozen
 date: 2026-11-14
-promoted: null
+promoted: docs/quests/2026-11-14-bp3-cli-small-fixes/QUEST.md
 ---
 
 # bp3 CLI small fixes (rendered tables, tab completion)
