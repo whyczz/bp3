@@ -129,15 +129,25 @@ export default async function workflow(host) {
     );
   }
 
+  function envPreset(edge, cycle) {
+    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
+    // as this stage's run folder. Hooks cannot inherit env from a
+    // child, but PreToolUse payloads carry the full command text,
+    // so the first prefixed command binds session -> run.
+    return (
+      "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
+      "-c" + String(cycle) + " BP3_QUEST=" + quest + " BP3_EXP=" +
+      exp + " " + envPrefix
+    );
+  }
+
   function tapePreamble(edge, cycle) {
     const folder = runFolder(edge, cycle, harness + "-" + model);
     return (
-      "Your run folder is `" + folder + "`, where <harness> is the " +
-      "value of $BP3_HARNESS (or `unknown` when unset) and <model> " +
-      "is the value of $BP3_MODEL (or `unknown` when unset), so " +
-      "the concrete folder name is `" + ts + "-" + edge +
-      "-<harness>-<model>-c" + String(cycle) + "` under `" +
-      expDir + "/runs/`. First check whether that concrete run " +
+      "Your run folder is `" + folder + "` under `" + expDir +
+      "/runs/`. Prefix your FIRST shell command with `" +
+      envPreset(edge, cycle) + "` (hooks witness this prefix " +
+      "to bind your session to this run). First check whether that concrete run " +
       "folder already exists: if it does, stop immediately, do " +
       "not overwrite or reuse it, and return a JSON object " +
       '{"ok":false,"error":{"code":"E_RUN_EXISTS"}} describing ' +
@@ -184,7 +194,7 @@ export default async function workflow(host) {
           " Do the exp's work in the repository, then commit the " +
           "work as a clean git commit and note its full sha. Then " +
           "call the state edge directly yourself: " +
-          "`"+envPrefix+"./bin/bp3 q " + quest + " u " + exp +
+          "`"+envPreset("submit", before.cycle)+"./bin/bp3 q " + quest + " u " + exp +
           " submit --commit <your-commit-sha> --reason \"<short reason>\"`. " +
           "Children call `bp3 q u` directly; never only return a " +
           "verdict for the parent to relay. Reply with only a JSON " +
@@ -199,10 +209,13 @@ export default async function workflow(host) {
         quest + "`, currently in state `submitted` at cycle " +
         String(before.cycle) + ", bound to commit `" + bound + "`. " +
         reviewLoad + tapePreamble("review", before.cycle) +
-        " Review the work at the bound commit on its merits and " +
-        "judge only; do not edit the work. Then call the state " +
+        " Review the work at the bound commit against the exp's " +
+        "own Acceptance cases in its EXPERIMENT.md (read it first): " +
+        "every case needs observed evidence, and any open design " +
+        "question in the exp means it was not done properly. Judge " +
+        "only; do not edit the work. Then call the state " +
         "edge directly yourself, binding the exact commit: " +
-        "`"+envPrefix+"./bin/bp3 q " + quest + " u " + exp +
+        "`"+envPreset("review", before.cycle)+"./bin/bp3 q " + quest + " u " + exp +
         " review --verdict ship --commit " + bound +
         " --reason \"<short reason>\"` when the work is correct, " +
         "or the same call with `--verdict needs_fix` when it is " +
@@ -218,7 +231,7 @@ export default async function workflow(host) {
         " Run the exp's checks against the bound commit and judge " +
         "only; do not edit the work. Then call the state edge " +
         "directly yourself, binding the exact commit: " +
-        "`"+envPrefix+"./bin/bp3 q " + quest + " u " + exp +
+        "`"+envPreset("check", before.cycle)+"./bin/bp3 q " + quest + " u " + exp +
         " check --verdict pass --commit " + bound +
         " --reason \"<short reason>\"` when every check passes, " +
         "or the same call with `--verdict fail` when any check " +
@@ -238,7 +251,7 @@ export default async function workflow(host) {
           quest + "`, currently in state `approved` at cycle " +
           String(before.cycle) + ". " + tapePreamble("land", before.cycle) +
           " Call the state edge directly yourself: " +
-          "`"+envPrefix+"./bin/bp3 q " + quest + " u " + exp +
+          "`"+envPreset("land", before.cycle)+"./bin/bp3 q " + quest + " u " + exp +
           " land --reason \"<short reason>\"`. Children call " +
           "`bp3 q u` directly; never only return a verdict for " +
           "the parent to relay. Reply with only a JSON object " +

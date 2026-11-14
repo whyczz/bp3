@@ -12,9 +12,11 @@ check: lint
 	$(DUNE_BUILD) src/quest/main.exe
 	./test/q.sh
 	./test/tape.sh
+	./test/induct.sh
 
 lint:
-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/tape.sh
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/tape.sh test/induct.sh
+	node --check skills/induct/workflows/induct-exp.js
 
 test:
 	./test/skills.sh
