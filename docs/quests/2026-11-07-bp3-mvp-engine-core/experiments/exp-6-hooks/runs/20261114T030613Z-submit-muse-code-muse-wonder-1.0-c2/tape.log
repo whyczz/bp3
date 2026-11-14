@@ -605,3 +605,4 @@ installed hooks -> .claude/settings.json
 ?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-check-muse-code-muse-wonder-1.0-c1/
 ?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-review-muse-code-muse-wonder-1.0-c1/
 {"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{},"guidance":"Worktree is dirty; clean it and retry."}}
+{"ok":true,"quest":"2026-11-07-bp3-mvp-engine-core","exp":"exp-6-hooks","state":"submitted","cycle":2,"commit":"31f362b755f581469cbf865f812f749467fa3f5c","legal_edges":["review","check","block","delete"]}
