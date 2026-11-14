@@ -70,6 +70,7 @@ because a gate that starts green certifies nothing.
 | 5 | Draft `docs/quests/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) | one Quest per file |
 | 6 | Break into exps with failing-today acceptance | a check that cannot fail gets rewritten |
 | 6.5 | Diligence gate per exp: design settled (no open questions), acceptance fails today, demo defined up front | an exp with open design questions is not ready for `induct`; settle it with `red-ink` first — Exp 4 of the MVP quest shipped unsettled design and the landing review caught it late |
+| 6.6 | Skill changes ride as their own exp | if the Quest's changes touch any skill (bp3 `skills/`, yap skills, installed copies), name a skill-change exp with its own acceptance (skill tests, render/install assertions); never edit a skill inline during framing, and never fold a skill change into a code exp — skills are how children behave, so they get the same gate as code |
 | 7 | Red-chair passes on goal, scope, exp order | strongest attack + what it changed, recorded |
 | 8 | Stage fat exps as numbered substeps (1.1, 1.2, ...) | each substep passes on its own |
 
@@ -218,3 +219,4 @@ Success picture.
 | file claims a result never observed | mark it proposed / unmet |
 | new planning vocabulary creeps in | Quest, exp, Run carry the load; send the rest back |
 | accepted Quest needs a goal change mid-build | explicit edit, human-approved |
+| framing session "just quickly fixes" a skill | stop; it becomes a skill-change exp (step 6.6). The only direct-now path is the owner explicitly invoking `/add-yap-skill` or `/add-bp3-skill` — that invocation *is* the order; without it, no inline skill edits |
