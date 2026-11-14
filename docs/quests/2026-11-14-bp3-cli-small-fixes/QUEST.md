@@ -11,7 +11,9 @@ The human surface of `bp3 q` stops lying: `--format table`
 prints an actual table (aligned columns, header row), and
 `bp3` gains shell tab completion (static verbs/edges/flags,
 dynamic quest/exp names), and `bp3 q icebox r` makes frozen
-entries searchable without `ls`+`grep`. JSON — the LLM
+entries searchable without `ls`+`grep`, every door answers
+`-h`/`--help`, and bp3 ships as a versioned, installable
+binary a second repo (esc3) can dogfood. JSON — the LLM
 surface — does not change by one byte. Promoted from
 [the bp3 CLI small fixes icebox entry](../../icebox/2026-11-14-bp3-cli-small-fixes.md);
 promotion per the `quest` skill: transcription, not
@@ -42,6 +44,9 @@ shell finish the names for you.
 | Icebox entry | one frozen `docs/icebox/YYYY-MM-DD-<slug>.md`; not a quest, not state (`docs/icebox/README.md`) |
 | Icebox door | `bp3 q icebox r`, read-only: list/search entries, or print one by slug; writes nothing |
 | Help slot | a position where `-h`/`--help` prints that door's plain-text help, exit 0: after `bp3`, after `q`, after a door verb, after `<quest>` |
+| Release | a `dist/bp3-q-v<bp3_version>-<os>-<arch>` artifact + `.sha256`, gated on git tag `v<bp3_version>`; `bp3_version` (`src/quest/gitx.ml`) is the only version source |
+| Installed binary | a copied release artifact at `~/.local/bin/bp3-q`; never a symlink into `_build` |
+| Version-ahead | a repo whose ledgers stamp a newer `bp3_version` (semver `MAJOR.MINOR.PATCH`) than the binary: reads warn; writes warn on MINOR/PATCH, refuse on MAJOR (`E_VERSION_AHEAD`) |
 
 ## Demos
 
@@ -109,6 +114,8 @@ outside a bp3 repo or with an unbuilt binary.
 | Delivery via `bp3 init` / `bp3 skills install` | editing the user's shell rc files; completion that errors visibly |
 | `bp3 q icebox r`: list/search `docs/icebox/` entries, read one by slug (read-only) | any icebox write verb (create, promote, thaw) through `q`; parsing entries as state or pointing the ledger at them |
 | `-h`/`--help` at every door (wrapper, `q`, quest door, exp door): plain text, stdout, exit 0 | help as a JSON verdict; changing any error verdict or exit code; help positions beyond the named slots |
+| Release pattern: `--version`, `make release` artifacts + checksums, version-ahead guard | package registries, CI publishing, auto-update, prerelease version suffixes |
+| Installable bp3: `make install` (copied artifact), cwd-rooted shim, `init-repo` plan scaffolding; esc3 dogfood | symlinks into `_build`, side-by-side multi-version installs, overwriting a repo's differing `plans/` |
 
 ## Human touchpoints
 
@@ -149,6 +156,22 @@ fixture — the same standard the owner just added to
 `code-writer` step 5. Added at framing on the owner's ask.
 Depends on: none. Lane: standard.
 
+### Exp 5 — [Release pattern](experiments/exp-5-release-pattern/EXPERIMENT.md)
+Versioned artifacts when bp3 changes: `--version`,
+`make release` (tag-gated, checksummed), and the
+version-ahead guard — older binaries warn on reads and
+refuse writes in newer repos. Added at framing on the
+owner's "what if bp3 changes?" Depends on: none; Exp 6
+spends it. Lane: standard.
+
+### Exp 6 — [Installable bp3](experiments/exp-6-installable-bp3/EXPERIMENT.md)
+Dogfood bp3 in another repo (esc3): `make install` copies
+the release artifact to `~/.local/bin/bp3-q`, the shim
+roots at the caller's repo, and `init-repo` scaffolds
+`plans/`. Acceptance is a full quest loop in a scratch
+repo with zero writes home. Depends on: Exp 5.
+Lane: standard.
+
 ## Scorecard
 
 | Field | Value |
@@ -171,6 +194,7 @@ and what they changed:
 | The icebox promotion trigger has not observably fired | recorded as Open question 1 instead of laundered into a claim; the owner directed this promotion directly |
 | Exp 3 is scope creep: a "small fixes" quest growing a new door | priced honestly in its record: it is new function, kept read-only and dumb-parsing; if approval balks, it splits into its own quest with no damage to Exps 1–2 |
 | Help text drifts from the grammar within a month | hand-written docstrings are accepted only with the drift fixture (every verb/edge/flag in help asserted against `main.ml`, both directions); deriving help from the parser was priced and rejected as a grammar refactor |
+| "Just symlink the built binary" solves distribution | rejected in Exp 6: a symlink makes every `dune build` here a silent unversioned upgrade of another repo's binary; installs are versioned copies, and Exp 5's guard catches the skew that remains |
 
 ## Open questions
 
