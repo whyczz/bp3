@@ -1,0 +1,613 @@
+=== check child exp-6-hooks ===
+run_id=20261114T025213Z-check-muse-code-muse-wonder-1.0-c1 bound=cc115c5cc05b628de469fa0b8b7ad89c984a7ec7 HEAD=b091c18a08666f4257bfcadc8cc22d16ae70b620
+--- quest files ---
+experiments
+QUEST.md
+--- QUEST.md ---
+---
+status: active
+home_repo: bp3
+date: 2026-11-07
+---
+
+# bp3-mvp-engine-core: the quest state machine
+
+TL;DR
+bp3 gains its core: a CLI and state engine where work moves as
+clean commits through a small state machine, written only by
+`bp3 q u`. When this Quest lands, a quest folder carries its own
+state, any executor can take the next edge, and the Muse
+executor test lives in its own Quest downstream of a stable core.
+
+## Terms
+
+- Quest: one unit of work with an authored railway of exps.
+- Exp: one entry on a quest's railway, running the inner FSM.
+- Run: one execution that takes an edge and leaves a tape.
+- Induct: one engine loop over a quest — read the railway and
+  inbox, dispatch Runs for the next legal edges, autoland at
+  `approved`, and stop only when the rollup is terminal or a
+  human decision is owed (`blocked`, a fan-out choice). A
+  induct is a session of work, not an edge: many Runs, one
+  induct. Recovery from a dead induct is a fresh induct, never a
+  resumed one.
+- Induct-exp: the saved Muse workflow `induct` launches
+  for one exp. From mathematical induction: take the exp's
+  current state as true, apply one legal step, re-read the
+  state, and repeat. Base cases (exits): the state is
+  `landed`, `blocked`, or `deleted`, so it returns to
+  `induct`; a step that changes nothing (refusals, no commit)
+  also exits as `refused` for `induct` to re-judge. It loops
+  the exp's inner FSM; it does not navigate the quest railway.
+- Tree view: the human read of a quest or exp
+  (`bp3 q r --format tree`), the presentation /quest and
+  red-ink show the owner. Exp markers: `+` todo, `u`
+  submitted/approved/blocked, `-` deleted, blank landed
+  (clean, like git status). Each exp also carries its
+  proposed file changes — `+` added, `u` updated, `-`
+  deleted, from the bound commit's diff — so wrong files are
+  spotted up front, before land. Unsure (nothing bound, or
+  the diff cannot be read) is `?`, never an empty list.
+- State: a condition of an exp (`todo`, `submitted`,
+  `approved`, `blocked`, `landed`, `deleted`) — never a role,
+  a command, or a “stage.”
+- Edge: an attempted move named on the CLI under `u`
+  (`submit`, `review`, `check`, `land`, `block`, `resume`).
+- Transition: an accepted edge, recorded as one ledger line
+  and one commit.
+- Refusal: a judged “no” to an edge; JSON only, never a
+  ledger line.
+- Verdict: the binary's JSON answer to a call; review and
+  check calls also carry a judgment value.
+- Ledger: the append-only record of accepted transitions;
+  at a branch tip, it is the truth.
+- Tape: verbatim Run output; evidence, never parsed into
+  facts.
+- Cycle: the iteration count on an exp; data, never a state.
+- Land: moving an approved exp into the quest branch —
+  fast-forward, clean merge, or conflict back to `todo`.
+- Tombstone: a `deleted` exp or quest whose record and
+  branch ref are kept; nothing is removed for real.
+- Railway: the quest's authored linear track of exps and
+  fan-out groups; the engine navigates it up front, and a
+  blocked entry blocks everything behind it.
+- Fan-out group: sibling exploration exps run in parallel;
+  members are not landable, exactly one follow-up lands.
+- `quest_type`: the outer plan (knobs only, from `plans/`).
+- `exp_type`: an exp's inner profile (FSM knobs, required
+  checks, skill names).
+- Engine: the bp3 FSM plus a harness — the whole
+  execution system that takes edges and runs work.
+- Harness: the third-party app host and its bundle —
+  model, skills, hooks, and extensions (e.g. Muse
+  Code, Codex). Harness and model are recorded per
+  ledger line.
+
+## Demos (observed 2026-11-12 — the binary exists; these ran)
+
+```text
+HAPPY PATH (this quest's own exps, driven through bp3 q)
+  exp-2..exp-5: todo --submit--> submitted --review ship + check pass-->
+  approved --land--> landed        (rollup: landed, inbox: [])
+
+BLOCKED RAILWAY (toy-drive/blocked-demo)
+  submitted --needs_fix @ max_cycles--> blocked  [human_action_required]
+  bp3 q r toy-drive -> inbox: [{exp: blocked-demo, reason, cycle, since}]
+  resume without BP3_DECIDER=human -> E_HUMAN_REQUIRED (exit 1)
+  resume as human -> todo c2 -> submit -> ship+pass -> landed
+
+LLM MISFIRE (observed on exp-2 before its submit)
+  todo + land -> E_ILLEGAL_EDGE {state: todo, legal_edges:
+  [submit, block, delete]}   state unchanged, nothing ledgered
+
+FINAL HUMAN VIEW (bp3 q r <quest> --format tree, observed)
+  2026-11-07-bp3-mvp-engine-core [proposed] rollup: landed
+  ├──   exp-2-cli-scaffold - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
+  │   ├── u Makefile
+  │   ├── bin
+  │   │   └── u bp3
+  │   ├── invoke
+  │   │   ├── + dune
+  │   │   └── + main.ml
+  │   ├── plans
+  │   │   ├── u default.yaml
+  │   │   └── u direct.yaml
+  │   └── test
+  │       ├── - invoke.sh
+  │       └── + q.sh
+  ├──   exp-3-fsm - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
+  │   └── (same changeset as exp-2: the FSM rides the core commit)
+  ├──   exp-4-tape-hooks - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
+  │   ├── .agents
+  │   │   ├── skills/induct/SKILL.md (u)
+  │   │   └── workflows/induct-exp.js (+)
+  │   ├── .claude, .pi (same induct renders, u)
+  │   ├── skills
+  │   │   └── induct
+  │   │       ├── u SKILL.md
+  │   │       └── workflows
+  │   │           └── + induct-exp.js
+  │   └── test
+  │       ├── u skills.sh
+  │       └── + tape.sh
+  └──   exp-5-muse-engine - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
+      └── (same changeset as exp-4: the engine commit)
+  (tree(1) style, per directory: quest is the root, exps are
+   branches, proposed files expand by directory as leaves;
+   markers + todo/added, u in-flight/updated, - deleted,
+   blank landed, ? unsure; per-exp view adds legal edges:
+   bp3 q <quest> r <exp> --format tree)
+
+LIVE ENGINE (toy-drive/parser-fix via induct-exp, observed)
+  induct-exp children took submit/review/check/land; outcome: landed
+  ledger: 5 lines on bp3/exp/toy-drive/parser-fix, verdicts on the
+  exact commit; tape+notes on the quest branch for the submit Run
+  first live attempt refused: workflow args arrive as a JSON string
+  (script now parses both); children first recorded unknown/unknown
+  identity (env now passed explicitly in args)
+```
+
+ELI5
+Today every helper starts blank and pays full price to re-learn the
+job; that rent, not typing speed, is the wait. So the coordinator
+keeps the map in its own head, sends out helpers that inherit or
+fork what it knows, and writes down what happened. You read the
+summary, not the workshop floor.
+
+## Goal and why
+
+Replace the pane-crew execution model with an engine model whose
+contract is context provisioning: `cold | warm | fork | subagent`.
+The engine is a first-class bp3 component, not a caller detail:
+this Quest specifies the bp3 CLI the engine calls and the contract
+every engine must satisfy, while engine implementations are
+harness-specific bundles (skills, hooks, extensions, and helper
+code) built downstream. Every engine must: navigate the railway and
+dispatch Runs; provision context; take transitions only through
+`bp3 q`; autoland at `approved`; and resolve blocked exps by
+bubbling them to the human-facing session, capturing the human's
+decision, attesting it, and redispatching. Helper CLIs or scripts
+are engine-side choreography only — state moves exclusively
+through the bp3 binary. The contract grows by one test: if a
+piece can die while an exp still travels `todo` -> `landed`
+with the human gate intact, it is a plugin, not core. A plugin
+is a contract plus implementations: one stable API (the
+verdict/event JSON it receives, an idempotency key naming the
+transition, an ack it returns) behind which implementations
+fan out — the notification contract, for example, is one API
+with Discord, Slack, iMessage, and desktop implementations.
+Metrics, projects, warden, and notifications are plugins:
+they consume verdicts and events, never write state, and
+their failure never fails a transition. The predecessor Quest
+[bp3 MVP: the loop on itself](../2026-11-05-bp3-mvp/QUEST.md) proved the
+Board, brief/report ops, and gated landing, but its center bet —
+fresh-context Workers in watched Zellij panes — makes every Run
+re-buy its context. Four-hour coder/reviewer bounces were observed;
+the human judges watchability and takeover to be comfort, speed the
+requirement. This Quest keeps the proven record and landing layers
+and rebuilds only how work executes.
+
+## Success picture
+
+The founding evidence is the owner's: the predecessor loop
+was run by hand and it sucks — no baseline exp is run. The
+engine contract is specified; the commit-state machine runs the toy exp end to end — submit,
+review, check, CAS land — with guards intact. The Muse engine
+(Exp 5) runs that machine end to end on workflow children and
+dogfoods this quest's own build; the separate Muse executor
+quest was deleted (2026-11-11) and folded in here.
+Landing is recorded here with the
+measured context cost per edge, and limitations. Record layer as
+decided after red chair: no SQLite Board — bookkeeping lives in
+files in git: per-exp ledgers are the record, quest state is a
+rollup, and `state.yaml` files are derived caches, written only
+through `bp3 q <quest> u <exp>`. First slice landed as
+`bp3 invoke` (rename owed in one change:
+binary, tests, docs, skills) with the `default` quest_type
+(one review round) and fixture tests in `test/invoke.sh`.
+
+## Scope
+
+In: the `bp3 q` CLI
+scaffold; the commit-state FSM (states, edges, guards,
+YAML quest_type plans); and the Muse engine (Exp 5:
+the `induct` skill, `induct-exp`, Muse hooks) that dogfoods the
+railway.
+Inherited by reference: the canceled Quest's Exp 2
+auto-land kernel candidate `9e1b1d0` and its gated-landing
+contract. The former Muse executor
+quest (bp3-mvp-muse-workflows) was deleted 2026-11-11; its
+executor test is Exp 5 here.
+Out: warden/hook substrate (decided: not yet; the contract sketch
+waits in the [hooks dossier](../../dossiers/muse-workflows-hooks.md)),
+resurrecting pane takeover as a requirement (Zellij remains a
+debug view only), foreign-TUI typing, multi-host or remote Workers,
+arbitrary per-Quest graph editing (a DAG), and any change to the
+frozen Exp 2 coordinator before its kernel is adopted or dropped
+by explicit human decision.
+
+## Human touchpoints
+
+Quest framing (this file), escalations (success-picture change,
+budget exhaustion, engine contract change), and Quest-to-master
+promotion. Everything else is automated or it is listed here.
+
+## Exps
+
+Full Output, Acceptance, and Substeps for each exp live in its
+own record under `experiments/`; this file keeps the railway.
+
+| Exp | TL;DR | Acceptance, in one line | Depends on |
+|---|---|---|---|
+| 2 — CLI scaffold | The `bp3 q` CLI: verdicts, error codes, strict argv, identity env, blocked inbox | Fixture suite green: verdict shapes, error codes, both verb spellings, strict argv, identity, blocked inbox | none |
+| 3 — Commit-state FSM | Six-state machine per exp, ledgers at branch tips, railway, autoland | Two executors alternate with identical guards; stale verdict refused; halt at the bound | Exp 2 |
+| 4 — Tape and hooks | Tape per Run, hooks emit ledger facts, tape never parsed | Killed executor still leaves a complete tape; no ledger line derived from tape text | Exp 2 + Exp 3 |
+| 5 — Muse engine | The dogfood engine: `induct` skill + `induct-exp` workflow + Muse hooks driving the railway | Toy exp travels `todo → landed` on workflow children; forced `blocked` bubbles to the main session and resumes on the human's word | Exp 2 + Exp 3 + Exp 4 |
+
+Records:
+
+- Exp 1 — Timed baseline: **killed by the owner** (ran the
+  predecessor loop by hand; it sucks — measurement unnecessary). Record kept
+  as a fossil: [exp-1-baseline](experiments/exp-1-baseline/EXPERIMENT.md)
+- Exp 2 — [CLI scaffold: u, discover, CRUD](experiments/exp-2-cli-scaffold/EXPERIMENT.md)
+- Exp 3 — [Commit-state FSM](experiments/exp-3-fsm/EXPERIMENT.md)
+- Exp 4 — [Tape and hooks](experiments/exp-4-tape-hooks/EXPERIMENT.md) (the older [2026-11-07-tape-hooks.md](experiments/2026-11-07-tape-hooks.md) record predates the settled design and is kept as history)
+- Exp 5 — [Muse engine](experiments/exp-5-muse-engine/EXPERIMENT.md) (pulled into this quest for dogfooding from the deleted downstream quest)
+
+## Scorecard
+
+Per exp and per engine: wall time intent-to-land, context tokens
+per Run (provisioning mode noted), human-active minutes,
+interventions and repeated explanations, review/rework cycles, and
+manual bypasses. Recorded here and in each exp record from Board
+data and session usage; unmeasured values are stated, never zero.
+
+Observed 2026-11-12 (this quest's own drive): four exps landed
+through bp3 q, one ledger line per accepted transition, zero
+manual state edits. Toy live run: parser-fix submit-to-land in
+about three minutes of wall time (ledger timestamps). Context
+tokens per Run and human-active minutes: unmeasured. Two
+dogfood defects found and fixed in flight (dune artifacts vs
+the dirty-tree guard; workflow args as JSON string; a third,
+unknown child identity, is fixed in induct-exp and awaits its
+next live run for confirmation).
+
+## Risks and red chair
+
+- Strongest attack on the goal: "engine" conflates harness,
+  topology, and transport. What changed: the contract is defined by
+  context provisioning and the report/land ops, not by brand;
+  harness and fan-out shape are recorded per Run.
+- Strongest attack on order: the baseline was Exp 1 because the
+  four-hour bounce was unattributed. The owner killed it — the
+  predecessor loop was run by hand and convicted directly. The order now
+  rests on that first-hand evidence instead of a measurement
+  gate. Remaining open: whether watchability's
+  loss hides a real debugging need the debug view cannot cover.
+
+## Open questions
+
+1. Exp 1 baseline: killed by the owner, who ran the predecessor
+   loop by hand and convicted it directly. No measurement gate; the
+   Quest proceeds on that evidence.
+2. Block/resume versus block-then-respawn. Default: respawn.
+   Owner: human, with Exp 5 evidence.
+3. Reviewer may fix, with a fresh reviewer required — direction
+   settled, implementation deferred to a future quest:
+   [reviewer-fix icebox entry](../../icebox/2026-11-11-reviewer-fix.md).
+   In this Quest, reviewers judge only; fix commits come from
+   author Runs.
+4. How fat may the engine contract grow before it encodes one
+   harness's pane assumptions? Default: no new signal kinds without a second
+   engine needing them. Owner: implementer, in Exp 2.
+--- experiments list ---
+2026-11-07-tape-hooks.md
+exp-1-baseline
+exp-2-cli-scaffold
+exp-3-fsm
+exp-4-tape-hooks
+exp-5-muse-engine
+exp-6-hooks
+--- exp-6 files ---
+== docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs ==
+cat: docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs: Is a directory
+
+--- bound commit show ---
+commit cc115c5cc05b628de469fa0b8b7ad89c984a7ec7
+Author: whycz <whyczz@gmail.com>
+Date:   Fri Nov 13 21:59:10 2026 -0500
+
+    feat(q): bp3 q hooks emitter and hooks.json delivery
+    
+    Muse hook payloads on stdin become past-tense event lines (run_started, run_settled, run_unsettled, usage_recorded, refused, lint_checked) in the exp ledger through an internal fact writer. Fail-open: exit 0, no writes for garbage, foreign repos, unbound sessions, or reentrant calls. Binding is witnessed from the env preset in PreToolUse commands; the registry lives in the git dir so witnessing never dirties the tree. Event lines carry no edge/from/to keys, so the fold skips them. bp3 skills install delivers .claude/hooks.json; test/hooks.sh covers every Exp 6 acceptance case and make check is green.
+
+ .claude/hooks.json                                 |   13 +
+ Makefile                                           |    3 +-
+ bin/bp3                                            |   19 +
+ .../notes.md                                       |   28 +
+ .../tape.log                                       | 1081 ++++++++++++++++++++
+ src/quest/hooks.ml                                 |  378 +++++++
+ src/quest/main.ml                                  |    3 +
+ test/hooks.sh                                      |  155 +++
+ test/skills.sh                                     |    2 +
+ 9 files changed, 1681 insertions(+), 1 deletion(-)
+--- invoke state ---
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ...
+--- exp-6 dir ---
+total 0
+drwxr-xr-x@ 3 whycz  staff   96 Nov 13 21:52 .
+drwxr-xr-x@ 9 whycz  staff  288 Nov 13 21:52 ..
+drwxr-xr-x@ 5 whycz  staff  160 Nov 13 21:59 runs
+--- EXPERIMENT.md ---
+cat: docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/EXPERIMENT.md: No such file or directory
+--- submit notes ---
+# exp-6-hooks submit run — lessons
+
+- Implemented `bp3 q hooks` in `src/quest/hooks.ml`: stdin JSON,
+  self-gate (bin/bp3 + docs/quests at payload cwd), reentrancy
+  skip, witnessed binding from the env preset in PreToolUse
+  commands, and an internal fact writer that appends event
+  lines to the exp ledger on its branch. Exit 0 always.
+- Registry lives in the git dir (`bp3-run-registry.json`), never
+  the worktree: witnessing a Run must not dirty the tree, or the
+  submit guard (E_DIRTY_TREE) eats the Run it observes.
+- Event lines carry no `edge`/`from`/`to` keys, so the fold
+  skips them by construction. That forced dropping Exp 4's
+  `run_started {edge, ...}` spelling: an `edge: "submit"` key
+  is fold-visible even with no `to`. Kept `cycle` + `session_id`.
+- `Stop` is checkpoint-only; settle is `SessionEnd`/`SubagentStop`.
+  Usage tallies per Run in the registry and lands as exactly one
+  `usage_recorded` at settle, summed from real PostLLMCall fields.
+- SessionStart sweep marks every other unsettled binding
+  `run_unsettled`. Sharp edge: a SessionStart while a parallel
+  Run is still live would sweep it early; ordering in fixtures
+  settles first. A last-seen age gate is the fix if that bites.
+- `bp3 skills install` now also writes `.muse/hooks.json`
+  (one `./bin/bp3 q hooks` command for all events), asserted in
+  test/skills.sh; test/hooks.sh covers every Acceptance case.
+- Verify: `make check` green (lint, skills 43 assertions, q,
+  tape, hooks, induct-exp). No live induct-exp run with hooks
+  firing in a real harness session was done in this Run; the
+  live half of Exp 4's prove-by remains for a later Run.
+--- bp3 q help ---
+{"ok":true,"quest":"2026-11-07-bp3-mvp-engine-core","exp":"exp-6-hooks","state":"submitted","cycle":1,"commit":"cc115c5cc05b628de469fa0b8b7ad89c984a7ec7","legal_edges":["review","check","block","delete"],"changes":[{"change":"+","path":".claude/hooks.json"},{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/notes.md"},{"change":"+","path":"docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/tape.log"},{"change":"+","path":"src/quest/hooks.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"+","path":"test/hooks.sh"},{"change":"u","path":"test/skills.sh"}]}
+{"ok":true,"quest":"2026-11-07-bp3-mvp-engine-core","state":"proposed","exps":[{"exp":"exp-2-cli-scaffold","state":"landed","cycle":1,"commit":"4d9ceaaac8de41a144f656fcea0a5732b77833ab","legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"invoke/dune"},{"change":"+","path":"invoke/main.ml"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"-","path":"test/invoke.sh"},{"change":"+","path":"test/q.sh"}]},{"exp":"exp-3-fsm","state":"landed","cycle":1,"commit":"4d9ceaaac8de41a144f656fcea0a5732b77833ab","legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"invoke/dune"},{"change":"+","path":"invoke/main.ml"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"-","path":"test/invoke.sh"},{"change":"+","path":"test/q.sh"}]},{"exp":"exp-4-tape-hooks","state":"landed","cycle":1,"commit":"a43bcd604070bf99b613b4493533afc22f278806","legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"+","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"+","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"test/skills.sh"},{"change":"+","path":"test/tape.sh"}]},{"exp":"exp-5-muse-engine","state":"landed","cycle":1,"commit":"a43bcd604070bf99b613b4493533afc22f278806","legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"+","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"+","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"test/skills.sh"},{"change":"+","path":"test/tape.sh"}]},{"exp":"exp-6-hooks","state":"submitted","cycle":1,"commit":"cc115c5cc05b628de469fa0b8b7ad89c984a7ec7","legal_edges":["review","check","block","delete"],"changes":[{"change":"+","path":".claude/hooks.json"},{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/notes.md"},{"change":"+","path":"docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/tape.log"},{"change":"+","path":"src/quest/hooks.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"+","path":"test/hooks.sh"},{"change":"u","path":"test/skills.sh"}]}],"rollup":"active","inbox":[]}
+--- search exp-6 ---
+--- git branches ---
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-2-cli-scaffold
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-3-fsm
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-4-tape-hooks
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-5-muse-engine
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-6-hooks
+  bp3/exp/toy-drive/blocked-demo
+  bp3/exp/toy-drive/identity-check
+  bp3/exp/toy-drive/parser-fix
+  bp3/exp/toy-drive/skill-check
+  bp3/exp2-astra-author
+  bp3/exp2-author
+  bp3/exp7-fork-author
+  bp3/quest/2026-11-07-bp3-mvp-engine-core
+  bp3/quest/toy-drive
+  master
+* quest/bp3-mvp-engine
+  remotes/origin/HEAD -> origin/master
+  remotes/origin/master
+  remotes/origin/quest/bp3-mvp
+  remotes/origin/quest/bp3-mvp-engine
+--- files at bound commit ---
+.claude/hooks.json
+docs/dossiers/muse-workflows-hooks.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/2026-11-07-tape-hooks.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-4-tape-hooks/EXPERIMENT.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+src/quest/hooks.ml
+test/hooks.sh
+--- Makefile ---
+.PHONY: check test lint
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/induct.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/tape.sh test/hooks.sh test/induct.sh
+	node --check skills/induct/workflows/induct-exp.js
+
+test:
+	./test/skills.sh
+--- test/hooks.sh head ---
+#!/usr/bin/env bash
+# Exp 6 fixtures: bp3 q hooks turns Muse hook payloads on
+# stdin into past-tense event lines in the exp ledger. Fail-open
+# everywhere: exit 0 and no writes for garbage, foreign repos,
+# unbound sessions, and its own reentrant calls.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+mkdir -p docs/quests
+repo=$(pwd)
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+hooks() { printf '%s' "$1" | BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q hooks; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
+ledger() { git show "bp3/exp/demo/$1:docs/quests/demo/experiments/$1/ledger.jsonl"; }
+lines() { ledger "$1" | wc -l | tr -d ' '; }
+
+q c demo >/dev/null
+q demo c parser-fix >/dev/null
+q demo c parallel-exp >/dev/null
+
+# --- garbage on stdin: exit 0, writes nothing ---
+before=$(lines parser-fix)
+out=$(printf 'not json at all' | BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q hooks) || fail "garbage exit nonzero"
+echo "$out" | jq -e '.ok == true and .event_line == null' >/dev/null || fail "garbage verdict: $out"
+[ "$(lines parser-fix)" = "$before" ] || fail "garbage wrote a ledger line"
+
+# --- hook fires outside a bp3 repo: exit 0, writes nothing ---
+mkdir -p "$work/foreign"
+foreign=$(printf '{"hook_event_name":"SessionStart","session_id":"SX","cwd":"%s"}' "$work/foreign")
+out=$(hooks "$foreign") || fail "foreign exit nonzero"
+echo "$out" | jq -e '.ok == true and .event_line == null' >/dev/null || fail "foreign verdict: $out"
+[ "$(lines parser-fix)" = "$before" ] || fail "foreign event wrote a ledger line"
+
+# --- unbound session event: exit 0, writes nothing ---
+unbound=$(printf '{"hook_event_name":"PostLLMCall","session_id":"S-unbound","cwd":"%s","usage":{"input_tokens":5,"output_tokens":1,"cached_tokens":0,"reasoning_tokens":0}}' "$repo")
+out=$(hooks "$unbound")
+echo "$out" | jq -e '.event_line == null and .reason == "no binding witnessed for session"' >/dev/null || fail "unbound verdict: $out"
+[ "$(lines parser-fix)" = "$before" ] || fail "unbound event wrote a ledger line"
+
+# --- reentrant call (the emitter observing itself): no binding ---
+RUN0=20260101T000000Z-submit-muse-code-test-model-c1
+mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN0"
+reentrant=$(printf '{"hook_event_name":"PreToolUse","session_id":"S-re","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parser-fix ./bin/bp3 q hooks"}}' "$repo" "$RUN0")
+out=$(hooks "$reentrant")
+echo "$out" | jq -e '.event_line == null and .reason == "reentrant"' >/dev/null || fail "reentrant verdict: $out"
+
+# --- preset witnessed but no matching run folder: unbound ---
+gone=$(printf '{"hook_event_name":"PreToolUse","session_id":"S-gone","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=20260101T000000Z-submit-muse-code-test-model-c9 BP3_QUEST=demo BP3_EXP=parser-fix echo hi"}}' "$repo")
+out=$(hooks "$gone")
+echo "$out" | jq -e '.event_line == null' >/dev/null || fail "missing run folder verdict: $out"
+[ "$(lines parser-fix)" = "$before" ] || fail "missing run folder wrote a ledger line"
+
+# --- bound Run: run_started, tallied usage, refused, lint, settle ---
+RUN1=20260101T000000Z-submit-muse-code-test-model-c1
+mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN1"
+bind=$(printf '{"hook_event_name":"PreToolUse","session_id":"S1","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parser-fix BP3_HARNESS=muse-code BP3_MODEL=test-model ./bin/bp3 q demo r parser-fix"}}' "$repo" "$RUN1")
+out=$(hooks "$bind")
+echo "$out" | jq -e --arg r "$RUN1" '.ok == true and .event_line.event == "run_started" and .event_line.run_id == $r and .event_line.session_id == "S1" and (.event_line | has("ts")) and (.event_line | has("edge") | not) and (.event_line | has("from") | not) and (.event_line | has("to") | not)' >/dev/null || fail "run_started verdict: $out"
+ledger parser-fix | tail -1 | jq -e --arg r "$RUN1" '.event == "run_started" and .run_id == $r and (. | has("edge") | not)' >/dev/null || fail "run_started ledger line"
+out=$(q demo r parser-fix)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "event line changed state: $out"
+
+# first binding wins: a conflicting preset in the same session is ignored
+conflict=$(printf '{"hook_event_name":"PreToolUse","session_id":"S1","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=20260101T000000Z-review-muse-code-test-model-c1 BP3_QUEST=demo BP3_EXP=parallel-exp echo hi"}}' "$repo")
+out=$(hooks "$conflict")
+echo "$out" | jq -e '.event_line == null and .reason == "already bound"' >/dev/null || fail "first-wins verdict: $out"
+
+# usage tallies in memory/registry only: no ledger line yet
+mid=$(lines parser-fix)
+--- diff bound..HEAD ---
+ .../20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/tape.log     | 4 ++++
+ 1 file changed, 4 insertions(+)
+--- diff names ---
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+--- code diff bound..HEAD (non-run files) ---
+(empty above = code identical to bound commit)
+--- bound commit files hooks ---
+(* hooks — the bp3 q hooks emitter. Reads one Muse hook
+   event JSON from stdin, self-gates, resolves the witnessed Run
+   binding, and appends past-tense event lines to the exp ledger
+   through the internal fact writer below. Always exits 0:
+   fail-open, never blocks a tool, never judges an edge.
+   Event lines carry event/ts/run_id and never edge/from/to,
+   so the Store fold skips them by construction. *)
+open Gitx
+open Store
+
+(* ---------- small helpers ---------- *)
+let verdict event_line reason =
+  `Assoc [("ok", `Bool true); ("event_line", event_line);
+          ("reason", (match reason with Some r -> json_str r | None -> `Null))]
+
+let no_write reason = verdict `Null (Some reason)
+
+let read_stdin () =
+  let buf = Buffer.create 1024 in
+  (try
+     while true do
+       Buffer.add_string buf (input_line stdin);
+       Buffer.add_char buf '\n'
+     done
+   with End_of_file -> ());
+  Buffer.contents buf
+
+let member_str j key =
+  try match Yojson.Safe.Util.member key j with `String s -> s | _ -> "" with _ -> ""
+
+--- hooks.json at bound ---
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostLLMCall": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SubagentStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}]
+  }
+}
+=== make check (project gate, fresh) ===
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/tape.sh test/hooks.sh test/induct.sh
+node --check skills/induct/workflows/induct-exp.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (32 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (43 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+MAKE_CHECK_EXIT=0
+# exp-6-hooks check run — lessons
+
+- Verify stance: judged only on fresh output. Ran the project gate
+  `make check` in this session; all stages green (lint, skills 43
+  assertions, q, tape, hooks, induct-exp), exit 0.
+- HEAD (b091c18) code is byte-identical to the bound commit cc115c5:
+  `git diff cc115c5..HEAD` touches only the submit run tape.log, so
+  the fresh gate run validates the bound changeset, not a drifted tree.
+- No EXPERIMENT.md exists for exp-6; acceptance lives in
+  test/hooks.sh (fail-open, binding, usage, settle cases) plus the
+  bound commit message. The hooks suite is the exp-specific gate.
+- Verdict: pass on cc115c5.
+--- tape tail ---
+- No EXPERIMENT.md exists for exp-6; acceptance lives in
+  test/hooks.sh (fail-open, binding, usage, settle cases) plus the
+  bound commit message. The hooks suite is the exp-specific gate.
+- Verdict: pass on cc115c5.
+--- tape tail ---
+total 80
+drwxr-xr-x@ 4 whycz  staff    128 Nov 13 22:00 .
+drwxr-xr-x@ 5 whycz  staff    160 Nov 13 21:59 ..
+-rw-r--r--@ 1 whycz  staff    648 Nov 13 22:00 notes.md
+-rw-r--r--@ 1 whycz  staff  33576 Nov 13 22:00 tape.log
+{"ok":true,"quest":"2026-11-07-bp3-mvp-engine-core","exp":"exp-6-hooks","state":"submitted","cycle":1,"commit":"cc115c5cc05b628de469fa0b8b7ad89c984a7ec7","legal_edges":["review","check","block","delete"]}
