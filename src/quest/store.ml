@@ -1,0 +1,260 @@
+(* store — identity, plans, ledger fold: the truth layer. *)
+open Gitx
+
+(* ---------- slugs / identity ---------- *)
+let valid_slug s =
+  let n = String.length s in
+  n >= 1 &&
+  (let ok c = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c = '-' in
+   let rec loop i = i >= n || (ok s.[i] && loop (i + 1)) in
+   ((s.[0] >= 'a' && s.[0] <= 'z') || (s.[0] >= '0' && s.[0] <= '9')) && loop 1)
+
+let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
+
+type identity = { harness : string; model : string; decider_human : bool; incomplete : bool }
+
+let identity () =
+  let h = Sys.getenv_opt "BP3_HARNESS" in
+  (match h with
+   | Some v when v <> "" ->
+       if not (List.mem v ["muse-code"; "codex"; "muse"; "human"]) then
+         err "E_IDENTITY" (`Assoc [("harness", json_str v)])
+           "BP3_HARNESS must be one of muse-code, codex, muse, human." 2
+   | _ -> ());
+  let decider_human = (Sys.getenv_opt "BP3_DECIDER" = Some "human") in
+  let harness = match h with Some v when v <> "" -> v | _ -> "unknown" in
+  let model =
+    if decider_human then "none"
+    else match Sys.getenv_opt "BP3_MODEL" with Some v when v <> "" -> v | _ -> "unknown" in
+  let incomplete = harness = "unknown" || model = "unknown" in
+  { harness; model; decider_human; incomplete }
+
+let warnings_of id is_write =
+  if is_write && id.incomplete then ["W_IDENTITY_UNKNOWN"] else []
+
+(* ---------- plans ---------- *)
+type knobs = { max_cycles : int; review_required : bool; checks_required : bool }
+
+let contains_sub s sub =
+  let n = String.length s and m = String.length sub in
+  let rec loop i = i + m <= n && (String.sub s i m = sub || loop (i + 1)) in
+  m = 0 || loop 0
+
+let plan_knobs_from_text text =
+  (* reject stages:/edges: keys at line start (after spaces) *)
+  let lines = String.split_on_char '\n' text in
+  List.iter (fun ln ->
+    let t = String.trim ln in
+    if t = "stages:" || (String.length t > 7 && String.sub t 0 7 = "stages:") ||
+       t = "edges:" || (String.length t > 6 && String.sub t 0 6 = "edges:") then
+      err "E_INVALID_PLAN" (`Assoc []) "Plan contains stages:/edges: keys; plans carry knobs only." 1
+  ) lines;
+  let max_cycles =
+    try
+      let re = Str.regexp "max_cycles:[ \t]*\\([0-9]+\\)" in
+      ignore (Str.search_forward re text 0);
+      int_of_string (Str.matched_group 1 text)
+    with _ -> 1 in
+  let review_required =
+    (* look at review section: 'required: false' after 'review:' *)
+    if contains_sub text "required: false" && contains_sub text "review:" then false
+    else if contains_sub text "review.required: false" then false
+    else true in
+  let review_required =
+    if contains_sub text "required: false" then
+      (* only counts if a review: key exists or review_required spelling *)
+      review_required else review_required in
+  let checks_required =
+    not (contains_sub text "checks: optional" || contains_sub text "checks: none"
+         || contains_sub text "checks:optional" || contains_sub text "checks:none") in
+  { max_cycles; review_required; checks_required }
+
+let load_plan_file path =
+  let full = Filename.concat root path in
+  if not (Sys.file_exists full) then
+    err "E_INVALID_PLAN" (`Assoc [("plan", json_str path)]) ("Plan file missing: " ^ path) 1;
+  plan_knobs_from_text (read_file_or full "")
+
+let quest_knobs quest_type = load_plan_file ("plans/" ^ quest_type ^ ".yaml")
+
+let effective_knobs ~quest_type ~exp_type =
+  if exp_type = "default" || exp_type = "" then quest_knobs quest_type
+  else load_plan_file ("plans/exp-" ^ exp_type ^ ".yaml")
+
+(* ---------- ledger fold ---------- *)
+type exp_state = {
+  mutable st : string;
+  mutable cycle : int;
+  mutable bound : string option;
+  mutable has_bound : bool;
+  mutable review_ok : bool;
+  mutable check_ok : bool;
+  mutable blocked_reason : string;
+  mutable blocked_checkpoint : string option;
+  mutable blocked_since : string;
+  mutable last_commit : string option;
+  mutable exp_type : string;
+}
+
+let fresh_state () = {
+  st = "todo"; cycle = 1; bound = None; has_bound = false;
+  review_ok = false; check_ok = false;
+  blocked_reason = ""; blocked_checkpoint = None; blocked_since = "";
+  last_commit = None; exp_type = "default";
+}
+
+let get_str j key default =
+  try match Yojson.Safe.Util.member key j with `String s -> s | _ -> default
+  with _ -> default
+let get_int j key default =
+  try match Yojson.Safe.Util.member key j with `Int n -> n | _ -> default
+  with _ -> default
+let get_opt j key =
+  try match Yojson.Safe.Util.member key j with `String s -> Some s | _ -> None
+  with _ -> None
+
+let fold_ledger text =
+  let s = fresh_state () in
+  let quest_type = ref "default" in
+  let depends_on = ref [] in
+  String.split_on_char '\n' text |> List.iter (fun ln ->
+    let ln = String.trim ln in
+    if ln <> "" then
+      try
+        let j = Yojson.Safe.from_string ln in
+        let edge = get_str j "edge" "" in
+        let to_ = get_str j "to" "" in
+        let cyc = get_int j "cycle" s.cycle in
+        if edge = "create" then begin
+          s.exp_type <- get_str j "exp_type" (get_str j "quest_type" "default");
+          quest_type := get_str j "quest_type" !quest_type;
+          (try match Yojson.Safe.Util.member "depends_on" j with
+             | `List xs -> depends_on := List.map (function `String x -> x | _ -> "") xs
+             | _ -> () with _ -> ())
+        end;
+        if to_ <> "" then s.st <- to_;
+        s.cycle <- cyc;
+        (match get_opt j "commit" with Some c -> s.last_commit <- Some c; s.bound <- Some c; s.has_bound <- true | None -> ());
+        if edge = "submit" then begin s.review_ok <- false; s.check_ok <- false end;
+        if edge = "review" && get_str j "verdict" "" = "ship" then s.review_ok <- true;
+        if edge = "check" && get_str j "verdict" "" = "pass" then s.check_ok <- true;
+        if (edge = "review" && get_str j "verdict" "" = "needs_fix") ||
+           (edge = "check" && get_str j "verdict" "" = "fail") then begin
+          s.review_ok <- false; s.check_ok <- false
+        end;
+        if edge = "resume" then begin s.bound <- None; s.has_bound <- false; s.review_ok <- false; s.check_ok <- false end;
+        if to_ = "blocked" then begin
+          s.blocked_reason <- get_str j "reason" "";
+          s.blocked_checkpoint <- get_opt j "checkpoint";
+          s.blocked_since <- get_str j "ts" ""
+        end
+      with _ ->
+        err "E_INVALID_PLAN" (`Assoc []) "Malformed ledger line." 1
+  );
+  (s, !quest_type, !depends_on)
+
+let ledger_text branch path =
+  match ref_tip branch with
+  | None -> None
+  | Some tip -> (match git_show tip path with Some t -> Some (tip, t) | None -> Some (tip, ""))
+
+let quest_branch q = "refs/heads/bp3/quest/" ^ q
+let exp_branch q e = "refs/heads/bp3/exp/" ^ q ^ "/" ^ e
+let quest_dir q = "docs/quests/" ^ q
+let quest_ledger_path q = quest_dir q ^ "/ledger.jsonl"
+let exp_dir q e = quest_dir q ^ "/experiments/" ^ e
+let exp_ledger_path q e = exp_dir q e ^ "/ledger.jsonl"
+let exp_state_path q e = exp_dir q e ^ "/state.yaml"
+
+let list_refs prefix =
+  let out, code = git_out ["for-each-ref"; "--format=%(refname)"; prefix] in
+  if code <> 0 then [] else
+  String.split_on_char '\n' out |> List.map String.trim |> List.filter (fun s -> s <> "")
+
+let list_quests () =
+  list_refs "refs/heads/bp3/quest/" |> List.map (fun r ->
+    let p = "refs/heads/bp3/quest/" in String.sub r (String.length p) (String.length r - String.length p))
+
+let list_exps q =
+  let p = "refs/heads/bp3/exp/" ^ q ^ "/" in
+  list_refs p |> List.map (fun r -> String.sub r (String.length p) (String.length r - String.length p))
+
+let fold_exp q e =
+  match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+  | None -> None
+  | Some (tip, text) -> let (s, _, _) = fold_ledger text in Some (tip, s, text)
+
+let fold_quest q =
+  match ledger_text (quest_branch q) (quest_ledger_path q) with
+  | None -> None
+  | Some (tip, text) -> let (s, qt, deps) = fold_ledger text in Some (tip, s, qt, deps, text)
+
+let legal_edges st =
+  match st with
+  | "todo" -> ["submit"; "block"; "delete"]
+  | "submitted" -> ["review"; "check"; "block"; "delete"]
+  | "approved" -> ["land"; "block"; "delete"]
+  | "blocked" -> ["resume"; "delete"]
+  | _ -> []
+
+let state_yaml q e s =
+  Printf.sprintf "quest: %s\nexp: %s\nstate: %s\ncycle: %d\ncommit: %s\n"
+    q e s.st s.cycle (match s.last_commit with Some c -> c | None -> "none")
+
+let ledger_line ~edge ~from ~to_ ~cycle ~commit ~verdict ~reason ~id
+    ?checkpoint ?extra () =
+  let base = [
+    ("ts", json_str (now_ts ()));
+    ("edge", json_str edge);
+    ("from", json_str from);
+    ("to", json_str to_);
+    ("cycle", `Int cycle);
+    ("commit", (match commit with Some c -> json_str c | None -> `Null));
+    ("verdict", (match verdict with Some v -> json_str v | None -> `Null));
+    ("reason", json_str reason);
+    ("harness", json_str id.harness);
+    ("model", json_str id.model);
+    ("bp3_version", json_str bp3_version);
+  ] in
+  let base = match checkpoint with Some c -> base @ [("checkpoint", json_str c)] | None -> base in
+  let base = base @ (match extra with Some xs -> xs | None -> []) in
+  Yojson.Safe.to_string (`Assoc base)
+
+let append_exp_line q e line new_state =
+  let branch = exp_branch q e in
+  match ledger_text branch (exp_ledger_path q e) with
+  | None -> not_found "exp" e
+  | Some (tip, text) ->
+      let new_text = (if String.trim text = "" then "" else
+        (if text.[String.length text - 1] = '\n' then text else text ^ "\n")) ^ line ^ "\n" in
+      commit_files ~branch ~base_tip:tip ~expect_tip:tip
+        ~files:[(exp_ledger_path q e, new_text); (exp_state_path q e, state_yaml q e new_state)]
+        ~msg:("bp3: " ^ e)
+
+let make_checkpoint () =
+  let idx = tmp_path "ckpt-index" in
+  Unix.putenv "GIT_INDEX_FILE" idx;
+  let head = head_sha () in
+  ignore (run_status (git ["read-tree"; head]));
+  ignore (run_status (git ["add"; "-A"]));
+  let treef = tmp_path "ckpt-tree" in
+  ignore (Sys.command (String.concat " " (List.map Filename.quote (git ["write-tree"]))
+      ^ " > " ^ Filename.quote treef ^ " 2>/dev/null"));
+  let tree = String.trim (read_file_or treef "") in
+  let msgf = write_tmp "bp3 checkpoint" in
+  let cf = tmp_path "ckpt-commit" in
+  ignore (Sys.command (String.concat " " (List.map Filename.quote (git ["commit-tree"; tree; "-p"; head]))
+      ^ " < " ^ Filename.quote msgf ^ " > " ^ Filename.quote cf ^ " 2>/dev/null"));
+  Unix.putenv "GIT_INDEX_FILE" "";
+  String.trim (read_file_or cf "")
+
+let dep_satisfied dep =
+  match fold_quest dep with
+  | None -> false
+  | Some (_, qs, _, _, _) ->
+      if qs.st = "deleted" then false
+      else
+        let exps = list_exps dep in
+        exps <> [] && List.for_all (fun e ->
+          match fold_exp dep e with Some (_, s, _) -> s.st = "landed" || s.st = "deleted" | None -> false) exps
+

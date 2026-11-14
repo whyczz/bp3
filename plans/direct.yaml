@@ -1,0 +1,5 @@
+quest_type: direct
+max_cycles: 0
+review:
+  required: false
+checks: required

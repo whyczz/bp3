@@ -1,0 +1,1085 @@
+drwxr-xr-x@ 2 whycz  staff  64 Nov 13 21:52 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1
+DONE
+experiments
+QUEST.md
+---
+runs
+---
+---
+status: active
+home_repo: bp3
+date: 2026-11-07
+---
+
+# bp3-mvp-engine-core: the quest state machine
+
+TL;DR
+bp3 gains its core: a CLI and state engine where work moves as
+clean commits through a small state machine, written only by
+`bp3 q u`. When this Quest lands, a quest folder carries its own
+state, any executor can take the next edge, and the Muse
+executor test lives in its own Quest downstream of a stable core.
+
+## Terms
+
+- Quest: one unit of work with an authored railway of exps.
+- Exp: one entry on a quest's railway, running the inner FSM.
+- Run: one execution that takes an edge and leaves a tape.
+- Induct: one engine loop over a quest — read the railway and
+  inbox, dispatch Runs for the next legal edges, autoland at
+  `approved`, and stop only when the rollup is terminal or a
+  human decision is owed (`blocked`, a fan-out choice). A
+  induct is a session of work, not an edge: many Runs, one
+  induct. Recovery from a dead induct is a fresh induct, never a
+  resumed one.
+- Induct-exp: the saved Muse workflow `induct` launches
+  for one exp. From mathematical induction: take the exp's
+  current state as true, apply one legal step, re-read the
+  state, and repeat. Base cases (exits): the state is
+  `landed`, `blocked`, or `deleted`, so it returns to
+  `induct`; a step that changes nothing (refusals, no commit)
+  also exits as `refused` for `induct` to re-judge. It loops
+  the exp's inner FSM; it does not navigate the quest railway.
+- Tree view: the human read of a quest or exp
+  (`bp3 q r --format tree`), the presentation /quest and
+  red-ink show the owner. Exp markers: `+` todo, `u`
+  submitted/approved/blocked, `-` deleted, blank landed
+  (clean, like git status). Each exp also carries its
+  proposed file changes — `+` added, `u` updated, `-`
+  deleted, from the bound commit's diff — so wrong files are
+  spotted up front, before land. Unsure (nothing bound, or
+  the diff cannot be read) is `?`, never an empty list.
+- State: a condition of an exp (`todo`, `submitted`,
+  `approved`, `blocked`, `landed`, `deleted`) — never a role,
+  a command, or a “stage.”
+- Edge: an attempted move named on the CLI under `u`
+  (`submit`, `review`, `check`, `land`, `block`, `resume`).
+- Transition: an accepted edge, recorded as one ledger line
+  and one commit.
+- Refusal: a judged “no” to an edge; JSON only, never a
+  ledger line.
+- Verdict: the binary's JSON answer to a call; review and
+  check calls also carry a judgment value.
+- Ledger: the append-only record of accepted transitions;
+  at a branch tip, it is the truth.
+- Tape: verbatim Run output; evidence, never parsed into
+  facts.
+- Cycle: the iteration count on an exp; data, never a state.
+- Land: moving an approved exp into the quest branch —
+  fast-forward, clean merge, or conflict back to `todo`.
+- Tombstone: a `deleted` exp or quest whose record and
+  branch ref are kept; nothing is removed for real.
+- Railway: the quest's authored linear track of exps and
+  fan-out groups; the engine navigates it up front, and a
+  blocked entry blocks everything behind it.
+- Fan-out group: sibling exploration exps run in parallel;
+  members are not landable, exactly one follow-up lands.
+- `quest_type`: the outer plan (knobs only, from `plans/`).
+- `exp_type`: an exp's inner profile (FSM knobs, required
+  checks, skill names).
+- Engine: the bp3 FSM plus a harness — the whole
+  execution system that takes edges and runs work.
+- Harness: the third-party app host and its bundle —
+  model, skills, hooks, and extensions (e.g. Muse
+  Code, Codex). Harness and model are recorded per
+  ledger line.
+
+## Demos (observed 2026-11-12 — the binary exists; these ran)
+
+```text
+HAPPY PATH (this quest's own exps, driven through bp3 q)
+  exp-2..exp-5: todo --submit--> submitted --review ship + check pass-->
+  approved --land--> landed        (rollup: landed, inbox: [])
+
+BLOCKED RAILWAY (toy-drive/blocked-demo)
+  submitted --needs_fix @ max_cycles--> blocked  [human_action_required]
+  bp3 q r toy-drive -> inbox: [{exp: blocked-demo, reason, cycle, since}]
+  resume without BP3_DECIDER=human -> E_HUMAN_REQUIRED (exit 1)
+  resume as human -> todo c2 -> submit -> ship+pass -> landed
+
+LLM MISFIRE (observed on exp-2 before its submit)
+  todo + land -> E_ILLEGAL_EDGE {state: todo, legal_edges:
+  [submit, block, delete]}   state unchanged, nothing ledgered
+
+FINAL HUMAN VIEW (bp3 q r <quest> --format tree, observed)
+  2026-11-07-bp3-mvp-engine-core [proposed] rollup: landed
+  ├──   exp-2-cli-scaffold - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
+  │   ├── u Makefile
+  │   ├── bin
+  │   │   └── u bp3
+  │   ├── invoke
+  │   │   ├── + dune
+  │   │   └── + main.ml
+  │   ├── plans
+  │   │   ├── u default.yaml
+  │   │   └── u direct.yaml
+  │   └── test
+  │       ├── - invoke.sh
+  │       └── + q.sh
+  ├──   exp-3-fsm - landed, cycle 1, commit 4d9ceaa  [+3 u4 -1]
+  │   └── (same changeset as exp-2: the FSM rides the core commit)
+  ├──   exp-4-tape-hooks - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
+  │   ├── .agents
+  │   │   ├── skills/induct/SKILL.md (u)
+  │   │   └── workflows/induct-exp.js (+)
+  │   ├── .claude, .pi (same induct renders, u)
+  │   ├── skills
+  │   │   └── induct
+  │   │       ├── u SKILL.md
+  │   │       └── workflows
+  │   │           └── + induct-exp.js
+  │   └── test
+  │       ├── u skills.sh
+  │       └── + tape.sh
+  └──   exp-5-muse-engine - landed, cycle 1, commit a43bcd6  [+3 u5 -0]
+      └── (same changeset as exp-4: the engine commit)
+  (tree(1) style, per directory: quest is the root, exps are
+   branches, proposed files expand by directory as leaves;
+   markers + todo/added, u in-flight/updated, - deleted,
+   blank landed, ? unsure; per-exp view adds legal edges:
+   bp3 q <quest> r <exp> --format tree)
+
+LIVE ENGINE (toy-drive/parser-fix via induct-exp, observed)
+  induct-exp children took submit/review/check/land; outcome: landed
+  ledger: 5 lines on bp3/exp/toy-drive/parser-fix, verdicts on the
+  exact commit; tape+notes on the quest branch for the submit Run
+  first live attempt refused: workflow args arrive as a JSON string
+  (script now parses both); children first recorded unknown/unknown
+  identity (env now passed explicitly in args)
+```
+
+ELI5
+Today every helper starts blank and pays full price to re-learn the
+job; that rent, not typing speed, is the wait. So the coordinator
+keeps the map in its own head, sends out helpers that inherit or
+fork what it knows, and writes down what happened. You read the
+summary, not the workshop floor.
+
+## Goal and why
+
+Replace the pane-crew execution model with an engine model whose
+contract is context provisioning: `cold | warm | fork | subagent`.
+The engine is a first-class bp3 component, not a caller detail:
+this Quest specifies the bp3 CLI the engine calls and the contract
+every engine must satisfy, while engine implementations are
+harness-specific bundles (skills, hooks, extensions, and helper
+code) built downstream. Every engine must: navigate the railway and
+dispatch Runs; provision context; take transitions only through
+`bp3 q`; autoland at `approved`; and resolve blocked exps by
+bubbling them to the human-facing session, capturing the human's
+decision, attesting it, and redispatching. Helper CLIs or scripts
+are engine-side choreography only — state moves exclusively
+through the bp3 binary. The contract grows by one test: if a
+piece can die while an exp still travels `todo` -> `landed`
+with the human gate intact, it is a plugin, not core. A plugin
+is a contract plus implementations: one stable API (the
+verdict/event JSON it receives, an idempotency key naming the
+transition, an ack it returns) behind which implementations
+fan out — the notification contract, for example, is one API
+with Discord, Slack, iMessage, and desktop implementations.
+Metrics, projects, warden, and notifications are plugins:
+they consume verdicts and events, never write state, and
+their failure never fails a transition. The predecessor Quest
+[bp3 MVP: the loop on itself](../2026-11-05-bp3-mvp/QUEST.md) proved the
+Board, brief/report ops, and gated landing, but its center bet —
+fresh-context Workers in watched Zellij panes — makes every Run
+re-buy its context. Four-hour coder/reviewer bounces were observed;
+the human judges watchability and takeover to be comfort, speed the
+requirement. This Quest keeps the proven record and landing layers
+and rebuilds only how work executes.
+
+## Success picture
+
+The founding evidence is the owner's: the predecessor loop
+was run by hand and it sucks — no baseline exp is run. The
+engine contract is specified; the commit-state machine runs the toy exp end to end — submit,
+review, check, CAS land — with guards intact. The Muse engine
+(Exp 5) runs that machine end to end on workflow children and
+dogfoods this quest's own build; the separate Muse executor
+quest was deleted (2026-11-11) and folded in here.
+Landing is recorded here with the
+measured context cost per edge, and limitations. Record layer as
+decided after red chair: no SQLite Board — bookkeeping lives in
+files in git: per-exp ledgers are the record, quest state is a
+rollup, and `state.yaml` files are derived caches, written only
+through `bp3 q <quest> u <exp>`. First slice landed as
+`bp3 invoke` (rename owed in one change:
+binary, tests, docs, skills) with the `default` quest_type
+(one review round) and fixture tests in `test/invoke.sh`.
+
+## Scope
+
+In: the `bp3 q` CLI
+scaffold; the commit-state FSM (states, edges, guards,
+YAML quest_type plans); and the Muse engine (Exp 5:
+the `induct` skill, `induct-exp`, Muse hooks) that dogfoods the
+railway.
+Inherited by reference: the canceled Quest's Exp 2
+auto-land kernel candidate `9e1b1d0` and its gated-landing
+contract. The former Muse executor
+quest (bp3-mvp-muse-workflows) was deleted 2026-11-11; its
+executor test is Exp 5 here.
+Out: warden/hook substrate (decided: not yet; the contract sketch
+waits in the [hooks dossier](../../dossiers/muse-workflows-hooks.md)),
+resurrecting pane takeover as a requirement (Zellij remains a
+debug view only), foreign-TUI typing, multi-host or remote Workers,
+arbitrary per-Quest graph editing (a DAG), and any change to the
+frozen Exp 2 coordinator before its kernel is adopted or dropped
+by explicit human decision.
+
+## Human touchpoints
+
+Quest framing (this file), escalations (success-picture change,
+budget exhaustion, engine contract change), and Quest-to-master
+promotion. Everything else is automated or it is listed here.
+
+## Exps
+
+Full Output, Acceptance, and Substeps for each exp live in its
+own record under `experiments/`; this file keeps the railway.
+
+| Exp | TL;DR | Acceptance, in one line | Depends on |
+|---|---|---|---|
+| 2 — CLI scaffold | The `bp3 q` CLI: verdicts, error codes, strict argv, identity env, blocked inbox | Fixture suite green: verdict shapes, error codes, both verb spellings, strict argv, identity, blocked inbox | none |
+| 3 — Commit-state FSM | Six-state machine per exp, ledgers at branch tips, railway, autoland | Two executors alternate with identical guards; stale verdict refused; halt at the bound | Exp 2 |
+| 4 — Tape and hooks | Tape per Run, hooks emit ledger facts, tape never parsed | Killed executor still leaves a complete tape; no ledger line derived from tape text | Exp 2 + Exp 3 |
+| 5 — Muse engine | The dogfood engine: `induct` skill + `induct-exp` workflow + Muse hooks driving the railway | Toy exp travels `todo → landed` on workflow children; forced `blocked` bubbles to the main session and resumes on the human's word | Exp 2 + Exp 3 + Exp 4 |
+
+Records:
+
+- Exp 1 — Timed baseline: **killed by the owner** (ran the
+  predecessor loop by hand; it sucks — measurement unnecessary). Record kept
+  as a fossil: [exp-1-baseline](experiments/exp-1-baseline/EXPERIMENT.md)
+- Exp 2 — [CLI scaffold: u, discover, CRUD](experiments/exp-2-cli-scaffold/EXPERIMENT.md)
+- Exp 3 — [Commit-state FSM](experiments/exp-3-fsm/EXPERIMENT.md)
+- Exp 4 — [Tape and hooks](experiments/exp-4-tape-hooks/EXPERIMENT.md) (the older [2026-11-07-tape-hooks.md](experiments/2026-11-07-tape-hooks.md) record predates the settled design and is kept as history)
+- Exp 5 — [Muse engine](experiments/exp-5-muse-engine/EXPERIMENT.md) (pulled into this quest for dogfooding from the deleted downstream quest)
+
+## Scorecard
+
+Per exp and per engine: wall time intent-to-land, context tokens
+per Run (provisioning mode noted), human-active minutes,
+interventions and repeated explanations, review/rework cycles, and
+manual bypasses. Recorded here and in each exp record from Board
+data and session usage; unmeasured values are stated, never zero.
+
+Observed 2026-11-12 (this quest's own drive): four exps landed
+through bp3 q, one ledger line per accepted transition, zero
+manual state edits. Toy live run: parser-fix submit-to-land in
+about three minutes of wall time (ledger timestamps). Context
+tokens per Run and human-active minutes: unmeasured. Two
+dogfood defects found and fixed in flight (dune artifacts vs
+the dirty-tree guard; workflow args as JSON string; a third,
+unknown child identity, is fixed in induct-exp and awaits its
+next live run for confirmation).
+
+## Risks and red chair
+
+- Strongest attack on the goal: "engine" conflates harness,
+  topology, and transport. What changed: the contract is defined by
+  context provisioning and the report/land ops, not by brand;
+  harness and fan-out shape are recorded per Run.
+- Strongest attack on order: the baseline was Exp 1 because the
+  four-hour bounce was unattributed. The owner killed it — the
+  predecessor loop was run by hand and convicted directly. The order now
+  rests on that first-hand evidence instead of a measurement
+  gate. Remaining open: whether watchability's
+  loss hides a real debugging need the debug view cannot cover.
+
+## Open questions
+
+1. Exp 1 baseline: killed by the owner, who ran the predecessor
+   loop by hand and convicted it directly. No measurement gate; the
+   Quest proceeds on that evidence.
+2. Block/resume versus block-then-respawn. Default: respawn.
+   Owner: human, with Exp 5 evidence.
+3. Reviewer may fix, with a fresh reviewer required — direction
+   settled, implementation deferred to a future quest:
+   [reviewer-fix icebox entry](../../icebox/2026-11-11-reviewer-fix.md).
+   In this Quest, reviewers judge only; fix commits come from
+   author Runs.
+4. How fat may the engine contract grow before it encodes one
+   harness's pane assumptions? Default: no new signal kinds without a second
+   engine needing them. Owner: implementer, in Exp 2.
+runs
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks//runs:
+20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks//runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1:
+tape.log
+===
+cat: docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/EXPERIMENT.md: No such file or directory
+2026-11-07-tape-hooks.md
+exp-1-baseline
+exp-2-cli-scaffold
+exp-3-fsm
+exp-4-tape-hooks
+exp-5-muse-engine
+exp-6-hooks
+===
+{"ok":true,"quest":"2026-11-07-bp3-mvp-engine-core","exp":"exp-6-hooks","state":"todo","cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null}
+EXIT:0
+{"ok":true,"quest":"2026-11-07-bp3-mvp-engine-core","state":"proposed","exps":[{"exp":"exp-2-cli-scaffold","state":"landed","cycle":1,"commit":"4d9ceaaac8de41a144f656fcea0a5732b77833ab","legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"invoke/dune"},{"change":"+","path":"invoke/main.ml"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"-","path":"test/invoke.sh"},{"change":"+","path":"test/q.sh"}]},{"exp":"exp-3-fsm","state":"landed","cycle":1,"commit":"4d9ceaaac8de41a144f656fcea0a5732b77833ab","legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"invoke/dune"},{"change":"+","path":"invoke/main.ml"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"-","path":"test/invoke.sh"},{"change":"+","path":"test/q.sh"}]},{"exp":"exp-4-tape-hooks","state":"landed","cycle":1,"commit":"a43bcd604070bf99b613b4493533afc22f278806","legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"+","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"+","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"test/skills.sh"},{"change":"+","path":"test/tape.sh"}]},{"exp":"exp-5-muse-engine","state":"landed","cycle":1,"commit":"a43bcd604070bf99b613b4493533afc22f278806","legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"+","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"+","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"test/skills.sh"},{"change":"+","path":"test/tape.sh"}]},{"exp":"exp-6-hooks","state":"todo","cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null}],"rollup":"active","inbox":[]}
+---QUESTTREE---
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"exp read takes at most one exp"},"guidance":"Fix the call: exp read takes at most one exp"}}
+---FSM---
+ls: -la: No such file or directory
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/:
+runs
+d0a6032 docs(quest): settle Exp 4 red-ink, adopt over the old record
+9bf5d36 feat(skills): rename quest-landing-demo to red-ink-quest-landing-demo
+3c92a70 feat(engine): env preset on induct-exp children, with contract test
+adebf3b feat(engine): workflow children load role skills
+dfd28f8 refactor(quest): split binary into src/quest modules
+661437e style(q): expand exp files per directory in tree view
+86c60bb style(q): tree(1)-style human view
+9c0de5b style(q): branch-style tree connectors
+eae5c18 feat(q): proposed file changes in the exp tree view
+c50ed00 feat(q): rename invoke to q, add tree view, fix host SDK link
+24ee28c docs(quest): Exp 5 identity confirmation observed
+ececce2 docs(quest): record observed demos, exps landed through bp3 q
+aa57ad0 fix(engine): pass identity to induct-exp children
+bf7e4a0 fix(engine): induct-exp accepts string workflow args
+6efd34c chore: ignore dune build artifacts
+---BRANCH---
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-2-cli-scaffold
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-3-fsm
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-4-tape-hooks
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-5-muse-engine
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-6-hooks
+  bp3/exp/toy-drive/blocked-demo
+  bp3/exp/toy-drive/identity-check
+  bp3/exp/toy-drive/parser-fix
+  bp3/exp/toy-drive/skill-check
+  bp3/exp2-astra-author
+  bp3/exp2-author
+  bp3/exp7-fork-author
+  bp3/quest/2026-11-07-bp3-mvp-engine-core
+  bp3/quest/toy-drive
+  master
+* quest/bp3-mvp-engine
+  remotes/origin/HEAD -> origin/master
+  remotes/origin/master
+  remotes/origin/quest/bp3-mvp
+  remotes/origin/quest/bp3-mvp-engine
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/
+experiments
+QUEST.md
+===
+58f67c2 docs(exp-6): spec for bp3 q hooks implementation
+8cedd8b bp3: create exp exp-6-hooks
+===EXPBRANCH===
+.agents/skills/add-bp3-skill/SKILL.md
+.agents/skills/add-yap-skill/SKILL.md
+.agents/skills/icebox/SKILL.md
+.agents/skills/induct/SKILL.md
+.agents/skills/naming/SKILL.md
+.agents/skills/quest-landing-demo/SKILL.md
+.agents/skills/quest/SKILL.md
+.agents/skills/using-bp3/SKILL.md
+.agents/workflows/induct-exp.js
+.claude/skills/add-bp3-skill/SKILL.md
+.claude/skills/add-yap-skill/SKILL.md
+.claude/skills/icebox/SKILL.md
+.claude/skills/induct/SKILL.md
+.claude/skills/naming/SKILL.md
+.claude/skills/quest-landing-demo/SKILL.md
+.claude/skills/quest/SKILL.md
+.claude/skills/using-bp3/SKILL.md
+.gitignore
+.pi/settings.json
+.pi/skills/add-bp3-skill/SKILL.md
+.pi/skills/add-yap-skill/SKILL.md
+.pi/skills/icebox/SKILL.md
+.pi/skills/induct/SKILL.md
+.pi/skills/naming/SKILL.md
+.pi/skills/quest-landing-demo/SKILL.md
+.pi/skills/quest/SKILL.md
+.pi/skills/using-bp3/SKILL.md
+AGENTS.md
+Brewfile
+CLAUDE.md
+Makefile
+bin/bp3
+docs/designs/bp3-control-mvp.md
+docs/designs/bp3-control.md
+docs/dossiers/bp3-pi-basics.md
+docs/dossiers/muse-workflows-hooks.md
+docs/icebox/2026-11-11-pi-engine.md
+docs/icebox/2026-11-11-reviewer-fix.md
+docs/icebox/README.md
+docs/quests/2026-11-05-bp3-mvp/QUEST.md
+docs/quests/2026-11-05-bp3-mvp/experiments/2026-11-06-bounded-workflow-loop.md
+docs/quests/2026-11-05-bp3-mvp/experiments/2026-11-06-bp3-resume.md
+docs/quests/2026-11-05-bp3-mvp/experiments/2026-11-06-controller-wait-notify.md
+docs/quests/2026-11-05-bp3-mvp/experiments/2026-11-06-reusable-workers-reviewers.md
+docs/quests/2026-11-05-bp3-mvp/experiments/2026-11-06-worker-retirement-revival.md
+docs/quests/2026-11-05-bp3-mvp/experiments/2026-11-06-writer-sizing.md
+docs/quests/2026-11-05-bp3-skills-install.md
+docs/quests/2026-11-07-bp3-engine-pi.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/QUEST.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/2026-11-07-tape-hooks.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-1-baseline/EXPERIMENT.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-2-cli-scaffold/EXPERIMENT.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-2-cli-scaffold/ledger.jsonl
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-2-cli-scaffold/state.yaml
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-3-fsm/EXPERIMENT.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-3-fsm/ledger.jsonl
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-3-fsm/state.yaml
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-4-tape-hooks/EXPERIMENT.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-4-tape-hooks/ledger.jsonl
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-4-tape-hooks/state.yaml
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-5-muse-engine/EXPERIMENT.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-5-muse-engine/ledger.jsonl
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-5-muse-engine/state.yaml
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/EXPERIMENT.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/ledger.jsonl
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/state.yaml
+docs/quests/2026-11-07-bp3-mvp-engine-core/ledger.jsonl
+docs/quests/2026-11-07-bp3-pi-qol.md
+docs/quests/2026-11-09-bp3-land-verdicts/QUEST.md
+docs/quests/2026-11-09-bp3-land-verdicts/fsm.yaml
+docs/quests/2026-11-09-bp3-land-verdicts/ledger.jsonl
+docs/quests/2026-11-09-bp3-land-verdicts/state.yaml
+docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/QUEST.md
+docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/fsm.yaml
+docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/ledger.jsonl
+docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/state.yaml
+dune-project
+invoke/dune
+invoke/main.ml
+plans/default.yaml
+plans/direct.yaml
+readme.md
+scripts/check-skills
+skills/add-bp3-skill/SKILL.md
+skills/add-yap-skill/SKILL.md
+skills/icebox/SKILL.md
+skills/induct/SKILL.md
+skills/induct/workflows/induct-exp.js
+skills/naming/SKILL.md
+skills/quest-landing-demo/SKILL.md
+skills/quest/SKILL.md
+skills/using-bp3/SKILL.md
+test/pi-discovery.mjs
+test/q.sh
+test/skills.sh
+test/tape.sh
+===QUESTBRANCH===
+.agents/skills/add-bp3-skill/SKILL.md
+.agents/skills/add-yap-skill/SKILL.md
+.agents/skills/icebox/SKILL.md
+.agents/skills/induct/SKILL.md
+.agents/skills/naming/SKILL.md
+.agents/skills/quest-landing-demo/SKILL.md
+.agents/skills/quest/SKILL.md
+.agents/skills/using-bp3/SKILL.md
+.agents/workflows/induct-exp.js
+.claude/skills/add-bp3-skill/SKILL.md
+.claude/skills/add-yap-skill/SKILL.md
+.claude/skills/icebox/SKILL.md
+.claude/skills/induct/SKILL.md
+.claude/skills/naming/SKILL.md
+.claude/skills/quest-landing-demo/SKILL.md
+.claude/skills/quest/SKILL.md
+.claude/skills/using-bp3/SKILL.md
+.gitignore
+.pi/settings.json
+.pi/skills/add-bp3-skill/SKILL.md
+.pi/skills/add-yap-skill/SKILL.md
+.pi/skills/icebox/SKILL.md
+.pi/skills/induct/SKILL.md
+.pi/skills/naming/SKILL.md
+.pi/skills/quest-landing-demo/SKILL.md
+.pi/skills/quest/SKILL.md
+.pi/skills/using-bp3/SKILL.md
+AGENTS.md
+Brewfile
+CLAUDE.md
+Makefile
+bin/bp3
+docs/designs/bp3-control-mvp.md
+docs/designs/bp3-control.md
+docs/dossiers/bp3-pi-basics.md
+docs/dossiers/muse-workflows-hooks.md
+docs/icebox/2026-11-11-pi-engine.md
+docs/icebox/2026-11-11-reviewer-fix.md
+docs/icebox/README.md
+docs/quests/2026-11-05-bp3-mvp/QUEST.md
+docs/quests/2026-11-05-bp3-mvp/experiments/2026-11-06-bounded-workflow-loop.md
+docs/quests/2026-11-05-bp3-mvp/experiments/2026-11-06-bp3-resume.md
+docs/quests/2026-11-05-bp3-mvp/experiments/2026-11-06-controller-wait-notify.md
+docs/quests/2026-11-05-bp3-mvp/experiments/2026-11-06-reusable-workers-reviewers.md
+docs/quests/2026-11-05-bp3-mvp/experiments/2026-11-06-worker-retirement-revival.md
+docs/quests/2026-11-05-bp3-mvp/experiments/2026-11-06-writer-sizing.md
+docs/quests/2026-11-05-bp3-skills-install.md
+docs/quests/2026-11-07-bp3-engine-pi.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/QUEST.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/2026-11-07-tape-hooks.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-1-baseline/EXPERIMENT.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-2-cli-scaffold/EXPERIMENT.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-2-cli-scaffold/ledger.jsonl
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-2-cli-scaffold/state.yaml
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-3-fsm/EXPERIMENT.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-3-fsm/ledger.jsonl
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-3-fsm/state.yaml
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-4-tape-hooks/EXPERIMENT.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-4-tape-hooks/ledger.jsonl
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-4-tape-hooks/state.yaml
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-5-muse-engine/EXPERIMENT.md
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-5-muse-engine/ledger.jsonl
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-5-muse-engine/state.yaml
+docs/quests/2026-11-07-bp3-mvp-engine-core/ledger.jsonl
+docs/quests/2026-11-07-bp3-pi-qol.md
+docs/quests/2026-11-09-bp3-land-verdicts/QUEST.md
+docs/quests/2026-11-09-bp3-land-verdicts/fsm.yaml
+docs/quests/2026-11-09-bp3-land-verdicts/ledger.jsonl
+docs/quests/2026-11-09-bp3-land-verdicts/state.yaml
+docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/QUEST.md
+docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/fsm.yaml
+docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/ledger.jsonl
+docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/state.yaml
+dune-project
+invoke/dune
+invoke/main.ml
+plans/default.yaml
+plans/direct.yaml
+readme.md
+scripts/check-skills
+skills/add-bp3-skill/SKILL.md
+skills/add-yap-skill/SKILL.md
+skills/icebox/SKILL.md
+skills/induct/SKILL.md
+skills/induct/workflows/induct-exp.js
+skills/naming/SKILL.md
+skills/quest-landing-demo/SKILL.md
+skills/quest/SKILL.md
+skills/using-bp3/SKILL.md
+test/pi-discovery.mjs
+test/q.sh
+test/skills.sh
+test/tape.sh
+commit 58f67c203f5263b39672077a0000167e36e25ada
+Author: whycz <whyczz@gmail.com>
+Date:   Fri Nov 13 21:52:13 2026 -0500
+
+    docs(exp-6): spec for bp3 q hooks implementation
+
+ .../experiments/exp-6-hooks/EXPERIMENT.md          | 112 +++++++++++++++++++++
+ 1 file changed, 112 insertions(+)
+===SHOW===
+commit 58f67c203f5263b39672077a0000167e36e25ada
+Author: whycz <whyczz@gmail.com>
+Date:   Fri Nov 13 21:52:13 2026 -0500
+
+    docs(exp-6): spec for bp3 q hooks implementation
+
+diff --git a/docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/EXPERIMENT.md b/docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/EXPERIMENT.md
+new file mode 100644
+index 0000000..211087b
+--- /dev/null
++++ b/docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/EXPERIMENT.md
+@@ -0,0 +1,112 @@
++---
++date: 2026-11-13
++quest: ../QUEST.md
++exp: 6
++status: proposed
++---
++
++# Exp 6 — Hooks emission (`bp3 q hooks`)
++
++## TL;DR
++
++Implement the settled Exp 4 hooks design: a `bp3 q hooks` verb
++that reads one Muse hook event JSON from stdin, self-gates,
++resolves the witnessed Run binding, and writes past-tense event
++lines into the exp ledger through an internal fact writer.
++`bp3 skills install` delivers the project-tier
++`.muse/hooks.json` that registers it. The design contract is
++[Exp 4's adopted record](../exp-4-tape-hooks/EXPERIMENT.md);
++this exp is its implementation vehicle.
++
++Status: **proposed, not implemented.** Fails today: no `hooks`
++verb, no installed `.muse/hooks.json`, no event lines in any
++ledger.
++
++## Demo (design trace — nothing here has run yet)
++
++```text
++$ printf '%s' '{"hook_event_name":"PostLLMCall","session_id":"S1",
++  "usage":{"input_tokens":33250,"output_tokens":209,
++  "cached_tokens":0,"reasoning_tokens":119}}' | ./bin/bp3 q hooks
++{"ok":true,"event_line":null,"reason":"no binding witnessed for session"}
++
++$ # after a PreToolUse payload whose tool_input.command carries
++$ # BP3_RUN_ID=20261113T120000Z-submit-muse-code-muse-wonder-1.0-c1:
++ledger.jsonl += {"ts":"...","event":"usage_recorded","run_id":"...-c1",
++  "input_tokens":33250,"output_tokens":209,"cached_tokens":0,
++  "reasoning_tokens":119,"wall_ms":...,"started_ts":"...","settled_ts":"..."}
++```
++
++```text
++Muse hook event (stdin JSON)
++  -> bp3 q hooks
++       1. parse payload; garbage in -> exit 0, write nothing
++       2. gate: bin/bp3 + docs/quests/ at cwd root? no -> exit 0
++       3. reentrancy: payload caused by bp3 q itself? -> exit 0
++       4. PreToolUse with BP3_RUN_ID in tool_input.command?
++          record session_id -> run_id in the run registry
++       5. resolve binding; unbound -> exit 0, write nothing
++       6. map event -> past-tense kind; aggregate PostLLMCall usage
++       7. fact writer appends the event line (no edge/from/to),
++          dedupe by run_id + kind
++```
++
++```python
++def bp3_q_hooks(payload: dict) -> int:  # always exits 0
++    if not is_bp3_repo(cwd) or reentrant(payload): return 0
++    if payload.event == "PreToolUse" and (m := ENV_PRESET.search(payload.command)):
++        registry.bind(payload.session_id, m.run_id); write("run_started", ...)
++    run = registry.resolve(payload.session_id)
++    if run is None: return 0
++    kind = KIND_BY_EVENT[payload.event]  # past tense, see table
++    if kind: fact_writer.append(run.exp_ledger, {event: kind, ts: now(), run_id: run.id, ...})
++    return 0
++```
++
++| Piece | Contract |
++|---|---|
++| Verb | `bp3 q hooks` — no positional args, one JSON object on stdin, exit 0 always (fail-open), JSON verdict on stdout |
++| Event kinds | `run_started`, `run_settled`, `run_unsettled`, `usage_recorded`, `refused`, `lint_checked` — each line has `ts`, `run_id`; never `edge`/`from`/`to` |
++| Inputs | eight events: `SessionStart`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PostLLMCall`, `SubagentStart`, `SubagentStop`, `Stop`/`SessionEnd` |
++| Binding | env preset witnessed in `PreToolUse` `tool_input.command`; first match per session wins; unbound -> write nothing |
++| Usage | `PostLLMCall` payloads aggregated per Run; one `usage_recorded` at settle with real token fields + `wall_ms`, `started_ts`, `settled_ts` |
++| Death | `SessionStart` sweeps stale bindings -> `run_unsettled` |
++| Delivery | `bp3 skills install` also writes `.muse/hooks.json` (one command: `bp3 q hooks`) into bp3-enabled repos |
++| File changes (proposed) | `+ src/quest/hooks.ml` (verb + fact writer) · `u src/quest/main.ml` (dispatch) · `u bin/bp3` / installer (hooks.json delivery) · `+ test/hooks.sh` · `u Makefile` (wire test) |
++
++## Acceptance (fails today)
++
++| Case | Expected |
++|---|---|
++| garbage on stdin | exit 0, writes nothing |
++| hook fires outside a bp3 repo | exit 0, writes nothing |
++| unbound session event | exit 0, writes nothing |
++| bound Run | `run_started`, then `run_settled`, in the exp ledger |
++| Run ends | exactly one `usage_recorded`, real `PostLLMCall` fields |
++| session killed mid-Run | `run_unsettled` at next `SessionStart` |
++| refused `bp3 q u` observed | `refused` {code, attempted edge}; state unchanged |
++| lint exit witnessed | `lint_checked` {check, pass\|fail} |
++| parallel Runs | distinct bindings, no cross-talk, dedupe by `run_id + kind` |
++| any event line | `ts` + `run_id`, no `edge`/`from`/`to`; fold skips it |
++
++## Acceptance test (goal block)
++
++- **Objective:** implement `bp3 q hooks` + installer delivery
++  so hook events become ledger event lines per the Exp 4
++  record.
++- **Prove by:** `test/hooks.sh` piping fixture payloads
++  (garbage, foreign repo, unbound, bound, killed session,
++  refused edge) and asserting exit codes + ledger contents;
++  then one live `induct-exp` run with `.muse/hooks.json`
++  installed, reading real event lines in an exp ledger.
++- **Done when:** every Acceptance case passes, `make check`
++  is green, and no code path parses tape text into facts.
++
++## Context
++
++Exp 4 settled this design in its reopened red-ink walk
++(2026-11-13) after the landing review found the original
++hooks work had shipped unsettled. The env preset half already
++landed in `induct-exp.js` (`envPreset`, commit `3c92a70`);
++this exp builds the receiving half. Warden consumption and
++session-log mining are out of scope (icebox).
+===8ced===
+commit 8cedd8be45e25ad5c88903209b045f5bd86f19f1
+Author: whycz <whyczz@gmail.com>
+Date:   Fri Nov 13 21:51:50 2026 -0500
+
+    bp3: create exp exp-6-hooks
+
+ .../experiments/exp-6-hooks/ledger.jsonl                             | 1 +
+ .../experiments/exp-6-hooks/state.yaml                               | 5 +++++
+ 2 files changed, 6 insertions(+)
+quest/bp3-mvp-engine
+d0a6032 docs(quest): settle Exp 4 red-ink, adopt over the old record
+9bf5d36 feat(skills): rename quest-landing-demo to red-ink-quest-landing-demo
+3c92a70 feat(engine): env preset on induct-exp children, with contract test
+58f67c2 docs(exp-6): spec for bp3 q hooks implementation
+8cedd8b bp3: create exp exp-6-hooks
+747279a bp3: land exp-5-muse-engine
+ .agents/skills/induct/SKILL.md                     |  17 +-
+ .agents/skills/quest-landing-demo/SKILL.md         |  66 +++
+ .agents/skills/quest/SKILL.md                      |   3 +-
+ .agents/skills/red-ink-quest-landing-demo/SKILL.md |  91 -----
+ .agents/workflows/induct-exp.js                    |  74 +---
+ .claude/skills/induct/SKILL.md                     |  17 +-
+ .claude/skills/quest-landing-demo/SKILL.md         |  66 +++
+ .claude/skills/quest/SKILL.md                      |   3 +-
+ .claude/skills/red-ink-quest-landing-demo/SKILL.md |  91 -----
+ .pi/settings.json                                  |   3 +-
+ .pi/skills/induct/SKILL.md                         |  17 +-
+ .pi/skills/quest-landing-demo/SKILL.md             |  66 +++
+ .pi/skills/quest/SKILL.md                          |   3 +-
+ .pi/skills/red-ink-quest-landing-demo/SKILL.md     |  91 -----
+ Makefile                                           |  12 +-
+ bin/bp3                                            |   4 +-
+ docs/icebox/2026-11-13-session-log-mining.md       |  75 ----
+ .../quests/2026-11-07-bp3-mvp-engine-core/QUEST.md | 129 +++---
+ .../experiments/exp-2-cli-scaffold/EXPERIMENT.md   |   9 +-
+ .../experiments/exp-2-cli-scaffold/ledger.jsonl    |   5 +
+ .../experiments/exp-2-cli-scaffold/state.yaml      |   5 +
+ .../experiments/exp-3-fsm/EXPERIMENT.md            |   4 +-
+ .../experiments/exp-3-fsm/ledger.jsonl             |   5 +
+ .../experiments/exp-3-fsm/state.yaml               |   5 +
+ .../experiments/exp-4-tape-hooks/EXPERIMENT.md     | 127 ++----
+ .../experiments/exp-4-tape-hooks/ledger.jsonl      |   5 +
+ .../experiments/exp-4-tape-hooks/state.yaml        |   5 +
+ .../experiments/exp-5-muse-engine/EXPERIMENT.md    |  12 +-
+ .../experiments/exp-5-muse-engine/ledger.jsonl     |   5 +
+ .../experiments/exp-5-muse-engine/state.yaml       |   5 +
+ .../experiments/exp-6-hooks/EXPERIMENT.md          | 112 +++++
+ .../experiments/exp-6-hooks/ledger.jsonl           |   1 +
+ .../experiments/exp-6-hooks/state.yaml             |   5 +
+ .../2026-11-07-bp3-mvp-engine-core/ledger.jsonl    |   1 +
+ {src/quest => invoke}/dune                         |   0
+ {src/quest => invoke}/main.ml                      | 451 ++++++++++++++++++++-
+ skills/induct/SKILL.md                             |  17 +-
+ skills/induct/workflows/induct-exp.js              |  74 +---
+ skills/quest-landing-demo/SKILL.md                 |  65 +++
+ skills/quest/SKILL.md                              |   3 +-
+ skills/red-ink-quest-landing-demo/SKILL.md         |  90 ----
+ src/quest/gitx.ml                                  | 125 ------
+ src/quest/render.ml                                | 193 ---------
+ src/quest/store.ml                                 | 260 ------------
+ test/induct-exp.test.mjs                           |  52 ---
+ test/induct.sh                                     |   5 -
+ test/q.sh                                          |  41 +-
+ test/skills.sh                                     |   2 +-
+ test/tape.sh                                       |   2 +-
+ 49 files changed, 1026 insertions(+), 1493 deletions(-)
+===MERGEBASE===
+6efd34cddfa7ba2faefa15d990b5f628a1730bb3
+58f67c2 docs(exp-6): spec for bp3 q hooks implementation
+8cedd8b bp3: create exp exp-6-hooks
+747279a bp3: land exp-5-muse-engine
+eff3f80 bp3: land exp-4-tape-hooks
+eb73735 bp3: exp-5-muse-engine
+786244f bp3: exp-4-tape-hooks
+a0ac959 bp3: exp-5-muse-engine
+5e72883 bp3: exp-4-tape-hooks
+50a2d26 bp3: exp-5-muse-engine
+9ad4baf bp3: exp-4-tape-hooks
+0470224 bp3: exp-5-muse-engine
+8f1472a bp3: land exp-3-fsm
+4daa5b4 bp3: exp-4-tape-hooks
+cea24df bp3: exp-3-fsm
+8065d69 bp3: exp-3-fsm
+f22ff6b bp3: exp-3-fsm
+3f9a3d0 bp3: exp-3-fsm
+9bc6200 bp3: exp-2-cli-scaffold
+a13719e bp3: exp-2-cli-scaffold
+308af4d bp3: exp-2-cli-scaffold
+f1c7c36 bp3: exp-2-cli-scaffold
+748e554 bp3: create exp exp-5-muse-engine
+ecef938 bp3: create exp exp-4-tape-hooks
+ff33548 bp3: create exp exp-3-fsm
+5e168ba bp3: create exp exp-2-cli-scaffold
+0ee32cc bp3: create quest 2026-11-07-bp3-mvp-engine-core
+===REVERSE===
+d0a6032 docs(quest): settle Exp 4 red-ink, adopt over the old record
+9bf5d36 feat(skills): rename quest-landing-demo to red-ink-quest-landing-demo
+3c92a70 feat(engine): env preset on induct-exp children, with contract test
+adebf3b feat(engine): workflow children load role skills
+dfd28f8 refactor(quest): split binary into src/quest modules
+661437e style(q): expand exp files per directory in tree view
+86c60bb style(q): tree(1)-style human view
+9c0de5b style(q): branch-style tree connectors
+eae5c18 feat(q): proposed file changes in the exp tree view
+c50ed00 feat(q): rename invoke to q, add tree view, fix host SDK link
+24ee28c docs(quest): Exp 5 identity confirmation observed
+ececce2 docs(quest): record observed demos, exps landed through bp3 q
+aa57ad0 fix(engine): pass identity to induct-exp children
+bf7e4a0 fix(engine): induct-exp accepts string workflow args
+     116 bin/bp3
+      22 Makefile
+     125 src/quest/gitx.ml
+     414 src/quest/main.ml
+     193 src/quest/render.ml
+     260 src/quest/store.ml
+       5 test/induct.sh
+     394 test/q.sh
+      83 test/skills.sh
+      69 test/tape.sh
+      52 test/induct-exp.test.mjs
+      55 test/pi-discovery.mjs
+    1788 total
+===EXP4===
+---
+date: 2026-11-07
+quest: ../QUEST.md
+exp: 4
+status: proposed
+---
+
+# Exp 4 — Tape and hooks
+
+## TL;DR
+
+Every Run leaves a complete tape and a factual ledger with no
+screen-scraping: the launcher c_build/
+bp3.install
+===STATUS===
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/
+===RUNS-IN-HISTORY===
+f50c946 bp3: run 20261112T183442Z-submit-unknown-unknown-c1 tape
+docs/quests/toy-drive/experiments/parser-fix/runs/20261112T183442Z-submit-unknown-unknown-c1/notes.md
+docs/quests/toy-drive/experiments/parser-fix/runs/20261112T183442Z-submit-unknown-unknown-c1/tape.log
+f50c946 bp3: run 20261112T183442Z-submit-unknown-unknown-c1 tape
+7dcacba bp3: parser-fix
+52a4c89 fix(engine): induct-exp accepts string workflow args
+  bp3/exp/toy-drive/blocked-demo
+  bp3/exp/toy-drive/identity-check
+  bp3/exp/toy-drive/parser-fix
+  bp3/exp/toy-drive/skill-check
+  bp3/quest/toy-drive
+===4d9===
+4d9ceaa feat(q): bp3 q CLI and six-state commit FSM
+3f1c00c docs(quest): graduate induct red-ink, rename drive to induct
+1e15481 feat(engine): Exp 5 Muse engine + drive skill
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-2-cli-scaffold
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-3-fsm
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-4-tape-hooks
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-5-muse-engine
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-6-hooks
+  bp3/exp/toy-drive/blocked-demo
+  bp3/exp/toy-drive/identity-check
+  bp3/exp/toy-drive/parser-fix
+  bp3/exp/toy-drive/skill-check
+  bp3/quest/2026-11-07-bp3-mvp-engine-core
+  bp3/quest/toy-drive
+* quest/bp3-mvp-engine
+===PARENTS===
+f50c94630ea9aacb38c82f0fa215df0f671db66a parents:7dcacbaf96310ca9cab228ba670fb88dc2a9f963
+4d9ceaaac8de41a144f656fcea0a5732b77833ab parents:3f1c00c44ef9087cb0bf89109d2f00e560f691e6
+a43bcd604070bf99b613b4493533afc22f278806 parents:4d9ceaaac8de41a144f656fcea0a5732b77833ab
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/tape.sh test/induct.sh
+node --check skills/induct/workflows/induct-exp.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (32 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (41 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build src/quest/main.exe
+File "src/quest/main.ml", line 7, characters 0-10:
+7 | open Hooks
+    ^^^^^^^^^^
+Error (warning 33 [unused-open]): unused open Dune__exe.Hooks.
+make: *** [check] Error 1
+MAKE_EXIT:2
+BUILD_EXIT:0
+{"ok":true,"event_line":null,"reason":"unparseable payload"}
+HOOKS_EXIT:0
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/tape.sh test/hooks.sh test/induct.sh
+node --check skills/induct/workflows/induct-exp.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (32 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (43 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+FAIL: unbound verdict: {"ok":true,"event_line":null,"reason":"not a bp3 repo"}
+make: *** [check] Error 1
+MAKE_EXIT:2
+FAIL: run_started verdict: {"ok":true,"event_line":{"event":"run_started","ts":"2026-11-14T02:56:54Z","run_id":"20260101T000000Z-submit-muse-code-test-model-c1","edge":"submit","cycle":1,"session_id":"S1"},"reason":null}
+HOOKS_TEST_EXIT:1
+260:                               [("edge", json_str edge); ("cycle", `Int cycle);
+370:                        [("edge", json_str edge); ("cycle", `Int cycle);
+patched
+BUILD:0
+FAIL: refused verdict: {"ok":true,"event_line":null,"reason":"unparseable payload"}
+TEST:1
+hooks tests: ok
+TEST:0
+true
+true
+true
+true
+true
+skills tests: ok (43 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+MAKE:0
+{"ok":true,"event_line":null,"reason":"unparseable payload"}
+EMPTY_STDIN_EXIT:0
+installed quest -> .claude/skills/quest/SKILL.md (claude)
+installed red-ink-quest-landing-demo -> .claude/skills/red-ink-quest-landing-demo/SKILL.md (claude)
+installed using-bp3 -> .claude/skills/using-bp3/SKILL.md (claude)
+installed induct-exp -> .agents/workflows/induct-exp.js
+installed hooks -> .muse/hooks.json
+ M Makefile
+ M bin/bp3
+ M src/quest/main.ml
+ M test/skills.sh
+?? .Muse/
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/
+?? src/quest/hooks.ml
+?? test/hooks.sh
+---
+hooks.json
+skills
+
+.claude/skills:
+add-bp3-skill
+add-yap-skill
+icebox
+induct
+naming
+quest
+red-ink-quest-landing-demo
+using-bp3
+
+.claude/skills/add-bp3-skill:
+SKILL.md
+
+.claude/skills/add-yap-skill:
+SKILL.md
+
+.claude/skills/icebox:
+SKILL.md
+===AGENTS===
+.agents/skills/add-bp3-skill/SKILL.md
+.agents/skills/add-yap-skill/SKILL.md
+.agents/skills/icebox/SKILL.md
+_build/
+bp3.install
+.claude/skills/add-bp3-skill/SKILL.md
+.claude/skills/add-yap-skill/SKILL.md
+.claude/skills/icebox/SKILL.md
+.claude/skills/induct/SKILL.md
+.claude/skills/naming/SKILL.md
+COUNT: 8
+EXISTS
+?? .muse/hooks.json
+END
+M  Makefile
+M  bin/bp3
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+A  src/quest/hooks.ml
+M  src/quest/main.ml
+A  test/hooks.sh
+M  test/skills.sh
+?? .Muse/
+fatal: pathspec '.claude/hooks.json' did not match any files
+M  Makefile
+M  bin/bp3
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+AM docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+A  src/quest/hooks.ml
+M  src/quest/main.ml
+A  test/hooks.sh
+M  test/skills.sh
+?? .Muse/
+ls: .Clau*: No such file or directory
+.claude
+fatal: pathspec '.clau*/hooks.json' did not match any files
+M  Makefile
+M  bin/bp3
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+AM docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+A  src/quest/hooks.ml
+M  src/quest/main.ml
+A  test/hooks.sh
+M  test/skills.sh
+?? .Muse/
+Traceback (most recent call last):
+  File "<stdin>", line 4, in <module>
+AssertionError
+bin/bp3:99:  cat > "$root/.muse/hooks.json" <<'HOOKS_JSON'
+bin/bp3:114:  echo "installed hooks -> .muse/hooks.json"
+test/skills.sh:66:assert test -f "$root/.muse/hooks.json"
+test/skills.sh:67:assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.muse/hooks.json"
+bin/bp3 replaced 0
+test/skills.sh replaced 0
+installed induct-exp -> .agents/workflows/induct-exp.js
+installed hooks -> .muse/hooks.json
+M  Makefile
+M  bin/bp3
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+AM docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+A  src/quest/hooks.ml
+M  src/quest/main.ml
+A  test/hooks.sh
+M  test/skills.sh
+?? .Muse/
+bin/bp3 .Muse hooks refs seen: 0
+bin/bp3 .muse hooks refs seen: 2
+test/skills.sh .Muse hooks refs seen: 0
+test/skills.sh .muse hooks refs seen: 2
+done
+99:  cat > "$root/.claude/hooks.json" <<'HOOKS_JSON'
+114:  echo "installed hooks -> .claude/hooks.json"
+25:  mkdir -p "$dest"
+92:    mkdir -p "$root/.agents/workflows"
+98:  mkdir -p "$root/.claude"
+installed induct-exp -> .agents/workflows/induct-exp.js
+installed hooks -> .claude/hooks.json
+.claude/hooks.json
+A  .claude/hooks.json
+M  Makefile
+M  bin/bp3
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+AM docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+A  src/quest/hooks.ml
+M  src/quest/main.ml
+A  test/hooks.sh
+M  test/skills.sh
+true
+true
+skills tests: ok (43 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+MAKE:0
+cc115c5cc05b628de469fa0b8b7ad89c984a7ec7
+ M docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+STATUS_DONE
+{"ok":true,"quest":"2026-11-07-bp3-mvp-engine-core","exp":"exp-6-hooks","state":"submitted","cycle":1,"commit":"cc115c5cc05b628de469fa0b8b7ad89c984a7ec7","legal_edges":["review","check","block","delete"]}

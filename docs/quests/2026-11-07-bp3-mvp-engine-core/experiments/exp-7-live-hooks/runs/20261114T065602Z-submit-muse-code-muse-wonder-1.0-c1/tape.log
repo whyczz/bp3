@@ -1,0 +1,21 @@
+[quest/bp3-mvp-engine 9720e14] bp3: exp-6 cycle-2 check/review/land run tapes (verbatim, unedited)
+ 6 files changed, 802 insertions(+)
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-check-muse-code-muse-wonder-1.0-c2/notes.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-check-muse-code-muse-wonder-1.0-c2/tape.log
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-land-muse-code-muse-wonder-1.0-c2/notes.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-land-muse-code-muse-wonder-1.0-c2/tape.log
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-review-muse-code-muse-wonder-1.0-c2/notes.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-review-muse-code-muse-wonder-1.0-c2/tape.log
+9720e14 bp3: exp-6 cycle-2 check/review/land run tapes (verbatim, unedited)
+adc2a1d feat(skills): deliver Muse hooks at .muse/hooks.json
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/EXPERIMENT.md
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/LIVE.md
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+[quest/bp3-mvp-engine bb28a14] docs(exp-7): live hooks author record — delivery confirmed, host witness absent
+ 4 files changed, 165 insertions(+)
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/EXPERIMENT.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/LIVE.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+{"ok":true,"quest":"2026-11-07-bp3-mvp-engine-core","exp":"exp-7-live-hooks","state":"submitted","cycle":1,"commit":"bb28a14906f13b4a77a58f90628118a638959ebc","legal_edges":["review","check","block","delete"]}

@@ -1,0 +1,5 @@
+quest_type: default
+max_cycles: 1
+review:
+  required: true
+checks: required

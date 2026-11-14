@@ -71,6 +71,12 @@ skills_install() {
       ;;
   esac
 
+  # The induct-exp saved workflow ships with the induct skill. It is a
+  # plain copy (no render notice); the target is the project workflows
+  # dir every harness discovers. Absent source means nothing to copy.
+  local workflow_src="$src_dir/induct/workflows/induct-exp.js"
+  local workflow_dest="$root/.agents/workflows/induct-exp.js"
+
   local skill_dir skill
   for skill_dir in "$src_dir"/*/; do
     skill="$(basename "$skill_dir")"
@@ -82,18 +88,71 @@ skills_install() {
   if [ -n "$settings_plan" ]; then
     printf '%s\n' "$settings_plan" | jq . > "$root/.pi/settings.json"
   fi
+  if [ -f "$workflow_src" ]; then
+    mkdir -p "$root/.agents/workflows"
+    cp "$workflow_src" "$workflow_dest"
+    echo "installed induct-exp -> .agents/workflows/induct-exp.js"
+  fi
+  # Muse hook registration: one fail-open emitter command for
+  # every event. Repos without this file never fire hooks.
+  mkdir -p "$root/.claude"
+  cat > "$root/.claude/hooks.json" <<'HOOKS_JSON'
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostLLMCall": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SubagentStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}]
+  }
+}
+HOOKS_JSON
+  echo "installed hooks -> .claude/hooks.json"
+  # Claude Code loads hooks from settings.json, not hooks.json
+  # (live probe 2026-11-14: hooks.json alone never fired; the
+  # same hooks under settings.json produced ledger event lines).
+  # Merge into any existing settings, preserving other keys.
+  local claude_settings="$root/.claude/settings.json"
+  local existing_settings='{}'
+  if [ -e "$claude_settings" ]; then
+    existing_settings="$(cat "$claude_settings")"
+  fi
+  printf '%s\n' "$existing_settings" | jq --slurpfile hj "$root/.claude/hooks.json" \
+    '.hooks = $hj[0].hooks' > "$claude_settings.tmp"
+  mv "$claude_settings.tmp" "$claude_settings"
+  echo "installed hooks -> .claude/settings.json"
+  # Muse hook registration: project tier .muse/hooks.json at the
+  # workspace root (live probe 2026-11-13: fires in the main session
+  # and in workflow children; no settings merge needed).
+  case " $harnesses " in
+    *" muse "*)
+      mkdir -p "$root/.muse"
+      cp "$root/.claude/hooks.json" "$root/.muse/hooks.json"
+      echo "installed hooks -> .muse/hooks.json"
+      ;;
+  esac
   # Note: codex and muse share .agents/skills; under --harness=all the muse
   # render (same dir) is written last. Invocation text differs only in the
   # trigger line; both harnesses accept the skill by name.
 }
 
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ...'
 case "${1:-}" in
+  q|quest) shift
+    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" "$@" ;;
+  init) shift; skills_install "$@" ;;
   skills)
     shift
     case "${1:-}" in
       install) shift; skills_install "$@" ;;
-      *) echo "usage: bp3 skills install --harness=<pi|claude|codex|muse|all>" >&2; exit 2 ;;
+      *) echo "$usage_text" >&2; exit 2 ;;
     esac
     ;;
-  *) echo "usage: bp3 skills install --harness=<pi|claude|codex|muse|all>" >&2; exit 2 ;;
+  *) echo "$usage_text" >&2; exit 2 ;;
 esac
