@@ -125,6 +125,16 @@ HOOKS_JSON
     '.hooks = $hj[0].hooks' > "$claude_settings.tmp"
   mv "$claude_settings.tmp" "$claude_settings"
   echo "installed hooks -> .claude/settings.json"
+  # Muse hook registration: project tier .muse/hooks.json at the
+  # workspace root (live probe 2026-11-13: fires in the main session
+  # and in workflow children; no settings merge needed).
+  case " $harnesses " in
+    *" muse "*)
+      mkdir -p "$root/.muse"
+      cp "$root/.claude/hooks.json" "$root/.muse/hooks.json"
+      echo "installed hooks -> .muse/hooks.json"
+      ;;
+  esac
   # Note: codex and muse share .agents/skills; under --harness=all the muse
   # render (same dir) is written last. Invocation text differs only in the
   # trigger line; both harnesses accept the skill by name.
