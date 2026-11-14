@@ -32,6 +32,7 @@ that refuses to throw away unfinished work.
 | Util layer | low-level worktree primitives: derive the worktree path, create/remove a worktree, and inspect its ref and dirty state. No registry and no workflow policy |
 | Bookkeeping layer | the machine-local worktree registry keyed by `run_id`: creation context, actual path (including overrides), lifecycle, `check`, `exit`, `list`, and staleness |
 | Conventions layer | how Runs and workflows use worktrees: when each child prepares one, what kind it gets, when it exits, and what the conductor does with stale or dirty worktrees |
+| One file per key | machine-local bookkeeping stores one file per primary key (`.bp3/desks/<run_id>.json`, created exclusively, deleted on release) — never one shared file rewritten by load-modify-save, which loses parallel writers' records |
 | Run worktree | `.bp3/worktrees/<quest>/<exp>/<run-id>/` — the default physical path for the worktree owned by that Run ID. (Name settled Round 6: "desk" was coined for this and killed — one concept, one word, and the word is git's: *worktree* everywhere, CLI, docs, and prompts) |
 
 ## Demos
