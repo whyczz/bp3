@@ -40,6 +40,14 @@ Use `red-ink` when an existing design needs a decision walk.
    icebox entry, with its path). The design keeps no shadow
    version of the frozen sketch.
 
+## Promotion (receiving end)
+
+Promotion is defined in the `quest` skill (section
+"Promotion from the icebox"): trigger fires, owner names the
+entry, the Quest procedure re-decides everything, and this
+entry gains only a `promoted:` field pointing at the Quest.
+This skill never edits an entry beyond that field.
+
 ## Rules
 
 - An icebox entry is not a quest, not state, and never a

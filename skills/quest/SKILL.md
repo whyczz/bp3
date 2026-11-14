@@ -77,6 +77,22 @@ Keep exp detail inside the Quest file: intent, order, dependencies,
 acceptance. Deep runbooks live in linked exp records; the Quest
 file stays the plan of record.
 
+## Promotion from the icebox
+
+A Quest that starts from a `docs/icebox/` entry promotes it.
+Promotion means exactly this, no more:
+
+| Step | Rule |
+|---|---|
+| Trigger check | the entry's stated promotion trigger has observably fired; the owner names the entry |
+| Transcription, not adoption | the entry is research input to step 2, nothing more. This skill's whole procedure still runs: sync, research, names, exps, red chair. Every assumption the entry made is re-decided here; entry text is never copied in as settled design |
+| Link both ways | the Quest file names the entry in its Context; the entry gains one field (below) |
+| Marking | when the owner approves the framed Quest (it now governs build), set the entry's `promoted:` to the Quest path. The entry's `status:` stays `frozen` forever, its text is never edited, and it is never deleted — it remains the fossil of the day the idea was shelved |
+| Thaw that dies | if the framed Quest is canceled before landing, `promoted:` stays set: it records that the thaw happened and where it went |
+
+An entry without a fired trigger is not promotable; a
+Quest framed from one anyway says so in its Open questions.
+
 ## Names sync with code and data
 
 Names become folder paths, CLI addresses, ledger fields, and the
