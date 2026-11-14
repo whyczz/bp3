@@ -41,6 +41,7 @@ shell finish the names for you.
 | Dynamic completion | candidates read live: quest names, then that quest's exp names |
 | Icebox entry | one frozen `docs/icebox/YYYY-MM-DD-<slug>.md`; not a quest, not state (`docs/icebox/README.md`) |
 | Icebox door | `bp3 q icebox r`, read-only: list/search entries, or print one by slug; writes nothing |
+| Help slot | a position where `-h`/`--help` prints that door's plain-text help, exit 0: after `bp3`, after `q`, after a door verb, after `<quest>` |
 
 ## Demos
 
@@ -107,6 +108,7 @@ outside a bp3 repo or with an unbuilt binary.
 | zsh completion (static + dynamic); bash if cheap (same logic, recorded reason if deferred) | fish (only if asked), commit SHA / run-id completion, anything folding a ledger per keystroke |
 | Delivery via `bp3 init` / `bp3 skills install` | editing the user's shell rc files; completion that errors visibly |
 | `bp3 q icebox r`: list/search `docs/icebox/` entries, read one by slug (read-only) | any icebox write verb (create, promote, thaw) through `q`; parsing entries as state or pointing the ledger at them |
+| `-h`/`--help` at every door (wrapper, `q`, quest door, exp door): plain text, stdout, exit 0 | help as a JSON verdict; changing any error verdict or exit code; help positions beyond the named slots |
 
 ## Human touchpoints
 
@@ -139,6 +141,14 @@ Added at framing on the owner's ask. Depends on: Exp 1
 (its list is a flat shape; JSON works standalone).
 Lane: standard.
 
+### Exp 4 — [Help flags](experiments/exp-4-help/EXPERIMENT.md)
+`-h`/`--help` at every door prints that door's docstring
+help (plain text, stdout, exit 0); error verdicts unchanged.
+Docstrings live beside dispatch, with a grammar-drift
+fixture — the same standard the owner just added to
+`code-writer` step 5. Added at framing on the owner's ask.
+Depends on: none. Lane: standard.
+
 ## Scorecard
 
 | Field | Value |
@@ -160,6 +170,7 @@ and what they changed:
 | "bash if cheap" is an escape hatch that never lands | Exp 2's acceptance gates on zsh alone; bash lands or is deferred with a recorded reason in the exp record — either outcome is checkable |
 | The icebox promotion trigger has not observably fired | recorded as Open question 1 instead of laundered into a claim; the owner directed this promotion directly |
 | Exp 3 is scope creep: a "small fixes" quest growing a new door | priced honestly in its record: it is new function, kept read-only and dumb-parsing; if approval balks, it splits into its own quest with no damage to Exps 1–2 |
+| Help text drifts from the grammar within a month | hand-written docstrings are accepted only with the drift fixture (every verb/edge/flag in help asserted against `main.ml`, both directions); deriving help from the parser was priced and rejected as a grammar refactor |
 
 ## Open questions
 
