@@ -594,3 +594,13 @@ installed hooks -> .claude/settings.json
 ?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-check-muse-code-muse-wonder-1.0-c1/
 ?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-review-muse-code-muse-wonder-1.0-c1/
 ?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/
+[quest/bp3-mvp-engine 31f362b] fix(q): stale-gated run_unsettled sweep and settings.json hook delivery
+ 8 files changed, 873 insertions(+), 8 deletions(-)
+ create mode 100644 .claude/settings.json
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/EXPERIMENT.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/notes.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+31f362b755f581469cbf865f812f749467fa3f5c
+ M docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-check-muse-code-muse-wonder-1.0-c1/
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-review-muse-code-muse-wonder-1.0-c1/
