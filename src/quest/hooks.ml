@@ -102,7 +102,7 @@ let refusal_code j =
 type binding = {
   quest : string; exp : string; run_id : string; session_id : string;
   started_ts : string; started_epoch : float;
-  mutable last_seen_ts : string;
+  mutable last_seen_ts : string; mutable last_seen_epoch : float;
   mutable settled : bool; mutable unsettled : bool;
   mutable emitted : string list;
   mutable in_tok : int; mutable out_tok : int;
@@ -121,6 +121,7 @@ let binding_to_json b =
     ("run_id", json_str b.run_id); ("started_ts", json_str b.started_ts);
     ("started_epoch", `Float b.started_epoch);
     ("last_seen_ts", json_str b.last_seen_ts);
+    ("last_seen_epoch", `Float b.last_seen_epoch);
     ("settled", `Bool b.settled); ("unsettled", `Bool b.unsettled);
     ("emitted", `List (List.map json_str b.emitted));
     ("input_tokens", `Int b.in_tok); ("output_tokens", `Int b.out_tok);
@@ -135,6 +136,8 @@ let binding_of_json sid j =
     run_id = member_str j "run_id"; session_id = sid;
     started_ts = member_str j "started_ts"; started_epoch = f "started_epoch";
     last_seen_ts = member_str j "last_seen_ts";
+    last_seen_epoch = (let e = f "last_seen_epoch" in
+      if e > 0. then e else f "started_epoch");
     settled = bl "settled"; unsettled = bl "unsettled";
     emitted = (try match Yojson.Safe.Util.member "emitted" j with
       | `List xs -> List.filter_map (function `String s -> Some s | _ -> None) xs
@@ -166,6 +169,16 @@ let save_registry bindings =
     close_out oc;
     Sys.rename tmp path
   with _ -> ()
+
+(* A binding is stale only when nothing has touched it for this
+   long: a SessionStart from a new session proves nothing about a
+   Run that is still live in parallel, so the sweep below must
+   not mark fresh bindings run_unsettled. *)
+let stale_after_s = 900.
+
+let touch b =
+  b.last_seen_ts <- now_ts ();
+  b.last_seen_epoch <- Unix.time ()
 
 (* ---------- fact writer: appends one event line to the exp
    ledger on its branch. The only ledger door hooks may use;
@@ -233,7 +246,7 @@ let handle () =
             | "PreToolUse" ->
                 (match find session with
                  | Some b ->
-                     b.last_seen_ts <- now_ts ();
+                     touch b;
                      finish (no_write "already bound")
                  | None ->
                      (match extract_preset command "BP3_RUN_ID",
@@ -251,7 +264,8 @@ let handle () =
                             let b = { quest = q; exp = e; run_id;
                               session_id = session; started_ts = now_ts ();
                               started_epoch = Unix.time ();
-                              last_seen_ts = now_ts (); settled = false;
+                              last_seen_ts = now_ts ();
+                              last_seen_epoch = Unix.time (); settled = false;
                               unsettled = false; emitted = [];
                               in_tok = 0; out_tok = 0; cached_tok = 0;
                               reasoning_tok = 0; llm_calls = 0 } in
@@ -267,7 +281,8 @@ let handle () =
             | "SessionStart" ->
                 let swept = ref None in
                 List.iter (fun b ->
-                  if b.session_id <> session && not b.settled && not b.unsettled then
+                  if b.session_id <> session && not b.settled && not b.unsettled
+                     && Unix.time () -. b.last_seen_epoch > stale_after_s then
                     match emit !bindings b "run_unsettled"
                       [("last_seen_ts", json_str b.last_seen_ts)]
                       (b.run_id ^ "|run_unsettled") with
@@ -277,7 +292,7 @@ let handle () =
                       end
                     | None -> ()) !bindings;
                 (match find session with
-                 | Some b -> b.last_seen_ts <- now_ts ()
+                 | Some b -> touch b
                  | None -> ());
                 finish (match !swept with
                   | Some line -> verdict line None
@@ -295,13 +310,13 @@ let handle () =
                         if c <> 0 then c else member_int usage "cache_read_tokens");
                      b.reasoning_tok <- b.reasoning_tok + member_int usage "reasoning_tokens";
                      b.llm_calls <- b.llm_calls + 1;
-                     b.last_seen_ts <- now_ts ();
+                     touch b;
                      finish (no_write "usage tallied"))
             | "PostToolUse" | "PostToolUseFailure" ->
                 (match find session with
                  | None -> no_write "no binding witnessed for session"
                  | Some b ->
-                     b.last_seen_ts <- now_ts ();
+                     touch b;
                      let failure = event = "PostToolUseFailure" in
                      let is_update =
                        contains_sub command "bp3" &&
@@ -354,12 +369,13 @@ let handle () =
                           (b.run_id ^ "|run_settled") with
                         | Some line -> b.settled <- true;
                             b.last_seen_ts <- settled_ts;
+                            b.last_seen_epoch <- Unix.time ();
                             finish (verdict line None)
                         | None -> finish (no_write "duplicate or unwritable fact"))
                      end)
             | "Stop" ->
                 (match find session with
-                 | Some b -> b.last_seen_ts <- now_ts ();
+                 | Some b -> touch b;
                      finish (no_write "checkpoint only")
                  | None -> no_write "no binding witnessed for session")
             | "SubagentStart" ->

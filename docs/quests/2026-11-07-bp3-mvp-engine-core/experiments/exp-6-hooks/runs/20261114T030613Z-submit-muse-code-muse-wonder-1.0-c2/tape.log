@@ -1,0 +1,596 @@
+experiments
+QUEST.md
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments:
+2026-11-07-tape-hooks.md
+exp-1-baseline
+exp-2-cli-scaffold
+exp-3-fsm
+exp-4-tape-hooks
+exp-5-muse-engine
+exp-6-hooks
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-1-baseline:
+EXPERIMENT.md
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-2-cli-scaffold:
+EXPERIMENT.md
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-3-fsm:
+EXPERIMENT.md
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-4-tape-hooks:
+EXPERIMENT.md
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-5-muse-engine:
+EXPERIMENT.md
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks:
+runs
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs:
+20261114T025213Z-check-muse-code-muse-wonder-1.0-c1
+20261114T025213Z-review-muse-code-muse-wonder-1.0-c1
+20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1
+20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-check-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-review-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2:
+tape.log
+# exp-6-hooks submit run — lessons
+
+- Implemented `bp3 q hooks` in `src/quest/hooks.ml`: stdin JSON,
+  self-gate (bin/bp3 + docs/quests at payload cwd), reentrancy
+  skip, witnessed binding from the env preset in PreToolUse
+  commands, and an internal fact writer that appends event
+  lines to the exp ledger on its branch. Exit 0 always.
+- Registry lives in the git dir (`bp3-run-registry.json`), never
+  the worktree: witnessing a Run must not dirty the tree, or the
+  submit guard (E_DIRTY_TREE) eats the Run it observes.
+- Event lines carry no `edge`/`from`/`to` keys, so the fold
+  skips them by construction. That forced dropping Exp 4's
+  `run_started {edge, ...}` spelling: an `edge: "submit"` key
+  is fold-visible even with no `to`. Kept `cycle` + `session_id`.
+- `Stop` is checkpoint-only; settle is `SessionEnd`/`SubagentStop`.
+  Usage tallies per Run in the registry and lands as exactly one
+  `usage_recorded` at settle, summed from real PostLLMCall fields.
+- SessionStart sweep marks every other unsettled binding
+  `run_unsettled`. Sharp edge: a SessionStart while a parallel
+  Run is still live would sweep it early; ordering in fixtures
+  settles first. A last-seen age gate is the fix if that bites.
+- `bp3 skills install` now also writes `.muse/hooks.json`
+  (one `./bin/bp3 q hooks` command for all events), asserted in
+  test/skills.sh; test/hooks.sh covers every Acceptance case.
+- Verify: `make check` green (lint, skills 43 assertions, q,
+  tape, hooks, induct-exp). No live induct-exp run with hooks
+  firing in a real harness session was done in this Run; the
+  live half of Exp 4's prove-by remains for a later Run.
+# exp-6-hooks check run — lessons
+
+- Verify stance: judged only on fresh output. Ran the project gate
+  `make check` in this session; all stages green (lint, skills 43
+  assertions, q, tape, hooks, induct-exp), exit 0.
+- HEAD (b091c18) code is byte-identical to the bound commit cc115c5:
+  `git diff cc115c5..HEAD` touches only the submit run tape.log, so
+  the fresh gate run validates the bound changeset, not a drifted tree.
+- No EXPERIMENT.md exists for exp-6; acceptance lives in
+  test/hooks.sh (fail-open, binding, usage, settle cases) plus the
+  bound commit message. The hooks suite is the exp-specific gate.
+- Verdict: pass on cc115c5.
+# exp-6-hooks review — lessons
+
+Verdict: fix_first (recorded as needs_fix)
+
+Claims checked against Exp 4's acceptance (exp-6 has no EXPERIMENT.md of
+its own; its acceptance is the hook half of exp-4-tape-hooks):
+
+- Pass, with fixture evidence in test/hooks.sh and a fresh `make check`
+  (exit 0: lint, skills 43, q, tape, hooks, induct): garbage/foreign/
+  unbound/reentrant fail-open; bound run_started -> run_settled with
+  session_id, cycle, ts, no edge/from/to; exactly one summed
+  usage_recorded at SessionEnd/SubagentStop; refused and lint_checked;
+  fold state unchanged by event lines; `.claude/hooks.json` delivered
+  by `bp3 skills install` and asserted in test/skills.sh. Comments in
+  hooks.ml agree with the code (edge key dropped so the fold skips
+  event lines — deliberate, explained in the submit notes).
+
+Findings:
+
+1. [major] SessionStart sweep marks live Runs unsettled —
+   src/quest/hooks.ml:267. Every other unsettled binding gets a
+   `run_unsettled` line with no staleness/age check on last_seen_ts.
+   A second session starting while a parallel Run is live writes a
+   false past-tense fact into its ledger, violating the parallel
+   no-cross-talk case. The submit notes admit this sharp edge; the
+   fixture avoids it by settling first, and no test covers a
+   SessionStart arriving while another Run is live. Fix shape: gate
+   the sweep on last-seen age (or equivalent liveness), plus a
+   fixture with SessionStart during a live parallel binding.
+2. [major] Missing observed evidence: the submit notes state no live
+   induct-exp run with hooks firing in a real harness session was
+   done, so the live half of Exp 4's prove-by (run one live
+   induct-exp, read the exp ledger) has no evidence. Exp-6 also has
+   no EXPERIMENT.md; its acceptance had to be reconstructed from
+   Exp 4's record.
+3. [minor, inference] save_registry (hooks.ml:159) writes through one
+   shared `.tmp` path with no locking; concurrent hook processes
+   could collide or lose bindings. Not observed; sequential hooks
+   are unaffected.
+
+What would change my mind: an age/liveness gate on the sweep with a
+live-parallel fixture, and one live induct-exp ledger read showing
+the event lines from a real harness session.
+b091c18 bp3: run 20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1 tape (submit verdict)
+69e1ffa bp3: run 20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1 tape
+cc115c5 feat(q): bp3 q hooks emitter and hooks.json delivery
+d0a6032 docs(quest): settle Exp 4 red-ink, adopt over the old record
+9bf5d36 feat(skills): rename quest-landing-demo to red-ink-quest-landing-demo
+3c92a70 feat(engine): env preset on induct-exp children, with contract test
+adebf3b feat(engine): workflow children load role skills
+dfd28f8 refactor(quest): split binary into src/quest modules
+661437e style(q): expand exp files per directory in tree view
+86c60bb style(q): tree(1)-style human view
+9c0de5b style(q): branch-style tree connectors
+eae5c18 feat(q): proposed file changes in the exp tree view
+c50ed00 feat(q): rename invoke to q, add tree view, fix host SDK link
+24ee28c docs(quest): Exp 5 identity confirmation observed
+ececce2 docs(quest): record observed demos, exps landed through bp3 q
+aa57ad0 fix(engine): pass identity to induct-exp children
+bf7e4a0 fix(engine): induct-exp accepts string workflow args
+6efd34c chore: ignore dune build artifacts
+a43bcd6 feat(engine): induct-exp workflow, tape capture, distribution
+4d9ceaa feat(q): bp3 q CLI and six-state commit FSM
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-check-muse-code-muse-wonder-1.0-c1/
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-review-muse-code-muse-wonder-1.0-c1/
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/
+quest/bp3-mvp-engine
+{"ok":true,"quest":"2026-11-07-bp3-mvp-engine-core","exp":"exp-6-hooks","state":"todo","cycle":2,"commit":"cc115c5cc05b628de469fa0b8b7ad89c984a7ec7","legal_edges":["submit","block","delete"],"changes":[{"change":"+","path":".claude/hooks.json"},{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/notes.md"},{"change":"+","path":"docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/tape.log"},{"change":"+","path":"src/quest/hooks.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"+","path":"test/hooks.sh"},{"change":"u","path":"test/skills.sh"}]}
+ls: .muse/hooks.json: No such file or directory
+.claude/hooks.json
+cat: /Users/whycz/m/bp3/.git/bp3-run-registry.json: No such file or directory
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-2-cli-scaffold
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-3-fsm
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-4-tape-hooks
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-5-muse-engine
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-6-hooks
+  bp3/exp/toy-drive/blocked-demo
+  bp3/exp/toy-drive/identity-check
+  bp3/exp/toy-drive/parser-fix
+  bp3/exp/toy-drive/skill-check
+  bp3/exp2-astra-author
+  bp3/exp2-author
+  bp3/exp7-fork-author
+  bp3/quest/2026-11-07-bp3-mvp-engine-core
+  bp3/quest/toy-drive
+  master
+* quest/bp3-mvp-engine
+  remotes/origin/HEAD -> origin/master
+  remotes/origin/master
+  remotes/origin/quest/bp3-mvp
+  remotes/origin/quest/bp3-mvp-engine
+{"ts":"2026-11-14T02:51:50Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","exp_type":"default"}
+{"ts":"2026-11-14T02:59:20Z","edge":"submit","from":"todo","to":"submitted","cycle":1,"commit":"cc115c5cc05b628de469fa0b8b7ad89c984a7ec7","verdict":null,"reason":"bp3 q hooks emitter, hooks.json delivery, acceptance fixtures green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"ts":"2026-11-14T03:00:20Z","edge":"check","from":"submitted","to":"submitted","cycle":1,"commit":"cc115c5cc05b628de469fa0b8b7ad89c984a7ec7","verdict":"pass","reason":"make check green fresh: lint, skills 43, q, tape, hooks, induct all ok; HEAD code identical to bound commit","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"ts":"2026-11-14T03:01:03Z","edge":"review","from":"submitted","to":"blocked","cycle":1,"commit":"cc115c5cc05b628de469fa0b8b7ad89c984a7ec7","verdict":"needs_fix","reason":"SessionStart sweep marks live parallel Runs run_unsettled with no age gate (hooks.ml:267), and no live induct-exp hooks evidence; fixtures and make check otherwise green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"ts":"2026-11-14T03:06:10Z","edge":"resume","from":"blocked","to":"todo","cycle":2,"commit":null,"verdict":null,"reason":"owner resume: fix the SessionStart sweep age gate (parallel Runs must not mark each other run_unsettled), then live hooks evidence","harness":"muse-code","model":"none","bp3_version":"0.2.0"}
+src/quest/gitx.ml:81:let now_ts () =
+src/quest/gitx.ml:82:  let t = Unix.gmtime (Unix.time ()) in
+src/quest/hooks.ml:105:  mutable last_seen_ts : string;
+src/quest/hooks.ml:123:    ("last_seen_ts", json_str b.last_seen_ts);
+src/quest/hooks.ml:137:    last_seen_ts = member_str j "last_seen_ts";
+src/quest/hooks.ml:191:    let fields = ("event", json_str kind) :: ("ts", json_str (now_ts ()))
+src/quest/hooks.ml:236:                     b.last_seen_ts <- now_ts ();
+src/quest/hooks.ml:252:                              session_id = session; started_ts = now_ts ();
+src/quest/hooks.ml:253:                              started_epoch = Unix.time ();
+src/quest/hooks.ml:254:                              last_seen_ts = now_ts (); settled = false;
+src/quest/hooks.ml:272:                      [("last_seen_ts", json_str b.last_seen_ts)]
+src/quest/hooks.ml:280:                 | Some b -> b.last_seen_ts <- now_ts ()
+src/quest/hooks.ml:298:                     b.last_seen_ts <- now_ts ();
+src/quest/hooks.ml:304:                     b.last_seen_ts <- now_ts ();
+src/quest/hooks.ml:340:                       let settled_ts = now_ts () in
+src/quest/hooks.ml:342:                         int_of_float ((Unix.time () -. b.started_epoch) *. 1000.) in
+src/quest/hooks.ml:356:                            b.last_seen_ts <- settled_ts;
+src/quest/hooks.ml:362:                 | Some b -> b.last_seen_ts <- now_ts ();
+src/quest/main.ml:229:        if nst = "blocked" then begin ns.blocked_reason <- reason; ns.blocked_since <- now_ts () end;
+src/quest/main.ml:304:                 blocked_checkpoint = checkpoint; blocked_since = now_ts () } in
+src/quest/store.ml:207:    ("ts", json_str (now_ts ()));
+.PHONY: check test lint
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/induct.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/tape.sh test/hooks.sh test/induct.sh
+	node --check skills/induct/workflows/induct-exp.js
+
+test:
+	./test/skills.sh
+---
+date: 2026-11-11
+quest: ../QUEST.md
+exp: 5
+status: proposed
+---
+
+# Exp 5 — Muse engine
+
+## TL;DR
+
+The dogfood engine: one `induct` skill, the `induct-exp`
+saved workflow, and Muse hook settings. The skill loops a
+quest's railway at the quest level; `induct-exp` loops one
+exp's inner FSM at a time; `blocked` exps bubble to the
+human-facing main session.
+All state moves through `bp3 q u`; the engine never writes
+state itself.
+
+Status: **landed through bp3 q 2026-11-12, live engine run observed.** Pulled into
+this quest from the downstream bp3-mvp-muse-workflows quest
+(red-ink, 2026-11-11); only its executor-test exp came
+with it. Live evidence 2026-11-12: `induct-exp` drove
+toy-drive/parser-fix todo -> landed (children took every edge
+through bp3 q u; ledger on the exp branch); probes answered:
+(a) V8 workflow executes on this machine — yes, two live runs;
+(b) child CLI reach — yes, direct; (c) per-call model routing —
+unprobed, children inherit the parent session. First attempt
+refused on string-form args (fixed); children first recorded
+unknown identity (fixed via args; second live run, toy-drive/identity-check, confirmed: every ledger line signed muse-code / muse-wonder-1.0, outcome landed).
+First piece landed ahead of the
+exp: the `induct` skill (`skills/induct/SKILL.md`, installed for
+all harnesses 2026-11-11) — renamed from `drive` the same day,
+since induction names its two-level loop. `induct-exp` and
+the hook settings remain this exp's to build.
+
+## Demos (design traces — nothing here has run yet)
+
+Induct = one engine loop over a quest: read, dispatch Runs,
+autoland, stop only at a terminal rollup or an owed human
+
+let head_sha () =
+  match ref_tip "HEAD" with Some s -> s | None -> usage "repository has no HEAD commit"
+
+let is_ancestor a b = git_ok ["merge-base"; "--is-ancestor"; a; b]
+
+let now_ts () =
+  let t = Unix.gmtime (Unix.time ()) in
+  Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02dZ"
+    (t.Unix.tm_year + 1900) (t.Unix.tm_mon + 1) t.Unix.tm_mday
+    t.Unix.tm_hour t.Unix.tm_min t.Unix.tm_sec
+
+(* Write files into a branch via plumbing; CAS on old tip.
+   files: (path, content) list. Returns new tip or E_STALE_WORLD. *)
+let commit_files ~branch ~base_tip ~expect_tip ~files ~msg =
+  let idx = tmp_path "index" in
+  Unix.putenv "GIT_INDEX_FILE" idx;
+  let cleanup () = (try Unix.unlink idx with _ -> ()); Unix.putenv "GIT_INDEX_FILE" "" in
+  let fail () = cleanup (); err "E_STALE_WORLD" (`Assoc [("branch", json_str branch)])
+    "Branch tip moved; re-read and retry." 1 in
+  if run_status (git ["read-tree"; base_tip]) <> 0 then fail ();
+.claude/hooks.json
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostLLMCall": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SubagentStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}]
+  }
+}
+180:  b.last_seen_ts <- now_ts ();
+249:                     b.last_seen_ts <- now_ts ();
+293:                 | Some b -> b.last_seen_ts <- now_ts ()
+311:                     b.last_seen_ts <- now_ts ();
+317:                     b.last_seen_ts <- now_ts ();
+369:                            b.last_seen_ts <- settled_ts;
+375:                 | Some b -> b.last_seen_ts <- now_ts ();
+          then no_write "reentrant"
+          else begin
+            let bindings = ref (load_registry ()) in
+            let find sid = List.find_opt (fun b -> b.session_id = sid) !bindings in
+            let finish v = save_registry !bindings; v in
+            match event with
+            | "PreToolUse" ->
+                (match find session with
+                 | Some b ->
+                     b.last_seen_ts <- now_ts ();
+                     finish (no_write "already bound")
+                 | None ->
+                     (match extract_preset command "BP3_RUN_ID",
+                            extract_preset command "BP3_QUEST",
+                            extract_preset command "BP3_EXP" with
+                      | Some run_id, Some q, Some e
+                        when valid_slug q && valid_slug e ->
+                          let run_dir = Filename.concat root
+                            (Filename.concat (exp_dir q e)
+                               (Filename.concat "runs" run_id)) in
+                          if not (try Sys.is_directory run_dir with _ -> false)
+                      [("last_seen_ts", json_str b.last_seen_ts)]
+                      (b.run_id ^ "|run_unsettled") with
+                    | Some line -> begin
+                        b.unsettled <- true;
+                        if !swept = None then swept := Some line
+                      end
+                    | None -> ()) !bindings;
+                (match find session with
+                 | Some b -> b.last_seen_ts <- now_ts ()
+                 | None -> ());
+                finish (match !swept with
+                  | Some line -> verdict line None
+                  | None -> no_write "no stale bindings")
+            | "PostLLMCall" ->
+                (match find session with
+                 | None -> no_write "no binding witnessed for session"
+                 | Some b ->
+                     let usage =
+                       try Yojson.Safe.Util.member "usage" payload with _ -> `Null in
+                     b.in_tok <- b.in_tok + member_int usage "input_tokens";
+                     b.out_tok <- b.out_tok + member_int usage "output_tokens";
+                     b.cached_tok <- b.cached_tok +
+                       (let c = member_int usage "cached_tokens" in
+                        if c <> 0 then c else member_int usage "cache_read_tokens");
+                     b.reasoning_tok <- b.reasoning_tok + member_int usage "reasoning_tokens";
+                     b.llm_calls <- b.llm_calls + 1;
+                     b.last_seen_ts <- now_ts ();
+                     finish (no_write "usage tallied"))
+            | "PostToolUse" | "PostToolUseFailure" ->
+                (match find session with
+                 | None -> no_write "no binding witnessed for session"
+                 | Some b ->
+                     b.last_seen_ts <- now_ts ();
+                     let failure = event = "PostToolUseFailure" in
+                     let is_update =
+                       contains_sub command "bp3" &&
+                          ("reasoning_tokens", `Int b.reasoning_tok);
+                          ("wall_ms", `Int wall_ms);
+                          ("started_ts", json_str b.started_ts);
+                          ("settled_ts", json_str settled_ts)]
+                         (b.run_id ^ "|usage_recorded"));
+                       (match emit !bindings b "run_settled"
+                          [("outcome", json_str "settled")]
+                          (b.run_id ^ "|run_settled") with
+                        | Some line -> b.settled <- true;
+                            b.last_seen_ts <- settled_ts;
+                            finish (verdict line None)
+                        | None -> finish (no_write "duplicate or unwritable fact"))
+                     end)
+            | "Stop" ->
+                (match find session with
+                 | Some b -> b.last_seen_ts <- now_ts ();
+                     finish (no_write "checkpoint only")
+                 | None -> no_write "no binding witnessed for session")
+            | "SubagentStart" ->
+                (match find session with
+                 | Some b ->
+                            (Filename.concat (exp_dir q e)
+                               (Filename.concat "runs" run_id)) in
+                          if not (try Sys.is_directory run_dir with _ -> false)
+                          then finish (no_write "no matching run folder")
+                          else begin
+                            let (_edge, cycle) = parse_edge_cycle run_id in
+                            let b = { quest = q; exp = e; run_id;
+                              session_id = session; started_ts = now_ts ();
+                              started_epoch = Unix.time ();
+                              last_seen_ts = now_ts (); settled = false;
+                              unsettled = false; emitted = [];
+                              in_tok = 0; out_tok = 0; cached_tok = 0;
+                              reasoning_tok = 0; llm_calls = 0 } in
+                            bindings := b :: !bindings;
+                            (match emit !bindings b "run_started"
+                               [("cycle", `Int cycle);
+                                ("session_id", json_str session)]
+                               (run_id ^ "|run_started") with
+                             | Some line -> finish (verdict line None)
+                             | None -> finish (no_write "fact writer refused"))
+                          end
+                      | _ -> finish (no_write "no binding witnessed for session")))
+            | "SessionStart" ->
+                let swept = ref None in
+                List.iter (fun b ->
+                  if b.session_id <> session && not b.settled && not b.unsettled then
+                    match emit !bindings b "run_unsettled"
+                      [("last_seen_ts", json_str b.last_seen_ts)]
+                      (b.run_id ^ "|run_unsettled") with
+                    | Some line -> begin
+                        b.unsettled <- true;
+                        if !swept = None then swept := Some line
+                      end
+                    | None -> ()) !bindings;
+                (match find session with
+                 | Some b -> touch b
+                 | None -> ());
+                finish (match !swept with
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/tape.sh test/hooks.sh test/induct.sh
+node --check skills/induct/workflows/induct-exp.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (32 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (43 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+scratch: /tmp/bp3-live-hooks.s6WwYk
+--- claude headless run (hooks live) ---
+DONE, but the command failed with exit code 2:
+
+```
+{"ok":false,"error":{"code":"E_IDENTITY","facts":{"harness":"claude"},"guidance":"BP3_HARNESS must be one of muse-code, codex, muse, human."}}
+```
+
+bp3 rejects `BP3_HARNESS=claude` because the only allowed values are `muse-code`, `codex`, `muse` and `human`. You asked for exactly one command, so I didn't retry with another harness value.
+claude exit: 0
+--- ledger on exp branch ---
+fatal: invalid object name 'bp3/exp/demo/parser-fix'.
+--- registry ---
+cat: /private/tmp/bp3-live-hooks.s6WwYk/repo/.git/bp3-run-registry.json: No such file or directory
+
+18:export BP3_HARNESS=muse-code BP3_MODEL=muse-wonder-1.0 BP3_Q_BIN="$WORK/repo/q-bin"
+20:RUN_ID="20260101T040000Z-submit-muse-code-muse-wonder-1.0-c1"
+24:timeout 150 claude -p "Run exactly this one bash command, then stop and reply DONE: BP3_RUN_ID=$RUN_ID BP3_QUEST=demo BP3_EXP=parser-fix BP3_HARNESS=muse-code BP3_MODEL=muse-wonder-1.0 ./bin/bp3 q demo r parser-fix" --allowedTools Bash 2>&1 | tail -n 20
+scratch: /tmp/bp3-live-hooks.VPpB2m
+--- claude headless run (hooks live) ---
+DONE
+claude exit: 0
+--- ledger on exp branch ---
+{"ts":"2026-11-14T03:08:54Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","exp_type":"default"}
+--- registry ---
+cat: /private/tmp/bp3-live-hooks.VPpB2m/repo/.git/bp3-run-registry.json: No such file or directory
+
+  bp3/exp/demo/parser-fix
+  bp3/quest/demo
+* master
+20260101T040000Z-submit-muse-code-muse-wonder-1.0-c1
+{"ok":true,"event_line":{"event":"run_started","ts":"2026-11-14T03:09:05Z","run_id":"20260101T040000Z-submit-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"live-debug"},"reason":null}
+{"sessions":{"live-debug":{"quest":"demo","exp":"parser-fix","run_id":"20260101T040000Z-submit-muse-code-muse-wonder-1.0-c1","started_ts":"2026-11-14T03:09:05Z","started_epoch":1794625745.0,"last_seen_ts":"2026-11-14T03:09:05Z","last_seen_epoch":1794625745.0,"settled":false,"unsettled":false,"emitted":["20260101T040000Z-submit-muse-code-muse-wonder-1.0-c1|run_started"],"input_tokens":0,"output_tokens":0,"cached_tokens":0,"reasoning_tokens":0,"llm_calls":0}}}Usage: claude [options] [command] [prompt]
+
+Claude Code - starts an interactive session by default, use -p/--print for
+non-interactive output
+
+Arguments:
+  prompt                                Your prompt
+
+Options:
+  --add-dir <directories...>            Additional directories to allow tool
+                                        access to
+  --agent <agent>                       Agent for the current session. Overrides
+                                        the 'agent' setting.
+  --agents <json-or-file>               JSON object defining custom agents, or
+                                        with --print the path to a file that
+                                        holds one (e.g. '{"reviewer":
+                                        {"description": "Reviews code",
+                                        "prompt": "You are a code reviewer"}}')
+  --allow-dangerously-skip-permissions  Enable bypassing all permission checks
+                                        as an option, without it being enabled
+                                        by default. Recommended only for
+                                        sandboxes with no internet access.
+  --allowedTools, --allowed-tools <tools...>
+      Comma or space-separated list of tool names to allow (e.g. "Bash(git *)
+      Edit")
+  --append-system-prompt <prompt>       Append a system prompt to the default
+                                        system prompt
+  --autocompact <auto|tokens>           Auto-compact window size (auto, or
+                                        100k–1M tokens)
+  --ax-screen-reader                    Render screen-reader friendly output
+                                        (flat text, no decorative borders or
+                                        animations).
+  --bg, --background                    Start the session in the background and
+                                        return immediately. Prints the id that
+                                        `claude attach`, `logs`, `stop` and `rm`
+                                        take; `claude agents` lists them. With
+                                        --resume <session-id>, continues that
+                                        session in the background under the same
+                                        ID, or starts a copy and says so when
+                                        the session is already running
+  --bare                                Minimal mode: skip hooks (those defined
+                                        in settings and by installed plugins;
+                                        features built into Claude Code are
+                                        unaffected), LSP, plugin sync,
+                                        attribution, auto-memory, background
+                                        prefetches, keychain reads, and
+                                        CLAUDE.md auto-discovery. Sets
+                                        CLAUDE_CODE_SIMPLE=1. Anthropic auth is
+                                        strictly ANTHROPIC_API_KEY or
+                                        apiKeyHelper via --settings (OAuth and
+                                        keychain are never read). 3P providers
+                                        (Bedrock/Vertex/Foundry) use their own
+                                        credentials. Skills still resolve via
+                                        /skill-name. Explicitly provide context
+                                        via: --system-prompt[-file],
+                                        --append-system-prompt[-file], --add-dir
+                                        (CLAUDE.md dirs), --mcp-config,
+                                        --settings, --agents, --plugin-dir.
+  --betas <betas...>                    Beta headers to include in API requests
+                                        (API key users only)
+ls: .claude/settings.json: No such file or directory
+/Users/whycz/.claude/settings.json
+      "hookEventName": "\"Stop\" | \"SubagentStop\"",
+      "additionalContext": "string (optional) - Feedback for the model; the conversation continues so the model can act on it"
+    }
+  }
+}
+{"ts":"2026-11-14T03:08:54Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","exp_type":"default"}
+{"event":"run_started","ts":"2026-11-14T03:09:05Z","run_id":"20260101T040000Z-submit-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"live-debug"}
+{"event":"run_started","ts":"2026-11-14T03:09:19Z","run_id":"20260101T040000Z-submit-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"2d5a1017-be97-4eb5-81d2-f2ed44df1b39"}
+{"event":"usage_recorded","ts":"2026-11-14T03:09:23Z","run_id":"20260101T040000Z-submit-muse-code-muse-wonder-1.0-c1","input_tokens":0,"output_tokens":0,"cached_tokens":0,"reasoning_tokens":0,"wall_ms":4000,"started_ts":"2026-11-14T03:09:19Z","settled_ts":"2026-11-14T03:09:23Z"}
+{"event":"run_settled","ts":"2026-11-14T03:09:23Z","run_id":"20260101T040000Z-submit-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
+66:assert test -f "$root/.claude/hooks.json"
+67:assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.claude/hooks.json"
+bin/bp3:99:  cat > "$root/.claude/hooks.json" <<'HOOKS_JSON'
+bin/bp3:114:  echo "installed hooks -> .claude/hooks.json"
+true
+true
+true
+true
+true
+skills tests: ok (46 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+ M bin/bp3
+ M src/quest/hooks.ml
+ M test/hooks.sh
+ M test/skills.sh
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-check-muse-code-muse-wonder-1.0-c1/
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-review-muse-code-muse-wonder-1.0-c1/
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/
+installed red-ink-quest-landing-demo -> .claude/skills/red-ink-quest-landing-demo/SKILL.md (claude)
+installed using-bp3 -> .claude/skills/using-bp3/SKILL.md (claude)
+installed induct-exp -> .agents/workflows/induct-exp.js
+installed hooks -> .claude/hooks.json
+installed hooks -> .claude/settings.json
+ M bin/bp3
+ M src/quest/hooks.ml
+ M test/hooks.sh
+ M test/skills.sh
+?? .claude/settings.json
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-check-muse-code-muse-wonder-1.0-c1/
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-review-muse-code-muse-wonder-1.0-c1/
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/

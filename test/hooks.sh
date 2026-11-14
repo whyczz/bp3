@@ -114,17 +114,45 @@ out=$(hooks "$end")
 echo "$out" | jq -e '.event_line == null' >/dev/null || fail "second settle not deduped: $out"
 [ "$(ledger parser-fix | grep -c '"event":"usage_recorded"')" = "1" ] || fail "second settle duplicated usage"
 
+registry() { printf '%s/bp3-run-registry.json' "$(git rev-parse --absolute-git-dir)"; }
+age_binding() { # $1 = session_id: backdate last_seen past the stale gate
+  local reg; reg=$(registry)
+  local tmp; tmp=$(mktemp)
+  jq --arg s "$1" '.sessions[$s].last_seen_epoch -= 7200' "$reg" > "$tmp"
+  mv "$tmp" "$reg"
+}
+
 # --- killed session: next SessionStart sweeps run_unsettled ---
 RUN2=20260101T010000Z-submit-muse-code-test-model-c1
 mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN2"
 bind2=$(printf '{"hook_event_name":"PreToolUse","session_id":"S2","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parser-fix echo work"}}' "$repo" "$RUN2")
 hooks "$bind2" >/dev/null
+age_binding S2
 sweep=$(printf '{"hook_event_name":"SessionStart","session_id":"S3","cwd":"%s"}' "$repo")
 out=$(hooks "$sweep")
 echo "$out" | jq -e --arg r "$RUN2" '.event_line.event == "run_unsettled" and .event_line.run_id == $r and (.event_line | has("last_seen_ts"))' >/dev/null || fail "run_unsettled verdict: $out"
 out=$(hooks "$sweep")
 echo "$out" | jq -e '.event_line == null' >/dev/null || fail "second sweep not deduped: $out"
 [ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "1" ] || fail "run_unsettled count"
+
+# --- live parallel Runs: a fresh SessionStart sweeps nothing ---
+RUN5=20260101T030000Z-submit-muse-code-test-model-c1
+RUN6=20260101T030000Z-review-muse-code-test-model-c1
+mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN5" "docs/quests/demo/experiments/parallel-exp/runs/$RUN6"
+bind5=$(printf '{"hook_event_name":"PreToolUse","session_id":"S6","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parser-fix echo live-a"}}' "$repo" "$RUN5")
+bind6=$(printf '{"hook_event_name":"PreToolUse","session_id":"S7","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parallel-exp echo live-b"}}' "$repo" "$RUN6")
+hooks "$bind5" >/dev/null
+hooks "$bind6" >/dev/null
+live_sweep=$(printf '{"hook_event_name":"SessionStart","session_id":"S8","cwd":"%s"}' "$repo")
+out=$(hooks "$live_sweep")
+echo "$out" | jq -e '.event_line == null' >/dev/null || fail "live parallel sweep verdict: $out"
+[ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "1" ] || fail "live parallel run marked unsettled"
+if ledger parallel-exp | grep -q '"event":"run_unsettled"'; then fail "live parallel-exp run marked unsettled"; fi
+age_binding S6
+out=$(hooks "$live_sweep")
+echo "$out" | jq -e --arg r "$RUN5" '.event_line.event == "run_unsettled" and .event_line.run_id == $r' >/dev/null || fail "stale-only sweep verdict: $out"
+[ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "2" ] || fail "stale-only sweep count"
+if ledger parallel-exp | grep -q '"event":"run_unsettled"'; then fail "fresh parallel-exp run swept with stale sibling"; fi
 
 # --- parallel Runs: distinct bindings, no cross-talk ---
 RUN3=20260101T020000Z-submit-muse-code-test-model-c1

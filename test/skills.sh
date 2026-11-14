@@ -65,6 +65,12 @@ assert test -f "$root/.agents/workflows/induct-exp.js"
 assert cmp "$root/skills/induct/workflows/induct-exp.js" "$root/.agents/workflows/induct-exp.js"
 assert test -f "$root/.claude/hooks.json"
 assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.claude/hooks.json"
+assert test -f "$root/.claude/settings.json"
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+mkdir -p "$root/.claude"
+printf '{"keepMe":true}\n' > "$root/.claude/settings.json"
+"$root/bin/bp3" skills install --harness=claude > /dev/null
+assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
 cp "$root/.pi/settings.json" "$work/settings.before"
 "$root/bin/bp3" skills install --harness=pi > /dev/null
 assert cmp "$work/settings.before" "$root/.pi/settings.json"
