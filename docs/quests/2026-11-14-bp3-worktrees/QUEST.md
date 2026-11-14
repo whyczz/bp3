@@ -1,5 +1,5 @@
 ---
-status: active
+status: landed
 home_repo: bp3
 date: 2026-11-14
 ---
@@ -200,6 +200,25 @@ ledger state (unlike exp create, which refuses
 `E_EXISTS`).
 
 ## Success picture
+
+### Landing record (2026-11-14, owner-landed)
+
+Both exps landed through `bp3 q` (rollup `landed`, inbox
+empty): exp-1-util-layer c1 (`2c8ad7f4`), exp-2-bookkeeping
+c2 (`fab11525`) after one blocked cycle and an owner
+resume. The parallel-prepare registry race found in
+review became a settled convention — one file per key,
+`.bp3/desks/<run_id>.json` — with its regression case in
+`test/worktree.sh` and the full suite green in
+`make check`. The landing sweep observed
+`bp3 worktree list` returning zero worktrees.
+
+Limitations, plainly: no workflow consumes the verbs
+yet — `induct-exp` still runs children in the shared
+tree. Conventions and adoption belong to the
+bp3-workflows-v2 quest (its Exp 4), which is the first
+real consumer; the toy-exp end-to-end picture below is
+therefore still a design trace, not an observed run.
 
 A toy exp driven end to end while `git branch
 --show-current` in the conductor's tree never changes;
