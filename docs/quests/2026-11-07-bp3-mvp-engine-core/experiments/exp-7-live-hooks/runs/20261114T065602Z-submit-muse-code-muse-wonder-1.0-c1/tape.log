@@ -12,3 +12,9 @@ A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/EXPER
 A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/LIVE.md
 A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
 A  docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+[quest/bp3-mvp-engine bb28a14] docs(exp-7): live hooks author record — delivery confirmed, host witness absent
+ 4 files changed, 165 insertions(+)
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/EXPERIMENT.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/LIVE.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
