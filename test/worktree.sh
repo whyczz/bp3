@@ -174,6 +174,26 @@ echo "$out" | jq -e --arg s "$SHA" '.ok == true and .ref == $s and .detached == 
 out=$(wt release RC)
 echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "release positional Run ID: $out"
 
+# parallel detached prepares keep every record (one file per Run ID)
+for i in 1 2 3 4 5; do
+  ( wt prepare demo exp-a --run "P$i" --commit "$SHA" > "$work/par-P$i.json" ) &
+done
+wait
+for i in 1 2 3 4 5; do
+  jq -e '.ok == true' "$work/par-P$i.json" >/dev/null || fail "parallel prepare P$i: $(cat "$work/par-P$i.json")"
+  [ -f ".bp3/desks/P$i.json" ] || fail "parallel prepare P$i left no desk file"
+  out=$(wt check --run "P$i")
+  echo "$out" | jq -e '.ok == true and .dirty == false' >/dev/null || fail "parallel check P$i: $out"
+done
+[ ! -e ".bp3/worktree-registry.json" ] || fail "shared registry file still written"
+out=$(wt list)
+echo "$out" | jq -e '[.worktrees[] | select(.run_id | startswith("P"))] | length == 5' >/dev/null || fail "parallel list: $out"
+for i in 1 2 3 4 5; do
+  out=$(wt release --run "P$i")
+  echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "parallel release P$i: $out"
+  [ ! -e ".bp3/desks/P$i.json" ] || fail "parallel release P$i left a desk file"
+done
+
 # list shows every record plus orphans flagged; --quest filters
 out=$(wt prepare demo exp-a --run RL)
 echo "$out" | jq -e '.ok == true' >/dev/null || fail "prepare RL: $out"

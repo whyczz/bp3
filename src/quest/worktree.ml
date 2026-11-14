@@ -167,63 +167,86 @@ let do_remove path force =
          "git worktree remove failed; inspect the worktree and retry." 1);
   `Assoc [("ok", `Bool true); ("path", json_str path); ("removed", `Bool true)]
 
-(* ---------- bookkeeping: registry keyed by run_id ---------- *)
-(* One record per Run: the creation facts that cannot be
-   derived (above all the actual path when --path overrides
-   the derivation). Dirty and stale are never stored; they
-   are recomputed live by check/list. Release deletes the
-   record — no tombstone. The registry is machine-local
-   furniture under .bp3/, never ledger state. *)
+(* ---------- bookkeeping: one file per run_id ---------- *)
+(* One record per Run, stored as one file per key at
+   .bp3/desks/<run_id>.json: the creation facts that cannot
+   be derived (above all the actual path when --path
+   overrides the derivation). Created exclusively and
+   published by hard link, so parallel writers for distinct
+   Run IDs never rewrite each other's records. Dirty and
+   stale are never stored; they are recomputed live by
+   check/list. Release deletes the file — no tombstone.
+   The desks are machine-local furniture under .bp3/,
+   never ledger state. *)
 type record = {
   r_run : string; r_quest : string; r_exp : string;
   r_path : string; r_ref : string; r_detached : bool;
   r_created : int;
 }
 
-let registry_file = Filename.concat root ".bp3/worktree-registry.json"
+let desks_dir = Filename.concat root ".bp3/desks"
+let desk_file run_id = Filename.concat desks_dir (run_id ^ ".json")
 
-let load_registry () =
-  if not (Sys.file_exists registry_file) then []
+let record_of_json j =
+  match Store.get_opt j "run_id" with
+  | None -> None
+  | Some run ->
+      Some { r_run = run;
+             r_quest = Store.get_str j "quest" "";
+             r_exp = Store.get_str j "exp" "";
+             r_path = Store.get_str j "path" "";
+             r_ref = Store.get_str j "ref" "";
+             r_detached = (match Yojson.Safe.Util.member "detached" j
+                           with `Bool b -> b | _ -> false);
+             r_created = Store.get_int j "created_ts" 0 }
+
+let load_record run_id =
+  if not (valid_run_id run_id) then None
+  else
+    let file = desk_file run_id in
+    if not (Sys.file_exists file) then None
+    else
+      try record_of_json (Yojson.Safe.from_string (read_file_or file ""))
+      with _ -> None
+
+let load_records () =
+  if not (Sys.file_exists desks_dir) then []
   else
     try
-      (match Yojson.Safe.from_string (read_file_or registry_file "") with
-       | `Assoc fs ->
-           (match List.assoc_opt "worktrees" fs with
-            | Some (`List xs) ->
-                List.filter_map (fun j ->
-                  match Store.get_opt j "run_id" with
-                  | None -> None
-                  | Some run ->
-                      Some { r_run = run;
-                             r_quest = Store.get_str j "quest" "";
-                             r_exp = Store.get_str j "exp" "";
-                             r_path = Store.get_str j "path" "";
-                             r_ref = Store.get_str j "ref" "";
-                             r_detached = (match Yojson.Safe.Util.member "detached" j
-                                           with `Bool b -> b | _ -> false);
-                             r_created = Store.get_int j "created_ts" 0 }) xs
-            | _ -> [])
-       | _ -> [])
+      Sys.readdir desks_dir |> Array.to_list
+      |> List.filter (fun name ->
+           let n = String.length name in
+           n > 5 && String.sub name (n - 5) 5 = ".json")
+      |> List.filter_map (fun name ->
+           load_record (String.sub name 0 (String.length name - 5)))
+      |> List.sort (fun a b -> String.compare a.r_run b.r_run)
     with _ -> []
 
-let save_registry records =
-  mkdir_p (Filename.dirname registry_file);
-  let json = `Assoc [("worktrees", `List (List.map (fun r ->
-    `Assoc [("run_id", json_str r.r_run); ("quest", json_str r.r_quest);
-            ("exp", json_str r.r_exp); ("path", json_str r.r_path);
-            ("ref", json_str r.r_ref); ("detached", `Bool r.r_detached);
-            ("created_ts", `Int r.r_created)]) records))] in
-  let tmp = registry_file ^ ".tmp" in
+(* Publish one record exclusively: write a per-process temp
+   file in the same directory, then hard-link it to the
+   final name. The link fails if the key already exists, so
+   no writer ever clobbers another Run's record. *)
+let save_record r =
+  mkdir_p desks_dir;
+  let final = desk_file r.r_run in
+  let tmp = Filename.concat desks_dir
+      (Printf.sprintf ".%s.%d.tmp" r.r_run (Unix.getpid ())) in
+  let json = `Assoc [("run_id", json_str r.r_run);
+                     ("quest", json_str r.r_quest);
+                     ("exp", json_str r.r_exp);
+                     ("path", json_str r.r_path);
+                     ("ref", json_str r.r_ref);
+                     ("detached", `Bool r.r_detached);
+                     ("created_ts", `Int r.r_created)] in
   let oc = open_out_bin tmp in
   output_string oc (Yojson.Safe.to_string json);
   close_out oc;
-  Unix.rename tmp registry_file
+  try Unix.link tmp final; Unix.unlink tmp; true
+  with Unix.Unix_error (Unix.EEXIST, _, _) ->
+    (try Unix.unlink tmp with _ -> ()); false
 
-let find_record records run_id =
-  List.find_opt (fun r -> r.r_run = run_id) records
-
-let drop_record records run_id =
-  List.filter (fun r -> r.r_run <> run_id) records
+let delete_record run_id =
+  try Unix.unlink (desk_file run_id) with _ -> ()
 
 let now_s () = int_of_float (Unix.time ())
 let stale_s r = max 0 (now_s () - r.r_created)
@@ -255,8 +278,7 @@ let prepare_verdict r existing =
 
 let do_prepare quest exp run_id commit path_override =
   let default_path = derive_path quest exp run_id in
-  let records = load_registry () in
-  match find_record records run_id with
+  match load_record run_id with
   | Some r ->
       if Sys.file_exists (abs_path r.r_path) then prepare_verdict r true
       else begin
@@ -275,12 +297,13 @@ let do_prepare quest exp run_id commit path_override =
       let r = { r_run = run_id; r_quest = quest; r_exp = exp; r_path = path;
                 r_ref = i.iref; r_detached = i.idetached;
                 r_created = now_s () } in
-      save_registry (records @ [r]);
-      prepare_verdict r false
+      if save_record r then prepare_verdict r false
+      else (match load_record run_id with
+            | Some existing -> prepare_verdict existing true
+            | None -> prepare_verdict r false)
 
 let do_check run_id =
-  let records = load_registry () in
-  let r = match find_record records run_id with
+  let r = match load_record run_id with
     | Some r -> r | None -> not_found "run" run_id in
   if not (Sys.file_exists (abs_path r.r_path)) then
     err "E_NOT_FOUND"
@@ -295,28 +318,26 @@ let do_check run_id =
            ("stale_s", `Int (stale_s r))])
 
 let release_record r force =
-  let records = load_registry () in
   if Sys.file_exists (abs_path r.r_path) then begin
     let _ = do_remove r.r_path force in
-    save_registry (drop_record records r.r_run);
+    delete_record r.r_run;
     `Assoc ([("ok", `Bool true); ("released", `Bool true);
              ("removed", `Bool true)] @ record_json r)
   end else begin
-    save_registry (drop_record records r.r_run);
+    delete_record r.r_run;
     `Assoc ([("ok", `Bool true); ("released", `Bool true);
              ("removed", `Bool false); ("missing", `Bool true)]
             @ record_json r)
   end
 
 let do_release run_id force =
-  let records = load_registry () in
-  let r = match find_record records run_id with
+  let r = match load_record run_id with
     | Some r -> r | None -> not_found "run" run_id in
   release_record r force
 
 let do_exit force =
   let cwd = canon (Sys.getcwd ()) in
-  let records = load_registry () in
+  let records = load_records () in
   let inside r =
     let p = canon (abs_path r.r_path) in
     cwd = p || (String.length cwd > String.length p
@@ -360,7 +381,7 @@ let orphan_entry abs =
   | _ -> None
 
 let do_list quest_filter =
-  let records = load_registry () in
+  let records = load_records () in
   let shown_records = List.filter
     (fun r -> match quest_filter with None -> true | Some q -> r.r_quest = q)
     records in
