@@ -330,6 +330,9 @@ let is_verb = function "c" | "create" | "r" | "read" | "u" | "update" | "d" | "d
 let run argv =
   let id = identity () in
   match argv with
+  | "hooks" :: _ ->
+      (* fail-open emitter: Hooks.handle never raises, always exit 0 *)
+      print_endline (Yojson.Safe.to_string (Hooks.handle ())); 0
   | [] -> usage "no command"
   | first :: rest when is_verb first ->
       let verb = normalize_verb first in

@@ -93,6 +93,25 @@ skills_install() {
     cp "$workflow_src" "$workflow_dest"
     echo "installed induct-exp -> .agents/workflows/induct-exp.js"
   fi
+  # Muse hook registration: one fail-open emitter command for
+  # every event. Repos without this file never fire hooks.
+  mkdir -p "$root/.claude"
+  cat > "$root/.claude/hooks.json" <<'HOOKS_JSON'
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostLLMCall": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SubagentStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}]
+  }
+}
+HOOKS_JSON
+  echo "installed hooks -> .claude/hooks.json"
   # Note: codex and muse share .agents/skills; under --harness=all the muse
   # render (same dir) is written last. Invocation text differs only in the
   # trigger line; both harnesses accept the skill by name.
