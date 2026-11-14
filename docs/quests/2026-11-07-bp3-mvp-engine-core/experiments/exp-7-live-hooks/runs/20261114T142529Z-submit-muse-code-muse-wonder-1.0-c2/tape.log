@@ -99,3 +99,12 @@ docs(exp-7): live hooks author record — delivery confirmed, host witness absen
 ?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-check-muse-code-muse-wonder-1.0-c1/
 ?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-review-muse-code-muse-wonder-1.0-c1/
 ?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T142529Z-submit-muse-code-muse-wonder-1.0-c2/
+[quest/bp3-mvp-engine a09109c] docs(exp-7): live hooks cycle 2 author record — run_started witnessed live
+ 3 files changed, 172 insertions(+)
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T142529Z-submit-muse-code-muse-wonder-1.0-c2/notes.md
+ create mode 100644 docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T142529Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+a09109c3fd35d2e5d01881540f46164c26385d11
+ M docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T142529Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-check-muse-code-muse-wonder-1.0-c1/
+?? docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-review-muse-code-muse-wonder-1.0-c1/
+{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{},"guidance":"Worktree is dirty; clean it and retry."}}
