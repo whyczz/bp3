@@ -1,5 +1,5 @@
 ---
-status: active
+status: landed
 home_repo: bp3
 date: 2026-11-07
 ---
@@ -199,6 +199,31 @@ through `bp3 q <quest> u <exp>`. First slice landed as
 `bp3 invoke` (rename owed in one change:
 binary, tests, docs, skills) with the `default` quest_type
 (one review round) and fixture tests in `test/invoke.sh`.
+
+### Landing record (2026-11-14, owner-promoted)
+
+All six exps landed through `bp3 q` (rollup `landed`, inbox
+empty): exp-2 CLI scaffold, exp-3 FSM, exp-4 tape/hooks
+(design), exp-5 Muse engine, exp-6 hooks emitter, exp-7 live
+hooks evidence. Diligence gate (red-ink-quest-landing-demo)
+passed on re-run after option A closed the live-evidence gap.
+
+Measured: exp-7 cycle-2 Runs recorded `usage_recorded` in
+their own ledgers — input tokens 6,855,377 / 1,580,906 /
+536,551 / 426,108 per Run (submit/review/check/land), wall
+80s for the submit Run; tape + hook facts are committed on
+exp branches. Human-active minutes: unmeasured, never zeroed
+(one `resume` decision on exp-6, one on exp-7, plus gates).
+
+Limitations, stated plainly: Claude Code-side hook firing is
+fixture-asserted only (no Claude Code harness driven here);
+`--format table` is still key:value lines; no OCaml unit
+tests under the shell fixtures. The last two are frozen with
+triggers in `docs/icebox/2026-11-14-bp3-cli-small-fixes.md`
+and `docs/icebox/2026-11-14-bp3-ocaml-unit-tests.md`.
+Operational lesson recorded in Exp 7: Muse loads hooks
+at session start — hook-dependent workflows must launch from
+a process started after `.muse/hooks.json` exists.
 
 ## Scope
 
