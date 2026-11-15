@@ -16,7 +16,10 @@
    field on the InitRecord) plus a disposable .json cache
    per Run. Since mvp.5 it is also the sole reader: the
    session-keyed shared maps and legacy per-Run event
-   files are no longer imported on any path. *)
+   files are no longer imported on any path. Since mvp.8
+   the InitRecord has a named writer: record-init, called
+   by the induct workflow launcher before it spawns each
+   workflow child (the child never writes its own proof). *)
 open Gitx
 open Store
 
@@ -1237,6 +1240,118 @@ let do_watch args =
     end in
   loop ()
 
+(* ---------- record-init (mvp.8: the InitRecord writer) ---------- *)
+(* The induct workflow launcher is the named writer: it is
+   the only actor present before a workflow child exists, so
+   it calls this verb before spawning the child. The child
+   never writes its own proof. Create-only: an existing
+   derivation log for the run-id is E_EXISTS, never an
+   overwrite or a second init row. *)
+type ri_flags = {
+  mutable ri_run : string option; mutable ri_harness : string option;
+  mutable ri_session : string option; mutable ri_pid : int option;
+  mutable ri_tape : string option; mutable ri_quest : string option;
+  mutable ri_exp : string option; mutable ri_desk : string option;
+  mutable ri_model : string option;
+}
+
+let parse_ri_flags args =
+  let fl = { ri_run = None; ri_harness = None; ri_session = None;
+             ri_pid = None; ri_tape = None; ri_quest = None;
+             ri_exp = None; ri_desk = None; ri_model = None } in
+  let rec loop = function
+    | [] -> fl
+    | "--run-id" :: v :: rest ->
+        if fl.ri_run <> None then usage "duplicate flag --run-id";
+        fl.ri_run <- Some v; loop rest
+    | "--harness" :: v :: rest ->
+        if fl.ri_harness <> None then usage "duplicate flag --harness";
+        fl.ri_harness <- Some v; loop rest
+    | "--session-id" :: v :: rest ->
+        if fl.ri_session <> None then usage "duplicate flag --session-id";
+        fl.ri_session <- Some v; loop rest
+    | "--pid" :: v :: rest ->
+        if fl.ri_pid <> None then usage "duplicate flag --pid";
+        fl.ri_pid <- Some (positive_seconds "--pid" v); loop rest
+    | "--tape-path" :: v :: rest ->
+        if fl.ri_tape <> None then usage "duplicate flag --tape-path";
+        fl.ri_tape <- Some v; loop rest
+    | "--quest" :: v :: rest ->
+        if fl.ri_quest <> None then usage "duplicate flag --quest";
+        fl.ri_quest <- Some v; loop rest
+    | "--exp" :: v :: rest ->
+        if fl.ri_exp <> None then usage "duplicate flag --exp";
+        fl.ri_exp <- Some v; loop rest
+    | "--desk" :: v :: rest ->
+        if fl.ri_desk <> None then usage "duplicate flag --desk";
+        fl.ri_desk <- Some v; loop rest
+    | "--model" :: v :: rest ->
+        if fl.ri_model <> None then usage "duplicate flag --model";
+        fl.ri_model <- Some v; loop rest
+    | ["--run-id"] | ["--harness"] | ["--session-id"] | ["--pid"]
+    | ["--tape-path"] | ["--quest"] | ["--exp"] | ["--desk"] | ["--model"] ->
+        usage "flag needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray) in
+  loop args
+
+let do_record_init args =
+  let fl = parse_ri_flags args in
+  let run_id = match fl.ri_run with
+    | Some r when r <> "" -> r
+    | _ -> usage "record-init needs --run-id <id>" in
+  if contains_sub run_id "/" || contains_sub run_id ".."
+     || contains_sub run_id " " then
+    usage ("invalid run-id: " ^ run_id);
+  let harness = match fl.ri_harness with
+    | Some h when h = "muse-code" || h = "pi" -> h
+    | Some h -> usage ("--harness must be muse-code or pi, got: " ^ h)
+    | None -> usage "record-init needs --harness muse-code|pi" in
+  (match derivations_dir () with
+   | None ->
+       err "E_NOT_FOUND" (`Assoc [("run_id", json_str run_id)])
+         "No derivation store (not a git repo?); no InitRecord written." 1
+   | Some dir ->
+       let path = Filename.concat dir (run_id ^ ".jsonl") in
+       if Sys.file_exists path then
+         err "E_EXISTS" (`Assoc [("run_id", json_str run_id);
+                                 ("path", json_str path)])
+           "An InitRecord already exists for that run-id; refusing to overwrite." 1;
+       ensure_dir dir;
+       let opt_fields = List.filter_map (fun x -> x) [
+         (match fl.ri_session with Some s -> Some ("session_id", json_str s) | None -> None);
+         (match fl.ri_pid with Some p -> Some ("pid", `Int p) | None -> None);
+         (match fl.ri_tape with Some s -> Some ("tape_path", json_str s) | None -> None);
+         (match fl.ri_quest with Some s -> Some ("quest", json_str s) | None -> None);
+         (match fl.ri_exp with Some s -> Some ("exp", json_str s) | None -> None);
+         (match fl.ri_desk with Some s -> Some ("desk", json_str s) | None -> None);
+         (match fl.ri_model with Some s -> Some ("model", json_str s) | None -> None);
+       ] in
+       let row = `Assoc ([
+         ("kind", json_str "init_record");
+         ("run_id", json_str run_id);
+         ("harness", json_str harness);
+         ("ts", json_str (now_ts ()));
+       ] @ opt_fields) in
+       let oc = open_out_gen [Open_append; Open_creat; Open_excl] 0o644 path in
+       output_string oc (Yojson.Safe.to_string row ^ "\n");
+       close_out oc;
+       print_endline (Yojson.Safe.to_string (`Assoc [
+         ("ok", `Bool true);
+         ("run_id", json_str run_id);
+         ("harness", json_str harness);
+         ("session_id", (match fl.ri_session with Some s -> json_str s | None -> `Null));
+         ("pid", (match fl.ri_pid with Some p -> `Int p | None -> `Null));
+         ("tape_path", (match fl.ri_tape with Some s -> json_str s | None -> `Null));
+         ("quest", (match fl.ri_quest with Some s -> json_str s | None -> `Null));
+         ("exp", (match fl.ri_exp with Some s -> json_str s | None -> `Null));
+         ("path", json_str path);
+       ]));
+       0)
+
 (* ---------- help (docstrings beside dispatch) ---------- *)
 let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]   passive loop: tell -> watch -> judge -> finalize\n\
@@ -1244,7 +1359,8 @@ let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]   InitRecord-first run-id -> tape; --session-id <id> is a reverse lookup\n\
   bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]   blocking watch: sole TERM/KILL owner\n\
   bp3 harness desk <verb> ...                      machine-local desks: derive, create, inspect, remove, prepare, check, exit, release, list\n\
-Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
+  bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>]   launcher writes the InitRecord before the child starts (create-only)\n\
+Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
 
 let help_supervisor = "bp3 harness supervisor - passive supervisor loop for one quest:\n\
   bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]\n\
@@ -1285,6 +1401,11 @@ let help_desk = "bp3 harness desk - machine-local desks, never ledgered (same Wo
   bp3 harness desk list [--quest <quest>]\n\
 Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
 
+let help_record_init = "bp3 harness record-init - write one Run's InitRecord (the launcher's verb; the child never writes its own proof):\n\
+  bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>]\n\
+  Appends the first derivation row (kind init_record) to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl before the child starts, so find-tape/watch/supervisor resolve the Run from birth. Create-only: an existing log for the run-id is E_EXISTS; a bad run-id, engine, or pid is E_USAGE. Emits {ok, run_id, harness, session_id, pid, tape_path, quest, exp, path}.\n\
+Example: bp3 harness record-init --run-id 20261115T000000Z-submit-muse-code-model-c1 --harness muse-code --quest toy --exp exp-1\n"
+
 let is_help = function "-h" | "--help" -> true | _ -> false
 
 let normalize_verb = function
@@ -1293,10 +1414,11 @@ let normalize_verb = function
   | "f" | "find-tape" -> "find-tape"
   | "w" | "watch" -> "watch"
   | "d" | "desk" -> "desk"
+  | "r" | "record-init" -> "record-init"
   | other -> other
 
 let run = function
-  | [] -> usage "harness needs a verb: supervisor, init-check, find-tape, watch, or desk"
+  | [] -> usage "harness needs a verb: supervisor, init-check, find-tape, watch, desk, or record-init"
   | [h] when is_help h -> print_string help_harness; 0
   | verb :: (h :: _) when is_help h ->
       print_string (match normalize_verb verb with
@@ -1305,6 +1427,7 @@ let run = function
         | "find-tape" -> help_find_tape
         | "watch" -> help_watch
         | "desk" -> help_desk
+        | "record-init" -> help_record_init
         | _ -> help_harness); 0
   | verb_raw :: rest ->
       (match normalize_verb verb_raw with
@@ -1315,6 +1438,7 @@ let run = function
        | "init-check" -> do_init_check rest
        | "find-tape" -> do_find_tape rest
        | "watch" -> do_watch rest
+       | "record-init" -> do_record_init rest
        | "desk" ->
            (match rest with
             | [] -> usage "desk needs a verb: derive, create, inspect, remove, prepare, check, exit, release, or list"

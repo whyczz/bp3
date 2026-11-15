@@ -41,13 +41,24 @@ function deferredRow(name) {
 
 // reads: state replies in order; audit replies with auditRows;
 // review/check reply as cast verdicts. Records stage inputs.
-function mockHost({ reads, auditRows }) {
+function mockHost({ reads, auditRows, initFails }) {
   let readIdx = 0;
   const inputs = {};
   const order = [];
+  const inits = [];
   const host = {
     args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: COMMIT },
     async agent({ label, input }) {
+      if (input.includes("harness record-init")) {
+        order.push("init");
+        inputs.init = input;
+        const m = input.match(/--run-id (\S+)/);
+        inits.push(m ? m[1] : "");
+        if (initFails) {
+          return JSON.stringify({ ok: false, error: { code: "E_EXISTS" } });
+        }
+        return JSON.stringify({ ok: true, run_id: m ? m[1] : "", harness: "muse-code" });
+      }
       if (input.startsWith("Run exactly")) {
         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
       }
@@ -65,7 +76,7 @@ function mockHost({ reads, auditRows }) {
       return out;
     },
   };
-  return { host, inputs, order };
+  return { host, inputs, order, inits };
 }
 
 const submitted = { state: "submitted", cycle: 1, commit: COMMIT, legal_edges: ["review", "check"] };
@@ -73,7 +84,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
 
 // --- grade a submitted exp: outcome + typed matrix, bindings ---
 {
-  const { host, inputs, order } = mockHost({
+  const { host, inputs, order, inits } = mockHost({
     reads: [submitted, approved],
     auditRows: [passRow("acceptance: a"), passRow("adherence: tape present")],
   });
@@ -81,7 +92,9 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   assert(result.outcome === "approved", "all-pass grade approves, got " + result.outcome);
   assert(Array.isArray(result.matrix) && result.matrix.length === 2, "matrix has both rows");
   assert(result.matrix.every((r) => r.verdict === "pass"), "all rows pass");
-  assert(order.join(",") === "audit,review,check", "audit first, then review+check, got " + order.join(","));
+  assert(order.join(",") === "init,audit,init,init,review,check", "writer precedes each grade child, got " + order.join(","));
+  assert(inits.join(",") === [TS + "-audit-muse-code-test-model-c1", TS + "-review-muse-code-test-model-c1", TS + "-check-muse-code-test-model-c1"].join(","),
+    "InitRecords name every grade run-id, got " + inits.join(","));
   for (const edge of ["audit", "review", "check"]) {
     const input = inputs[edge];
     assert(input, edge + " child was spawned");
@@ -357,6 +370,15 @@ function rungRow(name, rung, verdict, quote) {
   const result = await workflow(host);
   assert(result.matrix[0].rung === null, "unknown rung coerced to null");
   assert(result.matrix[0].verdict === "pass", "row still judged on its typed evidence");
+}
+
+// --- writer refused: no grade child starts (mvp.8) ---
+{
+  const { host, order } = mockHost({ reads: [submitted, approved], auditRows: [passRow("acceptance: a")], initFails: true });
+  const result = await workflow(host);
+  assert(result.outcome === "refused", "writer refusal refuses the grade, got " + result.outcome);
+  assert(order.join(",") === "init", "no grade child spawns after a refused InitRecord, got " + order.join(","));
+  assert(result.refusals.some((r) => r.includes("record-init")), "refusal names record-init");
 }
 
 if (failures > 0) process.exit(1);

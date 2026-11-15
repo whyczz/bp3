@@ -8,7 +8,10 @@
 // adherence rows, no edges), then
 // review and check children run in parallel on the exact bound
 // commit and call their verdict edges directly. Grade children
-// never edit the work. Returns {outcome, matrix, run_ids,
+// never edit the work. As the named InitRecord writer (mvp.8)
+// this launcher records each child's InitRecord via
+// `bp3 harness record-init` before that child spawns; no child
+// writes its own proof. Returns {outcome, matrix, run_ids,
 // refusals}; replay on the same commit is safe: the audit is
 // read-only and re-cast verdicts bind the same commit.
 // Args are supplied by the calling induct skill as
@@ -279,6 +282,43 @@ export default async function workflow(host) {
     );
   }
 
+  function runIdOf(edge, cycle) {
+    return ts + "-" + edge + "-" + harness + "-" + model +
+      "-c" + String(cycle);
+  }
+
+  // The named InitRecord writer (mvp.8): this launcher, before
+  // each child spawns. The child never writes its own proof; a
+  // refused write means that child never starts.
+  async function recordInit(edge, cycle) {
+    const cmd =
+      envPreset(edge, cycle) + "./bin/bp3 harness record-init" +
+      " --run-id " + runIdOf(edge, cycle) +
+      " --harness " + harness + " --quest " + quest +
+      " --exp " + exp + " --model " + model +
+      (desk ? " --desk " + desk : "");
+    const result = await host.agent({
+      label: "init " + exp,
+      input:
+        "Run exactly `" + cmd + "` from the quest worktree if " +
+        "one is named below, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const v = parseVerdict(result);
+    if (!v || v.ok !== true) {
+      refusals.push(
+        "record-init refused before the " + edge + " child: " +
+        errorText(result)
+      );
+      return false;
+    }
+    return true;
+  }
+
   function tapePreamble(edge, cycle) {
     const folder = runFolder(edge, cycle, harness + "-" + model);
     return (
@@ -316,6 +356,10 @@ export default async function workflow(host) {
     refusals.push(
       "E_COMMIT_MISMATCH commit " + commit + " does not bind bound commit " + bound
     );
+    return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+  }
+
+  if (!(await recordInit("audit", before.cycle))) {
     return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
   }
 
@@ -433,6 +477,10 @@ export default async function workflow(host) {
     "return a verdict for the parent to relay. Reply with " +
     "only a JSON object {ok, run_id, commit, verdict} where " +
     "verdict is the JSON printed by the check call.";
+  if (!(await recordInit("review", before.cycle)) ||
+      !(await recordInit("check", before.cycle))) {
+    return { exp: exp, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
+  }
   const stageResults = await host.parallel([
     { label: "review " + exp, input: reviewPrompt },
     { label: "check " + exp, input: checkPrompt },

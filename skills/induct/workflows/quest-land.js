@@ -5,7 +5,10 @@
 // returns what the re-read reports. Any other state belongs to
 // a different step; this file refuses it untouched. The land
 // child calls `bp3 q u` directly; this script never writes
-// state.
+// state. Its one write is proof, not state: as the named
+// InitRecord writer (mvp.8) it records the child's InitRecord
+// via `bp3 harness record-init` before the child spawns; the
+// child never writes its own proof.
 // Args are supplied by the calling induct skill as {quest, exp,
 // ts, harness, model}; ts is a UTC compact timestamp from the
 // caller, embedded by the child in its run-id because scripts
@@ -130,6 +133,43 @@ export default async function workflow(host) {
     );
   }
 
+  function runIdOf(edge, cycle) {
+    return ts + "-" + edge + "-" + harness + "-" + model +
+      "-c" + String(cycle);
+  }
+
+  // The named InitRecord writer (mvp.8): this launcher, before
+  // the child spawns. The child never writes its own proof; a
+  // refused write means the child never starts.
+  async function recordInit(edge, cycle) {
+    const cmd =
+      envPreset(edge, cycle) + "./bin/bp3 harness record-init" +
+      " --run-id " + runIdOf(edge, cycle) +
+      " --harness " + harness + " --quest " + quest +
+      " --exp " + exp + " --model " + model +
+      (desk ? " --desk " + desk : "");
+    const result = await host.agent({
+      label: "init " + exp,
+      input:
+        "Run exactly `" + cmd + "` from the quest worktree if " +
+        "one is named below, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const v = parseVerdict(result);
+    if (!v || v.ok !== true) {
+      refusals.push(
+        "record-init refused before the " + edge + " child: " +
+        errorText(result)
+      );
+      return false;
+    }
+    return true;
+  }
+
   function tapePreamble(edge, cycle) {
     const folder = runFolder(edge, cycle, harness + "-" + model);
     return (
@@ -163,6 +203,10 @@ export default async function workflow(host) {
     refusals.push(
       "expected approved, got " + before.state + "; another step owns that state"
     );
+    return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+  }
+
+  if (!(await recordInit("land", before.cycle))) {
     return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
   }
 

@@ -404,6 +404,52 @@ set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
 echo "$out" | tail -1 | jq -e '(.runs[] | select(.run_id == "R-cache") | .lifecycle == "finished")' >/dev/null || fail "mvp.4 stale cache trusted: $out"
 kill $LIVE 2>/dev/null || true
 
+# --- record-init (mvp.8): the launcher writes the InitRecord ---
+out=$(h record-init -h) || fail "record-init -h exit"
+echo "$out" | grep -q "record-init" || fail "record-init help: $out"
+echo "$out" | grep -q "E_EXISTS" || fail "record-init help codes: $out"
+out=$(h r -h) || fail "alias r -h exit"
+echo "$out" | grep -q "record-init" || fail "alias r help: $out"
+out=$(h -h) || fail "harness -h mvp.8 exit"
+echo "$out" | grep -q "record-init" || fail "harness help lists record-init: $out"
+if out=$(h record-init --harness muse-code 2>&1); then fail "record-init without run-id accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "record-init no-run code: $out"
+if out=$(h record-init --run-id R-x 2>&1); then fail "record-init without harness accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "record-init no-harness code: $out"
+if out=$(h record-init --run-id R-x --harness bogus 2>&1); then fail "record-init bogus harness accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "record-init bogus code: $out"
+if out=$(h record-init --run-id "a/b" --harness pi 2>&1); then fail "record-init slash run-id accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "record-init slash code: $out"
+if out=$(h record-init --run-id R-x --harness pi --pid 0 2>&1); then fail "record-init zero pid accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "record-init pid code: $out"
+if out=$(h record-init --run-id R-x --run-id R-x --harness pi 2>&1); then fail "record-init duplicate accepted"; fi
+if out=$(h record-init --run-id=R-x --harness pi 2>&1); then fail "record-init --flag=value accepted"; fi
+
+# born lookup-able: the record lands before any tape entry exists
+out=$(h record-init --run-id R-born --harness muse-code --quest toy --exp e1 --session-id S-born --model test-model) || fail "record-init born exit: $out"
+echo "$out" | jq -e '.ok == true and .run_id == "R-born" and .harness == "muse-code" and .session_id == "S-born"' >/dev/null || fail "record-init born verdict: $out"
+head -1 "$store/R-born.jsonl" | jq -e '.kind == "init_record" and .run_id == "R-born" and .harness == "muse-code" and (.ts | type == "string")' >/dev/null || fail "born init row: $(head -1 "$store/R-born.jsonl")"
+mkdir -p fixtures/muse-store/S-born
+printf '%s\n' '{"session_id":"S-born","id":"b1","content":"BP3_RUN_ID=R-born work"}' > fixtures/muse-store/S-born/session.jsonl
+[ ! fixtures/muse-store/S-born/session.jsonl -ot "$store/R-born.jsonl" ] || fail "tape predates its InitRecord"
+out=$(h find-tape --run-id R-born) || fail "find-tape born exit: $out"
+echo "$out" | jq -e --arg w "$work/repo/fixtures/muse-store/S-born/session.jsonl" '.ok == true and .run_id == "R-born" and .harness == "muse-code" and .session_id == "S-born" and .wal == $w' >/dev/null || fail "find-tape born: $out"
+set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
+echo "$out" | tail -1 | jq -e '(.runs[] | select(.run_id == "R-born"))' >/dev/null || fail "born run invisible to supervisor: $out"
+
+# create-only: a second write for the same run-id is refused, file intact
+born_hash=$(shasum -a 256 "$store/R-born.jsonl" | cut -d' ' -f1)
+if out=$(h record-init --run-id R-born --harness muse-code 2>&1); then fail "second InitRecord accepted"; fi
+echo "$out" | jq -e '.error.code == "E_EXISTS"' >/dev/null || fail "second InitRecord code: $out"
+[ "$(shasum -a 256 "$store/R-born.jsonl" | cut -d' ' -f1)" = "$born_hash" ] || fail "refused rewrite touched the InitRecord"
+
+# killed mid-spawn: record first, dead pid, stale tape -> orphaned, never invisible
+printf '%s\n' '{"type":"message","id":"k9","message":{"role":"user","content":"BP3_RUN_ID=R-killed work"}}' > fixtures/killed.log
+touch -t 202001010000 fixtures/killed.log
+out=$(h r --run-id R-killed --harness muse-code --quest toy --exp e1 --pid 999999 --tape-path "$work/repo/fixtures/killed.log") || fail "record-init killed exit: $out"
+set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
+echo "$out" | tail -1 | jq -e '(.runs[] | select(.run_id == "R-killed") | .lifecycle == "orphaned")' >/dev/null || fail "killed run not orphaned: $out"
+
 # --- naming gate: retired spellings stay out of the new code ---
 retired="Spawn""Record|spawn""ed|run""ning"
 if grep -E "$retired" "$root/src/quest/harness.ml" >/dev/null; then fail "retired lifecycle spelling in harness.ml"; fi

@@ -1,6 +1,8 @@
 // Mock-host test for skills/induct/workflows/induct-exp.js.
 // Covers the exp Acceptance table for the slimmed build-only
-// step: only the author child spawns on a todo exp, the file
+// step: the launcher's record-init writer precedes the author
+// child on a todo exp (mvp.8; a refused write spawns nothing),
+// only the author child spawns on a todo exp, the file
 // carries no other stage's edge commands, a submitted exp is
 // refused with zero stage children (state untouched), and the
 // per-stage witnessed binding still holds for the author.
@@ -13,13 +15,24 @@ function assert(cond, msg) {
   if (!cond) { console.error("FAIL: " + msg); failures++; }
 }
 
-function mockHost({ reads }) {
+function mockHost({ reads, initFails }) {
   let readIdx = 0;
   const labels = [];
   const inputs = {};
+  const inits = [];
   const host = {
     args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model" },
     async agent({ label, input }) {
+      if (input.includes("harness record-init")) {
+        labels.push("init");
+        inputs.init = input;
+        const m = input.match(/--run-id (\S+)/);
+        inits.push(m ? m[1] : "");
+        if (initFails) {
+          return JSON.stringify({ ok: false, error: { code: "E_EXISTS" } });
+        }
+        return JSON.stringify({ ok: true, run_id: m ? m[1] : "", harness: "muse-code" });
+      }
       if (input.startsWith("Run exactly")) {
         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
       }
@@ -34,19 +47,25 @@ function mockHost({ reads }) {
       return out;
     },
   };
-  return { host, labels, inputs };
+  return { host, labels, inputs, inits };
 }
 
 const todo = { state: "todo", cycle: 1, commit: null, legal_edges: ["submit"] };
 const submitted = { state: "submitted", cycle: 1, commit: "abc1234", legal_edges: ["review", "check"] };
 
-// --- todo: only the author runs; outcome is submitted ---
+// --- todo: the writer records first, then only the author runs ---
 {
-  const { host, labels, inputs } = mockHost({ reads: [todo, submitted] });
+  const { host, labels, inputs, inits } = mockHost({ reads: [todo, submitted] });
   const result = await workflow(host);
   assert(result.outcome === "submitted", "todo build submits, got " + result.outcome);
   assert(result.commit === "abc1234", "commit comes from the re-read, got " + result.commit);
-  assert(labels.join(",") === "author", "only the author child spawns, got " + labels.join(","));
+  assert(labels.join(",") === "init,author", "writer precedes the author child, got " + labels.join(","));
+  assert(inits.join(",") === TS + "-submit-muse-code-test-model-c1",
+    "InitRecord names the author's run-id, got " + inits.join(","));
+  assert(inputs.init.includes("harness record-init --run-id " + TS + "-submit-muse-code-test-model-c1"),
+    "writer calls record-init for the author run-id");
+  assert(inputs.init.includes("--harness muse-code") && inputs.init.includes("--quest toy") && inputs.init.includes("--exp fx"),
+    "writer records harness, quest, and exp");
   const input = inputs.author;
   const want = "BP3_RUN_ID=" + TS + "-submit-muse-code-test-model-c1";
   assert(input.includes(want), "author command carries " + want);
@@ -83,7 +102,16 @@ for (const state of ["approved", "landed", "blocked"]) {
   const { host, labels } = mockHost({ reads: [todo, todo] });
   const result = await workflow(host);
   assert(result.outcome === "refused", "no-progress author is refused, got " + result.outcome);
-  assert(labels.join(",") === "author", "author ran exactly once, got " + labels.join(","));
+  assert(labels.join(",") === "init,author", "author ran exactly once, got " + labels.join(","));
+}
+
+// --- writer refused: the child never starts ---
+{
+  const { host, labels } = mockHost({ reads: [todo, todo], initFails: true });
+  const result = await workflow(host);
+  assert(result.outcome === "refused", "writer refusal refuses the step, got " + result.outcome);
+  assert(labels.join(",") === "init", "no author spawns after a refused InitRecord, got " + labels.join(","));
+  assert(result.refusals.some((r) => r.includes("record-init")), "refusal names record-init");
 }
 
 // --- missing args refuse without spawning anything ---
