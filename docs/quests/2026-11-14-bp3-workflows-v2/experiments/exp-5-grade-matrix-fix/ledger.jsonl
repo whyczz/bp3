@@ -4,3 +4,4 @@
 {"ts":"2026-11-15T00:31:26Z","edge":"submit","from":"todo","to":"submitted","cycle":1,"commit":"e0958fdfcdbde0d8caad775c70ac8a4139c3a2ae","verdict":null,"reason":"deferred disposition never gates; env-preset evidence from run registry; tests pass","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"usage_recorded","ts":"2026-11-15T00:31:29Z","run_id":"20261115T002805Z-submit-muse-code-muse-wonder-1.0-c1","input_tokens":29660760,"output_tokens":391050,"cached_tokens":28417272,"reasoning_tokens":256816,"wall_ms":121000,"started_ts":"2026-11-15T00:29:28Z","settled_ts":"2026-11-15T00:31:29Z"}
 {"event":"run_settled","ts":"2026-11-15T00:31:29Z","run_id":"20261115T002805Z-submit-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
+{"event":"run_started","ts":"2026-11-15T00:34:02Z","run_id":"20261115T003140Z-check-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"311d40d3-20bb-75c5-88b4-f2a0bd72007d"}
