@@ -105,6 +105,25 @@ echo "$tbl" | grep -q "demo" || fail "table missing quest"
 echo "$tbl" | grep -q "parser-fix2" || fail "table missing blocked exp"
 echo "$tbl" | grep -q "blocked" || fail "table missing blocked state"
 
+# rendered tables: header row, aligned columns, short commits, counts
+echo "$tbl" | sed -n 1p | grep -q "^quest demo \[proposed\] rollup: " || fail "quest table header: $tbl"
+echo "$tbl" | sed -n 2p | grep -Eq '^exp +state +cycle +commit +changes$' || fail "quest table columns: $tbl"
+echo "$tbl" | grep -Eq '^parser-fix +landed +1 +[0-9a-f]{7} +\+[0-9]+ u[0-9]+ -[0-9]+$' || fail "quest table landed row: $tbl"
+if echo "$tbl" | grep -q '="'; then fail "quest table dumps inline JSON: $tbl"; fi
+if echo "$tbl" | grep -q 'legal_edges'; then fail "quest table dumps raw fields: $tbl"; fi
+etbl=$(q demo r parser-fix --format table)
+echo "$etbl" | sed -n 1p | grep -Eq '^demo / parser-fix — landed, cycle 1, commit [0-9a-f]{7}, legal: ' || fail "exp table summary: $etbl"
+echo "$etbl" | sed -n 2p | grep -Eq '^change +path$' || fail "exp table columns: $etbl"
+echo "$etbl" | grep -Eq '^\+ +b\.txt$' || fail "exp table change row: $etbl"
+# null commit / unknown changes render as - / ?, never crash
+out=$(q demo c null-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "null-exp create: $out"
+ntbl=$(q demo r null-exp --format table)
+echo "$ntbl" | sed -n 1p | grep -q 'commit -, legal: submit, block, delete' || fail "null commit cell: $ntbl"
+echo "$ntbl" | grep -q '? changes unknown' || fail "unknown changes cell: $ntbl"
+qtbl_null=$(q r demo --format table)
+echo "$qtbl_null" | grep -Eq '^null-exp +todo +1 +- +\?$' || fail "quest table null row: $qtbl_null"
+
 # tree format: the human view (git-status alphabet: + todo, u in-flight, - deleted, blank landed)
 tree=$(q r demo --format tree)
 echo "$tree" | grep -q "^demo " || fail "tree missing quest root: $tree"

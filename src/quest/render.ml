@@ -181,12 +181,97 @@ let render_tree_exp fields =
   file_leaves_open "    " (g "changes");
   Printf.printf "    └── legal: %s\n" (if legal = "" then "none" else legal)
 
+(* ---------- table rendering ---------- *)
+(* Column model per flat shape: widths come from content, so a long
+   path widens the table instead of truncating. Plain ASCII, two
+   spaces between columns, last column unpadded. *)
+let pad_to w s =
+  let n = String.length s in
+  if n >= w then s else s ^ String.make (w - n) ' '
+
+let render_rows headers rows =
+  let widths = List.mapi (fun i h ->
+    List.fold_left (fun w row ->
+      match List.nth_opt row i with Some c -> max w (String.length c) | None -> w)
+      (String.length h) rows) headers in
+  let last = List.length headers - 1 in
+  let line cells =
+    String.concat "  " (List.mapi (fun i c ->
+      if i = last then c
+      else match List.nth_opt widths i with Some w -> pad_to w c | None -> c) cells) in
+  Printf.printf "%s\n" (line headers);
+  List.iter (fun row -> Printf.printf "%s\n" (line row)) rows
+
+(* Same counts word as the tree view: [+n um -d] without brackets. *)
+let change_counts = function
+  | `List xs ->
+      let cnt k = List.length (List.filter (fun item ->
+        match item with
+        | `Assoc fs ->
+            (match List.assoc_opt "change" fs with Some (`String x) -> x = k | _ -> false)
+        | _ -> false) xs) in
+      Printf.sprintf "+%d u%d -%d" (cnt "+") (cnt "u") (cnt "-")
+  | _ -> "?"
+
+let cell_str fs k =
+  match List.assoc_opt k fs with Some (`String x) -> x | _ -> "?"
+
+let cell_cycle fs =
+  match List.assoc_opt "cycle" fs with Some (`Int c) -> string_of_int c | _ -> "?"
+
+let cell_commit fs =
+  match List.assoc_opt "commit" fs with
+  | Some (`String c) -> short_commit (Some c)
+  | _ -> "-"
+
+let cell_changes fs =
+  change_counts (match List.assoc_opt "changes" fs with Some v -> v | None -> `Null)
+
+let render_table_quest fields =
+  let get k = List.assoc_opt k fields in
+  let str k = match get k with Some (`String s) -> s | _ -> "?" in
+  Printf.printf "quest %s [%s] rollup: %s\n" (str "quest") (str "state") (str "rollup");
+  let exps = match get "exps" with Some (`List xs) -> xs | _ -> [] in
+  let rows = List.filter_map (fun item ->
+    match item with
+    | `Assoc fs ->
+        Some [cell_str fs "exp"; cell_str fs "state"; cell_cycle fs;
+              cell_commit fs; cell_changes fs]
+    | _ -> None) exps in
+  render_rows ["exp"; "state"; "cycle"; "commit"; "changes"] rows
+
+let render_table_exp fields =
+  let g k = List.assoc_opt k fields in
+  let s k = match g k with Some (`String x) -> x | _ -> "?" in
+  let cycle = match g "cycle" with Some (`Int c) -> c | _ -> 0 in
+  let commit = match g "commit" with Some (`String c) -> Some c | _ -> None in
+  let legal = match g "legal_edges" with
+    | Some (`List xs) ->
+        String.concat ", " (List.map (function `String x -> x | o -> Yojson.Safe.to_string o) xs)
+    | _ -> "" in
+  Printf.printf "%s / %s — %s, cycle %d, commit %s, legal: %s\n"
+    (s "quest") (s "exp") (s "state") cycle (short_commit commit)
+    (if legal = "" then "none" else legal);
+  (match g "changes" with
+   | Some (`List xs) ->
+       let rows = List.filter_map (fun item ->
+         match item with
+         | `Assoc fs -> Some [cell_str fs "change"; cell_str fs "path"]
+         | _ -> None) xs in
+       render_rows ["change"; "path"] rows
+   | _ -> Printf.printf "? changes unknown\n")
+
 let print_verdict ~fmt v =
   match fmt, v with
   | "tree", `Assoc fields when List.mem_assoc "exps" fields ->
       render_tree fields
   | "tree", `Assoc fields when List.mem_assoc "exp" fields ->
       render_tree_exp fields
+  | "table", `Assoc fields when List.mem_assoc "exps" fields ->
+      render_table_quest fields
+  | "table", `Assoc fields when List.mem_assoc "exp" fields
+      && List.mem_assoc "changes" fields ->
+      render_table_exp fields
   | "table", `Assoc fields ->
       List.iter (fun (k, v) ->
         match v with
