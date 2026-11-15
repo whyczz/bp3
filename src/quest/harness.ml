@@ -6,7 +6,17 @@
    Watch is the sole TERM/KILL owner.
    The supervisor never signals a pid and never finalizes
    from a watch outcome: tick phases are tell -> watch ->
-   judge (fresh quest read) -> finalize. *)
+   judge (fresh quest read) -> finalize.
+   Since mvp.4 the supervisor is bp3's lifecycle mechanism
+   for muse-code: it is the sole writer of the per-Run
+   derivation logs under run-lifecycle-derivations (one
+   .jsonl per Run, keyed by run-id; session-id is only a
+   field on the InitRecord) plus a disposable .json cache
+   per Run. Legacy stores (the session-keyed registry
+   dicts and the bp3-run-events files) are read-only
+   imports, never write targets, never silently merged;
+   their sunset is mvp.5, which owns deleting the old
+   machinery once parity is proven. *)
 open Gitx
 open Store
 
@@ -62,13 +72,37 @@ let exit_of_outcome = function
   | "human_gate" -> 4
   | _ -> 1
 
-(* ---------- derivation store (read-only in this exp) ---------- *)
-let derivations_dir () =
+(* Mechanical tape signals only: a close marker, or an
+   assistant stop reason, closes a tape; a settle row is a
+   fact of its own and never a close by itself. *)
+let tape_signals text =
+  let closed =
+    contains_sub text "session_closed"
+    || (contains_sub text "stopReason" && contains_sub text "\"stop\"")
+    || (contains_sub text "stop_reason" && contains_sub text "\"stop\"") in
+  let settle = contains_sub text "run_settled" in
+  (closed, settle)
+
+(* ---------- derivation store (mvp.4: supervisor-written) ---------- *)
+(* Legacy witness stores are read-only imports until their
+   mvp.5 sunset: the supervisor never writes them. *)
+let legacy_sunset = "mvp.5"
+
+let git_common_dir () =
   let out, code = git_out ["rev-parse"; "--git-common-dir"] in
   if code <> 0 || out = "" then None
-  else
-    let dir = if Filename.is_relative out then Filename.concat root out else out in
-    Some (Filename.concat (Filename.concat dir "bp3") "run-lifecycle-derivations")
+  else Some (if Filename.is_relative out then Filename.concat root out else out)
+
+let derivations_dir () =
+  match git_common_dir () with
+  | None -> None
+  | Some dir ->
+      Some (Filename.concat (Filename.concat dir "bp3") "run-lifecycle-derivations")
+
+let ensure_dir dir =
+  let parent = Filename.dirname dir in
+  (try Unix.mkdir parent 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> () | _ -> ());
+  (try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> () | _ -> ())
 
 let pid_alive pid =
   let exists =
@@ -151,29 +185,273 @@ type run_view = {
   rv_warnings : string list;
 }
 
-let fold_runs ~quest ~silence_seconds =
+type run_fold = {
+  rf_view : run_view;
+  rf_rec : init_record;
+  rf_obs : observation option;
+  rf_jsonl : string;
+}
+
+(* ---------- derived-state cache (disposable) ---------- *)
+(* The .json beside each .jsonl is a cache, never truth:
+   it is used only while its input fingerprints (derivation
+   log size/mtime, tape size/mtime, live pid probe, freshness
+   under the caller's silence budget) still match. Deleting
+   it changes nothing except speed. *)
+let stat_fp path =
+  try let st = Unix.stat path in Some (st.Unix.st_size, int_of_float st.Unix.st_mtime)
+  with _ -> None
+
+let cache_path dir run_id = Filename.concat dir (run_id ^ ".json")
+
+let write_cache dir (rec_ : init_record) run_id lifecycle warns obs silence_seconds =
+  try
+    ensure_dir dir;
+    let (jsz, jmt) = match stat_fp (Filename.concat dir (run_id ^ ".jsonl")) with
+      | Some v -> v | None -> (0, 0) in
+    let (tsz, tmt) = match rec_.tape_path with
+      | Some tp -> (match stat_fp tp with Some v -> v | None -> (-1, -1))
+      | None -> (-1, -1) in
+    let j = `Assoc [
+      ("kind", json_str "derived_state");
+      ("run_id", json_str run_id);
+      ("harness", json_str rec_.harness);
+      ("session_id", (match rec_.session_id with Some s -> json_str s | None -> `Null));
+      ("pid", (match rec_.pid with Some p -> `Int p | None -> `Null));
+      ("tape_path", (match rec_.tape_path with Some s -> json_str s | None -> `Null));
+      ("quest", (match rec_.quest with Some s -> json_str s | None -> `Null));
+      ("exp", (match rec_.exp with Some s -> json_str s | None -> `Null));
+      ("lifecycle", (match lifecycle with Some l -> json_str l | None -> `Null));
+      ("warnings", `List (List.map json_str warns));
+      ("pid_alive", (match obs.pid_alive with Some b -> `Bool b | None -> `Null));
+      ("fresh", `Bool obs.fresh);
+      ("silence_seconds", `Int silence_seconds);
+      ("jsonl_size", `Int jsz); ("jsonl_mtime", `Int jmt);
+      ("tape_size", `Int tsz); ("tape_mtime", `Int tmt);
+    ] in
+    let path = cache_path dir run_id in
+    let tmp = path ^ ".tmp" ^ string_of_int (Unix.getpid ()) in
+    let oc = open_out_bin tmp in
+    output_string oc (Yojson.Safe.to_string j);
+    close_out oc;
+    Sys.rename tmp path
+  with _ -> ()
+
+let read_cache dir run_id silence_seconds =
+  try
+    let j = Yojson.Safe.from_string (read_file_or (cache_path dir run_id) "") in
+    if get_str j "kind" "" <> "derived_state" then None
+    else if get_str j "run_id" "" <> run_id then None
+    else if get_int j "silence_seconds" (-1) <> silence_seconds then None
+    else
+      let (jsz, jmt) = match stat_fp (Filename.concat dir (run_id ^ ".jsonl")) with
+        | Some v -> v | None -> (0, 0) in
+      if get_int j "jsonl_size" (-2) <> jsz || get_int j "jsonl_mtime" (-2) <> jmt then None
+      else
+        let tape_path = get_opt j "tape_path" in
+        let (tsz, tmt) = match tape_path with
+          | Some tp -> (match stat_fp tp with Some v -> v | None -> (-1, -1))
+          | None -> (-1, -1) in
+        if get_int j "tape_size" (-2) <> tsz || get_int j "tape_mtime" (-2) <> tmt then None
+        else
+          let pid = get_int_opt j "pid" in
+          let alive = match pid with Some p -> Some (pid_alive p) | None -> None in
+          let cached_alive = try match Yojson.Safe.Util.member "pid_alive" j with
+            | `Bool b -> Some b | _ -> None with _ -> None in
+          if alive <> cached_alive then None
+          else
+            let fresh = match tape_path with
+              | Some _ when tsz >= 0 ->
+                  Unix.time () -. float_of_int tmt <= float_of_int silence_seconds
+              | _ -> false in
+            if fresh <> get_bool j "fresh" then None
+            else
+              let rec_ : init_record = {
+                run_id; harness = get_str j "harness" "";
+                session_id = get_opt j "session_id"; pid;
+                tape_path; quest = get_opt j "quest"; exp = get_opt j "exp";
+              } in
+              let lifecycle = get_opt j "lifecycle" in
+              let warns = try match Yojson.Safe.Util.member "warnings" j with
+                | `List xs -> List.filter_map (function `String s -> Some s | _ -> None) xs
+                | _ -> [] with _ -> [] in
+              Some (rec_, lifecycle, warns)
+  with _ -> None
+
+let fold_all ~quest ~silence_seconds =
   match derivations_dir () with
-  | None -> ([], [])
+  | None -> []
   | Some dir ->
       let names = try Array.to_list (Sys.readdir dir) with _ -> [] in
-      let views = List.filter_map (fun n ->
+      List.filter_map (fun n ->
         if not (Filename.check_suffix n ".jsonl") then None
         else
           let path = Filename.concat dir n in
-          let (init, obs, warns) = fold_run_file ~silence_seconds path in
-          match init with
-          | None -> None
-          | Some rec_ ->
+          let file_id = Filename.remove_extension n in
+          match read_cache dir file_id silence_seconds with
+          | Some (rec_, lifecycle, warns) ->
               if rec_.quest <> None && rec_.quest <> Some quest then None
               else Some {
+                rf_view = { rv_id = file_id; rv_lifecycle = lifecycle;
+                            rv_harness = rec_.harness; rv_warnings = warns };
+                rf_rec = rec_; rf_obs = None; rf_jsonl = path;
+              }
+          | None ->
+              let (init, obs, warns) = fold_run_file ~silence_seconds path in
+              (match init with
+               | None -> None
+               | Some rec_ ->
+                   if rec_.quest <> None && rec_.quest <> Some quest then None
+                   else
+                     let run_id = if rec_.run_id <> "" then rec_.run_id else file_id in
+                     let lifecycle = derive_lifecycle init obs in
+                     write_cache dir rec_ run_id lifecycle warns obs silence_seconds;
+                     Some {
+                       rf_view = { rv_id = run_id; rv_lifecycle = lifecycle;
+                                   rv_harness = rec_.harness; rv_warnings = warns };
+                       rf_rec = { rec_ with run_id }; rf_obs = Some obs; rf_jsonl = path;
+                     })) names
+
+(* ---------- per-Run writer (supervisor-owned) ---------- *)
+let last_observed_lifecycle path =
+  let text = read_file_or path "" in
+  let last = ref None in
+  String.split_on_char '\n' text |> List.iter (fun ln ->
+    let ln = String.trim ln in
+    if ln <> "" then
+      try
+        let j = Yojson.Safe.from_string ln in
+        if get_str j "kind" "" = "observation" then
+          (match get_opt j "lifecycle" with Some _ as v -> last := v | None -> ())
+      with _ -> ());
+  !last
+
+(* One mechanical probe of a Run: live pid, tape stat, and
+   tape signals folded onto the prior observation. Rows carry
+   pointers only (tape path, pid probe), never tape content. *)
+let probe_observation ~silence_seconds (rec_ : init_record) prior =
+  let alive = match rec_.pid with Some p -> Some (pid_alive p) | None -> prior.pid_alive in
+  let exit_obs = prior.exit_observed
+    || (match rec_.pid with Some p -> not (pid_alive p) | None -> false) in
+  let (closed, settle) = match rec_.tape_path with
+    | Some tp -> tape_signals (read_file_or tp "") | None -> (false, false) in
+  let tape_seen = prior.tape_seen
+    || (match rec_.tape_path with Some tp -> Sys.file_exists tp | None -> false) in
+  let fresh = match rec_.tape_path with
+    | Some tp -> (match stat_fp tp with
+        | Some (_, mt) -> Unix.time () -. float_of_int mt <= float_of_int silence_seconds
+        | None -> prior.fresh)
+    | None -> prior.fresh in
+  let blind = match rec_.tape_path with
+    | Some tp -> not (Sys.file_exists tp) | None -> false in
+  let obs = { pid_alive = alive; exit_observed = exit_obs;
+              tape_closed = prior.tape_closed || closed;
+              settle_row = prior.settle_row || settle;
+              tape_seen; fresh } in
+  (obs, if blind then ["W_SUPERVISOR_BLIND"] else [])
+
+(* Append one observation row to the Run's own derivation
+   log, only when its derived lifecycle changed. Parallel
+   Runs write separate files; no shared file is touched. *)
+let append_observation dir (rf : run_fold) ~silence_seconds =
+  let run_id = rf.rf_view.rv_id in
+  if run_id = "" || contains_sub run_id "/" || contains_sub run_id ".." then ()
+  else
+    try
+      ensure_dir dir;
+      let prior = match rf.rf_obs with
+        | Some o -> o
+        | None -> let (_, o, _) = fold_run_file ~silence_seconds rf.rf_jsonl in o in
+      let (obs, blind_warns) = probe_observation ~silence_seconds rf.rf_rec prior in
+      let lifecycle = derive_lifecycle (Some rf.rf_rec) obs in
+      let lifecycle_s = match lifecycle with Some l -> l | None -> "" in
+      if last_observed_lifecycle rf.rf_jsonl = Some lifecycle_s then ()
+      else
+        let warns = List.fold_left
+          (fun acc x -> if List.mem x acc then acc else acc @ [x]) []
+          (rf.rf_view.rv_warnings @ blind_warns) in
+        let row = `Assoc [
+          ("kind", json_str "observation");
+          ("ts", json_str (now_ts ()));
+          ("run_id", json_str run_id);
+          ("lifecycle", json_str lifecycle_s);
+          ("pid_alive", (match obs.pid_alive with Some b -> `Bool b | None -> `Null));
+          ("exit_observed", `Bool obs.exit_observed);
+          ("tape_closed", `Bool obs.tape_closed);
+          ("settle_row", `Bool obs.settle_row);
+          ("tape_seen", `Bool obs.tape_seen);
+          ("tape_path", (match rf.rf_rec.tape_path with Some s -> json_str s | None -> `Null));
+          ("pid", (match rf.rf_rec.pid with Some p -> `Int p | None -> `Null));
+          ("warnings", `List (List.map json_str warns));
+        ] in
+        let oc = open_out_gen [Open_append; Open_creat] 0o644 rf.rf_jsonl in
+        output_string oc (Yojson.Safe.to_string row ^ "\n");
+        close_out oc
+    with _ -> ()
+
+(* ---------- legacy import (read-only, sunset mvp.5) ---------- *)
+let get_float_opt j key =
+  try match Yojson.Safe.Util.member key j with
+    | `Float x -> Some x | `Int n -> Some (float_of_int n) | _ -> None
+  with _ -> None
+
+(* Derived Runs win by run-id: a legacy row for a Run that
+   already has a derivation log is dropped, never merged.
+   Session-keyed dicts are re-keyed by their run_id field;
+   session-id itself is never a key here. *)
+let legacy_views ~quest ~silence_seconds ~derived_ids =
+  match git_common_dir () with
+  | None -> []
+  | Some base ->
+      let seen = ref derived_ids in
+      let out = ref [] in
+      let add v =
+        if not (List.mem v.rv_id !seen) then begin
+          seen := v.rv_id :: !seen; out := v :: !out
+        end in
+      let events_dir = Filename.concat base "bp3-run-events" in
+      let names = try Array.to_list (Sys.readdir events_dir) with _ -> [] in
+      List.iter (fun n ->
+        if Filename.check_suffix n ".jsonl" then
+          let path = Filename.concat events_dir n in
+          let (init, obs, warns) = fold_run_file ~silence_seconds path in
+          match init with
+          | None -> ()
+          | Some rec_ ->
+              if rec_.quest <> None && rec_.quest <> Some quest then ()
+              else add {
                 rv_id = if rec_.run_id <> "" then rec_.run_id
                         else Filename.remove_extension n;
                 rv_lifecycle = derive_lifecycle init obs;
-                rv_harness = rec_.harness;
-                rv_warnings = warns;
-              }) names in
-      let warns = List.concat_map (fun v -> v.rv_warnings) views in
-      (views, warns)
+                rv_harness = rec_.harness; rv_warnings = warns;
+              }) names;
+      List.iter (fun fname ->
+        let text = read_file_or (Filename.concat base fname) "" in
+        if String.trim text <> "" then
+          try match Yojson.Safe.from_string text with
+            | `Assoc fs ->
+                (match List.assoc_opt "sessions" fs with
+                 | Some (`Assoc ss) ->
+                     List.iter (fun (_sid, b) ->
+                       let run_id = get_str b "run_id" "" in
+                       if run_id <> "" then
+                         let bq = get_opt b "quest" in
+                         if bq <> None && bq <> Some quest then ()
+                         else
+                           let settled = get_bool b "settled" in
+                           let last_seen = match get_float_opt b "last_seen_epoch" with
+                             | Some v -> v | None -> 0. in
+                           let lifecycle =
+                             if settled then Some "finished"
+                             else if Unix.time () -. last_seen
+                                     <= float_of_int silence_seconds
+                             then Some "active" else Some "orphaned" in
+                           add { rv_id = run_id; rv_lifecycle = lifecycle;
+                                 rv_harness = ""; rv_warnings = [] }) ss
+                 | _ -> ())
+            | _ -> ()
+          with _ -> ()) ["bp3-run-registry.json"; "bp3-run-events.json"];
+      List.rev !out
 
 (* ---------- argv ---------- *)
 let positive_seconds flag v =
@@ -243,7 +521,8 @@ let do_supervisor quest args =
   (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
   (* engine stated here (no single Run); a contradiction with
      any folded InitRecord is a usage error *)
-  let (runs0, _) = fold_runs ~quest ~silence_seconds:fl.silence_seconds in
+  let folds0 = fold_all ~quest ~silence_seconds:fl.silence_seconds in
+  let runs0 = List.map (fun f -> f.rf_view) folds0 in
   (match fl.engine with
    | Some e ->
        if List.exists (fun v -> v.rv_harness <> "" && v.rv_harness <> e) runs0 then
@@ -255,7 +534,12 @@ let do_supervisor quest args =
   let rec tick () =
     (* tell: derive Runs; watch: passive observation only,
        this loop never signals a pid *)
-    let (runs, run_warns) = fold_runs ~quest ~silence_seconds:fl.silence_seconds in
+    let folds = fold_all ~quest ~silence_seconds:fl.silence_seconds in
+    let derived = List.map (fun f -> f.rf_view) folds in
+    let legacy = legacy_views ~quest ~silence_seconds:fl.silence_seconds
+      ~derived_ids:(List.map (fun v -> v.rv_id) derived) in
+    let runs = derived @ legacy in
+    let run_warns = List.concat_map (fun v -> v.rv_warnings) runs in
     (* judge: fresh quest read, never a cached view *)
     let (view, inbox, rollup, _qs) = Render.quest_view quest in
     ignore view;
@@ -273,7 +557,15 @@ let do_supervisor quest args =
       ] in
       streamed := row :: !streamed;
       print_endline (Yojson.Safe.to_string row);
-      flush stdout
+      flush stdout;
+      (* mechanism: persist this tick's probe as one
+         observation row per derived Run (legacy imports
+         are never written) *)
+      (match derivations_dir () with
+       | Some dir ->
+           List.iter (fun f -> append_observation dir f
+             ~silence_seconds:fl.silence_seconds) folds
+       | None -> ())
     end;
     let finish outcome =
       let orphans = List.filter_map (fun v ->
@@ -793,17 +1085,6 @@ let parse_wt_flags args =
     | stray :: _ -> usage ("stray positional: " ^ stray) in
   loop args
 
-(* Mechanical tape signals only: a close marker, or an
-   assistant stop reason, closes a tape; a settle row is a
-   fact of its own and never a close by itself. *)
-let tape_signals text =
-  let closed =
-    contains_sub text "session_closed"
-    || (contains_sub text "stopReason" && contains_sub text "\"stop\"")
-    || (contains_sub text "stop_reason" && contains_sub text "\"stop\"") in
-  let settle = contains_sub text "run_settled" in
-  (closed, settle)
-
 (* InitRecord-first resolution, like find-tape, except a
    missing or untrusted tape does not end the call: the Run
    is watched blind (W_SUPERVISOR_BLIND) on its pid alone.
@@ -1047,6 +1328,7 @@ let help_supervisor = "bp3 harness supervisor - passive supervisor loop for one 
   Streams NDJSON lifecycle_change rows on stdout, ends with one JSON verdict {ok, quest, outcome, settled, rollup, runs, inbox, orphans}.\n\
   Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
   Durations are bare positive integers; 0, negatives, and suffixed values are usage errors.\n\
+  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Legacy registry/event stores are read-only imports until their mvp.5 sunset and are never written or silently merged.\n\
 Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
 
 let help_init_check = "bp3 harness init-check - probe tape sources per harness:\n\
