@@ -39,3 +39,4 @@
 {"event":"usage_recorded","ts":"2026-11-15T01:36:16Z","run_id":"20261115T013433Z-review-muse-code-muse-wonder-1.0-c3","input_tokens":2120312,"output_tokens":25758,"cached_tokens":2023376,"reasoning_tokens":7471,"wall_ms":30000,"started_ts":"2026-11-15T01:35:46Z","settled_ts":"2026-11-15T01:36:16Z"}
 {"event":"run_settled","ts":"2026-11-15T01:36:16Z","run_id":"20261115T013433Z-review-muse-code-muse-wonder-1.0-c3","outcome":"settled"}
 {"event":"run_started","ts":"2026-11-15T01:36:39Z","run_id":"20261115T013624Z-land-muse-code-muse-wonder-1.0-c3","cycle":3,"session_id":"dbbcf220-0a65-7838-88e6-f8c2020d4800"}
+{"event":"lint_checked","ts":"2026-11-15T01:37:20Z","run_id":"20261115T013624Z-land-muse-code-muse-wonder-1.0-c3","check":"skills.sh","result":"pass"}
