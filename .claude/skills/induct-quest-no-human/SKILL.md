@@ -1,20 +1,21 @@
 ---
-name: induct-solo
-description: Run several bp3 quests unattended with the induct conductor — preflight, queue, park blocked work in the inbox, and end with the dawn report; never attests, never pages, never promotes.
+name: induct-quest-no-human
+description: Run several bp3 quests with no human present using the induct conductor — preflight, queue, park blocked work in the inbox, and end with the dawn report; never attests, never pages, never promotes.
 ---
-<!-- GENERATED from skills/induct-solo/SKILL.md by: bp3 skills install --harness=pi. Edit the source, then re-run. -->
+<!-- GENERATED from skills/induct-quest-no-human/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->
 
-# Induct solo
+# Induct quest, no human
 
 Use when a human in a bp3-enabled repo invokes this skill
-by name (`/induct-solo <quest>...`, `$induct-solo`) or asks
-to run quests unattended, overnight, or in a queue with no
-human present. Several quests may be named; a Run budget
-may be stated. One output: the dawn report (step 5). For
-one quest with a human present, use `induct` instead.
+by name (`/induct-quest-no-human <quest>...`,
+`$induct-quest-no-human`) or asks to run quests unattended,
+overnight, or in a queue with no human present. Several
+quests may be named; a Run budget may be stated. One
+output: the dawn report (step 5). For one quest with a
+human present, use `induct` instead.
 
-`/induct-solo <quest>...` means `/induct <quest>` per
-quest, in queue order, under the solo rails below. Follow
+`/induct-quest-no-human <quest>...` means `/induct <quest>` per
+quest, in queue order, under the no-human rails below. Follow
 the canonical `induct` skill (`skills/induct/SKILL.md`)
 procedure and rules as written there — read state with
 `bp3 q r`, dispatch the one step that state calls for,
@@ -22,19 +23,30 @@ re-read. This file carries no step procedure of its own,
 so the two names cannot drift; it adds only the rails
 that make the conductor safe with no human in the room.
 
-## Solo rails
+## Shape
+
+This ships as a skill mode of `induct`, not its own FSM.
+The rails below (preflight, parking, budget, dawn report)
+all state as conductor rules over the existing exp FSM
+without special cases: the queue is ordered iteration,
+parking is stopping a quest on a `blocked` read, the
+budget is a stop on dispatching, and the dawn report is
+a read. No queue-level state is written anywhere; queue
+words name report outcomes, never new edges.
+
+## No-human rails
 
 - Desks only: every step Run works from a prepared
-  `bp3 worktree` desk, one quest per checkout. Solo never
-  works in the shared tree and never runs two quests in
-  one checkout at once.
-- Solo never attests: `BP3_DECIDER` stays unset for the
-  whole run, exactly as the launcher left it. Solo
-  never takes `resume` or `delete`, and never pages a
-  question to the owner. A decision only a human can
-  make is not asked for; the work parks (below) and
+  `bp3 worktree` desk, one quest per checkout. No-human
+  never works in the shared tree and never runs two
+  quests in one checkout at once.
+- No-human never attests: `BP3_DECIDER` stays unset for
+  the whole run, exactly as the launcher left it.
+  No-human never takes `resume` or `delete`, and never
+  pages a question to the owner. A decision only a human
+  can make is not asked for; the work parks (below) and
   waits for morning.
-- Solo never promotes or pushes: `quest_fin` stays the
+- No-human never promotes or pushes: `quest_fin` stays the
   owner gate. A quest whose exps all reach `exp_fin`
   stops there; promotion waits for the owner.
 
@@ -79,11 +91,11 @@ that make the conductor safe with no human in the room.
 ## Rules
 
 - The skill writes no state. `bp3 q u` is the only
-  writer, called by step children; solo itself takes
+  writer, called by step children; no-human itself takes
   no verdict edge and no human edge.
 - Identity rides env (`BP3_HARNESS`, `BP3_MODEL`) as in
-  `induct`; `BP3_DECIDER` is the one env name solo must
-  never set.
+  `induct`; `BP3_DECIDER` is the one env name no-human
+  must never set.
 - Instructions only: this skill holds no state, spawns
   no daemon, and assumes no runtime beyond the main
   session, its workflow children, and the `bp3 q`

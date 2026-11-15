@@ -41,16 +41,17 @@ the only page: it means a decision only a human can make is
 owed. Fake blocks train rubber-stamps; never manufacture one
 out of a cycle.
 
-## Solo variant
+## No-human variant
 
-With no human present, the `induct-solo` skill runs this
-same conductor over a queue of quests under solo rails:
-preflight before queueing, desks only, blocked work parks
-in the inbox instead of paging, a stated Run budget stops
-the queue, and the run ends in the dawn report. Solo never
-attests (`BP3_DECIDER` stays unset), never takes `resume`
-or `delete`, and never promotes — `quest_fin` stays the
-owner gate. The rails live in `skills/induct-solo/SKILL.md`;
+With no human present, the `induct-quest-no-human` skill
+runs this same conductor over a queue of quests under
+no-human rails: preflight before queueing, desks only,
+blocked work parks in the inbox instead of paging, a
+stated Run budget stops the queue, and the run ends in
+the dawn report. No-human never attests (`BP3_DECIDER`
+stays unset), never takes `resume` or `delete`, and
+never promotes — `quest_fin` stays the owner gate. The
+rails live in `skills/induct-quest-no-human/SKILL.md`;
 this section names the variant only, so the procedure
 above stays the one conductor procedure.
 

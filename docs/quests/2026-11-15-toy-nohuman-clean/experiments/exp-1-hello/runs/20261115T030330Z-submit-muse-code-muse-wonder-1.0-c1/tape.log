@@ -306,3 +306,9 @@ docs/quests/2026-11-14-bp3-workflows-v2/
  1 file changed, 44 insertions(+)
  M docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
 ?? docs/quests/2026-11-15-toy-solo-park/
+{"ok":true,"quest":"2026-11-15-toy-nohuman-clean","exp":"exp-1-hello","state":"submitted","cycle":1,"commit":"c4f2f6d45ceb68231d9991800f646dad3bbf69e0","legal_edges":["review","check","block","delete"]}
+RESTORED
+ M docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+?? docs/quests/2026-11-15-toy-solo-park/
+docs/quests/2026-11-15-toy-solo-park/experiments/exp-1-decision/EXPERIMENT.md
+{"ok":true,"quest":"2026-11-15-toy-nohuman-clean","state":"proposed","exps":[{"exp":"exp-1-hello","state":"submitted","fin":null,"cycle":1,"commit":"c4f2f6d45ceb68231d9991800f646dad3bbf69e0","legal_edges":["review","check","block","delete"],"changes":[{"change":"+","path":"docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/EXPERIMENT.md"},{"change":"+","path":"docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/notes.md"},{"change":"+","path":"docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/tape.log"},{"change":"+","path":"docs/quests/2026-11-15-toy-nohuman-clean/hello.txt"}]}],"rollup":"active","fin":null,"inbox":[]}
