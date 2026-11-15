@@ -67,21 +67,30 @@ function typedEvidence(ev) {
   );
 }
 
-// A row without typed evidence never carries pass; a verdict
-// outside pass|fail|missing is no verdict at all. Row order
-// never changes the outcome (outcomeFor only asks `some`).
+// Deferred is a disposition, not a failure: the exp's own
+// text defers the case to a named owning exp and the row's
+// evidence is that deferral text. A deferral naming no owner
+// is no deferral at all.
+function deferralNamesOwner(text) {
+  return /defer/i.test(text) && /\bexp[\s-]*\d+\b/i.test(text);
+}
+
+// A row without typed evidence never carries pass or
+// deferred; a verdict outside pass|fail|missing|deferred is
+// no verdict at all. Row order never changes the outcome
+// (outcomeFor only asks `some` over gated rows).
 function normalizeRow(row, i) {
   const name =
     row && typeof row.case === "string" && row.case !== ""
       ? row.case
       : "row " + String(i + 1);
   let verdict =
-    row && ["pass", "fail", "missing"].indexOf(row.verdict) >= 0
+    row && ["pass", "fail", "missing", "deferred"].indexOf(row.verdict) >= 0
       ? row.verdict
       : "missing";
   let evidence = row ? row.evidence : null;
   if (!typedEvidence(evidence)) {
-    if (verdict === "pass") verdict = "missing";
+    if (verdict === "pass" || verdict === "deferred") verdict = "missing";
     evidence = {
       kind: "command",
       ref: "evidence audit",
@@ -89,6 +98,9 @@ function normalizeRow(row, i) {
     };
   } else {
     evidence = { kind: evidence.kind, ref: evidence.ref, quote: evidence.quote };
+    if (verdict === "deferred" && !deferralNamesOwner(name + " " + evidence.quote)) {
+      verdict = "missing";
+    }
   }
   return { case: name, evidence: evidence, verdict: verdict };
 }
@@ -114,7 +126,10 @@ function outcomeFor(state, matrix) {
   if (state === "blocked" || state === "deleted" || state === "landed") {
     return state;
   }
-  const anyBad = matrix.some(function (r) { return r.verdict !== "pass"; });
+  // Deferred rows are owned elsewhere and never gated here.
+  const anyBad = matrix.some(function (r) {
+    return r.verdict !== "pass" && r.verdict !== "deferred";
+  });
   if (anyBad) return "needs_fix";
   if (state === "approved") return "approved";
   if (state === "todo") return "needs_fix";
@@ -262,9 +277,30 @@ export default async function workflow(host) {
       "the first command, clean commit, tape.log and notes.md " +
       "present in its run folder, no hand-edited state). Every row " +
       "is {case, evidence: {kind: file|command|ledger|grep, ref, " +
-      "quote}, verdict: pass|fail|missing}: quote observed evidence " +
-      "verbatim; a case with no artifact is verdict missing, never " +
-      "pass, and free-string evidence is not a row. Judge only; do " +
+      "quote}, verdict: pass|fail|missing|deferred}: quote observed " +
+      "evidence verbatim; a gated case with no artifact is verdict " +
+      "missing, never pass, and free-string evidence is not a row. " +
+      "Deferred is a disposition, not a failure: when an " +
+      "Acceptance case's own text in EXPERIMENT.md says it is NOT " +
+      "gated by this exp and defers it to a named owning exp (for " +
+      "example `deferred to Exp 3`), emit verdict deferred for " +
+      "that row with the deferral text itself as typed evidence " +
+      "({kind: file, ref: the EXPERIMENT.md line, quote: the " +
+      "deferral line verbatim}); never mark such a case missing " +
+      "or pass for lacking this exp's artifact. A deferral that " +
+      "names no owning exp is not deferred: emit missing. For " +
+      "the adherence row `env preset on the first command`, quote " +
+      "hook evidence from the run registry at " +
+      "`.git/bp3-run-registry.json` (resolve the git dir with " +
+      "`git rev-parse --absolute-git-dir` when `.git` is a file): " +
+      "find the entry whose run_id is the build Run that produced " +
+      "this commit (the submit run folder under this exp's runs/) " +
+      "and quote its run_settled and usage_recorded events (its " +
+      "emitted list and settled flag) as {kind: ledger, ref: the " +
+      "registry entry for that run id, quote: the entry verbatim}. " +
+      "Hooks write the registry in the git dir, never under " +
+      "`.bp3/`; do not look for hook evidence there and never " +
+      "parse tape.log into facts. Judge only; do " +
       "not edit any file and do not call any `bp3 q u` update edge. " +
       "Write the matrix verbatim as JSON in your run folder's " +
       "notes.md, with your brief authored lessons. Reply with only " +
@@ -281,12 +317,15 @@ export default async function workflow(host) {
   const matrix = normalizeMatrix(auditVerdict ? auditVerdict.matrix : null);
   const matrixJson = JSON.stringify(matrix);
 
-  // Review || check on the exact bound commit. A missing or fail
-  // row means the positive verdict is not available to them.
+  // Review || check on the exact bound commit. A gated missing
+  // or fail row means the positive verdict is not available to
+  // them; deferred rows never gate.
   const gate =
     "The evidence matrix for this grade is: " + matrixJson + ". " +
-    "Any row with verdict fail or missing means the work is not " +
-    "correct: cast the negative verdict. ";
+    "Rows with verdict deferred are not gated by this exp (each " +
+    "names the exp that owns it) and never block: ignore them. " +
+    "Any gated row with verdict fail or missing means the work " +
+    "is not correct: cast the negative verdict. ";
   const reviewPrompt =
     "You are the review child for exp `" + exp + "` of quest `" +
     quest + "`, currently in state `" + before.state + "` at cycle " +
@@ -294,8 +333,9 @@ export default async function workflow(host) {
     reviewLoad + tapePreamble("review", before.cycle) + gate +
     " Review the work at the bound commit against the exp's " +
     "own Acceptance cases in its EXPERIMENT.md (read it first): " +
-    "every case needs observed evidence, and any open design " +
-    "question in the exp means it was not done properly. Judge " +
+    "every gated case needs observed evidence (a case deferred " +
+    "to a named successor exp is not gated here), and any open " +
+    "design question in the exp means it was not done properly. Judge " +
     "only; do not edit the work. Then call the state " +
     "edge directly yourself, binding the exact commit: " +
     "`" + envPreset("review", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +

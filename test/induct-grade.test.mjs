@@ -1,9 +1,12 @@
 // Mock-host test for skills/induct/workflows/induct-grade.js.
 // Covers the exp Acceptance table: typed matrix returned, a
 // missing-evidence row blocks approval, an untyped row never
-// carries pass, row order never changes the outcome, replay on
-// the same commit returns the same matrix, and grade children
-// are judge-only (audit spawns no edge, review/check bind the
+// carries pass, a deferred row naming its owning exp never
+// blocks (an unnamed or untyped deferral is missing), the
+// audit quotes env-preset evidence from the run registry,
+// row order never changes the outcome, replay on the same
+// commit returns the same matrix, and grade children are
+// judge-only (audit spawns no edge, review/check bind the
 // exact commit).
 import workflow from "../skills/induct/workflows/induct-grade.js";
 
@@ -19,6 +22,18 @@ function passRow(name) {
     case: name,
     evidence: { kind: "command", ref: "test/q.sh", quote: "q tests: ok" },
     verdict: "pass",
+  };
+}
+
+function deferredRow(name) {
+  return {
+    case: name,
+    evidence: {
+      kind: "file",
+      ref: "docs/quests/toy/experiments/fx/EXPERIMENT.md:57",
+      quote: "| " + name + " | NOT gated by this exp |",
+    },
+    verdict: "deferred",
   };
 }
 
@@ -150,6 +165,86 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   };
   const refused = await workflow(noCommit);
   assert(refused.outcome === "refused", "missing commit refuses");
+}
+
+// --- deferred row: owned elsewhere, excluded from the gate ---
+{
+  const { host, inputs } = mockHost({
+    reads: [submitted, approved],
+    auditRows: [
+      passRow("acceptance: a"),
+      deferredRow("acceptance: full cycle — NOT gated by this exp, deferred to Exp 3"),
+    ],
+  });
+  const result = await workflow(host);
+  assert(result.matrix[1].verdict === "deferred", "deferred row stays deferred");
+  assert(result.matrix[1].evidence.kind === "file", "deferred row keeps its typed deferral evidence");
+  assert(result.outcome === "approved", "deferred row does not block approval, got " + result.outcome);
+  assert(inputs.audit.includes("verdict: pass|fail|missing|deferred"),
+    "audit may emit deferred rows");
+  assert(inputs.audit.includes(".git/bp3-run-registry.json"),
+    "audit looks for env-preset evidence in the run registry");
+  assert(inputs.audit.includes("run_settled"), "audit quotes run_settled hook events");
+  assert(inputs.audit.includes("usage_recorded"), "audit quotes usage_recorded hook events");
+  assert(inputs.review.includes("deferred"), "review is told deferred rows never block");
+  assert(inputs.check.includes("deferred"), "check is told deferred rows never block");
+}
+
+// --- deferral naming no owning exp is missing, not deferred ---
+{
+  const unnamed = deferredRow("acceptance: later work — deferred");
+  unnamed.evidence.quote = "deferred to a later exp";
+  const { host } = mockHost({ reads: [submitted, approved], auditRows: [passRow("acceptance: a"), unnamed] });
+  const result = await workflow(host);
+  assert(result.matrix[1].verdict === "missing", "unnamed deferral downgraded to missing");
+  assert(result.outcome === "needs_fix", "unnamed deferral blocks approval, got " + result.outcome);
+}
+
+// --- deferred without typed evidence is missing, never deferred ---
+{
+  const untyped = { case: "acceptance: x — deferred to Exp 3", evidence: "deferred to Exp 3", verdict: "deferred" };
+  const { host } = mockHost({ reads: [submitted, approved], auditRows: [untyped] });
+  const result = await workflow(host);
+  assert(result.matrix[0].verdict === "missing", "untyped deferred downgraded to missing");
+  assert(result.outcome === "needs_fix", "untyped deferred blocks approval, got " + result.outcome);
+}
+
+// --- verdict outside pass|fail|missing|deferred is coerced ---
+{
+  const bogus = passRow("acceptance: e");
+  bogus.verdict = "bogus";
+  const { host } = mockHost({ reads: [submitted, approved], auditRows: [bogus] });
+  const result = await workflow(host);
+  assert(result.matrix[0].verdict === "missing", "unknown verdict coerced to missing");
+  assert(result.outcome === "needs_fix", "coerced row blocks approval, got " + result.outcome);
+}
+
+// --- generated matrices: order never matters, deferred never gates ---
+{
+  const kinds = ["pass", "fail", "missing", "deferred"];
+  function rowFor(v, i) {
+    if (v === "deferred") return deferredRow("acceptance: d" + i + " — deferred to Exp 3");
+    const r = passRow("acceptance: r" + i);
+    r.verdict = v;
+    return r;
+  }
+  async function outcomeOf(rows) {
+    const { host } = mockHost({ reads: [submitted, approved], auditRows: rows });
+    return (await workflow(host)).outcome;
+  }
+  const seqs = [[]];
+  for (let len = 1; len <= 3; len++) {
+    const prev = seqs.filter((s) => s.length === len - 1);
+    for (const p of prev) for (const k of kinds) seqs.push(p.concat(k));
+  }
+  for (const seq of seqs) {
+    const got = await outcomeOf(seq.map(rowFor));
+    const gatedBad = seq.length === 0 || seq.some((v) => v !== "pass" && v !== "deferred");
+    const want = gatedBad ? "needs_fix" : "approved";
+    assert(got === want, "outcome for [" + seq.join(",") + "] is " + want + ", got " + got);
+    const rev = await outcomeOf(seq.slice().reverse().map(rowFor));
+    assert(rev === got, "row order keeps outcome for [" + seq.join(",") + "]");
+  }
 }
 
 if (failures > 0) process.exit(1);
