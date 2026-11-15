@@ -19,3 +19,4 @@
 {"event":"run_started","ts":"2026-11-15T03:14:21Z","run_id":"20261115T031147Z-review-muse-code-muse-wonder-1.0-c2","cycle":2,"session_id":"440c5ced-461c-73f2-8969-5946ad2b06ba"}
 {"ts":"2026-11-15T03:14:21Z","edge":"review","from":"submitted","to":"blocked","cycle":2,"commit":"c01cb8cc31591857b1803fc4a8da7fe998cb15eb","verdict":"needs_fix","reason":"budget gated case missing: dawn report states no budget stop occurred","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"usage_recorded","ts":"2026-11-15T03:14:25Z","run_id":"20261115T031147Z-review-muse-code-muse-wonder-1.0-c2","input_tokens":483843,"output_tokens":4757,"cached_tokens":464344,"reasoning_tokens":1308,"wall_ms":4000,"started_ts":"2026-11-15T03:14:21Z","settled_ts":"2026-11-15T03:14:25Z"}
+{"event":"run_settled","ts":"2026-11-15T03:14:25Z","run_id":"20261115T031147Z-review-muse-code-muse-wonder-1.0-c2","outcome":"settled"}
