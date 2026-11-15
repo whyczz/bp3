@@ -1,11 +1,11 @@
 ---
 date: 2026-11-15
 quest: ../QUEST.md
-exp: 6
+exp: backtest.1
 status: proposed
 ---
 
-# Exp 6 — backtest-muse: findings, not a gate
+# backtest.1 - muse: findings, not a gate
 
 ## TL;DR
 
@@ -46,7 +46,7 @@ for s in corpus("muse"):
 | Intent | validate + improve the fold on real muse logs; harvest CLI fix candidates |
 | Lane | standard |
 | Output | replay report + findings list in this exp's runs |
-| Depends on | Exp 2, Exp 4 |
+| Depends on | mvp.2, mvp.4 |
 
 ## Acceptance (fails today: no replay exists)
 
@@ -68,12 +68,29 @@ for s in corpus("muse"):
 ## Tests
 
 findings-machine: no pass/fail acceptance by
-design (owner rule). Sanity checks: parser never
-crashes on truncated/foreign files. Demos: replay
-excerpt observed.
+design (owner rule). Known cases: truncated tape,
+foreign (non-bp3) tape, torn final line — parser
+never crashes, reports shape. Property-based: for
+any tape prefix, replay yields a prefix-consistent
+trace (facts never appear before their entry).
+Hardening: [TEST-HARDENING.md](../../TEST-HARDENING.md)
+(Muse implementation rows). Demos: replay excerpt
+observed.
 
 ## Context
 
 Owner ruling at framing: backtests determine fixes
 (e.g. to `bp3 q u`), they don't gate. Ground truth
 is ledger + grade matrices, read after deriving.
+
+## Auto-red-ink addendum
+
+Dependency drops to mvp.2 + fold definition; replay
+is offline and may precede mvp.4. Report the corpus
+denominator (runs replayed / identifiable), incident
+match counts, and mark lifecycle claims without an
+independent InitRecord `ungradeable`, not findings.
+A parser crash fails this exp even though findings
+do not gate. Hardening tests:
+[TEST-HARDENING.md](../../TEST-HARDENING.md)
+(backtest reporting; Muse adapter drift cases).

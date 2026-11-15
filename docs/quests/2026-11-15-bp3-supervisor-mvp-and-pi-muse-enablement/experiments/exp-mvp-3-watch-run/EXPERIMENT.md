@@ -1,11 +1,11 @@
 ---
 date: 2026-11-15
 quest: ../QUEST.md
-exp: 3
+exp: mvp.3
 status: proposed
 ---
 
-# Exp 3 — watch-run: blocking done-signal with teeth
+# mvp.3 - watch-run: blocking done-signal with teeth
 
 ## TL;DR
 
@@ -19,7 +19,7 @@ an LLM never polls.
 ## Demo (design trace)
 
 ```text
-bp3 harness pi watch --run-id R --silence 600
+bp3 harness watch --run-id R --silence-seconds 600
   -> {outcome: killed, settled: false, last_wal_growth_s: 611}
 ```
 
@@ -35,7 +35,7 @@ find WAL ─► race: proc exit | WAL settle | fold poll
 
 ```python
 def watch(run, silence_s, timeout):
-    wal = find_session_log(run)
+    wal = find_tape(run)
     while not terminal(run):
         if wal.silent_for(silence_s): kill_escalate(run)
         wait_next_event(run, wal)
@@ -47,7 +47,7 @@ def watch(run, silence_s, timeout):
 | Intent | the await primitive for both engines' conductors |
 | Lane | standard |
 | Output | `watch` verb for `muse` and `pi` |
-| Depends on | Exp 2 |
+| Depends on | mvp.2 |
 
 ## Acceptance (fails today: no watch; awaits hang)
 
@@ -56,7 +56,7 @@ def watch(run, silence_s, timeout):
 | clean child | watch returns on exit, settled per evidence |
 | hung child | TERM/KILL inside budget; `settled:false`; no process left |
 | slow-drip child | WAL growth resets silence; never killed mid-work |
-| WAL missing | typed blind outcome + `W_SENTINEL_BLIND`, pid still watched |
+| WAL missing | typed blind outcome + `W_SUPERVISOR_BLIND`, pid still watched |
 
 ## Acceptance test (goal block)
 
@@ -77,3 +77,15 @@ always does. Demos: hung drive observed.
 The pi core hangs indefinitely on a dead provider
 (earendil-works/pi#6581); every ecosystem answer is
 a parent-side watchdog. This exp makes ours a verb.
+
+## Auto-red-ink addendum
+
+Watch is the sole TERM/KILL owner. Add the
+closed-but-not-exited case: session closed or a
+settle row suspends the silence kill; the overall
+timeout still applies. Blindness asserts
+`warnings:["W_SUPERVISOR_BLIND"]`, never a blind
+outcome. Hardening tests:
+[TEST-HARDENING.md](../../TEST-HARDENING.md)
+(watch verdict split, settling grace, watchdog
+escalation, invalid durations, blind fallback).

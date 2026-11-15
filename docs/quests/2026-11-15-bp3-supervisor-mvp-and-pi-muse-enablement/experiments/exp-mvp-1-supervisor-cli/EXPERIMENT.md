@@ -1,11 +1,11 @@
 ---
 date: 2026-11-15
 quest: ../QUEST.md
-exp: 1
+exp: mvp.1
 status: proposed
 ---
 
-# Exp 1 — supervisor-cli: the game loop
+# mvp.1 - supervisor-cli: the game loop
 
 ## TL;DR
 
@@ -18,9 +18,9 @@ a timeout fires, or a human gate opens.
 ## Demo (design trace)
 
 ```text
-bp3 harness supervisor --quest toy --timeout 30m
-  tick: A running / B settled / C silent 601s -> KILL
-  exit: done (all settled) | timeout | human gate
+bp3 harness supervisor toy --timeout-seconds 1800
+  tick: A active / B finished / C silent 601s -> KILL
+  exit: done (all finished) | timeout | human gate
 ```
 
 ## Diagram
@@ -29,7 +29,7 @@ bp3 harness supervisor --quest toy --timeout 30m
         ┌────────────── tick ──────────────┐
         ▼                                  │
   fold WAL+pid ─► derive lifecycle ─► act ─┘
-        exit: all settled | timeout | blocked inbox non-empty
+        exit: all finished | timeout | blocked inbox non-empty
 ```
 
 ## Pseudocode
@@ -48,7 +48,7 @@ def supervisor(quest, timeout):
 |---|---|
 | Intent | the loop as CLI path; single deriving/acting rhythm |
 | Lane | standard |
-| Output | `bp3 harness supervisor` (OCaml) + tick/exit semantics |
+| Output | `bp3 harness supervisor` (OCaml) + tick/exit semantics; code/tests use `init_record` and lifecycle strings `init/active/finished/orphaned` — no `SpawnRecord`, `spawned`, `running`, or lifecycle `settled` synonyms |
 | Depends on | none |
 
 ## Acceptance (fails today: no harness door, no loop)
@@ -70,7 +70,15 @@ def supervisor(quest, timeout):
 
 ## Tests
 
-known cases: Acceptance table (fake children).
+known cases: Acceptance table (fake children);
+exit-class mapping (RC4): each outcome maps to the
+binary's existing exit classes — settled=0,
+watchdog_killed=terminal, timeout=retryable,
+human_gate=needs-human — asserted per outcome.
+naming gate: grep new code/tests for retired
+lifecycle spellings (`SpawnRecord`, `spawned`,
+`running`, lifecycle `settled`) and require the
+`init/active/finished/orphaned` set.
 property-based: tick is idempotent — same fold,
 same action. Demos: toy drive observed.
 
@@ -80,3 +88,17 @@ Game-engine shape per owner: fixed tick, state
 derived per frame, no event callbacks trusted.
 The loop is one invocation; killing and rerunning
 it loses nothing (all state is folded).
+
+## Auto-red-ink addendum
+
+This exp splits into 1.1 (door + verdict/exit
+contract, fixture-proven) and 1.2 (active loop,
+proven only after mvp.2-mvp.3). Tick phases are named
+`tell -> watch -> judge (fresh bp3 q r) -> finalize`.
+The supervisor never signals a pid and never
+finalizes from a watch outcome. For Muse, no
+active supervisor loop is built; the passive
+supervisor derivation is shared. Hardening tests:
+[TEST-HARDENING.md](../../TEST-HARDENING.md)
+(Supervisor core: stream, verdict split, guarded
+act, single killer, restart derivation, inputs).

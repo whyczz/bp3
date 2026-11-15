@@ -1,11 +1,11 @@
 ---
 date: 2026-11-15
 quest: ../QUEST.md
-exp: 5
+exp: mvp.6
 status: proposed
 ---
 
-# Exp 5 — harness-desk-api: one namespace for the machinery
+# mvp.6 - harness-desk-api: one namespace for the machinery
 
 ## TL;DR
 
@@ -41,7 +41,7 @@ door("harness", ["desk", verb]) == door("worktree", verb)  # during migration
 | Intent | namespace consolidation; no behavior change beyond spelling |
 | Lane | standard |
 | Output | `bp3 harness desk` + migrated callers/skills/tests |
-| Depends on | Exp 1 |
+| Depends on | mvp.1 |
 
 ## Acceptance (fails today: two namespaces)
 
@@ -67,3 +67,17 @@ none. Demos: parity fixture observed.
 The worktree->desk rename already happened in code
 (`desk.ml`, Exp 1 of the canceled pi quest); this
 finishes it at the CLI surface where users live.
+
+## Auto-red-ink addendum
+
+Correction: on the main tree the module is still
+`worktree.ml`, records live under `.bp3/desks/`,
+paths under `.bp3/worktrees/`; a third spelling
+`bp3 desk` exists in the canceled worktree. This exp
+must map all nine verbs, capture golden verdict
+fixtures before migration (including dirty refusal),
+and sweep help, completions, skills, and tests.
+Creation must refuse reserved door/verb slugs.
+Hardening tests:
+[TEST-HARDENING.md](../../TEST-HARDENING.md)
+(golden parity fixtures; reserved-name refusals).

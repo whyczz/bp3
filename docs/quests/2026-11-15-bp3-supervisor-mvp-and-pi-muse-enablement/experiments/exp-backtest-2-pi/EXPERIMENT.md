@@ -1,11 +1,11 @@
 ---
 date: 2026-11-15
 quest: ../QUEST.md
-exp: 7
+exp: backtest.2
 status: proposed
 ---
 
-# Exp 7 — backtest-pi: the pi corpus, five known incidents
+# backtest.2 - pi: the pi corpus, five known incidents
 
 ## TL;DR
 
@@ -41,7 +41,7 @@ for s in corpus("pi"):
 | Intent | measure the pi fold; harvest adapter/dispatcher fix candidates |
 | Lane | standard |
 | Output | replay report + findings list |
-| Depends on | Exp 2 (pi lookup), Exp 6 (harness shared) |
+| Depends on | mvp.2 (pi lookup), backtest.1 (harness shared) |
 
 ## Acceptance (fails today: no replay exists)
 
@@ -61,9 +61,14 @@ for s in corpus("pi"):
 
 ## Tests
 
-findings-machine (as Exp 6). Sanity: fold totals
-(usage) match session-file sums on sampled runs.
-Demos: incident replays observed.
+findings-machine (as backtest.1). Known cases:
+the five known incidents must each surface as a
+finding; fold totals (usage) match tape sums on
+sampled runs. Property-based: replay is
+deterministic — same tape, same findings, any
+machine. Hardening:
+[TEST-HARDENING.md](../../TEST-HARDENING.md) (Pi
+rows). Demos: incident replays observed.
 
 ## Context
 
@@ -71,3 +76,13 @@ The five incidents (exp-2 c1-c3, exp-2b refusals,
 exp-2a unsettleable) were blocks when live; as a
 corpus they are the cheapest supervision exam in
 the repo.
+
+## Auto-red-ink addendum
+
+Every finding must appear in dogfood.2's
+keep/replace/drop table or it has no consumer.
+Report incident match count by name, and validate
+usage sums against sampled session files.
+Hardening tests:
+[TEST-HARDENING.md](../../TEST-HARDENING.md)
+(Pi session parser; backtest reporting).

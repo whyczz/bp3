@@ -1,11 +1,11 @@
 ---
 date: 2026-11-15
 quest: ../QUEST.md
-exp: 4
+exp: mvp.4
 status: proposed
 ---
 
-# Exp 4 — supervisor-mechanism: bp3 runs on it (muse first)
+# mvp.4 - supervisor-mechanism: bp3 runs on it (muse first)
 
 ## TL;DR
 
@@ -37,7 +37,7 @@ induct ─► harness supervisor/watch ─► child (muse)
 ```python
 def step(exp):
     run = spawn(exp)                 # harness path
-    out = watch(run.run_id)          # Exp 3
+    out = watch(run.run_id)          # mvp.3
     return step_result(out, bp3_q_r(exp))
 ```
 
@@ -46,7 +46,7 @@ def step(exp):
 | Intent | supervisor is the mechanism, not a side tool (muse path) |
 | Lane | high-blast-radius |
 | Output | induct integration + per-Run mailbox writer (muse) |
-| Depends on | Exp 1-3 |
+| Depends on | mvp.1-mvp.3 |
 
 ## Acceptance (fails today: hooks ritual + shared dict)
 
@@ -76,3 +76,24 @@ This is where hooks demote to footprint-leavers
 and the canceled quest's Exp 8 (per-Run storage)
 lands as a substep of mechanism adoption rather
 than its own quest.
+
+## Auto-red-ink addendum
+
+Muse mechanism means passive supervisor derivation,
+not spawn/watch control: Muse's workflow runtime
+remains the completion owner. Split 4b (run
+event log migration) restores the canceled quest's
+rows: per-Run writer, reader fold, run-id re-keying
+with session-id demoted to a field, legacy read-only
+with named sunset, no silent merge. Hardening tests:
+[TEST-HARDENING.md](../../TEST-HARDENING.md)
+(Muse implementation, esp. runtime
+non-interference and the grader evidence ladder).
+Local storage follows the QUEST layout: only
+`<git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl`
+(supervisor observations + lifecycle) and its
+disposable `<run-id>.json` state cache. Raw facts
+stay in harness tapes; legacy run-event files
+are read-only imports, never new write targets.
+Deletion of the replaced machinery is mvp.5, not
+this exp.

@@ -1,11 +1,11 @@
 ---
 date: 2026-11-15
 quest: ../QUEST.md
-exp: 8
+exp: dogfood.1
 status: proposed
 ---
 
-# Exp 8 — muse-toy-quest: flappy bird under supervision
+# dogfood.1 - muse-toy-quest: flappy bird under supervision
 
 ## TL;DR
 
@@ -36,7 +36,7 @@ toy quest ─► supervisor loop ─► subagents (author/grade/land)
 ## Pseudocode
 
 ```python
-drive(toy_quest)            # induct, supervisor as mechanism (Exp 4)
+drive(toy_quest)            # induct, supervisor as mechanism (mvp.4)
 assert exp.state == landed and all_runs_derived()
 ```
 
@@ -45,7 +45,7 @@ assert exp.state == landed and all_runs_derived()
 | Intent | Phase C live demo: supervisor + muse + real subagent work |
 | Lane | standard |
 | Output | toy quest landed; flappy demo artifact; drive traces |
-| Depends on | Exp 1-5; findings disposition from Exp 6 |
+| Depends on | mvp.1-mvp.6, mvp.8 (InitRecord writer); findings disposition from backtest.1 |
 
 ## Acceptance (fails today: supervisor not the mechanism)
 
@@ -66,9 +66,27 @@ assert exp.state == landed and all_runs_derived()
 ## Tests
 
 quest-level functional drive (this exp is the
-test). Demos: drive observed; flappy page smoke.
+test). Known cases: clean drive to `finished`;
+seeded blind Run (W_SUPERVISOR_BLIND logged, empty
+data, drive proceeds — feeds the U8 veto call);
+seeded hung child in passive mode is reported,
+never killed by bp3. Property-based: no drive step
+requires an LLM poll — tick count is wall-clock
+bounded. Demos: drive observed; flappy page smoke.
 
 ## Context
 
 First live gate for the whole design. Findings
-from Exp 6 land first if they touch the drive path.
+from backtest.1 land first if they touch the drive path.
+
+## Auto-red-ink addendum
+
+Muse's runtime drives; the supervisor only derives.
+Add the owner decision row: seed a blind-log Run,
+then record `veto | warn-only` for supervisor
+warnings at landing. If any backtest.1 finding is marked
+"fixed", a findings-fix step precedes this drive.
+Grader follows the evidence ladder (code, parsed
+events, raw log only on discrepancy). Hardening:
+[TEST-HARDENING.md](../../TEST-HARDENING.md)
+(required Muse integration drive).
