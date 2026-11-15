@@ -71,11 +71,10 @@ skills_install() {
       ;;
   esac
 
-  # The induct-exp saved workflow ships with the induct skill. It is a
-  # plain copy (no render notice); the target is the project workflows
+  # The induct saved workflows ship with the induct skill. They are
+  # plain copies (no render notice); the target is the project workflows
   # dir every harness discovers. Absent source means nothing to copy.
-  local workflow_src="$src_dir/induct/workflows/induct-exp.js"
-  local workflow_dest="$root/.agents/workflows/induct-exp.js"
+  local workflow_names="induct-exp induct-grade"
 
   local skill_dir skill
   for skill_dir in "$src_dir"/*/; do
@@ -88,11 +87,14 @@ skills_install() {
   if [ -n "$settings_plan" ]; then
     printf '%s\n' "$settings_plan" | jq . > "$root/.pi/settings.json"
   fi
-  if [ -f "$workflow_src" ]; then
-    mkdir -p "$root/.agents/workflows"
-    cp "$workflow_src" "$workflow_dest"
-    echo "installed induct-exp -> .agents/workflows/induct-exp.js"
-  fi
+  local workflow_name
+  for workflow_name in $workflow_names; do
+    if [ -f "$src_dir/induct/workflows/$workflow_name.js" ]; then
+      mkdir -p "$root/.agents/workflows"
+      cp "$src_dir/induct/workflows/$workflow_name.js" "$root/.agents/workflows/$workflow_name.js"
+      echo "installed $workflow_name -> .agents/workflows/$workflow_name.js"
+    fi
+  done
   # Muse hook registration: one fail-open emitter command for
   # every event. Repos without this file never fire hooks.
   mkdir -p "$root/.claude"

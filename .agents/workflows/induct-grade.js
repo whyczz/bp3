@@ -1,0 +1,351 @@
+// induct-grade: judge one submitted exp on its bound commit.
+// Installed to .agents/workflows/induct-grade.js by
+// `bp3 skills install`. Audit child builds the typed evidence
+// matrix (acceptance rows + adherence rows, no edges), then
+// review and check children run in parallel on the exact bound
+// commit and call their verdict edges directly. Grade children
+// never edit the work. Returns {outcome, matrix, run_ids,
+// refusals}; replay on the same commit is safe: the audit is
+// read-only and re-cast verdicts bind the same commit.
+// Args are supplied by the calling induct skill as
+// {quest, exp, ts, harness, model, commit}; ts is a UTC compact
+// timestamp from the caller, embedded by children in every
+// run-id because scripts cannot read the clock.
+
+function textOf(result) {
+  if (typeof result === "string") return result;
+  if (!result || typeof result !== "object") return "";
+  if (typeof result.output === "string") return result.output;
+  if (typeof result.text === "string") return result.text;
+  if (typeof result.content === "string") return result.content;
+  try {
+    return JSON.stringify(result);
+  } catch (e) {
+    return "";
+  }
+}
+
+function parseVerdict(result) {
+  const text = textOf(result);
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    // fall through to embedded-JSON extraction
+  }
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(text.slice(start, end + 1));
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
+
+function errorText(result) {
+  const v = parseVerdict(result);
+  if (v && v.error && v.error.code) {
+    const facts = v.error.facts ? JSON.stringify(v.error.facts) : "";
+    return v.error.code + (facts ? " " + facts : "");
+  }
+  const text = textOf(result).trim();
+  return text ? text.slice(0, 500) : "no verdict returned";
+}
+
+const EVIDENCE_KINDS = ["file", "command", "ledger", "grep"];
+
+function typedEvidence(ev) {
+  return (
+    !!ev &&
+    typeof ev === "object" &&
+    EVIDENCE_KINDS.indexOf(ev.kind) >= 0 &&
+    typeof ev.ref === "string" && ev.ref !== "" &&
+    typeof ev.quote === "string" && ev.quote !== ""
+  );
+}
+
+// A row without typed evidence never carries pass; a verdict
+// outside pass|fail|missing is no verdict at all. Row order
+// never changes the outcome (outcomeFor only asks `some`).
+function normalizeRow(row, i) {
+  const name =
+    row && typeof row.case === "string" && row.case !== ""
+      ? row.case
+      : "row " + String(i + 1);
+  let verdict =
+    row && ["pass", "fail", "missing"].indexOf(row.verdict) >= 0
+      ? row.verdict
+      : "missing";
+  let evidence = row ? row.evidence : null;
+  if (!typedEvidence(evidence)) {
+    if (verdict === "pass") verdict = "missing";
+    evidence = {
+      kind: "command",
+      ref: "evidence audit",
+      quote: "row carried no typed evidence",
+    };
+  } else {
+    evidence = { kind: evidence.kind, ref: evidence.ref, quote: evidence.quote };
+  }
+  return { case: name, evidence: evidence, verdict: verdict };
+}
+
+function normalizeMatrix(raw) {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return [
+      {
+        case: "evidence audit",
+        evidence: {
+          kind: "command",
+          ref: "evidence audit",
+          quote: "audit returned no matrix",
+        },
+        verdict: "missing",
+      },
+    ];
+  }
+  return raw.map(normalizeRow);
+}
+
+function outcomeFor(state, matrix) {
+  if (state === "blocked" || state === "deleted" || state === "landed") {
+    return state;
+  }
+  const anyBad = matrix.some(function (r) { return r.verdict !== "pass"; });
+  if (anyBad) return "needs_fix";
+  if (state === "approved") return "approved";
+  if (state === "todo") return "needs_fix";
+  if (state === "submitted") return "refused";
+  return state;
+}
+
+export default async function workflow(host) {
+  const rawArgs = typeof host.args === "string"
+    ? JSON.parse(host.args)
+    : (host.args || {});
+  const quest = rawArgs.quest;
+  const exp = rawArgs.exp;
+  const ts = rawArgs.ts;
+  const harness = rawArgs.harness || "muse-code";
+  const model = rawArgs.model || "unknown";
+  const commit = rawArgs.commit ? String(rawArgs.commit) : "";
+  const envPrefix =
+    "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
+  const reviewLoad =
+    "First load the code-reviewer skill (read_skill " +
+    "\"code-reviewer\") and review by its procedure: correctness, " +
+    "design patterns, tests, and comments that must agree with " +
+    "the code. Its verdict maps ship -> ship, fix_first -> " +
+    "needs_fix. ";
+  const checkLoad =
+    "First apply the verify stance (read_skill \"verify\" when " +
+    "available): judge only on fresh output from the project's " +
+    "own check command, never on claimed green. ";
+  const refusals = [];
+  const runIds = [];
+  if (!quest || !exp || !ts || !commit) {
+    return {
+      exp: exp || null,
+      outcome: "refused",
+      matrix: [],
+      run_ids: runIds,
+      refusals: ["missing quest, exp, ts, or commit in workflow args"],
+    };
+  }
+
+  const expDir =
+    "docs/quests/" + quest + "/experiments/" + exp;
+
+  async function readState() {
+    const result = await host.agent({
+      label: "read " + exp,
+      input:
+        "Run exactly `" + envPrefix + "./bin/bp3 q " + quest + " r " + exp +
+        "` from the repository root and return only its stdout JSON " +
+        "verdict verbatim as your entire reply, with no prose and no " +
+        "code fences. If the command fails, return its stdout JSON " +
+        "verdict verbatim instead. Do not edit any file and do not " +
+        "call any `bp3 q u` update edge.",
+    });
+    const v = parseVerdict(result);
+    if (!v || typeof v.state !== "string") {
+      return {
+        state: "unknown",
+        commit: null,
+        cycle: 0,
+        legal_edges: [],
+        raw: textOf(result),
+      };
+    }
+    return {
+      state: v.state,
+      commit: v.commit === undefined ? null : v.commit,
+      cycle: typeof v.cycle === "number" ? v.cycle : 0,
+      legal_edges: Array.isArray(v.legal_edges) ? v.legal_edges : [],
+      raw: textOf(result),
+    };
+  }
+
+  function runFolder(edge, cycle, harnessNote) {
+    return (
+      expDir + "/runs/" + ts + "-" + edge + "-" + harnessNote +
+      "-c" + String(cycle)
+    );
+  }
+
+  function envPreset(edge, cycle) {
+    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
+    // as this stage's run folder. Hooks cannot inherit env from a
+    // child, but PreToolUse payloads carry the full command text,
+    // so the first prefixed command binds session -> run.
+    return (
+      "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
+      "-c" + String(cycle) + " BP3_QUEST=" + quest + " BP3_EXP=" +
+      exp + " " + envPrefix
+    );
+  }
+
+  function tapePreamble(edge, cycle) {
+    const folder = runFolder(edge, cycle, harness + "-" + model);
+    return (
+      "Your run folder is `" + folder + "` under `" + expDir +
+      "/runs/`. Prefix your FIRST shell command with `" +
+      envPreset(edge, cycle) + "` (hooks witness this prefix " +
+      "to bind your session to this run). First check whether that concrete run " +
+      "folder already exists: if it does, stop immediately, do " +
+      "not overwrite or reuse it, and return a JSON object " +
+      '{"ok":false,"error":{"code":"E_RUN_EXISTS"}} describing ' +
+      "the collision. Run-id folders must fail if they already " +
+      "exist. Otherwise create the folder, then tee all of your " +
+      "session output into its tape.log for the rest of the run: " +
+      "run your shell work so stdout and stderr are appended " +
+      "through `tee -a <run-folder>/tape.log` (for example " +
+      "`exec > >(tee -a <run-folder>/tape.log) 2>&1` in bash, " +
+      "or pipe each command through `tee -a`). The tape is " +
+      "verbatim evidence only; never parse tape text into facts. " +
+      "Write `<run-folder>/notes.md` with brief authored lessons " +
+      "from the run before you finish. Record the concrete run " +
+      "folder name as run_id in your reply JSON."
+    );
+  }
+
+  const before = await readState();
+  if (before.state === "unknown") {
+    refusals.push("initial read failed: " + (before.raw || "no verdict"));
+    return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+  }
+  if (before.state !== "submitted" && before.state !== "approved") {
+    return { exp: exp, outcome: before.state, matrix: [], run_ids: runIds, refusals: refusals };
+  }
+  const bound = before.commit ? String(before.commit) : "";
+  if (bound && bound !== commit) {
+    refusals.push(
+      "E_COMMIT_MISMATCH commit " + commit + " does not bind bound commit " + bound
+    );
+    return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+  }
+
+  // Audit: typed evidence matrix, read-only, no state edges.
+  const audit = await host.agent({
+    label: "audit " + exp,
+    input:
+      "You are the audit child for exp `" + exp + "` of quest `" +
+      quest + "`, bound to commit `" + commit + "`. " +
+      tapePreamble("audit", before.cycle) +
+      " Read the exp's EXPERIMENT.md first. Build the evidence " +
+      "matrix: one row per Acceptance case (acceptance rows), plus " +
+      "adherence rows for the build Run that produced this commit " +
+      "(submit edge called by the child directly, env preset on " +
+      "the first command, clean commit, tape.log and notes.md " +
+      "present in its run folder, no hand-edited state). Every row " +
+      "is {case, evidence: {kind: file|command|ledger|grep, ref, " +
+      "quote}, verdict: pass|fail|missing}: quote observed evidence " +
+      "verbatim; a case with no artifact is verdict missing, never " +
+      "pass, and free-string evidence is not a row. Judge only; do " +
+      "not edit any file and do not call any `bp3 q u` update edge. " +
+      "Write the matrix verbatim as JSON in your run folder's " +
+      "notes.md, with your brief authored lessons. Reply with only " +
+      "a JSON object {ok, run_id, matrix} where matrix is the row " +
+      "list you wrote in notes.md.",
+  });
+  const auditVerdict = parseVerdict(audit);
+  if (auditVerdict && typeof auditVerdict.run_id === "string" && auditVerdict.run_id) {
+    runIds.push(auditVerdict.run_id);
+  }
+  if (!auditVerdict || !Array.isArray(auditVerdict.matrix)) {
+    refusals.push("audit returned no matrix: " + errorText(audit));
+  }
+  const matrix = normalizeMatrix(auditVerdict ? auditVerdict.matrix : null);
+  const matrixJson = JSON.stringify(matrix);
+
+  // Review || check on the exact bound commit. A missing or fail
+  // row means the positive verdict is not available to them.
+  const gate =
+    "The evidence matrix for this grade is: " + matrixJson + ". " +
+    "Any row with verdict fail or missing means the work is not " +
+    "correct: cast the negative verdict. ";
+  const reviewPrompt =
+    "You are the review child for exp `" + exp + "` of quest `" +
+    quest + "`, currently in state `" + before.state + "` at cycle " +
+    String(before.cycle) + ", bound to commit `" + commit + "`. " +
+    reviewLoad + tapePreamble("review", before.cycle) + gate +
+    " Review the work at the bound commit against the exp's " +
+    "own Acceptance cases in its EXPERIMENT.md (read it first): " +
+    "every case needs observed evidence, and any open design " +
+    "question in the exp means it was not done properly. Judge " +
+    "only; do not edit the work. Then call the state " +
+    "edge directly yourself, binding the exact commit: " +
+    "`" + envPreset("review", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
+    " review --verdict ship --commit " + commit +
+    " --reason \"<short reason>\"` when the work is correct, " +
+    "or the same call with `--verdict needs_fix` when it is " +
+    "not. Children call `bp3 q u` directly; never only return " +
+    "a verdict for the parent to relay. Reply with only a " +
+    "JSON object {ok, run_id, commit, verdict} where verdict " +
+    "is the JSON printed by the review call.";
+  const checkPrompt =
+    "You are the check child for exp `" + exp + "` of quest `" +
+    quest + "`, currently in state `" + before.state + "` at cycle " +
+    String(before.cycle) + ", bound to commit `" + commit + "`. " +
+    checkLoad + tapePreamble("check", before.cycle) + gate +
+    " Run the exp's checks against the bound commit and judge " +
+    "only; do not edit the work. Then call the state edge " +
+    "directly yourself, binding the exact commit: " +
+    "`" + envPreset("check", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
+    " check --verdict pass --commit " + commit +
+    " --reason \"<short reason>\"` when every check passes, " +
+    "or the same call with `--verdict fail` when any check " +
+    "fails. Children call `bp3 q u` directly; never only " +
+    "return a verdict for the parent to relay. Reply with " +
+    "only a JSON object {ok, run_id, commit, verdict} where " +
+    "verdict is the JSON printed by the check call.";
+  const stageResults = await host.parallel([
+    { label: "review " + exp, input: reviewPrompt },
+    { label: "check " + exp, input: checkPrompt },
+  ]);
+  for (let i = 0; i < stageResults.length; i++) {
+    const v = parseVerdict(stageResults[i]);
+    if (v && typeof v.run_id === "string" && v.run_id) {
+      runIds.push(v.run_id);
+    }
+  }
+
+  const after = await readState();
+  if (after.state === "unknown") {
+    refusals.push("re-read after grade failed: " + (after.raw || "no verdict"));
+    for (let i = 0; i < stageResults.length; i++) {
+      refusals.push(errorText(stageResults[i]));
+    }
+    return { exp: exp, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
+  }
+  const outcome = outcomeFor(after.state, matrix);
+  if (outcome === "refused") {
+    for (let i = 0; i < stageResults.length; i++) {
+      refusals.push(errorText(stageResults[i]));
+    }
+  }
+  return { exp: exp, outcome: outcome, matrix: matrix, run_ids: runIds, refusals: refusals };
+}

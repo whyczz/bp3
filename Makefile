@@ -19,6 +19,7 @@ check: lint
 lint:
 	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh
 	node --check skills/induct/workflows/induct-exp.js
+	node --check skills/induct/workflows/induct-grade.js
 
 test:
 	./test/skills.sh
