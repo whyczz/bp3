@@ -6,3 +6,4 @@
 {"event":"run_started","ts":"2026-11-15T01:00:29Z","run_id":"20261115T005847Z-check-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"cbb1b713-5e4a-7b8b-89dd-b59a7b49b923"}
 {"event":"lint_checked","ts":"2026-11-15T01:00:41Z","run_id":"20261115T005847Z-check-muse-code-muse-wonder-1.0-c1","check":"skills.sh","result":"pass"}
 {"event":"run_started","ts":"2026-11-15T01:00:45Z","run_id":"20261115T005847Z-review-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"cbb1bc13-5e4a-740a-89dd-ba9a7b49c1a2"}
+{"ts":"2026-11-15T01:00:45Z","edge":"review","from":"submitted","to":"blocked","cycle":1,"commit":"92f3dc9ab85d5d599add175c6403ce1589961f5f","verdict":"needs_fix","reason":"gated live drive, full-cycle and token-overhead rows missing; code and skills tests pass","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
