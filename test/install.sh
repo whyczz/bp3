@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+fail() { echo "FAIL: $*" >&2; exit 1; }
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+
+# simulate a release artifact from the built binary
+version=$(sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' "$root/src/quest/gitx.ml" | head -1)
+os=$(uname -s | tr '[:upper:]' '[:lower:]'); arch=$(uname -m)
+mkdir -p "$work/dist"
+art="$work/dist/bp3-q-v$version-$os-$arch"
+cp "$root/_build/default/src/quest/main.exe" "$art"
+(cd "$work/dist" && shasum -a 256 "$(basename "$art")" > "$(basename "$art").sha256")
+
+out=$(PREFIX="$work/prefix" "$root/scripts/install-bp3.sh" "$art")
+echo "$out" | grep -q "installed bp3-q $version" || fail "install print: $out"
+echo "$out" | grep -q "(was: none)" || fail "install old: $out"
+[ -x "$work/prefix/bin/bp3-q" ] || fail "bp3-q not installed"
+[ -x "$work/prefix/bin/bp3" ] || fail "bp3 shim not installed"
+out=$(PREFIX="$work/prefix" "$root/scripts/install-bp3.sh" "$art")
+echo "$out" | grep -q "(was: $version)" || fail "reinstall old->new: $out"
+
+# dogfood: full quest loop in a scratch repo on the installed binary only
+mkdir -p "$work/esc3" && cd "$work/esc3"
+git init -q -b master; git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+export PATH="$work/prefix/bin:$PATH"
+out=$(bp3-q init-repo) || fail "init-repo: $out"
+echo "$out" | grep -q '"ok":true' || fail "init-repo verdict: $out"
+[ -f plans/default.yaml ] && [ -f plans/direct.yaml ] || fail "plans not scaffolded"
+out=$(bp3 q c dogfood) || fail "esc3 quest create: $out"
+out=$(bp3 q dogfood c exp-1) || fail "esc3 exp create: $out"
+echo change >> a.txt; git add .; git commit -qm change
+out=$(bp3 q dogfood u exp-1 submit --commit HEAD --reason "esc3 dogfood") || fail "esc3 submit: $out"
+echo "$out" | grep -q '"state":"submitted"' || fail "esc3 submitted: $out"
+out=$(bp3 q r dogfood) || fail "esc3 read: $out"
+git -C "$root" rev-parse -q --verify refs/heads/bp3/quest/dogfood >/dev/null 2>&1 && fail "dogfood quest leaked into home repo refs"
+
+# init-repo refuses differing plans
+echo "quest_type: mine" > plans/default.yaml
+if out=$(bp3-q init-repo 2>&1); then fail "init-repo clobbered differing plan"; fi
+echo "$out" | grep -q "E_EXISTS" || fail "init-repo refusal: $out"
+
+echo "install tests: ok"

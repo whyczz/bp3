@@ -302,6 +302,33 @@ let do_prepare quest exp run_id commit path_override =
             | Some existing -> prepare_verdict existing true
             | None -> prepare_verdict r false)
 
+(* Exp 8: one worktree per quest for a whole induct.
+   Record key is quest-<quest>; exp field is "(quest)". *)
+let quest_run_id quest = "quest-" ^ quest
+
+let do_prepare_quest quest =
+  Store.check_slug quest;
+  let run_id = quest_run_id quest in
+  match load_record run_id with
+  | Some r ->
+      if Sys.file_exists (abs_path r.r_path) then prepare_verdict r true
+      else begin
+        let _ = do_create r.r_path (Some r.r_ref) None in
+        prepare_verdict r true
+      end
+  | None ->
+      let path = ".bp3/worktrees/" ^ quest in
+      let branch = "quest/" ^ quest in
+      let _ = do_create path (Some branch) None in
+      let i = inspect_info path in
+      let r = { r_run = run_id; r_quest = quest; r_exp = "(quest)";
+                r_path = path; r_ref = i.iref; r_detached = i.idetached;
+                r_created = now_s () } in
+      if save_record r then prepare_verdict r false
+      else (match load_record run_id with
+            | Some existing -> prepare_verdict existing true
+            | None -> prepare_verdict r false)
+
 let do_check run_id =
   let r = match load_record run_id with
     | Some r -> r | None -> not_found "run" run_id in
@@ -329,6 +356,13 @@ let release_record r force =
              ("removed", `Bool false); ("missing", `Bool true)]
             @ record_json r)
   end
+
+let do_release_quest quest =
+  Store.check_slug quest;
+  let run_id = quest_run_id quest in
+  let r = match load_record run_id with
+    | Some r -> r | None -> not_found "quest worktree" quest in
+  release_record r false
 
 let do_release run_id force =
   let r = match load_record run_id with
@@ -474,6 +508,8 @@ let parse_quest_flag args =
   loop None args
 
 let run = function
+  | "prepare" :: "--quest" :: [quest] -> do_prepare_quest quest
+  | "release" :: "--quest" :: [quest] -> do_release_quest quest
   | "prepare" :: quest :: exp :: rest ->
       let (run_id, commit, path) = parse_prepare_flags rest in
       let run_id = (match run_id with

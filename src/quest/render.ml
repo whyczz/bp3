@@ -273,6 +273,13 @@ let render_table_icebox fields =
   render_rows ["slug"; "date"; "status"; "promoted"; "title"] rows
 
 let print_verdict ~fmt v =
+  (* Exp 5: any verdict in a version-ahead repo carries the warning *)
+  let v = match v with
+    | `Assoc fs when not (List.mem_assoc "warnings" fs) ->
+        (match version_ahead () with
+         | Some _ -> `Assoc (fs @ [("warnings", `List [json_str "W_VERSION_AHEAD"])])
+         | None -> v)
+    | _ -> v in
   match fmt, v with
   | "tree", `Assoc fields when List.mem_assoc "exps" fields ->
       render_tree fields

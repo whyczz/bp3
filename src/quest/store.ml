@@ -29,8 +29,17 @@ let identity () =
   let incomplete = harness = "unknown" || model = "unknown" in
   { harness; model; decider_human; incomplete }
 
-let warnings_of id is_write =
-  if is_write && id.incomplete then ["W_IDENTITY_UNKNOWN"] else []
+let parse_version s =
+  try List.map int_of_string (String.split_on_char '.' s) with _ -> [0]
+
+let rec version_cmp a b =
+  match a, b with
+  | [], [] -> 0
+  | [], _ -> version_cmp [0] b
+  | _, [] -> version_cmp a [0]
+  | x :: xs, y :: ys -> if x <> y then compare x y else version_cmp xs ys
+
+let version_major v = match parse_version v with m :: _ -> m | [] -> 0
 
 (* ---------- plans ---------- *)
 type knobs = { max_cycles : int; review_required : bool; checks_required : bool }
@@ -178,6 +187,38 @@ let list_quests () =
 let list_exps q =
   let p = "refs/heads/bp3/exp/" ^ q ^ "/" in
   list_refs p |> List.map (fun r -> String.sub r (String.length p) (String.length r - String.length p))
+
+(* newest bp3_version stamped in any quest/exp ledger in this repo *)
+let newest_bp3_version () =
+  let from_text acc text =
+    List.fold_left (fun acc line ->
+      try
+        match Yojson.Safe.from_string line with
+        | `Assoc fs ->
+            (match List.assoc_opt "bp3_version" fs with
+             | Some (`String v) ->
+                 (match acc with
+                  | Some cur when version_cmp (parse_version cur) (parse_version v) >= 0 -> acc
+                  | _ -> Some v)
+             | _ -> acc)
+        | _ -> acc
+      with _ -> acc) acc (String.split_on_char '\n' text) in
+  List.fold_left (fun acc q ->
+    let acc = match ledger_text (quest_branch q) (quest_ledger_path q) with
+      | Some (_, t) -> from_text acc t | None -> acc in
+    List.fold_left (fun acc e ->
+      match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+      | Some (_, t) -> from_text acc t | None -> acc) acc (list_exps q))
+    None (list_quests ())
+
+let version_ahead () =
+  match newest_bp3_version () with
+  | Some v when version_cmp (parse_version v) (parse_version bp3_version) > 0 -> Some v
+  | _ -> None
+
+let warnings_of id is_write =
+  (if is_write && id.incomplete then ["W_IDENTITY_UNKNOWN"] else [])
+  @ (match version_ahead () with Some _ -> ["W_VERSION_AHEAD"] | None -> [])
 
 let fold_exp q e =
   match ledger_text (exp_branch q e) (exp_ledger_path q e) with

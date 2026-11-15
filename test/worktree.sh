@@ -214,3 +214,18 @@ if out=$(wt release --run GONE 2>&1); then fail "release of unknown Run ID accep
 echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "release unknown code: $out"
 
 echo "worktree tests: ok"
+
+# --- quest-level desk (Exp 8): prepare/release --quest ---
+out=$(wt prepare --quest demoq)
+echo "$out" | jq -e '.ok == true and .quest == "demoq" and .exp == "(quest)" and .path == ".bp3/worktrees/demoq" and .ref == "quest/demoq"' >/dev/null || fail "quest prepare: $out"
+[ -d .bp3/worktrees/demoq ] || fail "quest desk missing on disk"
+out=$(wt prepare --quest demoq)
+echo "$out" | jq -e '.ok == true and .existing == true' >/dev/null || fail "quest prepare idempotent: $out"
+out=$(wt list)
+echo "$out" | jq -e '.worktrees | map(.quest) | index("demoq") != null' >/dev/null || fail "quest desk in list: $out"
+echo stray > .bp3/worktrees/demoq/stray.txt
+if out=$(wt release --quest demoq 2>&1); then fail "dirty quest release accepted"; fi
+rm .bp3/worktrees/demoq/stray.txt
+out=$(wt release --quest demoq)
+echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "quest release: $out"
+[ ! -d .bp3/worktrees/demoq ] || fail "quest desk not removed"
