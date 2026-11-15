@@ -1178,3 +1178,121 @@ state.yaml
  skills/induct-quest-no-human/SKILL.md              |   89 +-
  test/skills.sh                                     |   19 +
  10 files changed, 1523 insertions(+), 132 deletions(-)
+A  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/ledger.jsonl
+A  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/state.yaml
+M  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/runs/20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ 3 files changed, 83 insertions(+)
+ create mode 100644 docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/ledger.jsonl
+ create mode 100644 docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/state.yaml
+92ee9de00c5f01815241405c0d3ee9d7188b7efc
+ M docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/runs/20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+src/quest/gitx.ml:72:let worktree_dirty () =
+src/quest/main.ml:198:      if worktree_dirty () then
+src/quest/main.ml:199:        err "E_DIRTY_TREE" (`Assoc []) "Worktree is dirty; clean it and retry." 1;
+src/quest/main.ml:302:      let checkpoint = if worktree_dirty () then Some (make_checkpoint ()) else None in
+src/quest/worktree.ml:4:   commit, inspect its ref and dirty state, and remove it.
+src/quest/worktree.ml:5:   The dirty refusal lives in the remove primitive itself,
+src/quest/worktree.ml:63:  idirty : bool; ichanged : int;
+src/quest/worktree.ml:89:    idirty = lines <> []; ichanged = List.length lines }
+src/quest/worktree.ml:94:          ("dirty", `Bool i.idirty); ("changed_count", `Int i.ichanged)]
+src/quest/worktree.ml:146:(* ---------- remove: the dirty refusal lives here ---------- *)
+src/quest/worktree.ml:149:  if info.idirty && not force then
+src/quest/worktree.ml:152:      "Worktree is dirty; commit the work or remove with --force." 1;
+src/quest/worktree.ml:161:     if again.idirty && not force then
+src/quest/worktree.ml:164:         "Worktree is dirty; commit the work or remove with --force." 1
+src/quest/worktree.ml:269:               ("dirty", `Bool i.idirty); ("changed_count", `Int i.ichanged);
+src/quest/worktree.ml:317:           ("dirty", `Bool i.idirty); ("changed_count", `Int i.ichanged);
+src/quest/worktree.ml:375:            ("dirty", `Bool i.idirty); ("changed_count", `Int i.ichanged)]
+    usage ("unknown edge: " ^ edge);
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  let (_, s, _) = (match fold_exp quest exp with Some v -> v | None -> not_found "exp" exp) in
+  let (_, qt, deps) = (match fold_quest quest with Some (_, _, a, b, _) -> ((), a, b) | None -> not_found "quest" quest) in
+  let knobs = effective_knobs ~quest_type:qt ~exp_type:s.exp_type in
+  let finish ns line =
+    ignore (append_exp_line quest exp line ns);
+    with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+      ("exp", json_str exp); ("state", json_str ns.st); ("cycle", `Int ns.cycle);
+      ("commit", (match ns.last_commit with Some c -> json_str c | None -> `Null));
+      ("legal_edges", `List (List.map json_str (legal_edges ns.st)))] in
+  match edge with
+  | "submit" ->
+      if s.st <> "todo" then illegal s.st edge;
+      let raw = (match fl.commit with Some c -> c | None -> usage "--commit is required for submit") in
+      let full = (match resolve_commit raw with Some f -> f
+        | None -> err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str raw)])
+            "Commit does not exist; bind an existing commit." 1) in
+      if worktree_dirty () then
+        err "E_DIRTY_TREE" (`Assoc []) "Worktree is dirty; clean it and retry." 1;
+      let blocked_by = List.filter (fun d -> not (dep_satisfied d)) deps in
+      if blocked_by <> [] then
+        err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str blocked_by))])
+          "Dependencies are not landed yet." 1;
+      let approved_now = (not knobs.review_required) && (not knobs.checks_required) in
+      let ns = { s with st = (if approved_now then "approved" else "submitted");
+                 bound = Some full; has_bound = true; last_commit = Some full;
+                 review_ok = false; check_ok = false } in
+      let line = ledger_line ~edge ~from:s.st ~to_:ns.st ~cycle:s.cycle
+        ~commit:(Some full) ~verdict:None ~reason ~id () in
+      finish ns line
+  | "review" | "check" ->
+      if s.st <> "submitted" then illegal s.st edge;
+      let v = (match fl.verdict with Some v -> v | None -> usage "--verdict is required") in
+      let valid = if edge = "review" then (v = "ship" || v = "needs_fix") else (v = "pass" || v = "fail") in
+      if not valid then usage ("invalid verdict for " ^ edge ^ ": " ^ v);
+      (match fl.commit with
+       | Some c ->
+           let rc = (match resolve_commit c with Some f -> f | None -> c) in
+           let bound = (match s.bound with Some b -> b | None -> "") in
+           if rc <> bound then
+            ^ " < " ^ Filename.quote msgf ^ " > " ^ Filename.quote cf ^ " 2>/dev/null"));
+          let mtip = String.trim (read_file_or cf "") in
+          if run_status (git ["update-ref"; qbranch; mtip; qtip]) <> 0 then
+            err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
+          with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+            ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+            ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
+            ("legal_edges", `List [])]
+        end
+      end
+  | "block" ->
+      if not (List.mem s.st ["todo"; "submitted"; "approved"]) then illegal s.st edge;
+      let checkpoint = if worktree_dirty () then Some (make_checkpoint ()) else None in
+      let ns = { s with st = "blocked"; blocked_reason = reason;
+                 blocked_checkpoint = checkpoint; blocked_since = now_ts () } in
+      let line = ledger_line ~edge ~from:s.st ~to_:"blocked" ~cycle:s.cycle
+        ~commit:s.last_commit ~verdict:None ~reason ~id ?checkpoint () in
+      let base = finish ns line in
+      (match base with `Assoc fs -> `Assoc (fs @ [("human_action_required", `Bool true)]) | o -> o)
+  | "resume" ->
+      if s.st <> "blocked" then illegal s.st edge;
+      if not id.decider_human then
+        err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest); ("exp", json_str exp)])
+          "Resume requires a human decision (BP3_DECIDER=human)." 1;
+      let ncyc = if s.has_bound then s.cycle + 1 else s.cycle in
+      let ns = { s with st = "todo"; cycle = ncyc; bound = None; has_bound = false;
+                 review_ok = false; check_ok = false } in
+      let line = ledger_line ~edge ~from:s.st ~to_:"todo" ~cycle:ncyc
+        ~commit:None ~verdict:None ~reason ~id () in
+      finish ns line
+  | _ -> usage ("unknown edge: " ^ edge)
+let git_show ref_ path =
+  let out, code = git_out ["show"; ref_ ^ ":" ^ path] in
+  if code = 0 then Some out else None
+
+let ref_tip refname =
+  let out, code = git_out ["rev-parse"; "--verify"; "-q"; refname ^ "^{commit}"] in
+  if code = 0 && out <> "" then Some out else None
+
+let resolve_commit sha =
+  let out, code = git_out ["rev-parse"; "--verify"; "-q"; sha ^ "^{commit}"] in
+  if code = 0 && out <> "" then Some out else None
+
+let worktree_dirty () =
+  let out, _ = git_out ["status"; "--porcelain"] in
+  String.trim out <> ""
+
+let head_sha () =
+  match ref_tip "HEAD" with Some s -> s | None -> usage "repository has no HEAD commit"
+
+let is_ancestor a b = git_ok ["merge-base"; "--is-ancestor"; a; b]
+
