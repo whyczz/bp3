@@ -5,3 +5,4 @@
 {"event":"run_settled","ts":"2026-11-15T00:10:55Z","run_id":"20261115T000656Z-submit-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
 {"event":"run_started","ts":"2026-11-15T00:11:13Z","run_id":"20261115T000656Z-review-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"3786c6d8-5956-745a-82c5-906c40283212"}
 {"event":"run_started","ts":"2026-11-15T00:11:14Z","run_id":"20261115T000656Z-check-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"3786c7d8-5956-760d-82c5-916c402833c5"}
+{"event":"lint_checked","ts":"2026-11-15T00:11:15Z","run_id":"20261115T000656Z-review-muse-code-muse-wonder-1.0-c1","check":"induct.sh","result":"pass"}
