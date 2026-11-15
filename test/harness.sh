@@ -47,7 +47,7 @@ if out=$(h supervisor no-such-quest --timeout-seconds 1 2>&1); then fail "missin
 echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "missing quest code: $out"
 
 # --- later-exp verbs refuse typed, never fake success ---
-for v in find-tape watch desk f w d; do
+for v in watch desk w d; do
   if out=$(h "$v" --run-id R1 2>&1); then fail "$v accepted in mvp.1"; fi
   echo "$out" | jq -e '.ok == false and .error.code == "E_UNSUPPORTED"' >/dev/null || fail "$v refusal: $out"
 done
@@ -117,8 +117,68 @@ echo "$last" | jq -e '(.runs[] | select(.run_id == "R-blind") | .lifecycle == "a
 echo "$last" | jq -e '(.runs[] | select(.run_id == "R-torn") | .lifecycle == "init")' >/dev/null || fail "torn fold: $last"
 echo "$last" | jq -e '(.orphans | index("R-orphan") != null)' >/dev/null || fail "orphans named: $last"
 
+# --- find-tape (mvp.2): InitRecord-first, reverse, entry ---
+mkdir -p fixtures/pi-store fixtures/muse-store/S-muse
+printf '%s\n' '{"type":"session","version":3,"id":"S-pi","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}' '{"type":"message","id":"e1","message":{"role":"user","content":"BP3_RUN_ID=R-pi-run work"}}' '{"type":"message","id":"e2","message":{"role":"assistant","content":"done"}}' '{"type":"message","id":"e3","message":{"role":"assistant","content":"bye"}}' > fixtures/pi-store/pi1.jsonl
+printf '%s\n' '{"session_id":"S-muse","id":"m1","content":"BP3_RUN_ID=R-muse-run work"}' > fixtures/muse-store/S-muse/session.jsonl
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-find\",\"harness\":\"pi\",\"session_id\":\"S-pi\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/pi-store/pi1.jsonl\",\"quest\":\"toy\"}" > "$store/R-find.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-bad\",\"harness\":\"pi\",\"tape_path\":\"$work/repo/fixtures/pi-store/pi1.jsonl\",\"quest\":\"toy\"}" > "$store/R-bad.jsonl"
+export BP3_PI_TAPE_DIR="$work/repo/fixtures/pi-store" BP3_MUSE_TAPE_DIR="$work/repo/fixtures/muse-store"
+
+out=$(h find-tape -h) || fail "find-tape -h exit"
+echo "$out" | grep -q "E_NOT_FOUND" || fail "find-tape help codes: $out"
+out=$(h f -h) || fail "alias f -h exit"
+echo "$out" | grep -q "find-tape" || fail "alias f help: $out"
+
+out=$(h find-tape --run-id R-find) || fail "find-tape InitRecord hit exit: $out"
+echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/pi1.jsonl" '.ok == true and .run_id == "R-find" and .harness == "pi" and .session_id == "S-pi" and .wal == $w' >/dev/null || fail "find-tape InitRecord hit: $out"
+out=$(h find-tape --session-id S-pi) || fail "find-tape reverse exit: $out"
+echo "$out" | jq -e '.run_id == "R-find" and .session_id == "S-pi"' >/dev/null || fail "find-tape reverse: $out"
+out=$(h f --run-id R-find --session-id S-pi) || fail "find-tape both-agreeing exit: $out"
+echo "$out" | jq -e '.run_id == "R-find"' >/dev/null || fail "find-tape both-agreeing: $out"
+out=$(h find-tape --run-id R-pi-run) || fail "find-tape scan hit exit: $out"
+echo "$out" | jq -e '.run_id == "R-pi-run" and .harness == "pi" and .session_id == "S-pi"' >/dev/null || fail "find-tape scan hit: $out"
+out=$(h find-tape --session-id S-muse) || fail "find-tape muse reverse exit: $out"
+echo "$out" | jq -e '.run_id == "R-muse-run" and .harness == "muse-code" and .session_id == "S-muse"' >/dev/null || fail "find-tape muse reverse: $out"
+
+printf '%s\n' '{"type":"message","id":"mx","message":{"role":"user","content":"R-mention-only was discussed here"}}' > fixtures/pi-store/mention.jsonl
+if out=$(h find-tape --run-id R-mention-only 2>&1); then fail "bare mention accepted as a binding"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "bare mention code: $out"
+rm fixtures/pi-store/mention.jsonl
+if out=$(h find-tape --run-id R-nope 2>&1); then fail "unknown run accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "unknown run code: $out"
+if out=$(h find-tape --run-id R-bad 2>&1); then fail "unreferenced InitRecord tape accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "unreferenced tape code: $out"
+if out=$(h find-tape 2>&1); then fail "neither identity accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "neither code: $out"
+if out=$(h find-tape --run-id R-find --session-id S-other 2>&1); then fail "disagreeing identity accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "disagreeing code: $out"
+if out=$(h find-tape --run-id R-find --run-id R-find 2>&1); then fail "duplicate flag accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "duplicate code: $out"
+if out=$(h find-tape --run-id=R-find 2>&1); then fail "--flag=value accepted"; fi
+if out=$(h find-tape --run-id R-find --before-entries 1 2>&1); then fail "widen without entry accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "widen-without-entry code: $out"
+if out=$(h find-tape --run-id R-find --entry e2 --before-entries -1 2>&1); then fail "negative widen accepted"; fi
+
+# two candidate files refuse and name both
+cp fixtures/pi-store/pi1.jsonl fixtures/pi-store/pi2.jsonl
+if out=$(h find-tape --run-id R-pi-run 2>&1); then fail "ambiguous run accepted"; fi
+echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "ambiguous code: $out"
+echo "$out" | grep -q "pi1.jsonl" || fail "ambiguous names first: $out"
+echo "$out" | grep -q "pi2.jsonl" || fail "ambiguous names second: $out"
+rm fixtures/pi-store/pi2.jsonl
+
+# pointer resolution: one digest-verified entry, widened
+out=$(h find-tape --run-id R-find --entry e2 --before-entries 1 --after-entries 1) || fail "entry exit: $out"
+echo "$out" | jq -e '.entry.id == "e2" and (.entries | length == 3) and .entries[0].id == "e1" and .entries[2].id == "e3" and (.entry.digest | startswith("sha256:"))' >/dev/null || fail "entry window: $out"
+want=$(sed -n '3p' fixtures/pi-store/pi1.jsonl | tr -d '\n' | shasum -a 256 | cut -d' ' -f1)
+got=$(echo "$out" | jq -r '.entry.digest' | sed 's/^sha256://')
+[ "$want" = "$got" ] || fail "entry digest: want $want got $got"
+if out=$(h find-tape --run-id R-find --entry nope 2>&1); then fail "unknown entry accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "unknown entry code: $out"
+
 # tick is idempotent: same fold, same runs on rerun
-set +e; out2=$(h supervisor toy --timeout-seconds 1); set -e
+set +e; out=$(h supervisor toy --timeout-seconds 1); out2=$(h supervisor toy --timeout-seconds 1); set -e
 r1=$(echo "$out" | tail -1 | jq -cS '.runs | sort_by(.run_id)')
 r2=$(echo "$out2" | tail -1 | jq -cS '.runs | sort_by(.run_id)')
 [ "$r1" = "$r2" ] || fail "tick not idempotent: $r1 vs $r2"

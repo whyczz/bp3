@@ -332,6 +332,415 @@ let do_init_check args =
   print_endline (Yojson.Safe.to_string (`Assoc fields));
   0
 
+(* ---------- find-tape (mvp.2) ---------- *)
+(* SHA-256 over the exact entry line: pointer digests are
+   verified from the tape bytes themselves, never trusted. *)
+let sha256_hex s =
+  let k = [|
+    0x428a2f98l; 0x71374491l; 0xb5c0fbcfl; 0xe9b5dba5l; 0x3956c25bl; 0x59f111f1l; 0x923f82a4l; 0xab1c5ed5l;
+    0xd807aa98l; 0x12835b01l; 0x243185bel; 0x550c7dc3l; 0x72be5d74l; 0x80deb1fel; 0x9bdc06a7l; 0xc19bf174l;
+    0xe49b69c1l; 0xefbe4786l; 0x0fc19dc6l; 0x240ca1ccl; 0x2de92c6fl; 0x4a7484aal; 0x5cb0a9dcl; 0x76f988dal;
+    0x983e5152l; 0xa831c66dl; 0xb00327c8l; 0xbf597fc7l; 0xc6e00bf3l; 0xd5a79147l; 0x06ca6351l; 0x14292967l;
+    0x27b70a85l; 0x2e1b2138l; 0x4d2c6dfcl; 0x53380d13l; 0x650a7354l; 0x766a0abbl; 0x81c2c92el; 0x92722c85l;
+    0xa2bfe8a1l; 0xa81a664bl; 0xc24b8b70l; 0xc76c51a3l; 0xd192e819l; 0xd6990624l; 0xf40e3585l; 0x106aa070l;
+    0x19a4c116l; 0x1e376c08l; 0x2748774cl; 0x34b0bcb5l; 0x391c0cb3l; 0x4ed8aa4al; 0x5b9cca4fl; 0x682e6ff3l;
+    0x748f82eel; 0x78a5636fl; 0x84c87814l; 0x8cc70208l; 0x90befffal; 0xa4506cebl; 0xbef9a3f7l; 0xc67178f2l |] in
+  let h = [| 0x6a09e667l; 0xbb67ae85l; 0x3c6ef372l; 0xa54ff53al;
+             0x510e527fl; 0x9b05688cl; 0x1f83d9abl; 0x5be0cd19l |] in
+  let rotr x n = Int32.logor (Int32.shift_right_logical x n) (Int32.shift_left x (32 - n)) in
+  let len = String.length s in
+  let bitlen = Int64.mul (Int64.of_int len) 8L in
+  let pad_zeros = (56 - (len + 1) mod 64 + 64) mod 64 in
+  let total = len + 1 + pad_zeros + 8 in
+  let buf = Bytes.make total '\x00' in
+  Bytes.blit_string s 0 buf 0 len;
+  Bytes.set buf len '\x80';
+  for i = 0 to 7 do
+    Bytes.set buf (total - 1 - i)
+      (Char.chr (Int64.to_int (Int64.logand (Int64.shift_right_logical bitlen (8 * i)) 0xffL)))
+  done;
+  let w = Array.make 64 0l in
+  for chunk = 0 to total / 64 - 1 do
+    let base = chunk * 64 in
+    for i = 0 to 15 do
+      let o = base + i * 4 in
+      w.(i) <- Int32.logor (Int32.shift_left (Int32.of_int (Char.code (Bytes.get buf o))) 24)
+        (Int32.logor (Int32.shift_left (Int32.of_int (Char.code (Bytes.get buf (o + 1)))) 16)
+        (Int32.logor (Int32.shift_left (Int32.of_int (Char.code (Bytes.get buf (o + 2)))) 8)
+           (Int32.of_int (Char.code (Bytes.get buf (o + 3))))))
+    done;
+    for i = 16 to 63 do
+      let s0 = Int32.logxor (rotr w.(i - 15) 7) (Int32.logxor (rotr w.(i - 15) 18) (Int32.shift_right_logical w.(i - 15) 3)) in
+      let s1 = Int32.logxor (rotr w.(i - 2) 17) (Int32.logxor (rotr w.(i - 2) 19) (Int32.shift_right_logical w.(i - 2) 10)) in
+      w.(i) <- Int32.add w.(i - 16) (Int32.add s0 (Int32.add w.(i - 7) s1))
+    done;
+    let a = ref h.(0) and b = ref h.(1) and c = ref h.(2) and d = ref h.(3) in
+    let e = ref h.(4) and f = ref h.(5) and g = ref h.(6) and hh = ref h.(7) in
+    for i = 0 to 63 do
+      let s1 = Int32.logxor (rotr !e 6) (Int32.logxor (rotr !e 11) (rotr !e 25)) in
+      let ch = Int32.logxor (Int32.logand !e !f) (Int32.logand (Int32.lognot !e) !g) in
+      let t1 = Int32.add !hh (Int32.add s1 (Int32.add ch (Int32.add k.(i) w.(i)))) in
+      let s0 = Int32.logxor (rotr !a 2) (Int32.logxor (rotr !a 13) (rotr !a 22)) in
+      let maj = Int32.logxor (Int32.logand !a !b) (Int32.logxor (Int32.logand !a !c) (Int32.logand !b !c)) in
+      let t2 = Int32.add s0 maj in
+      hh := !g; g := !f; f := !e; e := Int32.add !d t1;
+      d := !c; c := !b; b := !a; a := Int32.add t1 t2
+    done;
+    h.(0) <- Int32.add h.(0) !a; h.(1) <- Int32.add h.(1) !b;
+    h.(2) <- Int32.add h.(2) !c; h.(3) <- Int32.add h.(3) !d;
+    h.(4) <- Int32.add h.(4) !e; h.(5) <- Int32.add h.(5) !f;
+    h.(6) <- Int32.add h.(6) !g; h.(7) <- Int32.add h.(7) !hh
+  done;
+  let hex = Buffer.create 64 in
+  Array.iter (fun x ->
+    for i = 7 downto 0 do
+      let nib = Int32.to_int (Int32.logand (Int32.shift_right_logical x (i * 4)) 0xfl) in
+      Buffer.add_char hex ("0123456789abcdef".[nib])
+    done) h;
+  Buffer.contents hex
+
+let all_init_records () =
+  match derivations_dir () with
+  | None -> []
+  | Some dir ->
+      let names = try Array.to_list (Sys.readdir dir) with _ -> [] in
+      List.sort String.compare names |> List.concat_map (fun n ->
+        if not (Filename.check_suffix n ".jsonl") then []
+        else
+          let text = read_file_or (Filename.concat dir n) "" in
+          let found = ref [] in
+          String.split_on_char '\n' text |> List.iter (fun ln ->
+            let ln = String.trim ln in
+            if ln <> "" then
+              try
+                let j = Yojson.Safe.from_string ln in
+                if get_str j "kind" "" = "init_record" then
+                  found := {
+                    run_id = (let r = get_str j "run_id" "" in
+                              if r <> "" then r else Filename.remove_extension n);
+                    harness = get_str j "harness" "";
+                    session_id = get_opt j "session_id";
+                    pid = get_int_opt j "pid";
+                    tape_path = get_opt j "tape_path";
+                    quest = get_opt j "quest";
+                    exp = get_opt j "exp";
+                  } :: !found
+              with _ -> ());
+          List.rev !found)
+
+let tape_roots = function
+  | "pi" ->
+      (match Sys.getenv_opt "BP3_PI_TAPE_DIR" with
+       | Some d when d <> "" -> [d]
+       | _ -> (match Sys.getenv_opt "HOME" with
+               | Some home -> [Filename.concat home ".pi/agent/sessions";
+                               Filename.concat home ".pi/sessions"]
+               | None -> [".pi/agent/sessions"; ".pi/sessions"]))
+  | _ ->
+      (match Sys.getenv_opt "BP3_MUSE_TAPE_DIR" with
+       | Some d when d <> "" -> [d]
+       | _ -> (match Sys.getenv_opt "HOME" with
+               | Some home -> [Filename.concat home ".local/share/muse/sessions"]
+               | None -> [".local/share/muse/sessions"]))
+
+let rec collect_tapes dir acc =
+  let entries = try Array.to_list (Sys.readdir dir) with _ -> [] in
+  List.fold_left (fun acc n ->
+    let p = Filename.concat dir n in
+    if try Sys.is_directory p with _ -> false then collect_tapes p acc
+    else if Filename.check_suffix n ".jsonl" then p :: acc else acc) acc entries
+
+let member_str_opt j key =
+  try match Yojson.Safe.Util.member key j with `String s -> Some s | _ -> None
+  with _ -> None
+
+let entry_id_of_line ln =
+  try
+    let j = Yojson.Safe.from_string ln in
+    (match member_str_opt j "id" with Some _ as v -> v | None ->
+     match member_str_opt j "uuid" with Some _ as v -> v | None ->
+     match member_str_opt j "session_id" with Some _ as v -> v | None ->
+     (* muse retained frames wrap the real record as a string *)
+     try match Yojson.Safe.Util.member "children" j with
+       | `List (first :: _) ->
+           (match member_str_opt first "record_json" with
+            | Some raw ->
+                (try let inner = Yojson.Safe.from_string raw in
+                     member_str_opt inner "id"
+                 with _ -> None)
+            | None -> None)
+       | _ -> None
+     with _ -> None)
+  with _ -> None
+
+(* A tape references a Run only through a binding, never a
+   bare mention: BP3_RUN_ID=<id> in a command or a stamped
+   "run_id" field. A session is referenced by owning it. *)
+let tape_references_run text run =
+  contains_sub text ("BP3_RUN_ID=" ^ run)
+  || contains_sub text ("\"run_id\":\"" ^ run ^ "\"")
+  || contains_sub text ("\"run_id\": \"" ^ run ^ "\"")
+
+let tape_references_session text session =
+  contains_sub text ("\"session_id\":\"" ^ session ^ "\"")
+  || contains_sub text ("\"session_id\": \"" ^ session ^ "\"")
+
+let session_id_of_tape path =
+  let text = read_file_or path "" in
+  let lines = String.split_on_char '\n' text in
+  let from_lines =
+    List.fold_left (fun acc ln ->
+      match acc with Some _ -> acc | None ->
+        (try
+           let j = Yojson.Safe.from_string (String.trim ln) in
+           (match member_str_opt j "type" with
+            | Some "session" -> member_str_opt j "id"
+            | _ ->
+                (match member_str_opt j "session_id" with Some _ as v -> v | None ->
+                 try match Yojson.Safe.Util.member "children" j with
+                   | `List (first :: _) ->
+                       (match member_str_opt first "record_json" with
+                        | Some raw ->
+                            (try let inner = Yojson.Safe.from_string raw in
+                                 (try match Yojson.Safe.Util.member "stream" inner with
+                                    | `Assoc fs -> (match List.assoc_opt "id" fs with
+                                                    | Some (`String s) -> Some s | _ -> None)
+                                    | _ -> None
+                                  with _ -> None)
+                             with _ -> None)
+                        | None -> None)
+                   | _ -> None
+                 with _ -> None))
+         with _ -> None)) None lines in
+  match from_lines with
+  | Some _ as v -> v
+  | None ->
+      if Filename.basename path = "session.jsonl"
+      then Some (Filename.basename (Filename.dirname path)) else None
+
+let extract_run_ids text =
+  let ids = ref [] in
+  let add v = if v <> "" && not (List.mem v !ids) then ids := v :: !ids in
+  let scan marker parse =
+    let rec go from =
+      if from < String.length text then
+        match (try Some (Str.search_forward (Str.regexp_string marker) text from) with _ -> None) with
+        | Some i -> parse (i + String.length marker); go (i + String.length marker)
+        | None -> () in
+    go 0 in
+  scan "BP3_RUN_ID=" (fun start ->
+    let rec take j = if j < String.length text &&
+      ((text.[j] >= 'a' && text.[j] <= 'z') || (text.[j] >= 'A' && text.[j] <= 'Z') ||
+       (text.[j] >= '0' && text.[j] <= '9') || text.[j] = '-' || text.[j] = '_' || text.[j] = '.')
+      then take (j + 1) else j in
+    let stop = take start in
+    if stop > start then add (String.sub text start (stop - start)));
+  scan "\"run_id\":\"" (fun start ->
+    match (try Some (String.index_from text start '"') with _ -> None) with
+    | Some stop -> add (String.sub text start (stop - start))
+    | None -> ());
+  List.rev !ids
+
+type ft_flags = {
+  mutable ft_run : string option; mutable ft_session : string option;
+  mutable ft_entry : string option;
+  mutable ft_before : int; mutable ft_after : int;
+  mutable ft_before_set : bool; mutable ft_after_set : bool;
+}
+
+let nonneg_int flag v =
+  let n = try int_of_string v with _ -> -1 in
+  if n < 0 || string_of_int n <> v then
+    usage (flag ^ " needs a non-negative integer, got: " ^ v)
+  else n
+
+let parse_ft_flags args =
+  let fl = { ft_run = None; ft_session = None; ft_entry = None;
+             ft_before = 0; ft_after = 0; ft_before_set = false; ft_after_set = false } in
+  let rec loop = function
+    | [] -> fl
+    | "--run-id" :: v :: rest ->
+        if fl.ft_run <> None then usage "duplicate flag --run-id";
+        fl.ft_run <- Some v; loop rest
+    | "--session-id" :: v :: rest ->
+        if fl.ft_session <> None then usage "duplicate flag --session-id";
+        fl.ft_session <- Some v; loop rest
+    | "--entry" :: v :: rest ->
+        if fl.ft_entry <> None then usage "duplicate flag --entry";
+        fl.ft_entry <- Some v; loop rest
+    | "--before-entries" :: v :: rest ->
+        if fl.ft_before_set then usage "duplicate flag --before-entries";
+        fl.ft_before <- nonneg_int "--before-entries" v; fl.ft_before_set <- true; loop rest
+    | "--after-entries" :: v :: rest ->
+        if fl.ft_after_set then usage "duplicate flag --after-entries";
+        fl.ft_after <- nonneg_int "--after-entries" v; fl.ft_after_set <- true; loop rest
+    | ["--run-id"] | ["--session-id"] | ["--entry"] | ["--before-entries"] | ["--after-entries"] ->
+        usage "flag needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray) in
+  loop args
+
+type tape_entry = {
+  te_index : int; te_id : string option; te_offset : int; te_line : string;
+}
+
+let tape_entries path =
+  let text = read_file_or path "" in
+  let n = String.length text in
+  let rec go idx off acc =
+    if off >= n then List.rev acc
+    else
+      let stop = try String.index_from text off '\n' with _ -> n in
+      let ln = String.sub text off (stop - off) in
+      if String.trim ln = "" then go idx (stop + 1) acc
+      else go (idx + 1) (stop + 1)
+        ({ te_index = idx; te_id = entry_id_of_line ln; te_offset = off; te_line = ln } :: acc) in
+  go 0 0 []
+
+let entry_json e =
+  let parsed = try Yojson.Safe.from_string e.te_line with _ -> json_str e.te_line in
+  `Assoc [
+    ("id", (match e.te_id with Some i -> json_str i | None -> `Null));
+    ("index", `Int e.te_index);
+    ("byte_offset", `Int e.te_offset);
+    ("byte_length", `Int (String.length e.te_line));
+    ("digest", json_str ("sha256:" ^ sha256_hex e.te_line));
+    ("entry", parsed);
+  ]
+
+let ambiguous what candidates =
+  err "E_AMBIGUOUS" (`Assoc [(what, `List (List.map json_str candidates))])
+    ("Ambiguous " ^ what ^ "; refusing to pick: " ^ String.concat ", " candidates) 1
+
+let do_find_tape args =
+  let fl = parse_ft_flags args in
+  if (fl.ft_before_set || fl.ft_after_set) && fl.ft_entry = None then
+    usage "--before-entries/--after-entries need --entry";
+  (match fl.ft_run, fl.ft_session with
+   | None, None -> usage "find-tape needs --run-id or --session-id"
+   | Some "", _ | _, Some "" -> usage "identity flags need a non-empty value"
+   | _ -> ());
+  let records = all_init_records () in
+  let by_run = match fl.ft_run with
+    | Some r -> List.filter (fun (rec_ : init_record) -> rec_.run_id = r) records
+    | None -> [] in
+  let by_sess = match fl.ft_session with
+    | Some s -> List.filter (fun (rec_ : init_record) -> rec_.session_id = Some s) records
+    | None -> [] in
+  let sess_runs = dedup (List.map (fun (rec_ : init_record) -> rec_.run_id) by_sess) in
+  if List.length sess_runs > 1 then ambiguous "session-id" sess_runs;
+  (match fl.ft_run, fl.ft_session with
+   | Some r, Some s ->
+       if by_run <> [] && by_sess <> [] && sess_runs <> [r] then
+         usage "--run-id and --session-id disagree";
+       List.iter (fun (rec_ : init_record) ->
+         if rec_.session_id <> None && rec_.session_id <> Some s then
+           usage "--run-id and --session-id disagree") by_run
+   | _ -> ());
+  let record = match by_run with
+    | rec_ :: _ -> Some rec_
+    | [] -> (match by_sess with rec_ :: _ -> Some rec_ | [] -> None) in
+  (match by_run with
+   | _ :: _ :: _ ->
+       let tapes = dedup (List.filter_map (fun (rec_ : init_record) -> rec_.tape_path) by_run) in
+       let sessions = dedup (List.filter_map (fun (rec_ : init_record) -> rec_.session_id) by_run) in
+       if List.length tapes > 1 || List.length sessions > 1 then
+         ambiguous "run-id" (tapes @ sessions)
+   | _ -> ());
+  let run_needles = dedup (
+    (match fl.ft_run with Some r -> [r] | None -> []) @
+    (match record with Some rec_ -> [rec_.run_id] | None -> [])) in
+  let sess_needles = dedup (
+    (match fl.ft_session with Some s -> [s] | None -> []) @
+    (match record with Some rec_ -> (match rec_.session_id with Some s -> [s] | None -> []) | None -> [])) in
+  let tape_matches text path =
+    List.exists (fun nd -> tape_references_run text nd) run_needles
+    || List.exists (fun nd -> tape_references_session text nd
+                              || session_id_of_tape path = Some nd) sess_needles in
+  (* resolve (wal, harness, session_id, pid, run_id) *)
+  let record_hit =
+    match record with
+    | Some rec_ ->
+        (match rec_.tape_path with
+         | Some tp when Sys.file_exists tp ->
+             let text = read_file_or tp "" in
+             if tape_matches text tp
+             then Some (tp, rec_.harness, rec_.session_id, rec_.pid, rec_.run_id)
+             else None
+         | Some tp ->
+             err "E_NOT_FOUND" (`Assoc [("wal", json_str tp); ("run_id", json_str rec_.run_id)])
+               ("Tape named by the InitRecord does not exist: " ^ tp) 1
+         | None -> None)
+    | None -> None in
+  let (wal, harness, session_id, pid, run_id) =
+    match record_hit with
+    | Some hit -> hit
+    | None ->
+        let harnesses = match record with
+          | Some rec_ when rec_.harness <> "" -> [rec_.harness]
+          | _ -> ["muse-code"; "pi"] in
+        let candidates = List.concat_map (fun h ->
+          List.concat_map (fun root_ -> collect_tapes root_ []) (tape_roots h)
+          |> List.filter_map (fun p ->
+               let text = read_file_or p "" in
+               if tape_matches text p
+               then Some (p, h, text) else None)) harnesses in
+        let paths = dedup (List.map (fun (p, _, _) -> p) candidates) in
+        (match paths with
+         | [] ->
+             let facts = match fl.ft_run with
+               | Some r -> `Assoc [("run_id", json_str r)]
+               | None -> `Assoc [("session_id", json_str (match fl.ft_session with Some s -> s | None -> ""))] in
+             err "E_NOT_FOUND" facts "No tape references that run; no guess made." 1
+         | _ :: _ :: _ -> ambiguous "tape" paths
+         | [p] ->
+             let (_, h, text) = List.find (fun (cp, _, _) -> cp = p) candidates in
+             let sess = (match record with Some rec_ -> rec_.session_id | None -> None) in
+             let sess = match sess with Some _ -> sess | None -> session_id_of_tape p in
+             let sess = match sess with Some _ -> sess | None -> fl.ft_session in
+             let run = (match record with Some rec_ -> rec_.run_id | None ->
+                        match fl.ft_run with Some r -> r | None ->
+                        match extract_run_ids text with
+                        | [r] -> r
+                        | _ :: _ :: _ -> ambiguous "session-id" (extract_run_ids text)
+                        | [] -> (match fl.ft_session with Some s -> s | None -> "")) in
+             let pid = match record with Some rec_ -> rec_.pid | None -> None in
+             (p, h, sess, pid, run)) in
+  (match fl.ft_session, session_id with
+   | Some s, Some found when s <> found ->
+       err "E_NOT_FOUND" (`Assoc [("session_id", json_str s)])
+         "The tape for that run carries a different session-id." 1
+   | _ -> ());
+  let base = [
+    ("ok", `Bool true);
+    ("run_id", json_str run_id);
+    ("harness", json_str harness);
+    ("session_id", (match session_id with Some s -> json_str s | None -> `Null));
+    ("wal", json_str wal);
+    ("tape_path", json_str wal);
+    ("pid", (match pid with Some p -> `Int p | None -> `Null));
+  ] in
+  (match fl.ft_entry with
+   | None -> print_endline (Yojson.Safe.to_string (`Assoc base)); 0
+   | Some wanted ->
+       let entries = tape_entries wal in
+       (match List.find_opt (fun e -> e.te_id = Some wanted) entries with
+        | None ->
+            err "E_NOT_FOUND" (`Assoc [("entry", json_str wanted); ("wal", json_str wal)])
+              ("No entry with that id in the tape: " ^ wanted) 1
+        | Some hit ->
+            let lo = max 0 (hit.te_index - fl.ft_before) in
+            let hi = min (List.length entries - 1) (hit.te_index + fl.ft_after) in
+            let window = List.filter (fun e -> e.te_index >= lo && e.te_index <= hi) entries in
+            let fields = base @ [
+              ("entry", entry_json hit);
+              ("entries", `List (List.map entry_json window));
+            ] in
+            print_endline (Yojson.Safe.to_string (`Assoc fields)); 0))
+
 (* ---------- later-exps door ---------- *)
 let not_yet verb =
   err "E_UNSUPPORTED" (`Assoc [("verb", json_str verb)])
@@ -341,7 +750,7 @@ let not_yet verb =
 let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]   passive loop: tell -> watch -> judge -> finalize\n\
   bp3 harness init-check [--engine muse-code|pi]   probe tape sources; blindness is W_SUPERVISOR_BLIND, never blocking\n\
-  bp3 harness find-tape --run-id <id>              run-id -> tape (owned by a later exp)\n\
+  bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]   InitRecord-first run-id -> tape; --session-id <id> is a reverse lookup\n\
   bp3 harness watch --run-id <id>                  blocking watch (owned by a later exp)\n\
   bp3 harness desk <verb> ...                      desks (owned by a later exp)\n\
 Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
@@ -357,6 +766,14 @@ let help_init_check = "bp3 harness init-check - probe tape sources per harness:\
   bp3 harness init-check [--engine muse-code|pi]\n\
   Emits {ok, checks}; a missing or reshaped tape source adds W_SUPERVISOR_BLIND to warnings and never blocks work.\n\
 Example: bp3 harness init-check --engine muse-code\n"
+
+let help_find_tape = "bp3 harness find-tape - InitRecord-first tape lookup:\n\
+  bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]\n\
+  bp3 harness find-tape --session-id <id>\n\
+  Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate.\n\
+  --entry returns the one digest-verified entry (sha256 over its exact line, with byte range), widened by --before-entries/--after-entries (non-negative integers, default 0).\n\
+  Emits {ok, run_id, harness, session_id, wal, pid} or, with --entry, plus {entry, entries}.\n\
+Example: bp3 harness find-tape --run-id 20261115T000000Z-submit-pi-model-c1\n"
 
 let is_help = function "-h" | "--help" -> true | _ -> false
 
@@ -375,6 +792,7 @@ let run = function
       print_string (match normalize_verb verb with
         | "supervisor" -> help_supervisor
         | "init-check" -> help_init_check
+        | "find-tape" -> help_find_tape
         | _ -> help_harness); 0
   | verb_raw :: rest ->
       (match normalize_verb verb_raw with
@@ -383,7 +801,7 @@ let run = function
             | quest :: tail -> do_supervisor quest tail
             | [] -> usage "supervisor needs a quest")
        | "init-check" -> do_init_check rest
-       | "find-tape" -> not_yet "find-tape"
+       | "find-tape" -> do_find_tape rest
        | "watch" -> not_yet "watch"
        | "desk" -> not_yet "desk"
        | other -> usage ("unknown harness verb: " ^ other))
