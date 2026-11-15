@@ -8,3 +8,4 @@
 {"event":"usage_recorded","ts":"2026-11-15T02:31:26Z","run_id":"20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1","input_tokens":63525742,"output_tokens":334934,"cached_tokens":61485260,"reasoning_tokens":58898,"wall_ms":231000,"started_ts":"2026-11-15T02:27:35Z","settled_ts":"2026-11-15T02:31:26Z"}
 {"event":"run_settled","ts":"2026-11-15T02:31:26Z","run_id":"20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
 {"event":"run_started","ts":"2026-11-15T02:33:18Z","run_id":"20261115T023135Z-check-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"b1693260-0bff-73e5-80bf-7454dca5132d"}
+{"event":"lint_checked","ts":"2026-11-15T02:33:21Z","run_id":"20261115T023135Z-check-muse-code-muse-wonder-1.0-c1","check":"q.sh","result":"pass"}
