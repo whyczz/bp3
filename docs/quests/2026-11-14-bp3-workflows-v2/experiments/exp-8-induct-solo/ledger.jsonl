@@ -3,3 +3,4 @@
 {"event":"lint_checked","ts":"2026-11-15T02:55:35Z","run_id":"20261115T025306Z-submit-muse-code-muse-wonder-1.0-c1","check":"make check","result":"pass"}
 {"ts":"2026-11-15T02:55:43Z","edge":"submit","from":"todo","to":"submitted","cycle":1,"commit":"76cb4e3581c5fef76870b9b434f3923c08210d89","verdict":null,"reason":"induct-solo alias pointer plus solo rails installed; skills tests 76 ok; make check green; queue-level dawn drive parks preflight-failed toy quest","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"usage_recorded","ts":"2026-11-15T02:55:52Z","run_id":"20261115T025306Z-submit-muse-code-muse-wonder-1.0-c1","input_tokens":9443307,"output_tokens":76311,"cached_tokens":9169476,"reasoning_tokens":22255,"wall_ms":18000,"started_ts":"2026-11-15T02:55:34Z","settled_ts":"2026-11-15T02:55:52Z"}
+{"event":"run_settled","ts":"2026-11-15T02:55:52Z","run_id":"20261115T025306Z-submit-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
