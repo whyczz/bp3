@@ -4,7 +4,7 @@
 # cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
 # Use it when present; harmless elsewhere.
 MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
-DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
 
 check: lint
 	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills

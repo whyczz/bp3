@@ -150,7 +150,9 @@ export default async function workflow(host) {
   const ts = rawArgs.ts;
   const harness = rawArgs.harness || "muse-code";
   const model = rawArgs.model || "unknown";
+  const desk = rawArgs.desk ? String(rawArgs.desk) : "";
   const commit = rawArgs.commit ? String(rawArgs.commit) : "";
+  const deskNote = desk ? ("Your working directory is the quest worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
   const envPrefix =
     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
   const reviewLoad =
@@ -183,7 +185,7 @@ export default async function workflow(host) {
       label: "read " + exp,
       input:
         "Run exactly `" + envPrefix + "./bin/bp3 q " + quest + " r " + exp +
-        "` from the repository root and return only its stdout JSON " +
+        "` from the quest worktree if one is named below, else the repository root, and return only its stdout JSON " +
         "verdict verbatim as your entire reply, with no prose and no " +
         "code fences. If the command fails, return its stdout JSON " +
         "verdict verbatim instead. Do not edit any file and do not " +
@@ -271,7 +273,7 @@ export default async function workflow(host) {
   const audit = await host.agent({
     label: "audit " + exp,
     input:
-      "You are the audit child for exp `" + exp + "` of quest `" +
+      deskNote + "You are the audit child for exp `" + exp + "` of quest `" +
       quest + "`, bound to commit `" + commit + "`. " +
       tapePreamble("audit", before.cycle) +
       " Read the exp's EXPERIMENT.md first. Build the evidence " +
@@ -330,7 +332,7 @@ export default async function workflow(host) {
     "names the exp that owns it) and never block: ignore them. " +
     "Any gated row with verdict fail or missing means the work " +
     "is not correct: cast the negative verdict. ";
-  const reviewPrompt =
+  const reviewPrompt = deskNote +
     "You are the review child for exp `" + exp + "` of quest `" +
     quest + "`, currently in state `" + before.state + "` at cycle " +
     String(before.cycle) + ", bound to commit `" + commit + "`. " +
@@ -350,7 +352,7 @@ export default async function workflow(host) {
     "a verdict for the parent to relay. Reply with only a " +
     "JSON object {ok, run_id, commit, verdict} where verdict " +
     "is the JSON printed by the review call.";
-  const checkPrompt =
+  const checkPrompt = deskNote +
     "You are the check child for exp `" + exp + "` of quest `" +
     quest + "`, currently in state `" + before.state + "` at cycle " +
     String(before.cycle) + ", bound to commit `" + commit + "`. " +

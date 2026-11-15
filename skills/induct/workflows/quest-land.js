@@ -63,6 +63,8 @@ export default async function workflow(host) {
   const ts = rawArgs.ts;
   const harness = rawArgs.harness || "muse-code";
   const model = rawArgs.model || "unknown";
+  const desk = rawArgs.desk ? String(rawArgs.desk) : "";
+  const deskNote = desk ? ("Your working directory is the quest worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
   const envPrefix =
     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
   const refusals = [];
@@ -84,7 +86,7 @@ export default async function workflow(host) {
       label: "read " + exp,
       input:
         "Run exactly `" + envPrefix + "./bin/bp3 q " + quest + " r " + exp +
-        "` from the repository root and return only its stdout JSON " +
+        "` from the quest worktree if one is named below, else the repository root, and return only its stdout JSON " +
         "verdict verbatim as your entire reply, with no prose and no " +
         "code fences. If the command fails, return its stdout JSON " +
         "verdict verbatim instead. Do not edit any file and do not " +
@@ -167,7 +169,7 @@ export default async function workflow(host) {
   const lander = await host.agent({
     label: "land " + exp,
     input:
-      "You are the land child for exp `" + exp + "` of quest `" +
+      deskNote + "You are the land child for exp `" + exp + "` of quest `" +
       quest + "`, currently in state `approved` at cycle " +
       String(before.cycle) + ". " + tapePreamble("land", before.cycle) +
       " Call the state edge directly yourself: " +
