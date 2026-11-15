@@ -13,6 +13,8 @@ echo base > a.txt; git add .; git commit -qm base
 SHA=$(git rev-parse HEAD)
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
+# Since mvp.6 this door is the documented alias of bp3 harness desk;
+# this file is its full regression suite (desk parity lives in harness.sh).
 wt() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 worktree "$@"; }
 
 fail() { echo "FAIL: $*" >&2; exit 1; }

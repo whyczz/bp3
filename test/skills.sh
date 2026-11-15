@@ -136,7 +136,7 @@ assert grep -q 'make check` is green' "$repo/skills/induct-quest-no-human/SKILL.
 assert grep -q 'the budget stopped it' "$repo/skills/induct-quest-no-human/SKILL.md"
 assert grep -q 'quest_fin` stays the' "$repo/skills/induct-quest-no-human/SKILL.md"
 assert grep -q 'usage_recorded` token totals' "$repo/skills/induct-quest-no-human/SKILL.md"
-assert grep -q 'bp3 worktree list' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'bp3 harness desk list' "$repo/skills/induct-quest-no-human/SKILL.md"
 assert grep -q 'skill mode of `induct`' "$repo/skills/induct-quest-no-human/SKILL.md"
 assert grep -q 'induct-quest-no-human' "$repo/skills/induct/SKILL.md"
 assert grep -q 'No-human never' "$root/.agents/skills/induct/SKILL.md"

@@ -11,6 +11,23 @@ let valid_slug s =
 
 let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
 
+(* Door and verb spellings across every bp3 door. A created
+   quest or exp carrying one of these slugs could never be
+   addressed again (the token would parse as the door or
+   verb instead), so creation refuses it; reads stay total. *)
+let reserved_slugs =
+  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo";
+    "supervisor"; "init-check"; "find-tape"; "watch"; "desk";
+    "c"; "create"; "r"; "read"; "u"; "update"; "d"; "delete";
+    "s"; "i"; "f"; "w";
+    "derive"; "inspect"; "remove"; "prepare"; "check"; "exit";
+    "release"; "list" ]
+
+let check_creatable s =
+  check_slug s;
+  if List.mem s reserved_slugs then
+    usage ("reserved slug: " ^ s ^ " names a bp3 door or verb")
+
 type identity = { harness : string; model : string; decider_human : bool; incomplete : bool; run_id : string option }
 
 let run_id_of_env () =

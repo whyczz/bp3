@@ -68,14 +68,14 @@ above stays the one conductor procedure.
    members run; members are exploration only and never
    landable.
 2.5. Quest worktree, by default: before the first dispatch,
-   `./bin/bp3 worktree prepare --quest <quest>` and pass its
+   `./bin/bp3 harness desk prepare --quest <quest>` and pass its
    `path` as `desk` in every step's args. All step children
    work in that one worktree for the whole quest; the
    conductor's checkout is never worked in, so parallel
    inducts and the owner's own work cannot collide with the
    Run. If the desk cannot be prepared, stop and say so —
    never fall back to the shared tree. Release it only at
-   `quest_fin` or on the owner's word (`bp3 worktree
+   `quest_fin` or on the owner's word (`bp3 harness desk
    release --quest <quest>`; a dirty desk refuses and is
    preserved).
 3. Dispatch exactly one step per read, by state only:

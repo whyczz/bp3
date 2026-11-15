@@ -51,11 +51,67 @@ echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "unknown verb 
 if out=$(h supervisor no-such-quest --timeout-seconds 1 2>&1); then fail "missing quest accepted"; fi
 echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "missing quest code: $out"
 
-# --- later-exp verbs refuse typed, never fake success ---
-for v in desk d; do
-  if out=$(h "$v" --run-id R1 2>&1); then fail "$v accepted in mvp.1"; fi
-  echo "$out" | jq -e '.ok == false and .error.code == "E_UNSUPPORTED"' >/dev/null || fail "$v refusal: $out"
+# --- desk (mvp.6): harness desk door, worktree door is its alias ---
+wt() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 worktree "$@"; }
+normj() { jq -Sc 'walk(if type == "object" then del(.created_ts, .stale_s) else . end)'; }
+out=$(h desk -h) || fail "desk -h exit"
+for v in derive create inspect remove prepare check exit release list; do
+  echo "$out" | grep -q "$v" || fail "desk help lists $v: $out"
 done
+out=$(h d -h) || fail "alias d -h exit"
+echo "$out" | grep -q "harness desk" || fail "alias d help: $out"
+if out=$(h desk 2>&1); then fail "desk without a verb accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "desk no-verb code: $out"
+
+# golden parity: read verbs answer identically through both doors
+[ "$(h desk derive demo exp-a R1 | normj)" = "$(wt derive demo exp-a R1 | normj)" ] || fail "derive parity"
+[ "$(h desk list | normj)" = "$(wt list | normj)" ] || fail "empty list parity"
+[ "$(h d list | normj)" = "$(h desk list | normj)" ] || fail "alias d list parity"
+out=$(h desk prepare demo exp-a --run DA)
+echo "$out" | jq -e '.ok == true and .run_id == "DA" and .path == ".bp3/worktrees/demo/exp-a/DA"' >/dev/null || fail "desk prepare: $out"
+[ "$(h desk check --run DA | normj)" = "$(wt check --run DA | normj)" ] || fail "check parity"
+[ "$(h desk list | normj)" = "$(wt list | normj)" ] || fail "list parity"
+[ "$(h desk inspect .bp3/worktrees/demo/exp-a/DA | normj)" = "$(wt inspect .bp3/worktrees/demo/exp-a/DA | normj)" ] || fail "inspect parity"
+
+# dirty refusal is the same verdict through both doors, record intact
+echo stray >> .bp3/worktrees/demo/exp-a/DA/a.txt
+d1=$(h desk release --run DA 2>&1 | normj) || true
+d2=$(wt release --run DA 2>&1 | normj) || true
+[ "$d1" = "$d2" ] || fail "dirty release parity: $d1 vs $d2"
+echo "$d1" | jq -e '.ok == false and .error.code == "E_DIRTY_TREE"' >/dev/null || fail "dirty release code: $d1"
+out=$(h desk check --run DA)
+echo "$out" | jq -e '.ok == true and .dirty == true' >/dev/null || fail "record lost after dirty release: $out"
+out=$(h desk release --run DA --force)
+echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "desk force release: $out"
+
+# create/remove and exit through the desk door
+SHA=$(git rev-parse HEAD)
+out=$(h desk create .bp3/worktrees/demo/exp-a/DC --commit "$SHA")
+echo "$out" | jq -e '.ok == true and .detached == true' >/dev/null || fail "desk create: $out"
+out=$(h desk remove .bp3/worktrees/demo/exp-a/DC)
+echo "$out" | jq -e '.ok == true and .removed == true' >/dev/null || fail "desk remove: $out"
+h desk prepare demo exp-a --run DB >/dev/null
+out=$(cd .bp3/worktrees/demo/exp-a/DB && BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" harness desk exit)
+echo "$out" | jq -e '.ok == true and .released == true and (.conductor_path | type == "string")' >/dev/null || fail "desk exit: $out"
+out=$(h desk prepare --quest demoq)
+echo "$out" | jq -e '.ok == true and .exp == "(quest)" and .path == ".bp3/worktrees/demoq"' >/dev/null || fail "desk quest prepare: $out"
+out=$(h desk release --quest demoq)
+echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "desk quest release: $out"
+
+# creation refuses reserved door/verb slugs (E_USAGE), reads stay total
+for bad in harness worktree desk supervisor watch c create list check; do
+  if out=$(q c "$bad" 2>&1); then fail "quest create accepted reserved slug: $bad"; fi
+  echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved quest code [$bad]: $out"
+done
+q c slug-q >/dev/null
+for bad in harness desk find-tape release; do
+  if out=$(q slug-q c "$bad" 2>&1); then fail "exp create accepted reserved slug: $bad"; fi
+  echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved exp code [$bad]: $out"
+done
+if out=$(h desk prepare --quest watch 2>&1); then fail "desk prepare accepted reserved quest slug"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved desk-prepare code: $out"
+out=$(q slug-q c fine-exp)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "ordinary exp create after refusals: $out"
 
 # --- init-check: blind probe warns, never blocks ---
 mkdir -p "$work/nohome"

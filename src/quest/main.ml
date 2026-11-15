@@ -84,7 +84,7 @@ let illegal state edge =
 
 (* ---------- operations ---------- *)
 let do_quest_create quest fl id =
-  check_slug quest;
+  check_creatable quest;
   let qtype = (match fl.typ with Some t -> t | None -> "default") in
   let _ = quest_knobs qtype in
   if ref_tip (quest_branch quest) <> None then
@@ -133,7 +133,7 @@ let do_quest_delete quest fl id =
   with_warnings id true [("ok", `Bool true); ("quest", json_str quest); ("state", json_str "deleted")]
 
 let do_exp_create quest exp fl id =
-  check_slug quest; check_slug exp;
+  check_slug quest; check_creatable exp;
   (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
   let etype = (match fl.typ with Some t -> t | None -> "default") in
   (* validate exp plan exists for non-default *)
@@ -350,7 +350,7 @@ let help_q = "bp3 q - quest/exp state. Doors:\n\
   bp3 q c|r|d ...              quest door (create, read, delete)\n\
   bp3 q <quest> c|r|u|d ...    exp door for one quest\n\
   bp3 q icebox r [term...]     search frozen icebox entries (read-only)\n\
-  bp3 q worktree <verb> ...    worktree desks (machine-local)\n\
+  bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias\n\
   bp3 q hooks                  harness hook emitter (fail-open)\n\
 Run bp3 q <door> -h for that door's verbs, edges, and flags.\n"
 
@@ -383,11 +383,11 @@ let help_icebox = "bp3 q icebox r - search frozen icebox entries (read-only):\n\
   bp3 q icebox r <slug>                                 print one entry in full\n\
 Example: bp3 q icebox r table completion\n"
 
-let help_worktree = "bp3 worktree - machine-local desks, never ledgered:\n\
+let help_worktree = "bp3 worktree - documented alias of bp3 harness desk, machine-local desks, never ledgered:\n\
   verbs: derive, create, inspect, remove, prepare, check, exit, release, list\n\
-  bp3 worktree prepare <quest> <exp> --run <run-id> [--commit <sha>] [--path <dir>]\n\
-  bp3 worktree list [--quest <quest>]\n\
-Example: bp3 worktree prepare my-quest exp-1 --run R1\n"
+  bp3 harness desk prepare <quest> <exp> --run <run-id> [--commit <sha>] [--path <dir>]\n\
+  bp3 harness desk list [--quest <quest>]\n\
+Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
 
 let is_help = function "-h" | "--help" -> true | _ -> false
 
@@ -421,7 +421,8 @@ let run argv =
   | _quest :: verb_raw :: (h :: _) when is_verb verb_raw && is_help h ->
       print_string (if normalize_verb verb_raw = "u" then help_update else help_exp_door); 0
   | "worktree" :: rest ->
-      (* util layer: machine-local git mechanics, never ledgered *)
+      (* documented alias of harness desk (mvp.6): same store,
+         same verdicts; new callers use bp3 harness desk *)
       print_verdict ~fmt:"json" (Worktree.run rest); 0
   | "init-repo" :: _ ->
       (* Exp 6: scaffold plans/ into the caller's repo; never clobber differing plans *)

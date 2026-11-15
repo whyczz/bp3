@@ -61,7 +61,7 @@ quest up it. Names below reuse the exp's words: `fleet`,
 ## No-human rails
 
 - Desks only: every step Run works from a prepared
-  `bp3 worktree` desk, one quest per checkout. No-human
+  `bp3 harness desk` desk, one quest per checkout. No-human
   never works in the shared tree and never runs two
   quests in one checkout at once.
 - No-human never attests: `BP3_DECIDER` stays unset for
@@ -115,7 +115,7 @@ quest up it. Names below reuse the exp's words: `fleet`,
    budget is spent, and the report says the budget stopped it.
 5. Check-in report (the only output): one combined
    report for the whole fleet, from `bp3 q r`, the run
-   registry, and `bp3 worktree list` — never from
+   registry, and `bp3 harness desk list` — never from
    memory or tape text:
    - quests ready for `quest_fin`, listed in the
      predeclared merge order (fleet never merges);
@@ -130,7 +130,7 @@ quest up it. Names below reuse the exp's words: `fleet`,
    - refusals from preflight, each quest named with the
      failed check or the footprint it overlapped;
    - `usage_recorded` token totals summed per quest;
-   - the worktree sweep result: `bp3 worktree list`
+   - the worktree sweep result: `bp3 harness desk list`
      output, naming any desk still open.
    Then stop. Judgment waits for a human; this report
    is where the night hands over.

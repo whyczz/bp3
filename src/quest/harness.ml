@@ -1,8 +1,10 @@
 (* harness — the bp3 harness door: supervisor, init-check,
-   find-tape, watch, desk. This exp (mvp.1) builds the door,
-   the verdict/exit contract, the lifecycle fold, and the
-   passive supervisor loop. find-tape (mvp.2), watch (mvp.3),
-   and desk (mvp.6) refuses typed until its exp lands.
+   find-tape, watch, desk. mvp.1 built the door, the
+   verdict/exit contract, the lifecycle fold, and the
+   passive supervisor loop; find-tape landed in mvp.2,
+   watch in mvp.3, and desk in mvp.6 (a thin delegation to
+   the Worktree store; the retired top-level worktree door
+   remains as its documented alias).
    Watch is the sole TERM/KILL owner.
    The supervisor never signals a pid and never finalizes
    from a watch outcome: tick phases are tell -> watch ->
@@ -1235,18 +1237,13 @@ let do_watch args =
     end in
   loop ()
 
-(* ---------- later-exps door ---------- *)
-let not_yet verb =
-  err "E_UNSUPPORTED" (`Assoc [("verb", json_str verb)])
-    ("bp3 harness " ^ verb ^ " is not implemented yet; its exp owns it.") 1
-
 (* ---------- help (docstrings beside dispatch) ---------- *)
 let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]   passive loop: tell -> watch -> judge -> finalize\n\
   bp3 harness init-check [--engine muse-code|pi]   probe tape sources; blindness is W_SUPERVISOR_BLIND, never blocking\n\
   bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]   InitRecord-first run-id -> tape; --session-id <id> is a reverse lookup\n\
   bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]   blocking watch: sole TERM/KILL owner\n\
-  bp3 harness desk <verb> ...                      desks (owned by a later exp)\n\
+  bp3 harness desk <verb> ...                      machine-local desks: derive, create, inspect, remove, prepare, check, exit, release, list\n\
 Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
 
 let help_supervisor = "bp3 harness supervisor - passive supervisor loop for one quest:\n\
@@ -1279,6 +1276,15 @@ let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
   Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
 Example: bp3 harness watch --run-id 20261115T000000Z-submit-pi-model-c1 --silence-seconds 600\n"
 
+let help_desk = "bp3 harness desk - machine-local desks, never ledgered (same Worktree store as the retired bp3 worktree door, which remains its documented alias):\n\
+  verbs: derive, create, inspect, remove, prepare, check, exit, release, list\n\
+  bp3 harness desk prepare <quest> <exp> --run <run-id> [--commit <sha>] [--path <dir>]\n\
+  bp3 harness desk prepare --quest <quest>   one desk for a whole quest\n\
+  bp3 harness desk check --run <run-id>      recompute dirty/stale live by Run ID\n\
+  bp3 harness desk release --run <run-id> [--force]   a dirty desk refuses without --force\n\
+  bp3 harness desk list [--quest <quest>]\n\
+Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
+
 let is_help = function "-h" | "--help" -> true | _ -> false
 
 let normalize_verb = function
@@ -1298,6 +1304,7 @@ let run = function
         | "init-check" -> help_init_check
         | "find-tape" -> help_find_tape
         | "watch" -> help_watch
+        | "desk" -> help_desk
         | _ -> help_harness); 0
   | verb_raw :: rest ->
       (match normalize_verb verb_raw with
@@ -1308,5 +1315,8 @@ let run = function
        | "init-check" -> do_init_check rest
        | "find-tape" -> do_find_tape rest
        | "watch" -> do_watch rest
-       | "desk" -> not_yet "desk"
+       | "desk" ->
+           (match rest with
+            | [] -> usage "desk needs a verb: derive, create, inspect, remove, prepare, check, exit, release, or list"
+            | _ -> Render.print_verdict ~fmt:"json" (Worktree.run rest); 0)
        | other -> usage ("unknown harness verb: " ^ other))
