@@ -47,6 +47,8 @@ shell finish the names for you.
 | Release | a `dist/bp3-q-v<bp3_version>-<os>-<arch>` artifact + `.sha256`, gated on git tag `v<bp3_version>`; `bp3_version` (`src/quest/gitx.ml`) is the only version source |
 | Installed binary | a copied release artifact at `~/.local/bin/bp3-q`; never a symlink into `_build` |
 | Version-ahead | a repo whose ledgers stamp a newer `bp3_version` (semver `MAJOR.MINOR.PATCH`) than the binary: reads warn; writes warn on MINOR/PATCH, refuse on MAJOR (`E_VERSION_AHEAD`) |
+| Release mechanism | the bp3-owned scripts (`scripts/release-check`, `scripts/release-publish` + per-repo `release.conf`); bp3-yap-skills vendors copies — source in bp3, runnable everywhere |
+| Yap release | bp3-yap-skills cut the same way: its `VERSION` file → tag `v<version>` → `yap plugin` bundles → GitHub Release; numbers independent of bp3's |
 
 ## Demos
 
@@ -116,6 +118,7 @@ outside a bp3 repo or with an unbuilt binary.
 | `-h`/`--help` at every door (wrapper, `q`, quest door, exp door): plain text, stdout, exit 0 | help as a JSON verdict; changing any error verdict or exit code; help positions beyond the named slots |
 | Release pattern: `--version`, `make release` artifacts + checksums, version-ahead guard, mapped to git releases (annotated tag `v<version>` → GitHub Release via `gh`, publish-once) | package registries beyond GitHub Releases, CI-built assets, auto-update, prerelease version suffixes |
 | Installable bp3: `make install` (copied artifact), cwd-rooted shim, `init-repo` plan scaffolding; esc3 dogfood | symlinks into `_build`, side-by-side multi-version installs, overwriting a repo's differing `plans/` |
+| Shared release mechanism (Exp 7): bp3-owned scripts, yap-skills vendored copy + config, both repos publishing to their own GitHub Releases | yap calling into a bp3 checkout at release time; synced version numbers across repos; a version-ahead guard for skills (no ledger there) |
 
 ## Human touchpoints
 
@@ -171,6 +174,14 @@ roots at the caller's repo, and `init-repo` scaffolds
 `plans/`. Acceptance is a full quest loop in a scratch
 repo with zero writes home. Depends on: Exp 5.
 Lane: standard.
+
+### Exp 7 — [Shared release mechanism](experiments/exp-7-shared-release/EXPERIMENT.md)
+bp3 owns the release scripts; bp3-yap-skills vendors them
+with its own config (`VERSION`, `yap plugin`) and releases
+skills to its own GitHub Releases. One discipline, two
+repos, independent numbers. Added at framing on the
+owner's ask. Depends on: Exp 5. Lane: standard
+(cross-repo: yap-side work lands in bp3-yap-skills).
 
 ## Scorecard
 
