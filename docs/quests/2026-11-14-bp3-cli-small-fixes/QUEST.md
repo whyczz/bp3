@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: landed
 home_repo: bp3
 date: 2026-11-14
 ---
@@ -97,6 +97,35 @@ JSON verdicts are the LLM surface and are fine; this quest
 is human-surface only, and its whole value is that a human
 driving `bp3 q` by hand can read a read at a glance and
 never types a quest slug from memory.
+
+## Landing (IIUC, 2026-11-15, owner-approved quest_fin)
+
+Decision record: promoted from the frozen icebox entry
+as framed (both papercuts, zsh-first, flat tables), then
+grew Exp 3 (icebox search), Exp 4 (help), Exps 5–7
+(semver releases mapped to git releases; bp3 owns the
+shared mechanism, yap-skills vendored), and Exp 8
+(quest-level induct worktrees) — each owner-added at
+framing, each with failing-today acceptance.
+
+What is true now: `--format table` renders aligned
+tables; `bp3` completes in zsh/bash; `bp3 q icebox r`
+searches the icebox read-only; every door answers `-h`;
+`bp3 q --version` + tag-gated `make release`/`publish`
+exist with the older-MAJOR write guard; `make install`
++ `bp3-q init-repo` dogfood bp3 in another repo; and
+`/induct` runs each quest in its own worktree by default.
+
+Evidence: all 8 exps `landed (exp_fin)` cycle 1 via
+`bp3 q r`; full `make check` green in the quest worktree
+(skills 110 assertions; q, worktree, tape, hooks, induct,
+completion, release, install suites). Demos observed:
+table traces, parallel demo-induct-a/b landing
+concurrently with master untouched, esc3 scratch-repo
+quest loop, yap release tarball sha256 in a scratch
+clone. Deliberately open: GitHub publish never run
+(local tag `v0.2.0` only, owner gate), Exp 8's desk-arg
+workflow not yet run end-to-end by a fresh induct.
 
 ## Success picture
 
