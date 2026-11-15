@@ -1,7 +1,7 @@
 // induct-exp: build one todo exp, then stop. Installed to
 // .agents/workflows/induct-exp.js by `bp3 skills install`.
-// This step owns exactly one transition family: it reads state
-// once, spawns the single author child for a `todo` exp, and
+// This step owns exactly one transition family: it reads state,
+// spawns the single author child for a `todo` exp, re-reads, and
 // returns what the re-read reports. Any other state belongs to
 // a different step; this file refuses it untouched. All state
 // moves through `bp3 q u`, called directly by the author child;

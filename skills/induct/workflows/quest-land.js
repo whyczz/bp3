@@ -1,7 +1,7 @@
 // quest-land: land one approved exp, then stop. Installed to
 // .agents/workflows/quest-land.js by `bp3 skills install`.
-// This step owns exactly one transition: it reads state once,
-// spawns the single land child for an `approved` exp, and
+// This step owns exactly one transition: it reads state,
+// spawns the single land child for an `approved` exp, re-reads, and
 // returns what the re-read reports. Any other state belongs to
 // a different step; this file refuses it untouched. The land
 // child calls `bp3 q u` directly; this script never writes
