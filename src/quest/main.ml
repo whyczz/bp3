@@ -412,6 +412,7 @@ let run argv =
   match argv with
   | "-h" :: _ | "--help" :: _ -> print_string help_q; 0
   | "--version" :: _ -> print_endline bp3_version; 0
+  | "harness" :: rest -> Harness.run rest
   | "worktree" :: (h :: _) when is_help h -> print_string help_worktree; 0
   | "icebox" :: (h :: _) when is_help h -> print_string help_icebox; 0
   | "icebox" :: ("r" | "read") :: (h :: _) when is_help h -> print_string help_icebox; 0

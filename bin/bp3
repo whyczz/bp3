@@ -167,13 +167,17 @@ HOOKS_JSON
   fi
 }
 
-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 worktree derive|create|inspect|remove ...'
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 harness ... | bp3 worktree derive|create|inspect|remove ...'
 case "${1:-}" in
   -h|--help) printf '%s\n' "$usage_text"; printf '%s\n' '  bp3 q -h for quest/exp doors'; exit 0 ;;
   q|quest) shift
     q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
     [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
     BP3_ROOT="$root" exec "$q_bin" "$@" ;;
+  harness) shift
+    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" harness "$@" ;;
   worktree) shift
     q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
     [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }

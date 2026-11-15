@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+h() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness "$@"; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+# --- help: every harness verb documented, exit 0, no state read ---
+out=$(h -h) || fail "harness -h exit"
+echo "$out" | grep -q "supervisor" || fail "harness help lists supervisor: $out"
+echo "$out" | grep -q "init-check" || fail "harness help lists init-check: $out"
+out=$(h supervisor -h) || fail "supervisor -h exit"
+echo "$out" | grep -q "settled=0" || fail "supervisor help exit classes: $out"
+echo "$out" | grep -q "watchdog_killed=1" || fail "supervisor help watchdog class: $out"
+echo "$out" | grep -q "timeout=3" || fail "supervisor help timeout class: $out"
+echo "$out" | grep -q "human_gate=4" || fail "supervisor help gate class: $out"
+out=$(h s -h) || fail "alias s -h exit"
+echo "$out" | grep -q "supervisor" || fail "alias s help: $out"
+out=$(h i -h) || fail "alias i -h exit"
+echo "$out" | grep -q "init-check" || fail "alias i help: $out"
+
+# --- usage: strict argv, bare positive durations, exit 2 ---
+if out=$(h supervisor 2>&1); then fail "supervisor without quest accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "no-quest code: $out"
+if out=$(h supervisor toy --timeout-seconds 0 2>&1); then fail "zero timeout accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "zero timeout code: $out"
+if out=$(h supervisor toy --timeout-seconds -5 2>&1); then fail "negative timeout accepted"; fi
+if out=$(h supervisor toy --timeout-seconds 30m 2>&1); then fail "suffixed timeout accepted"; fi
+if out=$(h supervisor toy --timeout-seconds=30 2>&1); then fail "--flag=value accepted"; fi
+if out=$(h supervisor toy --engine bogus 2>&1); then fail "bogus engine accepted"; fi
+if out=$(h supervisor toy --bogus 1 2>&1); then fail "unknown flag accepted"; fi
+if out=$(h bogus 2>&1); then fail "unknown harness verb accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "unknown verb code: $out"
+if out=$(h supervisor no-such-quest --timeout-seconds 1 2>&1); then fail "missing quest accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "missing quest code: $out"
+
+# --- later-exp verbs refuse typed, never fake success ---
+for v in find-tape watch desk f w d; do
+  if out=$(h "$v" --run-id R1 2>&1); then fail "$v accepted in mvp.1"; fi
+  echo "$out" | jq -e '.ok == false and .error.code == "E_UNSUPPORTED"' >/dev/null || fail "$v refusal: $out"
+done
+
+# --- init-check: blind probe warns, never blocks ---
+mkdir -p "$work/nohome"
+out=$(HOME="$work/nohome" BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness init-check) || fail "init-check blind exit"
+echo "$out" | jq -e '.ok == true and (.checks | length == 2) and (.warnings | index("W_SUPERVISOR_BLIND") != null)' >/dev/null || fail "init-check blind: $out"
+out=$(h init-check --engine muse-code) || fail "init-check one engine exit"
+echo "$out" | jq -e '.ok == true and (.checks | length == 1) and .checks[0].harness == "muse-code"' >/dev/null || fail "init-check engine: $out"
+
+# --- fake children: exps in landed / blocked / todo states ---
+q c done-q >/dev/null; q done-q c e1 >/dev/null
+q c gate-q >/dev/null; q gate-q c e1 >/dev/null
+q c toy >/dev/null; q toy c e1 >/dev/null
+echo work > b.txt; git add b.txt; git commit -qm work
+B=$(git rev-parse HEAD)
+q done-q u e1 submit --commit "$B" --reason work >/dev/null
+q done-q u e1 review --verdict ship --reason ok >/dev/null
+q done-q u e1 check --verdict pass --reason ok >/dev/null
+q done-q u e1 land --reason "done" >/dev/null
+q gate-q u e1 submit --commit "$B" --reason work >/dev/null
+q gate-q u e1 review --verdict needs_fix --reason broken >/dev/null
+
+# settled: all landed -> outcome settled, exit 0
+out=$(h supervisor done-q --timeout-seconds 5) || fail "settled exit: $out"
+echo "$out" | tail -1 | jq -e '.ok == true and .outcome == "settled" and .settled == true' >/dev/null || fail "settled verdict: $out"
+
+# human gate: blocked exp -> outcome human_gate, exit 4, inbox names it
+set +e; out=$(h supervisor gate-q --timeout-seconds 5); rc=$?; set -e
+[ "$rc" = 4 ] || fail "human_gate exit class: $rc ($out)"
+echo "$out" | tail -1 | jq -e '.outcome == "human_gate" and .settled == false and (.inbox | length == 1) and .inbox[0].exp == "e1"' >/dev/null || fail "human_gate verdict: $out"
+
+# timeout: todo exp never settles -> outcome timeout, exit 3
+set +e; out=$(h s toy --timeout-seconds 1); rc=$?; set -e
+[ "$rc" = 3 ] || fail "timeout exit class: $rc ($out)"
+echo "$out" | tail -1 | jq -e '.outcome == "timeout" and .settled == false' >/dev/null || fail "timeout verdict: $out"
+# stdout is pure NDJSON: every line parses, human prose stays off it
+echo "$out" | while IFS= read -r line; do echo "$line" | jq -e . >/dev/null || fail "non-JSON stdout line: $line"; done
+
+# --- lifecycle fold over derivation fixtures ---
+store=".git/bp3/run-lifecycle-derivations"
+mkdir -p "$store" fixtures
+echo tape > fixtures/fresh.log
+touch -t 202001010000 fixtures/stale.log
+sleep 60 & LIVE=$!
+printf '%s\n' '{"kind":"init_record","run_id":"R-init","harness":"muse-code","quest":"toy"}' > "$store/R-init.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-active\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/fresh.log\"}" > "$store/R-active.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-orphan\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/stale.log\"}" > "$store/R-orphan.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-fin","harness":"pi","quest":"toy"}' '{"kind":"observation","exit_observed":true,"tape_closed":true}' > "$store/R-fin.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-settle-live\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/fresh.log\"}" '{"kind":"observation","settle_row":true,"tape_closed":false}' > "$store/R-settle-live.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-blind\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/missing.log\"}" > "$store/R-blind.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-torn","harness":"pi","quest":"toy"}' '{"kind":"observation","tape_seen":tru' > "$store/R-torn.jsonl"
+
+# engine contradicting an InitRecord is a usage error
+if out=$(h supervisor toy --engine muse-code --timeout-seconds 1 2>&1); then fail "engine contradiction accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "contradiction code: $out"
+
+set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
+last=$(echo "$out" | tail -1)
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-init") | .lifecycle == "init")' >/dev/null || fail "init fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-active") | .lifecycle == "active")' >/dev/null || fail "active fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-orphan") | .lifecycle == "orphaned")' >/dev/null || fail "orphan fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-fin") | .lifecycle == "finished")' >/dev/null || fail "finished fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-settle-live") | .lifecycle == "active")' >/dev/null || fail "settle-live fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-blind") | .lifecycle == "active") and (.warnings | index("W_SUPERVISOR_BLIND") != null)' >/dev/null || fail "blind fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-torn") | .lifecycle == "init")' >/dev/null || fail "torn fold: $last"
+echo "$last" | jq -e '(.orphans | index("R-orphan") != null)' >/dev/null || fail "orphans named: $last"
+
+# tick is idempotent: same fold, same runs on rerun
+set +e; out2=$(h supervisor toy --timeout-seconds 1); set -e
+r1=$(echo "$out" | tail -1 | jq -cS '.runs | sort_by(.run_id)')
+r2=$(echo "$out2" | tail -1 | jq -cS '.runs | sort_by(.run_id)')
+[ "$r1" = "$r2" ] || fail "tick not idempotent: $r1 vs $r2"
+kill $LIVE 2>/dev/null || true
+
+# --- naming gate: retired spellings stay out of the new code ---
+retired="Spawn""Record|spawn""ed|run""ning"
+if grep -E "$retired" "$root/src/quest/harness.ml" >/dev/null; then fail "retired lifecycle spelling in harness.ml"; fi
+grep -q "init_record" "$root/src/quest/harness.ml" || fail "init_record missing"
+for w in '"init"' '"active"' '"finished"' '"orphaned"'; do
+  grep -q "$w" "$root/src/quest/harness.ml" || fail "lifecycle word missing: $w"
+done
+
+echo "harness.sh: all checks passed"

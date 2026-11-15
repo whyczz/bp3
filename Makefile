@@ -11,6 +11,7 @@ check: lint
 	./test/skills.sh
 	$(DUNE_BUILD) src/quest/main.exe
 	./test/q.sh
+	./test/harness.sh
 	./test/worktree.sh
 	./test/tape.sh
 	./test/hooks.sh
@@ -20,7 +21,7 @@ check: lint
 	./test/install.sh
 
 lint:
-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
 	node --check skills/induct/workflows/induct-exp.js
 	node --check skills/induct/workflows/induct-grade.js
 	node --check skills/induct/workflows/quest-land.js
