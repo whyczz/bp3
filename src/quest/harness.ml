@@ -309,7 +309,8 @@ let fold_run_file ~silence_seconds path =
          | Some tp -> tape_evidence rec_.harness (read_file_or tp "")
          | None -> (false, false, false) in
        let o = { o with pid_alive = alive; tape_seen; fresh;
-                 exit_observed = o.exit_observed || exit_e;
+                 exit_observed = o.exit_observed || exit_e
+                  || alive = Some false;
                  finish_evidence = o.finish_evidence || fin } in
        (!init, o,
         (if !blind then ["W_SUPERVISOR_BLIND"] else [])
