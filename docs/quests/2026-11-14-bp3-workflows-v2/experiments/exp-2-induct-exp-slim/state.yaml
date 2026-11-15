@@ -1,5 +1,5 @@
 quest: 2026-11-14-bp3-workflows-v2
 exp: exp-2-induct-exp-slim
-state: blocked
-cycle: 2
+state: todo
+cycle: 3
 commit: 546a4b3f1abba2b180a2f713734dfbf02e5e0e70
