@@ -10,8 +10,13 @@ Use when a human in a bp3-enabled repo invokes this skill by
 name (`/induct <quest>`, `$induct <quest>`) or asks to "induct",
 "run", or "keep going on" a named quest until it lands or
 blocks. One quest per induct. One output: step dispatches
-through `bp3 q`, ending in an induct report — what landed, what
-is blocked, and what human decision is owed next.
+through `bp3 q`, ending in an induct report — what reached
+`exp_fin`, what is blocked, and what human decision is owed
+next. Finish lines have report words: `exp_fin` names an exp
+whose state is `landed` (its `land` edge taken); `quest_fin`
+names quest promotion to master, the only owner-gated finish
+line. The FSM states stay `landed`; `exp_fin`/`quest_fin`
+name the finish lines in reports, never new edges.
 
 Use `quest` instead to frame a new quest. Use `using-bp3`
 instead for a single state operation by hand (one submit, one
@@ -37,6 +42,19 @@ the only page: it means a decision only a human can make is
 owed. Fake blocks train rubber-stamps; never manufacture one
 out of a cycle.
 
+## Solo variant
+
+With no human present, the `induct-solo` skill runs this
+same conductor over a queue of quests under solo rails:
+preflight before queueing, desks only, blocked work parks
+in the inbox instead of paging, a stated Run budget stops
+the queue, and the run ends in the dawn report. Solo never
+attests (`BP3_DECIDER` stays unset), never takes `resume`
+or `delete`, and never promotes — `quest_fin` stays the
+owner gate. The rails live in `skills/induct-solo/SKILL.md`;
+this section names the variant only, so the procedure
+above stays the one conductor procedure.
+
 ## Procedure
 
 1. Take exactly one argument: the quest. Confirm the engine
@@ -57,7 +75,7 @@ out of a cycle.
    | `submitted` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit}` with `commit` from this read |
    | `approved` | `quest-land` workflow | `{quest, exp, ts, harness, model}` |
    | `blocked` | human gate (step 4) | — |
-   | `landed` / `deleted` | none | advance to the next exp, or report at terminal |
+   | `landed` / `deleted` | none | advance to the next exp, or report at terminal (`landed` is reported as `exp_fin`) |
 
    `ts` is a UTC compact timestamp (for example
    `20261107T143022Z`) supplied in args because workflow
@@ -104,7 +122,9 @@ out of a cycle.
    unchanged against a moved tip.
 6. Stop when the rollup is terminal (every exp `landed` or
    `deleted`) or a human decision is owed that this session
-   cannot get. Report: dispatches per exp with their ledger
+   cannot get. Name each `landed` exp `exp_fin` in the
+   report; when the quest is promoted to master, name that
+   finish line `quest_fin` (owner gate, demo first). Report: dispatches per exp with their ledger
    evidence, the grade matrices quoted verbatim, Runs and
    tapes left behind, scorecard fields (wall time, context
    tokens, human-active minutes — or "unmeasured", never
