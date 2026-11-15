@@ -19,3 +19,4 @@
 {"event":"run_settled","ts":"2026-11-15T01:27:00Z","run_id":"20261115T012541Z-submit-muse-code-muse-wonder-1.0-c2","outcome":"settled"}
 {"event":"run_started","ts":"2026-11-15T01:29:05Z","run_id":"20261115T012709Z-check-muse-code-muse-wonder-1.0-c2","cycle":2,"session_id":"05cae930-77e4-7ffb-8579-44ee25186483"}
 {"ts":"2026-11-15T01:29:05Z","edge":"check","from":"submitted","to":"blocked","cycle":2,"commit":"7a0514dfaaca75af3126dcf14513d0d3273b1aea","verdict":"fail","reason":"gated adherence fails: dirty tree and hand-truncated exp-1-hello ledger at d21dc54","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"event":"usage_recorded","ts":"2026-11-15T01:29:09Z","run_id":"20261115T012709Z-check-muse-code-muse-wonder-1.0-c2","input_tokens":305102,"output_tokens":4885,"cached_tokens":278176,"reasoning_tokens":1631,"wall_ms":4000,"started_ts":"2026-11-15T01:29:05Z","settled_ts":"2026-11-15T01:29:09Z"}
