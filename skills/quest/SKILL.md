@@ -76,7 +76,7 @@ because a gate that starts green certifies nothing.
 | 6.6 | Skill changes ride as their own exp | if the Quest's changes touch any skill (bp3 `skills/`, yap skills, installed copies), name a skill-change exp with its own acceptance (skill tests, render/install assertions); never edit a skill inline during framing, and never fold a skill change into a code exp — skills are how children behave, so they get the same gate as code |
 | 7 | Red-chair passes on goal, scope, exp order | strongest attack + what it changed, recorded |
 | 7.5 | Red-chair the source itself: the icebox entry or the owner's prompt (its assumptions, wrong problem, boring alternative), before approving the draft built on it | every **critical or major** concern ends in exactly one of two places: settled by a recorded change to the design it attacked, or appended as a **follow-up exp** (next numbers on the railway, labeled `(follow-up)`) whose acceptance proves the design addressed it. A critical/major concern left as prose in Risks, or with neither settlement nor exp, blocks approval |
-| 8 | Stage fat exps as numbered substeps (1.1, 1.2, ...) | each substep passes on its own |
+| 8 | Stage fat exps as substeps inside their milestone (`mvp.1.1`, `mvp.1.2`, ...) | each substep passes on its own |
 
 Keep exp detail inside the Quest file: intent, order, dependencies,
 acceptance. Deep runbooks live in linked exp records; the Quest
@@ -121,10 +121,23 @@ words later sessions think in.
 ## Exps
 
 The Quest file keeps the railway: one TL;DR row per exp, with a
-relative link to its record. Full Output, Acceptance, and
-Substeps live in `experiments/exp-<n>-<slug>/EXPERIMENT.md`
-inside the quest folder — the same folder that later holds the
-exp's generated ledger, state, and runs.
+relative link to its record.
+
+Exp names are grouped by milestone. The display name is
+`<milestone>.<number> - <slug>` (for example,
+`mvp.1 - supervisor-cli`, `backtest.1 - muse`,
+`dogfood.1 - muse-toy-quest`). Because bp3 slugs cannot
+contain dots, the folder and bp3 exp ID use the dotless
+spelling `exp-<milestone>-<number>-<slug>`, and the record
+frontmatter carries `exp: <milestone>.<number>`. Numbering
+restarts inside each milestone; never use a bare global
+`Exp N` for a new quest. Dependencies name display names,
+not bare numbers.
+
+Full Output, Acceptance, and Substeps live in
+`experiments/exp-<milestone>-<number>-<slug>/EXPERIMENT.md`
+inside the quest folder — the same folder that later holds
+the exp's generated ledger, state, and runs.
 
 Every exp record is written in this shape, in this order:
 
@@ -187,9 +200,10 @@ observed or design trace>
 ## Scope            (In: / Out: as a table)
 ## Human touchpoints
 ## Exps
-### Exp 1 — <name>   (one TL;DR row + relative link; the record
-carries diagram, pseudocode, tables, and prose per the Exps
-section above)
+### Milestone: <milestone>
+### <milestone>.1 - <slug>   (one TL;DR row + relative link;
+the record carries diagram, pseudocode, tables, and prose
+per the Exps section above)
 ## Scorecard
 ## Risks and red chair
 ## Open questions    (ranked, each with an owner)
