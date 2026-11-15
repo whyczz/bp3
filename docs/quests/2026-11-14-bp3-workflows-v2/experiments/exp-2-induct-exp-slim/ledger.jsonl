@@ -33,3 +33,4 @@
 {"event":"run_started","ts":"2026-11-15T00:52:51Z","run_id":"20261115T005226Z-submit-muse-code-muse-wonder-1.0-c3","cycle":3,"session_id":"89572364-fb77-7c31-80be-713f4350abf9"}
 {"event":"lint_checked","ts":"2026-11-15T00:53:26Z","run_id":"20261115T005226Z-submit-muse-code-muse-wonder-1.0-c3","check":"make check","result":"pass"}
 {"ts":"2026-11-15T00:53:49Z","edge":"submit","from":"todo","to":"submitted","cycle":3,"commit":"546a4b3f1abba2b180a2f713734dfbf02e5e0e70","verdict":null,"reason":"cycle 3 resubmit of slim build-only induct-exp after grade-matrix fix","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"event":"usage_recorded","ts":"2026-11-15T00:53:51Z","run_id":"20261115T005226Z-submit-muse-code-muse-wonder-1.0-c3","input_tokens":4239350,"output_tokens":37251,"cached_tokens":4012828,"reasoning_tokens":11125,"wall_ms":60000,"started_ts":"2026-11-15T00:52:51Z","settled_ts":"2026-11-15T00:53:51Z"}
