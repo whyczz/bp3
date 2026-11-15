@@ -41,3 +41,25 @@ out=$(BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q --version)
 [ "$out" = "0.2.0" ] || fail "--version: $out"
 
 echo "release tests: ok"
+
+# publish-once with a stubbed gh: first create ok, second refuses
+mkdir -p "$work/fakebin"
+cat > "$work/fakebin/gh" <<'GH'
+#!/usr/bin/env bash
+state=${GH_STATE:?}
+case "$1 $2" in
+  "release view") [ -f "$state" ] ;;
+  "release create") [ ! -f "$state" ] || exit 1; touch "$state"; echo created ;;
+  *) echo "unexpected gh: $*" >&2; exit 1 ;;
+esac
+GH
+chmod +x "$work/fakebin/gh"
+cd "$work/repo"
+git tag -d v0.2.0 >/dev/null; git tag -a v0.2.0 -m "bp3 v0.2.0"
+cp "$root/scripts/release-publish" scripts/
+git remote add origin git@github.com:whyczz/bp3.git
+echo asset > asset.bin
+out=$(GH_STATE="$work/gh1" PATH="$work/fakebin:$PATH" ./scripts/release-publish asset.bin) || fail "publish first: $out"
+echo "$out" | grep -q "published v0.2.0" || fail "publish print: $out"
+if out=$(GH_STATE="$work/gh1" PATH="$work/fakebin:$PATH" ./scripts/release-publish asset.bin 2>&1); then fail "second publish accepted"; fi
+echo "$out" | grep -q "already published" || fail "publish-once message: $out"

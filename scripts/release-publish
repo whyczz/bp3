@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# release-script v1 - source: bp3 scripts/release-publish
+# release-publish: publish-once to GitHub Releases.
+# Usage: release-publish <asset> [asset...]
+# Version comes from scripts/release-check (tag-gated).
+# Refuses if the GitHub Release already exists.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+[ $# -ge 1 ] || { echo "release-publish: at least one asset required" >&2; exit 1; }
+version=$("$root/scripts/release-check")
+repo=$(git -C "$root" remote get-url origin 2>/dev/null | sed -E 's#.*github.com[:/]([^/]+/[^/.]+)(\.git)?#\1#')
+[ -n "$repo" ] || { echo "release-publish: no github origin remote" >&2; exit 1; }
+if gh release view "v$version" --repo "$repo" >/dev/null 2>&1; then
+  echo "release-publish: v$version already published on $repo; refusing" >&2
+  exit 1
+fi
+notes=$(git -C "$root" log -1 --format=%s)
+gh release create "v$version" --repo "$repo" --title "v$version" --notes "$notes" "$@"
+echo "published v$version on $repo"

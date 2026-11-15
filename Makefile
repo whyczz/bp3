@@ -20,7 +20,7 @@ check: lint
 	./test/install.sh
 
 lint:
-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
 	node --check skills/induct/workflows/induct-exp.js
 	node --check skills/induct/workflows/induct-grade.js
 	node --check skills/induct/workflows/quest-land.js
@@ -43,8 +43,7 @@ release:
 	@echo "released $(RELEASE_ARTIFACT)"
 
 publish: release
-	@if gh release view v$(RELEASE_VERSION) >/dev/null 2>&1; then echo "publish: v$(RELEASE_VERSION) already published; refusing" >&2; exit 1; fi
-	gh release create v$(RELEASE_VERSION) $(RELEASE_ARTIFACT) $(RELEASE_ARTIFACT).sha256 --title "v$(RELEASE_VERSION)" --notes "bp3 v$(RELEASE_VERSION)"
+	./scripts/release-publish $(RELEASE_ARTIFACT) $(RELEASE_ARTIFACT).sha256
 
 PREFIX ?= $(HOME)/.local
 install:
