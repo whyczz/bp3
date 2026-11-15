@@ -1,0 +1,87 @@
+created
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (114 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277:  9654 Terminated: 15          sleep 30
+./test/harness.sh: line 292:  9773 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 10126 Terminated: 15          sleep 30
+./test/harness.sh: line 409:  9211 Terminated: 15          sleep 60
+./test/harness.sh: line 514: 11813 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+exit=0
+# backtest.1 (muse) — findings report
+
+Findings machine, not a gate: nothing here must pass; everything must be legible.
+
+- corpus: `/Users/whycz/.local/share/muse/sessions`
+- tapes replayed: 2001
+- identifiable Runs (BP3_RUN_ID binding): 1854
+- findings: 964
+
+## Findings by evidence
+
+- identifiable Run with no finish evidence: 204
+- foreign tape: no BP3_RUN_ID binding: 147
+- E_S: 19
+- E_DIR: 18
+- E_J: 18
+- E_H: 15
+- E_W: 13
+- E_L: 13
+- E_DIRTY_TREE: 13
+exit=0
+# backtest.1 (muse) — findings report
+
+Findings machine, not a gate: nothing here must pass; everything must be legible.
+
+- corpus: `/Users/whycz/.local/share/muse/sessions`
+- tapes replayed: 2001
+- identifiable Runs (BP3_RUN_ID binding): 1854
+- findings: 720
+
+## Findings by evidence
+
+- identifiable Run with no finish evidence: 262
+- foreign tape: no BP3_RUN_ID binding: 147
+- E_DIR: 18
+- E_DIRTY_TREE: 13
+- E_USAGE: 12
+- E_HUMAN_REQUIRED: 10
+- E_STALE_WORLD: 9
+- E_WORLD: 9
+- E_NOT_FOUND: 9
+- E_EXISTS: 8
+- E_COMMIT_MISMATCH: 7
+- E_BIN: 6
+- E_ILLEGAL_EDGE: 4

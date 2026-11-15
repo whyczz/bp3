@@ -1498,6 +1498,121 @@ let do_record_init args =
        ]));
        0)
 
+(* ---------- backtest (backtest.1: findings, not a gate) ---------- *)
+let count_sub text sub =
+  let n = String.length text and m = String.length sub in
+  let rec go i acc =
+    if m = 0 || i + m > n then acc
+    else if String.sub text i m = sub then go (i + m) (acc + 1)
+    else go (i + 1) acc in
+  go 0 0
+
+let extract_codes text =
+  let codes = ref [] in
+  let add v = if not (List.mem v !codes) then codes := v :: !codes in
+  (try
+     let re = Str.regexp "E_[A-Z][A-Z0-9_][A-Z0-9_]+" in
+     let rec go from =
+       if from < String.length text then
+         match (try Some (Str.search_forward re text from) with _ -> None) with
+         | Some i -> add (Str.matched_string text); go (i + 1)
+         | None -> () in
+     go 0
+   with _ -> ());
+  List.rev !codes
+
+let extract_shas text =
+  let shas = ref [] in
+  (try
+     let re = Str.regexp "[0-9a-f]\\{40\\}" in
+     let rec go from =
+       if from < String.length text && List.length !shas < 20 then
+         match (try Some (Str.search_forward re text from) with _ -> None) with
+         | Some i ->
+             let v = Str.matched_string text in
+             if not (List.mem v !shas) then shas := v :: !shas;
+             go (i + 1)
+         | None -> () in
+     go 0
+   with _ -> ());
+  List.rev !shas
+
+type bt_flags = { mutable bt_corpus : string option }
+
+let parse_bt_flags args =
+  let fl = { bt_corpus = None } in
+  let rec loop = function
+    | [] -> fl
+    | "--corpus" :: v :: rest ->
+        if fl.bt_corpus <> None then usage "duplicate flag --corpus";
+        fl.bt_corpus <- Some v; loop rest
+    | ["--corpus"] -> usage "flag needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray) in
+  loop args
+
+let do_backtest args =
+  let fl = parse_bt_flags args in
+  let corpus = match fl.bt_corpus with
+    | Some d when d <> "" -> d
+    | _ -> (match tape_roots "muse-code" with d :: _ -> d | [] -> ".") in
+  if not (try Sys.is_directory corpus with _ -> false) then
+    err "E_NOT_FOUND" (`Assoc [("corpus", json_str corpus)])
+      ("Corpus directory does not exist: " ^ corpus) 1;
+  let tapes = List.sort String.compare (collect_tapes corpus []) in
+  let traces = ref [] and findings = ref [] in
+  List.iter (fun path ->
+    try
+      let text = read_file_or path "" in
+      let (_lines, torn) = whole_lines text in
+      let run_ids = extract_run_ids text in
+      let refusals = extract_codes text in
+      let commits = extract_shas text in
+      let (fin, exit_e, torn_t) = tape_evidence "muse-code" text in
+      let torn = torn || torn_t in
+      let bp3_calls = count_sub text "bp3 q " + count_sub text "bp3 harness" in
+      let has_submit = contains_sub text " submit" || contains_sub text "\"submit\"" in
+      let run_id = match run_ids with r :: _ -> r | [] -> "" in
+      traces := `Assoc [
+        ("tape", json_str path); ("run_ids", `List (List.map json_str run_ids));
+        ("bp3_calls", `Int bp3_calls);
+        ("refusals", `List (List.map json_str refusals));
+        ("commits", `List (List.map json_str commits));
+        ("has_submit", `Bool has_submit);
+        ("finish_evidence", `Bool fin); ("exit_observed", `Bool exit_e);
+        ("torn_tail", `Bool torn)] :: !traces;
+      let add_finding evidence target =
+        findings := `Assoc [
+          ("tape", json_str path); ("run_id", json_str run_id);
+          ("evidence", json_str evidence); ("fix_target", json_str target)] :: !findings in
+      if torn then add_finding "torn final tape entry" "adapter";
+      if run_ids = [] then add_finding "foreign tape: no BP3_RUN_ID binding" "adapter";
+      List.iter (fun code ->
+        if not has_submit then
+          add_finding (code ^ " refusal with no submit") "bp3 q u / hooks") refusals;
+      if run_ids <> [] && not fin && not exit_e && refusals = [] then
+        add_finding "identifiable Run with no finish evidence" "adapter"
+    with _ ->
+      findings := `Assoc [
+        ("tape", json_str path); ("run_id", json_str "");
+        ("evidence", json_str "unreadable tape skipped");
+        ("fix_target", json_str "adapter")] :: !findings) tapes;
+  let traces = List.rev !traces and findings = List.rev !findings in
+  let identifiable = List.fold_left (fun acc t ->
+    match t with `Assoc fs ->
+      (match List.assoc_opt "run_ids" fs with
+       | Some (`List (_ :: _)) -> acc + 1 | _ -> acc) | _ -> acc) 0 traces in
+  print_endline (Yojson.Safe.to_string (`Assoc [
+    ("ok", `Bool true); ("engine", json_str "muse-code");
+    ("corpus", json_str corpus);
+    ("tapes_replayed", `Int (List.length tapes));
+    ("identifiable", `Int identifiable);
+    ("traces", `List traces); ("findings", `List findings)]));
+  0
+
 (* ---------- help (docstrings beside dispatch) ---------- *)
 let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]   passive loop: tell -> watch -> judge -> finalize\n\
@@ -1506,7 +1621,8 @@ let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]   blocking watch: sole TERM/KILL owner\n\
   bp3 harness desk <verb> ...                      machine-local desks: derive, create, inspect, remove, prepare, check, exit, release, list\n\
   bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>]   launcher writes the InitRecord before the child starts (create-only)\n\
-Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
+  bp3 harness backtest [--corpus <dir>]   replay the muse fold over stored tapes; findings, not a gate\n\
+Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init, b=backtest. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
 
 let help_supervisor = "bp3 harness supervisor - passive supervisor loop for one quest:\n\
   bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]\n\
@@ -1554,7 +1670,13 @@ Example: bp3 harness record-init --run-id 20261115T000000Z-submit-muse-code-mode
 
 let is_help = function "-h" | "--help" -> true | _ -> false
 
+let help_backtest = "bp3 harness backtest - replay the muse fold over stored tapes (findings, not a gate):\n\
+  bp3 harness backtest [--corpus <dir>]\n\
+  Reads every .jsonl tape under the corpus (default: the muse tape source), folds mechanical facts per tape (BP3_RUN_ID bindings, bp3 invocations, E_* refusals, commit shas, finish/exit evidence, torn tails) and emits one verdict {ok, engine, corpus, tapes_replayed, identifiable, traces, findings}. Each finding names its tape, run-id, evidence lines, and proposed fix target (bp3 q u, hooks, or adapter). A parser crash fails the call; findings themselves never gate. Truncated, foreign, and torn tapes are reported in findings, never fatal.\n\
+Example: bp3 harness backtest --corpus ~/.local/share/muse/sessions\n"
+
 let normalize_verb = function
+  | "b" | "backtest" -> "backtest"
   | "s" | "supervisor" -> "supervisor"
   | "i" | "init-check" -> "init-check"
   | "f" | "find-tape" -> "find-tape"
@@ -1564,7 +1686,7 @@ let normalize_verb = function
   | other -> other
 
 let run = function
-  | [] -> usage "harness needs a verb: supervisor, init-check, find-tape, watch, desk, or record-init"
+  | [] -> usage "harness needs a verb: supervisor, init-check, find-tape, watch, desk, record-init, or backtest"
   | [h] when is_help h -> print_string help_harness; 0
   | verb :: (h :: _) when is_help h ->
       print_string (match normalize_verb verb with
@@ -1574,6 +1696,7 @@ let run = function
         | "watch" -> help_watch
         | "desk" -> help_desk
         | "record-init" -> help_record_init
+        | "backtest" -> help_backtest
         | _ -> help_harness); 0
   | verb_raw :: rest ->
       (match normalize_verb verb_raw with
@@ -1585,6 +1708,7 @@ let run = function
        | "find-tape" -> do_find_tape rest
        | "watch" -> do_watch rest
        | "record-init" -> do_record_init rest
+       | "backtest" -> do_backtest rest
        | "desk" ->
            (match rest with
             | [] -> usage "desk needs a verb: derive, create, inspect, remove, prepare, check, exit, release, or list"

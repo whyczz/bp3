@@ -17,7 +17,7 @@ let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
    verb instead), so creation refuses it; reads stay total. *)
 let reserved_slugs =
   [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo";
-    "supervisor"; "init-check"; "find-tape"; "watch"; "desk";
+    "supervisor"; "init-check"; "find-tape"; "watch"; "desk"; "backtest"; "b";
     "c"; "create"; "r"; "read"; "u"; "update"; "d"; "delete";
     "s"; "i"; "f"; "w";
     "derive"; "inspect"; "remove"; "prepare"; "check"; "exit";

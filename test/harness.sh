@@ -517,6 +517,28 @@ out=$(h watch --run-id R-f2-watch-muse --timeout-seconds 5) || fail "followup.2 
 echo "$out" | tail -1 | jq -e '.outcome == "settled" and .settled == true and .lifecycle == "finished"' >/dev/null || fail "followup.2 watch muse verdict: $out"
 wait "$F2WPID" 2>/dev/null || true
 
+# --- backtest (backtest.1): replay folds facts, findings never gate ---
+out=$(h backtest -h) || fail "backtest -h exit"
+echo "$out" | grep -q "backtest" || fail "backtest help: $out"
+out=$(h b -h) || fail "alias b -h exit"
+echo "$out" | grep -q "backtest" || fail "alias b help: $out"
+mkdir -p fixtures/bt
+printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' 'BP3_RUN_ID=R-bt-1 bp3 q toy u e1 submit --commit 0123456789abcdef0123456789abcdef01234567' '{"payload_type":"session.end","payload":{}}' > fixtures/bt/good.jsonl
+printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' 'BP3_RUN_ID=R-bt-2 error E_BINDING_REFUSED' > fixtures/bt/refused.jsonl
+printf '%s' '{"payload_type":"session.end","payl' > fixtures/bt/torn.jsonl
+printf '%s\n' 'hello foreign tape' > fixtures/bt/foreign.jsonl
+out=$(h backtest --corpus fixtures/bt) || fail "backtest exit: $out"
+echo "$out" | jq -e '.ok == true and .tapes_replayed == 4 and .identifiable == 2' >/dev/null || fail "backtest counts: $out"
+echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-1") | .has_submit == true and .finish_evidence == true)' >/dev/null || fail "backtest good trace: $out"
+echo "$out" | jq -e '(.findings[] | select(.run_id == "R-bt-2"))' >/dev/null || fail "backtest refusal finding: $out"
+echo "$out" | jq -e '(.findings[] | select(.evidence | test("torn")))' >/dev/null || fail "backtest torn finding: $out"
+echo "$out" | jq -e '(.findings[] | select(.evidence | test("foreign")))' >/dev/null || fail "backtest foreign finding: $out"
+if out=$(h backtest --corpus no-such-dir 2>&1); then fail "backtest missing corpus accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "backtest missing code: $out"
+if out=$(h backtest --bogus 1 2>&1); then fail "backtest unknown flag accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "backtest usage code: $out"
+if out=$(h backtest stray 2>&1); then fail "backtest stray accepted"; fi
+
 # --- naming gate: retired spellings stay out of the new code ---
 retired="Spawn""Record|spawn""ed|run""ning"
 if grep -E "$retired" "$root/src/quest/harness.ml" >/dev/null; then fail "retired lifecycle spelling in harness.ml"; fi

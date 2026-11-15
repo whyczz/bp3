@@ -1,0 +1,229 @@
+# backtest.1 (muse) — findings report
+
+Findings machine, not a gate: nothing here must pass; everything must be legible.
+
+- corpus: `/Users/whycz/.local/share/muse/sessions`
+- tapes replayed: 2001
+- identifiable Runs (BP3_RUN_ID binding): 1854
+- findings: 720
+
+## Findings by evidence
+
+- identifiable Run with no finish evidence: 262
+- foreign tape: no BP3_RUN_ID binding: 147
+- E_DIR: 18
+- E_DIRTY_TREE: 13
+- E_USAGE: 12
+- E_HUMAN_REQUIRED: 10
+- E_STALE_WORLD: 9
+- E_WORLD: 9
+- E_NOT_FOUND: 9
+- E_EXISTS: 8
+- E_COMMIT_MISMATCH: 7
+- E_BIN: 6
+- E_ILLEGAL_EDGE: 4
+- E_INVALID_PLAN: 4
+- E_BUILD: 4
+- E_NO_AUTO_UPDATE: 4
+- E_API_KEY: 3
+- E_ACCOUNT_ID: 3
+- E_JV8: 3
+- E_IDENTITY: 3
+- E_RUN_EXISTS: 3
+- E_VERSION_AHEAD: 3
+- E_W0XV2W: 2
+- E_J3H: 2
+- E_PLUGIN_ROOT: 2
+- E_VIEWER_URL: 2
+- E_D3WGUM: 2
+- E_D8Q: 2
+- E_OPENAI_API_KEY: 2
+- E_OPENAI_BASE_URL: 2
+- E_URL: 2
+- E_OPENAI_RESOURCE_NAME: 2
+- E_NAME: 2
+- E_OPENAI_DEPLOYMENT_NAME_MAP: 2
+- E_MAP: 2
+- E_OPENAI_API_VERSION: 2
+- E_OPENAI: 2
+- E_JSM: 2
+- E_QM2Q: 1
+- E_QZ_AM: 1
+- E_W2_U: 1
+- E_P46Y: 1
+- E_HE0: 1
+- E_A6L: 1
+- E_CODE_SIMPLE: 1
+- E_SIMPLE: 1
+- E_J7C: 1
+- E_PBRAH: 1
+- E_EMN: 1
+- E_FZO: 1
+- E_OXN: 1
+- E_LZ0: 1
+- E_FD6: 1
+- E_GYKST: 1
+- E_XF0YR__SK: 1
+- E_BY8Z6DKH: 1
+- E_XMFHWU: 1
+- E_JFJD_B: 1
+- E_Y4PQY: 1
+- E_JVFA96X64HO9: 1
+- E_MISSING: 1
+- E_XCC: 1
+- E_XX_: 1
+- E_U9P: 1
+- E_SZG0X: 1
+- E_NG8WC5Q: 1
+- E_MJ3QSZ: 1
+- E_TELEMETRY: 1
+- E_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1
+- E_DISABLE_NONESSENTIAL_TRAFFIC: 1
+- E_NONESSENTIAL_TRAFFIC: 1
+- E_XI5C66O: 1
+- E_TNXA: 1
+- E_GML3: 1
+- E_K0TR: 1
+- E_BXX: 1
+- E_Q1FM: 1
+- E_TFW9: 1
+- E_AT1C: 1
+- E_FL6U6PS: 1
+- E_W2K: 1
+- E_LKD7Y: 1
+- E_S8L: 1
+- E_VLY: 1
+- E_WTT4: 1
+- E_YVM: 1
+- E_S6N: 1
+- E_ER7GMR1: 1
+- E_CCE: 1
+- E_Q21: 1
+- E_SRW: 1
+- E_FU74K: 1
+- E_RJWZ: 1
+- E_MJ3YG: 1
+- E_C7LI: 1
+- E_AW5UR: 1
+- E_KTC: 1
+- E_PPCG: 1
+- E_W6K: 1
+- E_BI9YF: 1
+- E_CHT: 1
+- E_CEW: 1
+- E_FU83: 1
+- E_RT1: 1
+- E_ERIYP: 1
+- E_H4YG: 1
+- E_EK2: 1
+- E_H0C: 1
+- E_OSXD3BH: 1
+- E_B4DL: 1
+- E_GAT6: 1
+- E_PM65: 1
+- E_C_M9VN: 1
+- E_E4H_9: 1
+- E_JPC: 1
+- E_DK_: 1
+- E_DG9JF: 1
+- E_H9KJS: 1
+- E_XU6: 1
+- E_R9CQ: 1
+- E_YAWQ2: 1
+- E_UZ660: 1
+- E_QJEF: 1
+- E_FPH9YQ: 1
+- E_P_D: 1
+- E_OFFSET_BITS: 1
+- E_XI3I: 1
+- E_FLV: 1
+- E_KLUY: 1
+- E_XYIEQ: 1
+- E_HLM: 1
+- E_KP_: 1
+- E_WRONG_BRANCH: 1
+- E_POXHH: 1
+- E_YP54: 1
+- E_ZWVW: 1
+- E_XI2I: 1
+- E_MZ2AQ: 1
+- E_EFFMJLD: 1
+- E_G24W: 1
+- E_SELF_REVIEW: 1
+- E_QEW: 1
+- E_JL30: 1
+- E_WFRSNEPO: 1
+- E_SF0: 1
+- E_F9FB: 1
+- E_TWA: 1
+- E_D1Y: 1
+- E_T5U: 1
+- E_UQO_B9_E1TH2: 1
+- E_KP0BK: 1
+- E_JG3: 1
+- E_PXQ: 1
+- E_VCH66H: 1
+- E_BK6RW: 1
+- E_VAT0: 1
+- E_J5_: 1
+- E_YLK: 1
+- E_Q2Q: 1
+- E_CZW_U: 1
+- E_LPI5X: 1
+- E_AZH: 1
+- E_DLQVE: 1
+- E_U_M5: 1
+- E_S74XL: 1
+- E_UYN: 1
+- E_FIOX: 1
+- E_C8BQ: 1
+- E_LPKJCE: 1
+- E_AXM: 1
+- E_EP4H5: 1
+- E_WEFGM8: 1
+- E_AED: 1
+- E_A6ARXUV: 1
+- E_FJDIM: 1
+- E_BM8: 1
+- E_YUK: 1
+- E_IHGGI: 1
+- E_R_1F3WUX: 1
+- E_QH2F: 1
+- E_KAYEOL: 1
+- E_IXNTF: 1
+
+## Findings by proposed fix target
+
+- adapter: 409
+- bp3 q u / hooks: 311
+
+## Sample findings (first 25)
+
+- run `?` — foreign tape: no BP3_RUN_ID binding → adapter (/Users/whycz/.local/share/muse/sessions/2026/10/19/01a15252-f150-7d50-b21b-08af118e58a0/session.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_DIR refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_QM2Q refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_QZ_AM refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_W2_U refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_W0XV2W refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_P46Y refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_HE0 refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_A6L refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_CODE_SIMPLE refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_SIMPLE refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_J7C refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_PBRAH refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_EMN refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace1-5a7d-7bc0-8bf6-fbc5b99a9e91` — E_DIR refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/101b5e0f-6252-46ba-8d30-ebfd4c0123c8.jsonl)
+- run `01a1ace1-5a7d-7bc0-8bf6-fbc5b99a9e91` — E_FZO refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/101b5e0f-6252-46ba-8d30-ebfd4c0123c8.jsonl)
+- run `01a1ace1-80a2-7bc1-aa2c-af34ca44e62f` — E_DIR refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/15eb077b-67e3-4ceb-b358-db5289612d18.jsonl)
+- run `01a1acdf-7590-7b91-8893-3a1db2b52e2c` — E_J3H refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/1869ff00-57a1-4e16-81bd-447c39b0daf3.jsonl)
+- run `01a1ace1-80c3-72b2-9c11-58624e1282f9` — E_DIR refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/193990cf-3f26-4816-ac39-34ce1ab84909.jsonl)
+- run `01a1acb5-7d52-71e2-8e93-e0b711470816` — E_PLUGIN_ROOT refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/23a93d80-6161-4976-bcf2-0dd7f132b74d.jsonl)
+- run `01a1acb5-7d52-71e2-8e93-e0b711470816` — E_DIR refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/23a93d80-6161-4976-bcf2-0dd7f132b74d.jsonl)
+- run `01a1acb5-7d52-71e2-8e93-e0b711470816` — E_VIEWER_URL refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/23a93d80-6161-4976-bcf2-0dd7f132b74d.jsonl)
+- run `01a1acb5-7d52-71e2-8e93-e0b711470816` — E_OXN refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/23a93d80-6161-4976-bcf2-0dd7f132b74d.jsonl)
+- run `01a1ace1-80c4-7181-8d8d-1bbc040da5ff` — E_DIR refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/27a6acb9-3d49-42bd-9351-429c2e00971b.jsonl)
+- run `01a1ad3f-c62a-79d1-96d2-9cc7b7865450` — E_LZ0 refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/2a0c856e-8b08-4cb7-9d2a-b02df0bcb3d9.jsonl)
+
+Full machine-readable replay: `backtest.json` in this run folder (traces + findings).
+Lifecycle claims without an independent InitRecord are ungradeable by design and are not counted as findings beyond the no-finish-evidence note above.
