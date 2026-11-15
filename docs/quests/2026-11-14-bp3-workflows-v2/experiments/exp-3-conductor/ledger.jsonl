@@ -37,3 +37,4 @@
 {"event":"usage_recorded","ts":"2026-11-15T01:36:11Z","run_id":"20261115T013433Z-check-muse-code-muse-wonder-1.0-c3","input_tokens":319174,"output_tokens":4624,"cached_tokens":304776,"reasoning_tokens":1395,"wall_ms":3000,"started_ts":"2026-11-15T01:36:08Z","settled_ts":"2026-11-15T01:36:11Z"}
 {"event":"run_settled","ts":"2026-11-15T01:36:11Z","run_id":"20261115T013433Z-check-muse-code-muse-wonder-1.0-c3","outcome":"settled"}
 {"event":"usage_recorded","ts":"2026-11-15T01:36:16Z","run_id":"20261115T013433Z-review-muse-code-muse-wonder-1.0-c3","input_tokens":2120312,"output_tokens":25758,"cached_tokens":2023376,"reasoning_tokens":7471,"wall_ms":30000,"started_ts":"2026-11-15T01:35:46Z","settled_ts":"2026-11-15T01:36:16Z"}
+{"event":"run_settled","ts":"2026-11-15T01:36:16Z","run_id":"20261115T013433Z-review-muse-code-muse-wonder-1.0-c3","outcome":"settled"}
