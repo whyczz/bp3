@@ -17,3 +17,4 @@
 {"ts":"2026-11-15T01:26:57Z","edge":"submit","from":"todo","to":"submitted","cycle":2,"commit":"7a0514dfaaca75af3126dcf14513d0d3273b1aea","verdict":null,"reason":"c2: live-drive closure evidence recorded; skills tests pass","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"usage_recorded","ts":"2026-11-15T01:27:00Z","run_id":"20261115T012541Z-submit-muse-code-muse-wonder-1.0-c2","input_tokens":10297287,"output_tokens":98597,"cached_tokens":9850376,"reasoning_tokens":15517,"wall_ms":60000,"started_ts":"2026-11-15T01:26:00Z","settled_ts":"2026-11-15T01:27:00Z"}
 {"event":"run_settled","ts":"2026-11-15T01:27:00Z","run_id":"20261115T012541Z-submit-muse-code-muse-wonder-1.0-c2","outcome":"settled"}
+{"event":"run_started","ts":"2026-11-15T01:29:05Z","run_id":"20261115T012709Z-check-muse-code-muse-wonder-1.0-c2","cycle":2,"session_id":"05cae930-77e4-7ffb-8579-44ee25186483"}
