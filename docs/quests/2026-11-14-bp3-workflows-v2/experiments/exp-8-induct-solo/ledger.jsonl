@@ -28,3 +28,4 @@
 {"event":"run_started","ts":"2026-11-15T03:18:51Z","run_id":"20261115T031720Z-submit-muse-code-muse-wonder-1.0-c3","cycle":3,"session_id":"1e1497ea-1253-7bbc-8ff0-3727e14e2044"}
 {"event":"lint_checked","ts":"2026-11-15T03:18:51Z","run_id":"20261115T031720Z-submit-muse-code-muse-wonder-1.0-c3","check":"make check","result":"pass"}
 {"ts":"2026-11-15T03:18:57Z","edge":"submit","from":"todo","to":"submitted","cycle":3,"commit":"75fb68faf86f4bf774b729768165dd6b52d3a3d5","verdict":null,"reason":"c3: live budget-stop drive observed; dawn report carries it; make check green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"event":"usage_recorded","ts":"2026-11-15T03:19:00Z","run_id":"20261115T031720Z-submit-muse-code-muse-wonder-1.0-c3","input_tokens":2148947,"output_tokens":20192,"cached_tokens":2072440,"reasoning_tokens":4103,"wall_ms":9000,"started_ts":"2026-11-15T03:18:51Z","settled_ts":"2026-11-15T03:19:00Z"}
