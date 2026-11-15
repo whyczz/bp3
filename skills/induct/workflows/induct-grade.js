@@ -1,7 +1,11 @@
 // induct-grade: judge one submitted exp on its bound commit.
 // Installed to .agents/workflows/induct-grade.js by
-// `bp3 skills install`. Audit child builds the typed evidence
-// matrix (acceptance rows + adherence rows, no edges), then
+// `bp3 skills install`. The grade climbs the evidence ladder
+// (mvp.7): records, diff, tests run, style, then tape via
+// derivation pointers (find-tape --entry); the whole tape is
+// escalation only, blocked/confused/lying and named. Audit
+// child builds the typed evidence matrix (acceptance rows +
+// adherence rows, no edges), then
 // review and check children run in parallel on the exact bound
 // commit and call their verdict edges directly. Grade children
 // never edit the work. Returns {outcome, matrix, run_ids,
@@ -75,6 +79,42 @@ function deferralNamesOwner(text) {
   return /defer/i.test(text) && /\bexp[\s-]*\d+\b/i.test(text);
 }
 
+// The evidence ladder (QUEST.md contract, mvp.7), in order;
+// each rung only when the ones above leave the verdict
+// undecided. Rung 5 splits: 5a resolves derivation pointers
+// one entry at a time, 5b reads the whole tape and is
+// escalation only.
+const LADDER_RUNGS = ["1", "2", "3", "4", "5a", "5b"];
+const LADDER_TEXT =
+  "Climb the evidence ladder in order, each rung only when " +
+  "the ones above leave the verdict undecided: rung 1 the " +
+  "quest and exp records (what was asked); rung 2 committed " +
+  "code and git diff at the exact commit; rung 3 demos and " +
+  "tests, run — not read about; rung 4 style " +
+  "(code-writer/code-reviewer discipline); rung 5a tape via " +
+  "derivation pointers first: resolve each pointer with " +
+  "`bp3 harness find-tape --run-id <run-id> --entry " +
+  "<entry-id>` (digest-verified; --before-entries/" +
+  "--after-entries widen only for context) and cite the " +
+  "pointer in the row; rung 5b the whole tape, escalation " +
+  "only when blocked, confused, or lying, and named in the " +
+  "verdict. A grade decided at rungs 1-4 shows zero " +
+  "whole-log reads in its matrix; defaulting to rung 5 is " +
+  "not a grade. ";
+
+function rungOf(row) {
+  if (!row || row.rung === undefined || row.rung === null) return null;
+  const rung = String(row.rung);
+  return LADDER_RUNGS.indexOf(rung) >= 0 ? rung : null;
+}
+
+// Whole-tape escalation is allowed only when it names its
+// reason, like a deferral names its owner: a rung 5b row
+// naming none of blocked/confused/lying is no evidence.
+function escalationNamesReason(text) {
+  return /\b(blocked|confused|lying)\b/i.test(text);
+}
+
 // A row without typed evidence never carries pass or
 // deferred; a verdict outside pass|fail|missing|deferred is
 // no verdict at all. Row order never changes the outcome
@@ -106,7 +146,16 @@ function normalizeRow(row, i) {
       verdict = "deferred";
     }
   }
-  return { case: name, evidence: evidence, verdict: verdict };
+  const rung = rungOf(row);
+  if (
+    rung === "5b" &&
+    (verdict === "pass" || verdict === "deferred") &&
+    !escalationNamesReason(name + " " + evidence.quote)
+  ) {
+    // An unnamed whole-tape read never carries a grade.
+    verdict = "missing";
+  }
+  return { case: name, evidence: evidence, verdict: verdict, rung: rung };
 }
 
 function normalizeMatrix(raw) {
@@ -120,6 +169,7 @@ function normalizeMatrix(raw) {
           quote: "audit returned no matrix",
         },
         verdict: "missing",
+        rung: null,
       },
     ];
   }
@@ -281,9 +331,16 @@ export default async function workflow(host) {
       "adherence rows for the build Run that produced this commit " +
       "(submit edge called by the child directly, env preset on " +
       "the first command, clean commit, tape.log and notes.md " +
-      "present in its run folder, no hand-edited state). Every row " +
-      "is {case, evidence: {kind: file|command|ledger|grep, ref, " +
-      "quote}, verdict: pass|fail|missing|deferred}: quote observed " +
+      "present in its run folder, no hand-edited state). " + LADDER_TEXT +
+      "Every row " +
+      "is {case, rung: 1|2|3|4|5a|5b, evidence: {kind: file|command|ledger|grep, ref, " +
+      "quote}, verdict: pass|fail|missing|deferred}: name the rung " +
+      "that decided the row; a rung 5a row cites its pointer as " +
+      "{kind: command, ref: the find-tape --entry call, quote: " +
+      "the resolved entry verbatim}; a rung 5b row names its " +
+      "escalation (blocked, confused, or lying) in its case or " +
+      "quote, and an unnamed whole-tape read is downgraded to " +
+      "missing. Quote observed " +
       "evidence verbatim; a gated case with no artifact is verdict " +
       "missing, never pass, and free-string evidence is not a row. " +
       "Deferred is a disposition, not a failure: when an " +
@@ -306,7 +363,8 @@ export default async function workflow(host) {
       "log at `<git-common-dir>/bp3/run-lifecycle-derivations/" +
       "<run-id>.jsonl` (resolve the common dir with " +
       "`git rev-parse --git-common-dir`) when it exists. The hooks " +
-      "registry witness does not gate this row; never " +
+      "registry witness does not gate this row; outside a named " +
+      "rung 5b escalation, never read the whole tape or " +
       "parse tape.log into facts. Judge only; do " +
       "not edit any file and do not call any `bp3 q u` update edge. " +
       "Write the matrix verbatim as JSON in your run folder's " +
@@ -332,7 +390,13 @@ export default async function workflow(host) {
     "Rows with verdict deferred are not gated by this exp (each " +
     "names the exp that owns it) and never block: ignore them. " +
     "Any gated row with verdict fail or missing means the work " +
-    "is not correct: cast the negative verdict. ";
+    "is not correct: cast the negative verdict. " + LADDER_TEXT +
+    "A rung 5a fail row blocks citing its pointer: cast the " +
+    "negative verdict. A rung 5b row is evidence only when it " +
+    "names its escalation (blocked, confused, or lying); an " +
+    "unnamed whole-tape read, or a clean grade whose matrix " +
+    "shows a whole-log read it did not need, is not correct: " +
+    "cast the negative verdict. ";
   const reviewPrompt = deskNote +
     "You are the review child for exp `" + exp + "` of quest `" +
     quest + "`, currently in state `" + before.state + "` at cycle " +
