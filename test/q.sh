@@ -71,9 +71,25 @@ echo "$out" | jq -e '.ok == true and .state == "submitted"' >/dev/null || fail "
 out=$(q demo u parser-fix check --verdict pass --reason "green")
 echo "$out" | jq -e '.ok == true and .state == "approved"' >/dev/null || fail "check pass approves: $out"
 out=$(q demo u parser-fix land --reason "ship it")
-echo "$out" | jq -e '.ok == true and .state == "landed"' >/dev/null || fail "land: $out"
+echo "$out" | jq -e '.ok == true and .state == "landed" and .fin == "exp_fin"' >/dev/null || fail "land: $out"
 out=$(q r demo)
-echo "$out" | jq -e '.ok == true and (.exps[] | select(.exp == "parser-fix") | .state == "landed")' >/dev/null || fail "read after land: $out"
+echo "$out" | jq -e '.ok == true and (.exps[] | select(.exp == "parser-fix") | .state == "landed" and .fin == "exp_fin")' >/dev/null || fail "read after land: $out"
+
+# --- fin report words: exp_fin above; quest_fin when rollup landed ---
+out=$(q c fin-demo)
+echo "$out" | jq -e '.ok == true' >/dev/null || fail "fin quest create: $out"
+out=$(q fin-demo c only-exp)
+echo "$out" | jq -e '.state == "todo" and .fin == null' >/dev/null || fail "fin exp create: $out"
+out=$(q fin-demo u only-exp submit --commit "$B" --reason "work")
+echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "fin submit: $out"
+out=$(q fin-demo u only-exp review --verdict ship --reason "ok")
+out=$(q fin-demo u only-exp check --verdict pass --reason "ok")
+out=$(q fin-demo u only-exp land --reason "done")
+echo "$out" | jq -e '.state == "landed" and .fin == "exp_fin"' >/dev/null || fail "fin land: $out"
+out=$(q r fin-demo)
+echo "$out" | jq -e '.rollup == "landed" and .fin == "quest_fin" and (.exps[0] | .state == "landed" and .fin == "exp_fin")' >/dev/null || fail "quest_fin read: $out"
+out=$(q r demo)
+echo "$out" | jq -e '.fin == null' >/dev/null || fail "unfinished quest has no quest_fin: $out"
 
 # --- blocked inbox after needs_fix at max_cycles (default max_cycles=1) ---
 out=$(q demo u parser-fix2 submit --commit "$B" --reason "work")
@@ -93,6 +109,7 @@ echo "$tbl" | grep -q "blocked" || fail "table missing blocked state"
 tree=$(q r demo --format tree)
 echo "$tree" | grep -q "^demo " || fail "tree missing quest root: $tree"
 echo "$tree" | grep -q "u parser-fix2 - blocked" || fail "tree blocked marker: $tree"
+echo "$tree" | grep -q "parser-fix - landed (exp_fin)" || fail "tree exp_fin: $tree"
 echo "$tree" | grep -q "(human owed)" || fail "tree human owed: $tree"
 echo "$tree" | grep -q "human owed:" || fail "tree inbox header: $tree"
 etree=$(q demo r parser-fix2 --format tree)

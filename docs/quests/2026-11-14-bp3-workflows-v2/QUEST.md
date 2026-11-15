@@ -39,6 +39,8 @@ desk so nobody's papers blow into anyone else's pile.
 | Edge guard | the adherence checker inside `bp3 q u` itself (owner, Rounds 5+8, simplified): before applying an edge for a Run, the binary verifies that Run's adherence rows (run folder + tape present, worktree state sane, evidence the verdict binds to) and refuses with the failing rows when incomplete. Two placements only: the guard makes cheating fail at the state move; the grade re-derives the same rows and makes everything visible in the matrix. A `Stop` hook placement was considered and dropped entirely (owner, 2026-11-15) — guards live in `bp3 q u` plus grade reporting, nowhere else |
 | `E_ADHERENCE` | the edge guard's refusal code (owner, Round 6): one family code for "the workflow did not follow its contract," failing rows in `facts`, guidance naming the first fix. Per-row codes (`E_DIRTY_TREE`, …) still exist underneath; `E_ADHERENCE` is what a conductor greps for |
 | Desk | a prepared worktree (`bp3 worktree`, bp3-worktrees quest) |
+| `exp_fin` | an exp has landed (its `land` edge taken, state `landed`); the exp-level finish line, named in reports |
+| `quest_fin` | the quest is done and merging back to master (promotion); the quest-level finish line, and the only owner-gated one |
 
 ## Demos
 
@@ -119,7 +121,7 @@ citizens, a grade rerun on an unchanged commit producing
 the same verdict without touching implementation, graders
 in detached desks, and the monolith deleted.
 
-**Landed 2026-11-15 (owner gate).** All five exps landed
+**Landed 2026-11-15 (owner gate) — `quest_fin`.** All five exps reached `exp_fin` and landed
 through `bp3 q` (exp-1 `b415f4a3`, exp-2 `546a4b3f` c3,
 exp-3 `e5e09bea` c3, exp-4 `caf880e1`, owner-ruled
 follow-up exp-5 `4460ea7c` c2); rollup `landed`, inbox

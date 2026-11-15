@@ -9,6 +9,7 @@
     "!**/.agents/skills/quest-landing-demo/SKILL.md",
     "!**/.agents/skills/induct/SKILL.md",
     "!**/.agents/skills/red-ink-quest-landing-demo/SKILL.md",
-    "!**/.agents/skills/induct-quest/SKILL.md"
+    "!**/.agents/skills/induct-quest/SKILL.md",
+    "!**/.agents/skills/induct-quest-no-human/SKILL.md"
   ]
 }

@@ -56,11 +56,15 @@ mkdir -p "$root/.pi"
 printf '{"defaultModel":"keep","skills":["/extra","!**/ignored/**"]}\n' > "$root/.pi/settings.json"
 "$root/bin/bp3" skills install --harness=all > /dev/null
 "$root/scripts/check-skills" "$root/skills" "$root/.pi/skills" "$root/.agents/skills" "$root/.claude/skills" > /dev/null
-assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/induct-quest/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink-quest-landing-demo/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
+assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/induct-quest/SKILL.md","!**/.agents/skills/induct-quest-no-human/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink-quest-landing-demo/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
 # The induct-quest alias renders beside induct and stays a pointer.
 for h in .pi .agents .claude; do
   assert test -f "$root/$h/skills/induct-quest/SKILL.md"
   assert grep -q 'skills/induct/SKILL.md' "$root/$h/skills/induct-quest/SKILL.md"
+done
+# The no-human skill renders beside induct in every harness.
+for h in .pi .agents .claude; do
+  assert test -f "$root/$h/skills/induct-quest-no-human/SKILL.md"
 done
 for h in .pi .agents .claude; do
   assert test "$(yq --front-matter=extract '.description' "$root/$h/skills/add-yap-skill/SKILL.md")" = "$(yq --front-matter=extract '.description' "$source")"
@@ -100,5 +104,54 @@ done
 printf '{broken' > "$root/.pi/settings.json"
 "$root/bin/bp3" skills install --harness=codex > /dev/null
 assert grep -qx '{broken' "$root/.pi/settings.json"
+
+# Cycle autonomy (exp-6): needs_fix rides, blocked pages.
+assert grep -q 'next author cycle itself' "$repo/skills/induct/SKILL.md"
+assert grep -q 'named fix rides along verbatim' "$repo/skills/induct/SKILL.md"
+assert grep -q 'does not ask the owner about the cycle' "$repo/skills/induct/SKILL.md"
+assert grep -q 'cycle cap' "$repo/skills/induct/SKILL.md"
+assert grep -q 'scope change autonomously' "$repo/skills/induct/SKILL.md"
+assert grep -q 'Human attestation comes only from actual human words' "$repo/skills/induct/SKILL.md"
+assert grep -q 'next author cycle itself' "$root/.agents/skills/induct/SKILL.md"
+
+# Induct-quest-no-human (exp-8): alias renders everywhere, pointer plus rails.
+for h in .pi .agents .claude; do
+  assert test -f "$root/$h/skills/induct-quest-no-human/SKILL.md"
+  assert grep -q 'skills/induct/SKILL.md' "$root/$h/skills/induct-quest-no-human/SKILL.md"
+done
+assert grep -q 'means `/induct <quest>` per' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'BP3_DECIDER` stays unset' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'never takes `resume` or `delete`' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'park it' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'missing Acceptance rows' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'open' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'design question' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'make check` is green' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'the budget stopped it' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'quest_fin` stays the' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'usage_recorded` token totals' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'bp3 worktree list' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'skill mode of `induct`' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'induct-quest-no-human' "$repo/skills/induct/SKILL.md"
+assert grep -q 'No-human never' "$root/.agents/skills/induct/SKILL.md"
+
+# Fleet (exp-9): footprint preflight, merge order, fleet budget, check-in report.
+assert grep -q 'one fleet, not several queues' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'merge order before the queue starts' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'Footprint: the paths a quest declares' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'no declared footprint' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'Disjoint quests run in parallel' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'refused at preflight, named' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'zero Runs spent on it' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'queues serially in a later fleet' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'The fleet never merges' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'predeclared merge order (fleet never merges)' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'one budget caps the whole fleet' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'every quest stops' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'one check-in list' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'grouped by quest, each with its inbox reason' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'same human decision appear as one' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'attested per exp at resume time' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'Disjoint quests run in parallel' "$root/.agents/skills/induct-quest-no-human/SKILL.md"
 
 printf 'skills tests: ok (%s assertions)\n' "$checks"

@@ -9,8 +9,13 @@ Use when a human in a bp3-enabled repo invokes this skill by
 name (`/induct <quest>`, `$induct <quest>`) or asks to "induct",
 "run", or "keep going on" a named quest until it lands or
 blocks. One quest per induct. One output: step dispatches
-through `bp3 q`, ending in an induct report — what landed, what
-is blocked, and what human decision is owed next.
+through `bp3 q`, ending in an induct report — what reached
+`exp_fin`, what is blocked, and what human decision is owed
+next. Finish lines have report words: `exp_fin` names an exp
+whose state is `landed` (its `land` edge taken); `quest_fin`
+names quest promotion to master, the only owner-gated finish
+line. The FSM states stay `landed`; `exp_fin`/`quest_fin`
+name the finish lines in reports, never new edges.
 
 Use `quest` instead to frame a new quest. Use `using-bp3`
 instead for a single state operation by hand (one submit, one
@@ -28,6 +33,27 @@ calls a verdict edge for a step, and never re-judges a grade
 matrix — it quotes the matrix verbatim. Legality is `bp3 q`'s
 call, never this skill's: a refusal is information, answered by
 re-reading, not by arguing or retrying unchanged.
+
+Cycles are weather; blocks are decisions. A `needs_fix`
+verdict below the cycle cap is weather: the conductor rides
+it (Procedure step 3) without paging the owner. `blocked` is
+the only page: it means a decision only a human can make is
+owed. Fake blocks train rubber-stamps; never manufacture one
+out of a cycle.
+
+## No-human variant
+
+With no human present, the `induct-quest-no-human` skill
+runs this same conductor over a queue of quests under
+no-human rails: preflight before queueing, desks only,
+blocked work parks in the inbox instead of paging, a
+stated Run budget stops the queue, and the run ends in
+the dawn report. No-human never attests (`BP3_DECIDER`
+stays unset), never takes `resume` or `delete`, and
+never promotes — `quest_fin` stays the owner gate. The
+rails live in `skills/induct-quest-no-human/SKILL.md`;
+this section names the variant only, so the procedure
+above stays the one conductor procedure.
 
 ## Procedure
 
@@ -49,7 +75,7 @@ re-reading, not by arguing or retrying unchanged.
    | `submitted` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit}` with `commit` from this read |
    | `approved` | `quest-land` workflow | `{quest, exp, ts, harness, model}` |
    | `blocked` | human gate (step 4) | — |
-   | `landed` / `deleted` | none | advance to the next exp, or report at terminal |
+   | `landed` / `deleted` | none | advance to the next exp, or report at terminal (`landed` is reported as `exp_fin`) |
 
    `ts` is a UTC compact timestamp (for example
    `20261107T143022Z`) supplied in args because workflow
@@ -62,20 +88,43 @@ re-reading, not by arguing or retrying unchanged.
    free: re-dispatching `induct-grade` on the same `commit`
    is always safe, so a killed grade is simply dispatched
    again — no attempt bookkeeping here.
-4. Blocked gate: present the inbox in the main session (exp,
-   reason, checkpoint, cycle), capture the human's decision in
-   their words, attest it (`BP3_DECIDER=human`), and take
-   `resume` or `delete` through `bp3 q <quest> u <exp>`. The
-   human never calls bp3 and never supplies a commit. A
-   blocked Run is never resumed in place; after a `resume`,
-   the next read dispatches a fresh step.
+
+   Cycle autonomy: when a grade returns `needs_fix` (or a
+   check returns `fail`) and the re-read shows the exp back
+   in `todo` below the cycle cap, the conductor dispatches
+   the next author cycle itself, carrying the reviewer's
+   named fix — including any regression test or acceptance
+   amendment that fix demands — in the next dispatch's
+   context. It does not ask the owner about the cycle, does
+   not wait for an owner answer, and does not present the
+   cycle as a decision. The named fix rides along verbatim;
+   the conductor never re-judges it, widens it, or drops it.
+   It keeps dispatching grade → author → grade until the exp
+   leaves the cycle (`landed`, `blocked`, or `deleted`) or
+   the cap is hit. When the re-read shows the cycle cap
+   reached (the exp in `blocked` at the cap), the conductor
+   stops looping and escalates to the owner through the
+   blocked gate instead of dispatching another cycle.
+4. Blocked gate (the only page): present the inbox in the
+   main session (exp, reason, checkpoint, cycle), capture
+   the human's decision in their words, attest it
+   (`BP3_DECIDER=human`), and take `resume` or `delete`
+   through `bp3 q <quest> u <exp>`. The human never calls bp3
+   and never supplies a commit. A blocked Run is never
+   resumed in place; after a `resume`, the next read
+   dispatches a fresh step. Only human-only calls reach
+   this gate: scope changes, `delete`, and moves touching
+   another quest's state. The conductor never takes a
+   `delete` or a scope change autonomously, at any cycle.
 5. Re-read after every dispatch return (`bp3 q r <quest>`)
    and go to step 3. A return that moved nothing (refusal, no
    commit) is re-judged from the fresh read, never retried
    unchanged against a moved tip.
 6. Stop when the rollup is terminal (every exp `landed` or
    `deleted`) or a human decision is owed that this session
-   cannot get. Report: dispatches per exp with their ledger
+   cannot get. Name each `landed` exp `exp_fin` in the
+   report; when the quest is promoted to master, name that
+   finish line `quest_fin` (owner gate, demo first). Report: dispatches per exp with their ledger
    evidence, the grade matrices quoted verbatim, Runs and
    tapes left behind, scorecard fields (wall time, context
    tokens, human-active minutes — or "unmeasured", never
@@ -92,6 +141,9 @@ re-reading, not by arguing or retrying unchanged.
   this session. The engine never attests on the human's
   behalf, and `resume` without it is refused
   (`E_HUMAN_REQUIRED`) — that refusal is the gate working.
+  Attestation is owed at the blocked gate only; a
+  `needs_fix` cycle below the cap needs no attestation,
+  because no human decision is being recorded.
 - Identity rides env (`BP3_HARNESS`, `BP3_MODEL`) set per Run
   by the launcher or hooks. Unset means `unknown` plus a
   warning in the verdict; never guess a model name.

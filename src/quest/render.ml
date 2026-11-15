@@ -23,9 +23,12 @@ let commit_changes = function
         | _ -> None)
       (List.filter (fun l -> l <> "") (String.split_on_char '\n' out)))
 
+(* Report word for an exp finish line: state stays [landed]. *)
+let exp_fin s = if s.st = "landed" then `String "exp_fin" else `Null
+
 let exp_json _q e s =
   `Assoc [
-    ("exp", json_str e); ("state", json_str s.st); ("cycle", `Int s.cycle);
+    ("exp", json_str e); ("state", json_str s.st); ("fin", exp_fin s); ("cycle", `Int s.cycle);
     ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
     ("legal_edges", `List (List.map json_str (legal_edges s.st)));
     ("changes", (match commit_changes s.last_commit with
@@ -56,10 +59,13 @@ let quest_view q =
         else if exp_states <> [] && List.for_all (fun (_, s) -> s.st = "landed" || s.st = "deleted") exp_states then "landed"
         else if List.exists (fun (_, s) -> s.st = "blocked") exp_states then "blocked"
         else "active" in
+      (* Report word for the quest finish line: rollup stays [landed];
+         [quest_fin] names promotion of that rollup to master. *)
+      let fin = if rollup = "landed" then `String "quest_fin" else `Null in
       (`Assoc [
         ("quest", json_str q); ("state", json_str qs.st);
         ("exps", `List (List.map (fun (e, s) -> exp_json q e s) exp_states));
-        ("rollup", json_str rollup); ("inbox", `List inbox);
+        ("rollup", json_str rollup); ("fin", fin); ("inbox", `List inbox);
       ], inbox, rollup, qs)
 
 let tree_marker = function
@@ -117,7 +123,8 @@ let file_leaves_open prefix = function
 let render_tree fields =
   let get k = List.assoc_opt k fields in
   let str k = match get k with Some (`String s) -> s | _ -> "?" in
-  Printf.printf "%s [%s] rollup: %s\n" (str "quest") (str "state") (str "rollup");
+  Printf.printf "%s [%s] rollup: %s%s\n" (str "quest") (str "state") (str "rollup")
+    (match get "fin" with Some (`String f) -> " (" ^ f ^ ")" | _ -> "");
   let exps = match get "exps" with Some (`List xs) -> xs | _ -> [] in
   let n = List.length exps in
   List.iteri (fun i item ->
@@ -141,8 +148,9 @@ let render_tree fields =
               Printf.sprintf "  [+%d u%d -%d]" (cnt "+") (cnt "u") (cnt "-")
           | Some (`List []) -> ""
           | _ -> "  [?]" in
-        Printf.printf "%s%s %s - %s, cycle %d, commit %s%s%s\n"
-          branch (tree_marker state) (s "exp") state cycle (short_commit commit) counts owed;
+        let fin = match g "fin" with Some (`String f) -> " (" ^ f ^ ")" | _ -> "" in
+        Printf.printf "%s%s %s - %s%s, cycle %d, commit %s%s%s\n"
+          branch (tree_marker state) (s "exp") state fin cycle (short_commit commit) counts owed;
         file_leaves prefix (g "changes")
     | _ -> ()) exps;
   (match get "inbox" with
@@ -166,8 +174,9 @@ let render_tree_exp fields =
     | Some (`List xs) ->
         String.concat ", " (List.map (function `String x -> x | o -> Yojson.Safe.to_string o) xs)
     | _ -> "" in
-  Printf.printf "%s\n└── %s %s - %s, cycle %d, commit %s\n"
-    (s "quest") (tree_marker state) (s "exp") state cycle
+  Printf.printf "%s\n└── %s %s - %s%s, cycle %d, commit %s\n"
+    (s "quest") (tree_marker state) (s "exp") state
+    (match g "fin" with Some (`String f) -> " (" ^ f ^ ")" | _ -> "") cycle
     (short_commit commit);
   file_leaves_open "    " (g "changes");
   Printf.printf "    └── legal: %s\n" (if legal = "" then "none" else legal)

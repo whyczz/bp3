@@ -1,0 +1,314 @@
+# Exp 1 — hello (no-human clean toy)
+
+| Output | `docs/quests/2026-11-15-toy-nohuman-clean/hello.txt` with exact line `hello from no-human clean` |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| hello file | exists with the exact line above |
+
+## Tests
+
+known cases: the Acceptance table.
+===QUEST===
+cat: docs/quests/2026-11-15-toy-nohuman-clean/QUEST.md: No such file or directory
+experiments
+
+docs/quests/2026-11-15-toy-nohuman-clean/experiments:
+exp-1-hello
+
+docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello:
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs:
+20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1
+
+docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1:
+tape.log
+===
+total 48
+drwxr-xr-x@ 18 whycz  staff   576 Nov 14 22:03 .
+drwxr-xr-x@  6 whycz  staff   192 Nov 14 13:40 ..
+drwxr-xr-x@  4 whycz  staff   128 Nov 14 13:40 2026-11-05-bp3-mvp
+-rw-r--r--@  1 whycz  staff  5205 Nov  5 21:13 2026-11-05-bp3-skills-install.md
+-rw-r--r--@  1 whycz  staff  6190 Nov 14 13:40 2026-11-07-bp3-engine-pi.md
+drwxr-xr-x@  4 whycz  staff   128 Nov 14 13:40 2026-11-07-bp3-mvp-engine-core
+-rw-r--r--@  1 whycz  staff  5135 Nov 14 13:40 2026-11-07-bp3-pi-qol.md
+drwxr-xr-x@  7 whycz  staff   224 Nov 14 13:40 2026-11-09-bp3-land-verdicts
+drwxr-xr-x@  7 whycz  staff   224 Nov 14 13:40 2026-11-09-bp3-mvp-plugin-git-cas-lands
+drwxr-xr-x@  4 whycz  staff   128 Nov 14 16:01 2026-11-14-bp3-cli-small-fixes
+drwxr-xr-x@  4 whycz  staff   128 Nov 14 13:56 2026-11-14-bp3-unit-tests
+drwxr-xr-x@  7 whycz  staff   224 Nov 14 21:53 2026-11-14-bp3-workflows-v2
+drwxr-xr-x@  4 whycz  staff   128 Nov 14 17:34 2026-11-14-bp3-worktrees
+drwxr-xr-x@  3 whycz  staff    96 Nov 14 20:52 2026-11-15-toy-conductor-drive
+drwxr-xr-x@  3 whycz  staff    96 Nov 14 22:03 2026-11-15-toy-nohuman-clean
+drwxr-xr-x@  4 whycz  staff   128 Nov 14 22:01 2026-11-15-toy-solo-clean
+drwxr-xr-x@  3 whycz  staff    96 Nov 14 22:01 2026-11-15-toy-solo-park
+drwxr-xr-x@  3 whycz  staff    96 Nov 13 12:48 toy-drive
+===
+#!/usr/bin/env bash
+# bp3 project tooling (pre-binary). The OCaml CLI absorbs these subcommands
+# later; the interface stays: bp3 skills install --harness=<name|all>.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+src_dir="$root/skills"
+
+# harness -> skills_dir. Sources are plain Markdown: no templating in bp3.
+# The render is a copy plus a GENERATED notice after the frontmatter.
+harness_target() {
+  case "$1" in
+    pi)     echo ".pi/skills" ;;
+    claude) echo ".claude/skills" ;;
+    codex)  echo ".agents/skills" ;;
+    muse)   echo ".agents/skills" ;;
+    *) return 1 ;;
+  esac
+}
+
+install_one() {
+  local skill="$1" harness="$2" target_dir dest
+  target_dir="$(harness_target "$harness")"
+  dest="$root/$target_dir/$skill"
+  mkdir -p "$dest"
+  awk -v h="$harness" -v s="$skill" '
+    /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
+    { print }' "$src_dir/$skill/SKILL.md" > "$dest/SKILL.md"
+  echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness)"
+}
+
+skills_install() {
+  local harness="all"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --harness=*) harness="${1#--harness=}" ;;
+      --harness) [ $# -ge 2 ] || { echo '--harness needs a value' >&2; exit 2; }; harness="$2"; shift ;;
+      *) echo "unknown arg: $1" >&2; exit 2 ;;
+    esac
+    shift
+  done
+
+  local harnesses
+  if [ "$harness" = "all" ]; then
+    harnesses="pi claude codex muse"
+  else
+    harnesses="$harness"
+  fi
+
+  # Preflight every source and the selected harness before writing any render.
+?? docs/quests/2026-11-15-toy-nohuman-clean/
+?? docs/quests/2026-11-15-toy-solo-park/
+===BRANCH===
+bp3/quest/2026-11-14-bp3-workflows-v2
+===LOG===
+f9a61a7 exp-1-hello c1: tape
+d94ef57 exp-1-hello c1: hello from solo clean
+76cb4e3 feat(induct): add induct-solo alias with unattended rails
+688aac6 bp3: land exp-7-landing-vocabulary
+1add838 bp3: exp-7-landing-vocabulary
+===ALL-UNTRACKED===
+On branch bp3/quest/2026-11-14-bp3-workflows-v2
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	docs/quests/2026-11-15-toy-nohuman-clean/
+	docs/quests/2026-11-15-toy-solo-park/
+
+nothing added to commit but untracked files present (use "git add" to track)
+===SHOW-f9a61a7===
+commit f9a61a7bb02ac75e16519beccaaaff9d2ac549d0
+Author: whycz <whyczz@gmail.com>
+Date:   Sat Nov 14 22:01:40 2026 -0500
+
+    exp-1-hello c1: tape
+
+ .../tape.log                                       | 58 ++++++++++++++++++++++
+ 1 file changed, 58 insertions(+)
+===SHOW-d94ef57===
+commit d94ef57cd180875809863c06dca06f45a1a50065
+Author: whycz <whyczz@gmail.com>
+Date:   Sat Nov 14 22:01:27 2026 -0500
+
+    exp-1-hello c1: hello from solo clean
+
+ .../experiments/exp-1-hello/EXPERIMENT.md          |  13 ++
+ .../notes.md                                       |   6 +
+ .../tape.log                                       | 131 +++++++++++++++++++++
+ docs/quests/2026-11-15-toy-solo-clean/hello.txt    |   1 +
+ 4 files changed, 151 insertions(+)
+     162 bin/bp3
+143:usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 worktree derive|create|inspect|remove ...'
+145:  q|quest) shift
+146:    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+147:    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+150:    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+151:    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+  # and in workflow children; no settings merge needed).
+  case " $harnesses " in
+    *" muse "*)
+      mkdir -p "$root/.muse"
+      cp "$root/.claude/hooks.json" "$root/.muse/hooks.json"
+      echo "installed hooks -> .muse/hooks.json"
+      ;;
+  esac
+  # Note: codex and muse share .agents/skills; under --harness=all the muse
+  # render (same dir) is written last. Invocation text differs only in the
+  # trigger line; both harnesses accept the skill by name.
+}
+
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 worktree derive|create|inspect|remove ...'
+case "${1:-}" in
+  q|quest) shift
+    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" "$@" ;;
+  worktree) shift
+    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" worktree "$@" ;;
+  init) shift; skills_install "$@" ;;
+  skills)
+    shift
+    case "${1:-}" in
+      install) shift; skills_install "$@" ;;
+      *) echo "$usage_text" >&2; exit 2 ;;
+    esac
+    ;;
+  *) echo "$usage_text" >&2; exit 2 ;;
+esac
+===BINARY===
+-r-xr-xr-x@ 1 whycz  staff  2257672 Nov 14 21:30 _build/default/src/quest/main.exe
+===QUEST-STATE===
+docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/EXPERIMENT.md
+docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+===GITIGNORE===
+_build/
+bp3.install
+.bp3/
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"expected: q c|r|d ... or q <quest> c|r|u|d ..."},"guidance":"Fix the call: expected: q c|r|d ... or q <quest> c|r|u|d ..."}}
+===BP3DIR===
+desks
+worktrees
+
+.bp3/desks:
+
+.bp3/worktrees:
+2026-11-14-bp3-workflows-v2
+2026-11-14-bp3-worktrees
+toy-deskproof
+
+.bp3/worktrees/2026-11-14-bp3-workflows-v2:
+exp-4-desks
+
+.bp3/worktrees/2026-11-14-bp3-workflows-v2/exp-4-desks:
+
+.bp3/worktrees/2026-11-14-bp3-worktrees:
+exp-1-util-layer
+
+.bp3/worktrees/2026-11-14-bp3-worktrees/exp-1-util-layer:
+
+.bp3/worktrees/toy-deskproof:
+exp-1-hello
+
+.bp3/worktrees/toy-deskproof/exp-1-hello:
+{"ok":true,"quest":"2026-11-15-toy-nohuman-clean","state":"proposed","exps":[{"exp":"exp-1-hello","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null}],"rollup":"active","fin":null,"inbox":[]}
+===U-HELP===
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"update needs <exp> <edge>"},"guidance":"Fix the call: update needs <exp> <edge>"}}
+0000000    h   e   l   l   o       f   r   o   m       s   o   l   o    
+0000020    c   l   e   a   n  \n                                        
+0000026
+===
+cat: illegal option -- A
+usage: cat [-belnstuv] [file ...]
+===EXPERIMENT-SOLO===
+# Exp 1 — hello (solo clean toy)
+
+| Output | `docs/quests/2026-11-15-toy-solo-clean/hello.txt` with exact line `hello from solo clean` |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| hello file | exists with the exact line above |
+
+## Tests
+
+known cases: the Acceptance table.
+0000000    h   e   l   l   o       f   r   o   m       n   o   -   h   u
+0000020    m   a   n       c   l   e   a   n  \n                        
+0000032
+hello from no-human clean
+ACCEPTANCE_PASS
+The following paths are ignored by one of your .gitignore files:
+docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
+A  docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/EXPERIMENT.md
+A  docs/quests/2026-11-15-toy-nohuman-clean/hello.txt
+?? docs/quests/2026-11-15-toy-solo-park/
+===STAGED===
+ .../experiments/exp-1-hello/EXPERIMENT.md                   | 13 +++++++++++++
+ docs/quests/2026-11-15-toy-nohuman-clean/hello.txt          |  1 +
+ 2 files changed, 14 insertions(+)
+.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+===PRIOR-FILES===
+docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/EXPERIMENT.md
+docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/runs/20261115T030030Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/runs/20261115T030030Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-15-toy-solo-clean/hello.txt
+ .../experiments/exp-1-hello/EXPERIMENT.md          |  13 ++
+ .../notes.md                                       |   6 +
+ .../tape.log                                       | 260 +++++++++++++++++++++
+ docs/quests/2026-11-15-toy-nohuman-clean/hello.txt |   1 +
+ 4 files changed, 280 insertions(+)
+[bp3/quest/2026-11-14-bp3-workflows-v2 c4f2f6d] exp-1-hello c1: hello from no-human clean
+ 4 files changed, 280 insertions(+)
+ create mode 100644 docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/EXPERIMENT.md
+ create mode 100644 docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+ create mode 100644 docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ create mode 100644 docs/quests/2026-11-15-toy-nohuman-clean/hello.txt
+===SHA===
+c4f2f6d45ceb68231d9991800f646dad3bbf69e0
+===SHOW===
+commit c4f2f6d45ceb68231d9991800f646dad3bbf69e0
+Author: whycz <whyczz@gmail.com>
+Date:   Sat Nov 14 22:04:37 2026 -0500
+
+    exp-1-hello c1: hello from no-human clean
+
+ .../experiments/exp-1-hello/EXPERIMENT.md          |  13 ++
+ .../notes.md                                       |   6 +
+ .../tape.log                                       | 260 +++++++++++++++++++++
+ docs/quests/2026-11-15-toy-nohuman-clean/hello.txt |   1 +
+ 4 files changed, 280 insertions(+)
+{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{},"guidance":"Worktree is dirty; clean it and retry."}}
+ M docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+?? docs/quests/2026-11-15-toy-solo-park/
+===DIFF-TAPE===
+ .../tape.log                                       | 29 ++++++++++++++++++++++
+ 1 file changed, 29 insertions(+)
+docs/quests/2026-11-15-toy-solo-park/experiments/exp-1-decision/EXPERIMENT.md
+===EXCLUDE===
+# git ls-files --others --exclude-from=.git/info/exclude
+# Lines that start with '#' are comments.
+# For a project mostly in C, the following would be a good set of
+# exclude patterns (uncomment them if you want to use them):
+# *.[oa]
+# *~
+docs/quests/toy-drive/experiments/parser-fix/runs/
+docs/quests/toy-drive/experiments/identity-check/runs/
+docs/quests/toy-drive/experiments/skill-check/runs/
+docs/quests/*/experiments/*/runs/
+docs/quests/2026-11-14-bp3-workflows-v2/
+[bp3/quest/2026-11-14-bp3-workflows-v2 58d381b] exp-1-hello c1: tape
+ 1 file changed, 44 insertions(+)
+ M docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+?? docs/quests/2026-11-15-toy-solo-park/
+{"ok":true,"quest":"2026-11-15-toy-nohuman-clean","exp":"exp-1-hello","state":"submitted","cycle":1,"commit":"c4f2f6d45ceb68231d9991800f646dad3bbf69e0","legal_edges":["review","check","block","delete"]}
+RESTORED
+ M docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+?? docs/quests/2026-11-15-toy-solo-park/
+docs/quests/2026-11-15-toy-solo-park/experiments/exp-1-decision/EXPERIMENT.md
+{"ok":true,"quest":"2026-11-15-toy-nohuman-clean","state":"proposed","exps":[{"exp":"exp-1-hello","state":"submitted","fin":null,"cycle":1,"commit":"c4f2f6d45ceb68231d9991800f646dad3bbf69e0","legal_edges":["review","check","block","delete"],"changes":[{"change":"+","path":"docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/EXPERIMENT.md"},{"change":"+","path":"docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/notes.md"},{"change":"+","path":"docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/tape.log"},{"change":"+","path":"docs/quests/2026-11-15-toy-nohuman-clean/hello.txt"}]}],"rollup":"active","fin":null,"inbox":[]}

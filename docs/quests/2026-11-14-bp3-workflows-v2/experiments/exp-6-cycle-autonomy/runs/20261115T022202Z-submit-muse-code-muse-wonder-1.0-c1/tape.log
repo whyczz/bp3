@@ -1,0 +1,1020 @@
+created
+total 8
+drwxr-xr-x@ 3 whycz  staff  96 Nov 14 21:22 .
+drwxr-xr-x@ 3 whycz  staff  96 Nov 14 21:22 ..
+-rw-r--r--@ 1 whycz  staff   8 Nov 14 21:22 tape.log
+---
+status: landed
+home_repo: bp3
+date: 2026-11-14
+---
+
+# bp3-workflows-v2: one workflow per state transition
+
+TL;DR
+The fat bootstrap workflow splits into step functions:
+`induct-exp` builds only, a new `induct-grade` judges
+only, the `induct` conductor owns the loop, and every step
+Runs from a prepared worktree desk. Promoted from
+the workflows-v2 icebox entry (promoted with this quest and deleted at promotion, per owner rule 2026-11-15; preserved in git history);
+promotion per the `quest` skill — transcription, not
+adoption. Depends on [bp3-worktrees](../2026-11-14-bp3-worktrees/QUEST.md)
+for the desk verbs.
+
+ELI5
+One worker used to build the thing, grade it, and stamp
+it, all in one long shift. Now the builder builds, a
+separate judge grades against the checklist, the foreman
+decides what's next, and everybody works at their own
+desk so nobody's papers blow into anyone else's pile.
+
+## Terms
+
+| Term | One line |
+|---|---|
+| Step function | a workflow that reads state once, does exactly one stage, returns; owns nothing between invocations |
+| Conductor | the `induct` skill in the main session: loops `bp3 q r` → dispatch step → re-read |
+| Grade | judge-only verdict work on a bound commit: evidence audit, review, check; never edits |
+| Evidence audit | one row per acceptance case with its observed artifact or `missing`; missing required evidence = not pass |
+| Grade return | what `induct-grade` hands the conductor (owner, Round 1): the outcome word **plus the evidence matrix** — `{case, evidence, verdict}` per case, acceptance and adherence rows alike — in the workflow return and in the grade Run's `notes.md`. The conductor quotes it verbatim; nothing is re-judged downstream |
+| Step inputs | every step workflow takes `{quest, exp, ts, harness, model}` from the conductor; `induct-grade` additionally takes `commit` (owner, Round 2): the conductor reads state and hands over exactly the commit to judge. Staleness stays the FSM's problem (`E_COMMIT_MISMATCH`), not the grade's |
+| Matrix row | `{case, evidence: {kind: file\|command\|ledger\|grep, ref, quote}, verdict: pass\|fail\|missing}` (owner, Round 3). `missing` is first-class: a row without typed evidence cannot be `pass`, and a free-string evidence field is not a row |
+| Grade replay | re-dispatching `induct-grade` on the same commit is always safe (owner, Round 4): the audit is read-only, re-cast verdicts bind the same commit, and the FSM absorbing or refusing them is information either way. No conductor-side attempt bookkeeping |
+| Matrix rows, two families | the matrix carries **acceptance rows** (the exp's cases) and **adherence rows** (owner, Round 4): did the build Run follow the workflow contract — edge called by the child directly, env preset on the first command, clean commit, tape + notes present, no hand-edited state, worktree exited — or did it skip, substitute, or stay silent? Adherence is not a separate audit layer; it is rows, with the same typed evidence and `pass\|fail\|missing` verdicts |
+| Edge guard | the adherence checker inside `bp3 q u` itself (owner, Rounds 5+8, simplified): before applying an edge for a Run, the binary verifies that Run's adherence rows (run folder + tape present, worktree state sane, evidence the verdict binds to) and refuses with the failing rows when incomplete. Two placements only: the guard makes cheating fail at the state move; the grade re-derives the same rows and makes everything visible in the matrix. A `Stop` hook placement was considered and dropped entirely (owner, 2026-11-15) — guards live in `bp3 q u` plus grade reporting, nowhere else |
+| `E_ADHERENCE` | the edge guard's refusal code (owner, Round 6): one family code for "the workflow did not follow its contract," failing rows in `facts`, guidance naming the first fix. Per-row codes (`E_DIRTY_TREE`, …) still exist underneath; `E_ADHERENCE` is what a conductor greps for |
+| Desk | a prepared worktree (`bp3 worktree`, bp3-worktrees quest) |
+
+## Demos
+
+### Observed — the monolith (MVP, 2026-11-13/14)
+
+```text
+induct-exp one invocation: author 66 tool calls -> review -> check -> land
+usage_recorded per Run (exp-7 c2): 6.85M / 1.58M / 537K / 426K input tokens
+grade cannot rerun without re-entering the implementation workflow
+```
+
+### Observed — the pieces already exist (2026-11-14)
+
+Worktree verbs, live in this repo (DEMO-show run):
+
+```text
+$ ./bin/bp3 worktree prepare <q> <e> --run DEMO-show
+{"ok":true,"path":".bp3/worktrees/<q>/<e>/DEMO-show","ref":"bp3/exp/<q>/<e>", ...}
+$ (stray edit) ./bin/bp3 worktree release --run DEMO-show
+{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{"changed_count":1},
+ "guidance":"Worktree is dirty; commit the work or remove with --force."}}
+$ (edit reverted) release -> {"ok":true,"released":true}; list -> []
+```
+
+Hook facts, live (exp-7 of the MVP quest): ledgers carry
+`run_started` / `usage_recorded` / `run_settled` written
+by `bp3 q hooks` — the adherence checker's raw material
+already flows.
+
+### Design traces — v2 (nothing here has run yet)
+
+**Grade with a typed matrix:**
+
+```text
+bp3 q r -> submitted (commit abc1234)
+induct-grade {quest, exp, ts, harness, model, commit: abc1234}
+  audit child -> matrix:
+    {case:"acceptance: dirty desk refuses release", verdict:"pass",
+     evidence:{kind:"command", ref:"test/worktree.sh", quote:"worktree tests: ok"}}
+    {case:"adherence: submit edge called by the child", verdict:"pass",
+     evidence:{kind:"ledger", ref:"submit line", quote:"run_id matches, muse-code"}}
+    {case:"adherence: worktree exited at settle", verdict:"missing",
+     evidence:{kind:"command", ref:"bp3 worktree list", quote:"1 still open"}}
+  reviewer || checker (parallel, worktrees detached at abc1234)
+-> needs_fix (missing row named) — conductor quotes the matrix verbatim
+```
+
+**The cheat, caught mechanically:**
+
+```text
+child returns a verdict JSON but never calls bp3 q u
+  -> conductor re-reads state: nothing moved; the Run is wasted, never believed
+child calls bp3 q u submit with no tape / dirty worktree
+  -> {"ok":false,"error":{"code":"E_ADHERENCE", facts:{rows:[...]}, guidance:"..."}}
+```
+
+**Grade replay:** conductor re-dispatches `induct-grade`
+on the same commit after a killed checker — audit
+re-runs read-only, verdicts re-cast against the same
+commit, same matrix out. No attempt bookkeeping.
+
+## Goal and why
+
+The monolith worked — it dogfooded a quest to landed —
+but it concentrates trust: one driver builds and judges,
+its JS re-derives the FSM that `bp3 q` already owns, and
+a grade cannot be rerun against the same commit without
+re-entering the whole machine. Exp 4/6 showed where that
+leads: motion mistaken for proof. Splitting by state
+transition makes each piece small, separately rerunnable,
+and honest about what it cannot prove.
+
+## Success picture
+
+A quest driven end to end by the conductor with the split
+workflows: build Runs and grade Runs as distinct ledger
+citizens, a grade rerun on an unchanged commit producing
+the same verdict without touching implementation, graders
+in detached desks, and the monolith deleted.
+
+**Landed 2026-11-15 (owner gate).** All five exps landed
+through `bp3 q` (exp-1 `b415f4a3`, exp-2 `546a4b3f` c3,
+exp-3 `e5e09bea` c3, exp-4 `caf880e1`, owner-ruled
+follow-up exp-5 `4460ea7c` c2); rollup `landed`, inbox
+empty, `bp3 worktree list` empty, `make check` green.
+The live drive and token comparison rode the toy quest
+`2026-11-15-toy-conductor-drive` (also landed).
+
+## Scope
+
+| In | Out |
+|---|---|
+| `induct-grade` workflow (new), `induct-exp` slimmed to build-only, `induct` conductor loop | quest-level E2E (stays in the landing pass) |
+| desk adoption in every step (via bp3-worktrees) | changing `bp3 q` or the FSM |
+| skill changes as their own exp (Exp 3, per /quest step 6.6) | folding skill text into the workflow-code exps |
+
+## Human touchpoints
+
+Quest approval (this file); blocked-exps inbox as today;
+landing gate. Grade verdicts remain child-cast edges
+bound to exact commits, as today.
+
+## Exps
+
+### Exp 1 — [induct-grade](experiments/exp-1-induct-grade/EXPERIMENT.md)
+New judge-only workflow: evidence audit, then review +
+check in parallel on the bound commit. Depends on: none
+(consumes today's `submitted` state). Lane: standard.
+
+### Exp 2 — [induct-exp slimmed](experiments/exp-2-induct-exp-slim/EXPERIMENT.md)
+`induct-exp` keeps only author + submit; grading stages
+deleted; conductor dispatches by state instead.
+Depends on: Exp 1 (grade must exist before the monolith
+stops grading). Lane: standard.
+
+### Exp 3 — [Conductor](experiments/exp-3-conductor/EXPERIMENT.md)
+Skill-change exp: `induct` SKILL.md rewritten as the
+state loop over step functions (build / grade / land /
+inbox). Includes the QoL alias (owner, Round 2):
+`induct-quest`, a second name meaning exactly `/induct`
+— one canonical skill body, the alias a thin pointer,
+never a forked copy that can drift. Depends on:
+Exp 1 + 2. Lane: standard.
+
+### Exp 4 — [Desks](experiments/exp-4-desks/EXPERIMENT.md)
+Every step Runs from a prepared `bp3 worktree` desk
+(author on branch, graders detached). Depends on: Exp 2
++ bp3-worktrees Exp 1. Lane: standard.
+
+## Scorecard
+
+| Field | Value |
+|---|---|
+| Wall time / context tokens | measured 2026-11-15 on the same toy (one hello file, toy quest `2026-11-15-toy-conductor-drive`): step dispatches (`exp-1-hello`: induct-exp + induct-grade + quest-land, separate workflows) 12,523,838 input / 108,592 output tokens, 17 LLM calls, 4 registered Runs vs monolith (`exp-2-hello-monolith`, monolith recovered from `31f82b2`, one workflow) 16,417,835 input / 157,726 output, 33 calls, 4 Runs — the split is cheaper on this toy even before caching effects; per-Run `usage_recorded` sums from `.git/bp3-run-registry.json` |
+| Exp 2 file-weight proxy (2026-11-15) | monolith `induct-exp.js` 296 lines / 12349 B at `b415f4a` -> slim `induct-exp.js` 213 lines / 8039 B plus `quest-land.js` 197 lines / 7320 B; the build step alone sheds ~35% of its bytes. The live `usage_recorded` per-Run token comparison on a re-driven toy exp is NOT gated by Exp 2 — explicitly deferred to Exp 3 (cycle-2 amendment after cycle-1 review); the proxy above is all Exp 2 records. |
+| Human-active minutes | approval + inbox + landing |
+
+## Risks and red chair
+
+| Attack | What it changed |
+|---|---|
+| Split is ceremony: same children, more files | grade gets a different contract (evidence audit, missing = not pass), not just a new folder; without that, this quest is pointless and should not start |
+| Conductor loop in a skill = prose FSM duplicating `bp3 q` | conductor only dispatches on state `bp3 q` reports; it decides nothing about legality |
+| More invocations, more overhead | measured in Scorecard against the monolith on the same toy exp; if overhead dominates, the split is revisited at Exp 2's gate |
+| Two workflows drift apart in run/tape conventions | run-id, env preset, and tape derivation stay shared and pinned by the same contract test family |
+
+## Open questions
+
+| # | Question | Owner |
+|---|---|---|
+| 1 | Land: mini-workflow, or single conductor-spawned child? | human, at Exp 2 |
+| 2 | ~~Grade on a different model~~ — not this quest (owner, 2026-11-15): TODO frozen in [grade-model-routing icebox](../../icebox/2026-11-15-grade-model-routing.md) | icebox |
+---
+exp-1-induct-grade
+exp-2-induct-exp-slim
+exp-3-conductor
+exp-4-desks
+exp-5-grade-matrix-fix
+exp-6-cycle-autonomy
+exp-7-landing-vocabulary
+SKILL.md
+workflows
+---skills---
+add-bp3-skill
+add-yap-skill
+icebox
+induct
+naming
+quest
+red-ink-quest-landing-demo
+using-bp3
+---agents---
+SKILL.md
+e90f083 docs(quest): land bp3-workflows-v2, record landing
+bf0acec bp3: land exp-4-desks
+1644a13 bp3: exp-4-desks
+bc0cdda bp3: hooks
+5b00288 bp3: hooks
+934f81b bp3: hooks
+0d227e0 bp3: hooks
+46ddbef bp3: hooks
+1d546a5 bp3: exp-4-desks
+83cbfa2 bp3: exp-4-desks
+9efa03e bp3: hooks
+87b7a3a bp3: hooks
+8276f8f bp3: hooks
+3d87a06 bp3: hooks
+cfeb444 bp3: hooks
+---
+cat: docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-3-conductor/EXPERIMENT.md: No such file or directory
+===
+{"ok":true,"quest":"2026-11-14-bp3-workflows-v2","state":"proposed","exps":[{"exp":"exp-1-induct-grade","state":"landed","cycle":1,"commit":"b415f4a323975eb5162626b85a7c00ae59d5153f","legal_edges":[],"changes":[{"change":"+","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"skills/induct/workflows/induct-grade.js"},{"change":"+","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/induct.sh"},{"change":"u","path":"test/skills.sh"}]},{"exp":"exp-2-induct-exp-slim","state":"landed","cycle":3,"commit":"546a4b3f1abba2b180a2f713734dfbf02e5e0e70","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/quest-land.js"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/quest-land.js"}]},{"exp":"exp-3-conductor","state":"landed","cycle":3,"commit":"e5e09bea8d92abc8cfd38a3e318ddb30ea96b4d0","legal_edges":[],"changes":[{"change":"u","path":"docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-3-conductor/runs/20261115T013321Z-submit-muse-code-muse-wonder-1.0-c3/tape.log"}]},{"exp":"exp-4-desks","state":"landed","cycle":1,"commit":"caf880e1338af5ae00e1d4c6907865f76a123609","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"src/quest/gitx.ml"},{"change":"u","path":"src/quest/hooks.ml"},{"change":"u","path":"src/quest/worktree.ml"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/worktree.sh"}]},{"exp":"exp-5-grade-matrix-fix","state":"landed","cycle":2,"commit":"4460ea7ce67c166b7bd9bd669f4bfe658dc8e5fc","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"test/induct-grade.test.mjs"}]},{"exp":"exp-6-cycle-autonomy","state":"todo","cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null},{"exp":"exp-7-landing-vocabulary","state":"todo","cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null}],"rollup":"active","inbox":[]}
+ledger.jsonl
+runs
+state.yaml
+---
+commit e5e09bea8d92abc8cfd38a3e318ddb30ea96b4d0
+Author: whycz <whyczz@gmail.com>
+Date:   Sat Nov 14 20:34:17 2026 -0500
+
+    exp-3-conductor c3: tape 3
+
+ .../20261115T013321Z-submit-muse-code-muse-wonder-1.0-c3/tape.log     | 4 ++++
+ 1 file changed, 4 insertions(+)
+---skills.sh---
+#!/bin/bash
+# shellcheck disable=SC2016 # Literal JSON and Markdown in fixtures.
+set -euo pipefail
+repo=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d "${TMPDIR:-/tmp}/bp3-skills-tests.XXXXXX")
+trap 'rm -rf -- "$work"' EXIT
+checks=0
+assert() { "$@" || { printf 'FAIL: %s\n' "$*" >&2; exit 1; }; checks=$((checks + 1)); }
+rejects() {
+  if "$@" > "$work/out" 2> "$work/error"; then printf 'FAIL: expected rejection: %s\n' "$*" >&2; exit 1; fi
+  checks=$((checks + 1))
+}
+# A fresh checkout must carry the project-scope discovery exclusions too.
+for skill_dir in "$repo"/skills/*/; do
+  id=$(basename "$skill_dir")
+  assert jq -e --arg pattern "!**/.agents/skills/$id/SKILL.md" '.skills | index($pattern) != null' "$repo/.pi/settings.json"
+done
+
+mkdir -p "$work/project with spaces/bin" "$work/project with spaces/scripts"
+root="$work/project with spaces"
+cp "$repo/bin/bp3" "$root/bin/"
+cp "$repo/scripts/check-skills" "$root/scripts/"
+cp -R "$repo/skills" "$root/"
+source="$root/skills/add-yap-skill/SKILL.md"
+cp "$source" "$work/good.md"
+
+# The exact original nested-mapping regression: an unquoted colon+space.
+awk '/^description:/ {$0="description: Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests."} {print}' "$work/good.md" > "$source"
+rejects "$root/scripts/check-skills"
+rejects "$root/bin/bp3" skills install --harness=all
+assert test ! -e "$root/.pi"
+assert test ! -e "$root/.agents"
+assert test ! -e "$root/.claude"
+assert grep -Eq 'mapping|YAML' "$work/error"
+
+# Quoted colon and block-scalar descriptions must pass real YAML parsing.
+cp "$work/good.md" "$source"
+"$root/scripts/check-skills" > /dev/null
+assert test "$(yq --front-matter=extract '.description' "$source")" = 'Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests.'
+awk '/^description:/ {$0="description: |\n  A valid description: with a colon."} {print}' "$work/good.md" > "$source"
+"$root/scripts/check-skills" > /dev/null
+
+for description in 'description: [broken' 'description: {nested: mapping}' 'description: 42' 'description: ""'; do
+  awk -v description="$description" '/^description:/ {$0=description} {print}' "$work/good.md" > "$source"
+  rejects "$root/scripts/check-skills"
+done
+cp "$work/good.md" "$source"
+awk '/^name:/ {$0="name: wrong"} {print}' "$work/good.md" > "$source"
+rejects "$root/scripts/check-skills"
+cp "$work/good.md" "$source"
+rejects "$root/bin/bp3" skills install --harness=unknown
+assert test ! -e "$root/.pi"
+rejects "$root/bin/bp3" skills install --harness
+
+mkdir -p "$root/.pi"
+printf '{"defaultModel":"keep","skills":["/extra","!**/ignored/**"]}\n' > "$root/.pi/settings.json"
+"$root/bin/bp3" skills install --harness=all > /dev/null
+"$root/scripts/check-skills" "$root/skills" "$root/.pi/skills" "$root/.agents/skills" "$root/.claude/skills" > /dev/null
+assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink-quest-landing-demo/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
+for h in .pi .agents .claude; do
+  assert test "$(yq --front-matter=extract '.description' "$root/$h/skills/add-yap-skill/SKILL.md")" = "$(yq --front-matter=extract '.description' "$source")"
+  assert test -f "$root/$h/skills/quest/SKILL.md"
+done
+assert test -f "$root/.agents/workflows/induct-exp.js"
+assert cmp "$root/skills/induct/workflows/induct-exp.js" "$root/.agents/workflows/induct-exp.js"
+assert test -f "$root/.claude/hooks.json"
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.claude/hooks.json"
+assert test -f "$root/.muse/hooks.json"
+assert cmp "$root/.claude/hooks.json" "$root/.muse/hooks.json"
+assert test -f "$root/.claude/settings.json"
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+mkdir -p "$root/.claude"
+printf '{"keepMe":true}\n' > "$root/.claude/settings.json"
+"$root/bin/bp3" skills install --harness=claude > /dev/null
+assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+cp "$root/.pi/settings.json" "$work/settings.before"
+"$root/bin/bp3" skills install --harness=pi > /dev/null
+assert cmp "$work/settings.before" "$root/.pi/settings.json"
+assert cmp "$root/skills/induct/workflows/induct-exp.js" "$root/.agents/workflows/induct-exp.js"
+
+# Corrupt settings must fail BEFORE rewriting any installed files.
+printf 'sentinel\n' > "$root/.pi/skills/quest/SKILL.md"
+for settings in '{broken' '{"skills":null}' '{"skills":[1]}'; do
+  printf '%s\n' "$settings" > "$root/.pi/settings.json"
+  rejects "$root/bin/bp3" skills install --harness=all
+  assert grep -qx sentinel "$root/.pi/skills/quest/SKILL.md"
+done
+# Non-Pi installations must leave project Pi settings alone.
+printf '{broken' > "$root/.pi/settings.json"
+"$root/bin/bp3" skills install --harness=codex > /dev/null
+assert grep -qx '{broken' "$root/.pi/settings.json"
+
+printf 'skills tests: ok (%s assertions)\n' "$checks"
+92f3dc9 feat(induct): rewrite induct as pure conductor, add induct-quest alias
+9bf5d36 feat(skills): rename quest-landing-demo to red-ink-quest-landing-demo
+adebf3b feat(engine): workflow children load role skills
+aa57ad0 fix(engine): pass identity to induct-exp children
+0625ee0 fix(engine): pass identity to induct-exp children
+a43bcd6 feat(engine): induct-exp workflow, tape capture, distribution
+3f1c00c docs(quest): graduate induct red-ink, rename drive to induct
+1a44b98 WIP on quest/bp3-mvp-engine: 1e15481 feat(engine): Exp 5 Muse engine + drive skill
+7447823 index on quest/bp3-mvp-engine: 1e15481 feat(engine): Exp 5 Muse engine + drive skill
+--- diff exp3 commit chain ---
+a50eecf bp3: hooks
+2bbd094 bp3: hooks
+6825b10 bp3: exp-3-conductor
+ceeac46 bp3: hooks
+8d6d6e0 bp3: hooks
+ec0ed95 bp3: hooks
+c78fa62 bp3: hooks
+654537a bp3: hooks
+90e2877 bp3: hooks
+3c9196f bp3: exp-3-conductor
+a4cc1d7 bp3: hooks
+485c96f bp3: exp-3-conductor
+ddbafce bp3: hooks
+f94229d bp3: hooks
+33951fe bp3: hooks
+512bcfc bp3: hooks
+106574c bp3: exp-3-conductor
+e5e09be exp-3-conductor c3: tape 3
+0f7a538 exp-3-conductor c3: tape 2
+e776210 exp-3-conductor c3: clean resubmit with fresh verification
+--- read ledger ---
+{"ts":"2026-11-15T00:06:55Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","exp_type":"default"}
+{"event":"run_started","ts":"2026-11-15T00:58:34Z","run_id":"20261115T005729Z-submit-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"abc64c93-561a-789c-8fb6-7ba2781236b4"}
+{"ts":"2026-11-15T00:58:34Z","edge":"submit","from":"todo","to":"submitted","cycle":1,"commit":"92f3dc9ab85d5d599add175c6403ce1589961f5f","verdict":null,"reason":"induct rewritten as pure conductor with dispatch table; induct-quest alias pointer; skills tests 61 ok; live drive deferred to conductor","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"event":"usage_recorded","ts":"2026-11-15T00:58:36Z","run_id":"20261115T005729Z-submit-muse-code-muse-wonder-1.0-c1","input_tokens":759445,"output_tokens":6305,"cached_tokens":730792,"reasoning_tokens":651,"wall_ms":2000,"started_ts":"2026-11-15T00:58:34Z","settled_ts":"2026-11-15T00:58:36Z"}
+{"event":"run_settled","ts":"2026-11-15T00:58:36Z","run_id":"20261115T005729Z-submit-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
+{"event":"run_started","ts":"2026-11-15T01:00:29Z","run_id":"20261115T005847Z-check-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"cbb1b713-5e4a-7b8b-89dd-b59a7b49b923"}
+{"event":"lint_checked","ts":"2026-11-15T01:00:41Z","run_id":"20261115T005847Z-check-muse-code-muse-wonder-1.0-c1","check":"skills.sh","result":"pass"}
+{"event":"run_started","ts":"2026-11-15T01:00:45Z","run_id":"20261115T005847Z-review-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"cbb1bc13-5e4a-740a-89dd-ba9a7b49c1a2"}
+{"ts":"2026-11-15T01:00:45Z","edge":"review","from":"submitted","to":"blocked","cycle":1,"commit":"92f3dc9ab85d5d599add175c6403ce1589961f5f","verdict":"needs_fix","reason":"gated live drive, full-cycle and token-overhead rows missing; code and skills tests pass","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"event":"usage_recorded","ts":"2026-11-15T01:00:47Z","run_id":"20261115T005847Z-review-muse-code-muse-wonder-1.0-c1","input_tokens":342524,"output_tokens":3412,"cached_tokens":324488,"reasoning_tokens":1127,"wall_ms":2000,"started_ts":"2026-11-15T01:00:45Z","settled_ts":"2026-11-15T01:00:47Z"}
+{"event":"run_settled","ts":"2026-11-15T01:00:48Z","run_id":"20261115T005847Z-review-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
+{"event":"usage_recorded","ts":"2026-11-15T01:01:02Z","run_id":"20261115T005847Z-check-muse-code-muse-wonder-1.0-c1","input_tokens":2713884,"output_tokens":40228,"cached_tokens":2564788,"reasoning_tokens":14044,"wall_ms":33000,"started_ts":"2026-11-15T01:00:29Z","settled_ts":"2026-11-15T01:01:02Z"}
+{"event":"run_settled","ts":"2026-11-15T01:01:02Z","run_id":"20261115T005847Z-check-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
+{"ts":"2026-11-15T01:25:41Z","edge":"resume","from":"blocked","to":"todo","cycle":2,"commit":null,"verdict":null,"reason":"owner chose live drive + resume: toy quest 2026-11-15-toy-conductor-drive driven todo->landed by separate dispatches; token overhead recorded in quest Scorecard","harness":"muse-code","model":"none","bp3_version":"0.2.0"}
+{"event":"run_started","ts":"2026-11-15T01:26:00Z","run_id":"20261115T012541Z-submit-muse-code-muse-wonder-1.0-c2","cycle":2,"session_id":"d0a5cad2-9b60-7391-8fa8-0bb14f1b1159"}
+{"event":"lint_checked","ts":"2026-11-15T01:26:16Z","run_id":"20261115T012541Z-submit-muse-code-muse-wonder-1.0-c2","check":"skills.sh","result":"pass"}
+{"ts":"2026-11-15T01:26:57Z","edge":"submit","from":"todo","to":"submitted","cycle":2,"commit":"7a0514dfaaca75af3126dcf14513d0d3273b1aea","verdict":null,"reason":"c2: live-drive closure evidence recorded; skills tests pass","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"event":"usage_recorded","ts":"2026-11-15T01:27:00Z","run_id":"20261115T012541Z-submit-muse-code-muse-wonder-1.0-c2","input_tokens":10297287,"output_tokens":98597,"cached_tokens":9850376,"reasoning_tokens":15517,"wall_ms":60000,"started_ts":"2026-11-15T01:26:00Z","settled_ts":"2026-11-15T01:27:00Z"}
+{"event":"run_settled","ts":"2026-11-15T01:27:00Z","run_id":"20261115T012541Z-submit-muse-code-muse-wonder-1.0-c2","outcome":"settled"}
+{"event":"run_started","ts":"2026-11-15T01:29:05Z","run_id":"20261115T012709Z-check-muse-code-muse-wonder-1.0-c2","cycle":2,"session_id":"05cae930-77e4-7ffb-8579-44ee25186483"}
+{"ts":"2026-11-15T01:29:05Z","edge":"check","from":"submitted","to":"blocked","cycle":2,"commit":"7a0514dfaaca75af3126dcf14513d0d3273b1aea","verdict":"fail","reason":"gated adherence fails: dirty tree and hand-truncated exp-1-hello ledger at d21dc54","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"event":"usage_recorded","ts":"2026-11-15T01:29:09Z","run_id":"20261115T012709Z-check-muse-code-muse-wonder-1.0-c2","input_tokens":305102,"output_tokens":4885,"cached_tokens":278176,"reasoning_tokens":1631,"wall_ms":4000,"started_ts":"2026-11-15T01:29:05Z","settled_ts":"2026-11-15T01:29:09Z"}
+{"event":"run_settled","ts":"2026-11-15T01:29:09Z","run_id":"20261115T012709Z-check-muse-code-muse-wonder-1.0-c2","outcome":"settled"}
+{"event":"run_started","ts":"2026-11-15T01:29:16Z","run_id":"20261115T012709Z-review-muse-code-muse-wonder-1.0-c2","cycle":2,"session_id":"05caee30-77e4-787a-8579-49ee25186d02"}
+{"event":"usage_recorded","ts":"2026-11-15T01:29:26Z","run_id":"20261115T012709Z-review-muse-code-muse-wonder-1.0-c2","input_tokens":1388559,"output_tokens":17194,"cached_tokens":1321132,"reasoning_tokens":6471,"wall_ms":10000,"started_ts":"2026-11-15T01:29:16Z","settled_ts":"2026-11-15T01:29:26Z"}
+{"event":"run_settled","ts":"2026-11-15T01:29:26Z","run_id":"20261115T012709Z-review-muse-code-muse-wonder-1.0-c2","outcome":"settled"}
+{"ts":"2026-11-15T01:33:21Z","edge":"resume","from":"blocked","to":"todo","cycle":3,"commit":null,"verdict":null,"reason":"owner chose restore + resume: toy ledger/state restored from landed branch tip; cycle 3 commits restoration only with exp-3 evidence","harness":"muse-code","model":"none","bp3_version":"0.2.0"}
+{"event":"run_started","ts":"2026-11-15T01:33:38Z","run_id":"20261115T013321Z-submit-muse-code-muse-wonder-1.0-c3","cycle":3,"session_id":"9fb79ae9-e0fc-75f9-8d08-dd6bdbf18b81"}
+{"ts":"2026-11-15T01:34:19Z","edge":"submit","from":"todo","to":"submitted","cycle":3,"commit":"e5e09bea8d92abc8cfd38a3e318ddb30ea96b4d0","verdict":null,"reason":"clean resubmit: acceptance evidence fresh-verified, c2 adherence fails fixed","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"event":"usage_recorded","ts":"2026-11-15T01:34:22Z","run_id":"20261115T013321Z-submit-muse-code-muse-wonder-1.0-c3","input_tokens":4585076,"output_tokens":48288,"cached_tokens":4343320,"reasoning_tokens":8234,"wall_ms":44000,"started_ts":"2026-11-15T01:33:38Z","settled_ts":"2026-11-15T01:34:22Z"}
+{"event":"run_settled","ts":"2026-11-15T01:34:22Z","run_id":"20261115T013321Z-submit-muse-code-muse-wonder-1.0-c3","outcome":"settled"}
+{"event":"run_started","ts":"2026-11-15T01:35:46Z","run_id":"20261115T013433Z-review-muse-code-muse-wonder-1.0-c3","cycle":3,"session_id":"eaa1e678-b5bf-7011-848c-4a38083ac4b9"}
+{"event":"lint_checked","ts":"2026-11-15T01:36:03Z","run_id":"20261115T013433Z-review-muse-code-muse-wonder-1.0-c3","check":"skills.sh","result":"pass"}
+{"ts":"2026-11-15T01:36:06Z","edge":"review","from":"submitted","to":"submitted","cycle":3,"commit":"e5e09bea8d92abc8cfd38a3e318ddb30ea96b4d0","verdict":"ship","reason":"All gated cases pass; skills tests 61 ok, live drive landed, conductor+alias verified","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"event":"run_started","ts":"2026-11-15T01:36:08Z","run_id":"20261115T013433Z-check-muse-code-muse-wonder-1.0-c3","cycle":3,"session_id":"eaa1e778-b5bf-71c4-848c-4b38083ac66c"}
+{"ts":"2026-11-15T01:36:09Z","edge":"check","from":"submitted","to":"approved","cycle":3,"commit":"e5e09bea8d92abc8cfd38a3e318ddb30ea96b4d0","verdict":"pass","reason":"fresh skills tests 61 ok, conductor+alias text verified, live drive landed","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"event":"usage_recorded","ts":"2026-11-15T01:36:11Z","run_id":"20261115T013433Z-check-muse-code-muse-wonder-1.0-c3","input_tokens":319174,"output_tokens":4624,"cached_tokens":304776,"reasoning_tokens":1395,"wall_ms":3000,"started_ts":"2026-11-15T01:36:08Z","settled_ts":"2026-11-15T01:36:11Z"}
+{"event":"run_settled","ts":"2026-11-15T01:36:11Z","run_id":"20261115T013433Z-check-muse-code-muse-wonder-1.0-c3","outcome":"settled"}
+{"event":"usage_recorded","ts":"2026-11-15T01:36:16Z","run_id":"20261115T013433Z-review-muse-code-muse-wonder-1.0-c3","input_tokens":2120312,"output_tokens":25758,"cached_tokens":2023376,"reasoning_tokens":7471,"wall_ms":30000,"started_ts":"2026-11-15T01:35:46Z","settled_ts":"2026-11-15T01:36:16Z"}
+{"event":"run_settled","ts":"2026-11-15T01:36:16Z","run_id":"20261115T013433Z-review-muse-code-muse-wonder-1.0-c3","outcome":"settled"}
+{"event":"run_started","ts":"2026-11-15T01:36:39Z","run_id":"20261115T013624Z-land-muse-code-muse-wonder-1.0-c3","cycle":3,"session_id":"dbbcf220-0a65-7838-88e6-f8c2020d4800"}
+{"event":"lint_checked","ts":"2026-11-15T01:37:20Z","run_id":"20261115T013624Z-land-muse-code-muse-wonder-1.0-c3","check":"skills.sh","result":"pass"}
+{"ts":"2026-11-15T01:37:23Z","edge":"land","from":"approved","to":"landed","cycle":3,"commit":"e5e09bea8d92abc8cfd38a3e318ddb30ea96b4d0","verdict":null,"reason":"grade pass c3: conductor dispatch-only, alias pointer, skills 61 ok, live drive landed","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+--- installed induct ---
+4a5
+> <!-- GENERATED from skills/induct/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+diff exit: 0
+---
+name: induct
+description: Conduct one bp3 quest from the main session — read state with bp3 q r, dispatch the one step that state calls for, re-read, until the quest is terminal or a human decision is owed.
+---
+
+# Induct
+
+Use when a human in a bp3-enabled repo invokes this skill by
+name (`/induct <quest>`, `$induct <quest>`) or asks to "induct",
+"run", or "keep going on" a named quest until it lands or
+blocks. One quest per induct. One output: step dispatches
+through `bp3 q`, ending in an induct report — what landed, what
+is blocked, and what human decision is owed next.
+
+Use `quest` instead to frame a new quest. Use `using-bp3`
+instead for a single state operation by hand (one submit, one
+review, recovery after a dead session). Use
+`red-ink-quest-landing-demo` instead when the quest is done and the
+human wants the landing writeup. A design under review is
+`red-ink`'s job, not an induct.
+
+## Conductor rule
+
+This skill is the conductor: it owns the loop and nothing
+else. It reads state, dispatches the one step the state calls
+for, and re-reads. It never does a step's work itself, never
+calls a verdict edge for a step, and never re-judges a grade
+matrix — it quotes the matrix verbatim. Legality is `bp3 q`'s
+call, never this skill's: a refusal is information, answered by
+re-reading, not by arguing or retrying unchanged.
+
+## Procedure
+
+1. Take exactly one argument: the quest. Confirm the engine
+   exists: `bp3 q r <quest>` must answer JSON. If `bp3 q` is
+   unavailable, stop and say so — never improvise state with
+   file edits or another command.
+2. Read the world live: `bp3 q r <quest>` gives exp states,
+   the railway order, and the blocked inbox. Trust only this
+   read — never session memory, `state.yaml`, or a ledger read
+   by hand. At a fan-out group, stop and ask the human which
+   members run; members are exploration only and never
+   landable.
+3. Dispatch exactly one step per read, by state only:
+
+   | State | Dispatch | Args |
+   |---|---|---|
+   | `todo` | `induct-exp` workflow | `{quest, exp, ts, harness, model}` |
+   | `submitted` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit}` with `commit` from this read |
+   | `approved` | `quest-land` workflow | `{quest, exp, ts, harness, model}` |
+   | `blocked` | human gate (step 4) | — |
+   | `landed` / `deleted` | none | advance to the next exp, or report at terminal |
+
+   `ts` is a UTC compact timestamp (for example
+   `20261107T143022Z`) supplied in args because workflow
+   scripts cannot read the clock; `harness` and `model` carry
+   this session's identity (`muse-code` and its model),
+   because workflow children do not inherit the launching
+   session's env. Steps are installed with this skill by
+   `bp3 skills install`; if a named step is missing, stop and
+   say so rather than improvising children. Grade replay is
+   free: re-dispatching `induct-grade` on the same `commit`
+   is always safe, so a killed grade is simply dispatched
+   again — no attempt bookkeeping here.
+4. Blocked gate: present the inbox in the main session (exp,
+   reason, checkpoint, cycle), capture the human's decision in
+   their words, attest it (`BP3_DECIDER=human`), and take
+   `resume` or `delete` through `bp3 q <quest> u <exp>`. The
+   human never calls bp3 and never supplies a commit. A
+   blocked Run is never resumed in place; after a `resume`,
+   the next read dispatches a fresh step.
+5. Re-read after every dispatch return (`bp3 q r <quest>`)
+   and go to step 3. A return that moved nothing (refusal, no
+   commit) is re-judged from the fresh read, never retried
+   unchanged against a moved tip.
+6. Stop when the rollup is terminal (every exp `landed` or
+   `deleted`) or a human decision is owed that this session
+   cannot get. Report: dispatches per exp with their ledger
+   evidence, the grade matrices quoted verbatim, Runs and
+   tapes left behind, scorecard fields (wall time, context
+   tokens, human-active minutes — or "unmeasured", never
+   zero), and the next decision owed.
+
+## Rules
+
+- The skill writes no state. `bp3 q u` is the only writer,
+  called by step children (and at the blocked gate, by this
+  session on attested human words); ledger files, `state.yaml`,
+  and branch tips are never hand-edited, and tape is evidence,
+  never parsed into facts.
+- Human attestation comes only from actual human words in
+  this session. The engine never attests on the human's
+  behalf, and `resume` without it is refused
+  (`E_HUMAN_REQUIRED`) — that refusal is the gate working.
+- Identity rides env (`BP3_HARNESS`, `BP3_MODEL`) set per Run
+  by the launcher or hooks. Unset means `unknown` plus a
+  warning in the verdict; never guess a model name.
+- Verdicts bind the exact commit reviewed. A verdict naming a
+  superseded commit is refused; dispatch a fresh step against
+  the current commit instead of arguing with the refusal.
+- Instructions only: this skill holds no state, spawns no
+  daemon, and assumes no runtime beyond the main session, its
+  workflow children, and the `bp3 q` binary.
+=== current worktree ===
+=== branch ===
+bp3/quest/2026-11-14-bp3-workflows-v2
+  bp3/exp/2026-11-15-toy-conductor-drive/exp-1-hello
+  bp3/exp/2026-11-15-toy-conductor-drive/exp-2-hello-monolith
+  bp3/quest/2026-11-15-toy-conductor-drive
+  master
+  remotes/origin/HEAD -> origin/master
+  remotes/origin/master
+---HEAD file hash---
+bfc8a5c5a86230f0392908c333c146d93baf1c02
+bfc8a5c5a86230f0392908c333c146d93baf1c02
+---log HEAD for file---
+9bf5d36 feat(skills): rename quest-landing-demo to red-ink-quest-landing-demo
+adebf3b feat(engine): workflow children load role skills
+aa57ad0 fix(engine): pass identity to induct-exp children
+a43bcd6 feat(engine): induct-exp workflow, tape capture, distribution
+3f1c00c docs(quest): graduate induct red-ink, rename drive to induct
+diff --git a/skills/induct/SKILL.md b/skills/induct/SKILL.md
+index bfc8a5c..cd492ec 100644
+--- a/skills/induct/SKILL.md
++++ b/skills/induct/SKILL.md
+@@ -1,6 +1,6 @@
+ ---
+ name: induct
+-description: Induct one bp3 quest along its railway from the main session — loop the railway with induct-exp workflows until the quest is terminal or a human decision is owed.
++description: Conduct one bp3 quest from the main session — read state with bp3 q r, dispatch the one step that state calls for, re-read, until the quest is terminal or a human decision is owed.
+ ---
+ 
+ # Induct
+@@ -8,7 +8,7 @@ description: Induct one bp3 quest along its railway from the main session — lo
+ Use when a human in a bp3-enabled repo invokes this skill by
+ name (`/induct <quest>`, `$induct <quest>`) or asks to "induct",
+ "run", or "keep going on" a named quest until it lands or
+-blocks. One quest per induct. One output: Runs dispatched
++blocks. One quest per induct. One output: step dispatches
+ through `bp3 q`, ending in an induct report — what landed, what
+ is blocked, and what human decision is owed next.
+ 
+@@ -19,6 +19,16 @@ review, recovery after a dead session). Use
+ human wants the landing writeup. A design under review is
+ `red-ink`'s job, not an induct.
+ 
++## Conductor rule
++
++This skill is the conductor: it owns the loop and nothing
++else. It reads state, dispatches the one step the state calls
++for, and re-reads. It never does a step's work itself, never
++calls a verdict edge for a step, and never re-judges a grade
++matrix — it quotes the matrix verbatim. Legality is `bp3 q`'s
++call, never this skill's: a refusal is information, answered by
++re-reading, not by arguing or retrying unchanged.
++
+ ## Procedure
+ 
+ 1. Take exactly one argument: the quest. Confirm the engine
+@@ -28,58 +38,56 @@ human wants the landing writeup. A design under review is
+ 2. Read the world live: `bp3 q r <quest>` gives exp states,
+    the railway order, and the blocked inbox. Trust only this
+    read — never session memory, `state.yaml`, or a ledger read
+-   by hand.
+-3. Work the inbox first. For each blocked exp, present the
+-   facts in the main session (exp, reason, checkpoint, cycle),
+-   capture the human's decision in their words, attest it
+-   (`BP3_DECIDER=human`), and take `resume` or `delete`
+-   through `bp3 q <quest> u <exp>`. The human never calls bp3
+-   and never supplies a commit. Dispatch a fresh Run after a
+-   resume; a blocked Run is never resumed in place.
+-4. At a fan-out group, stop and ask the human which members
+-   run. Members are exploration only and never landable; when
+-   they settle, ask which result feeds the follow-up exp.
+-5. Otherwise take the next landable exp and launch the
+-   `induct-exp` workflow for that exp (installed with this
+-   skill by `bp3 skills install`; if it is missing, stop and
+-   say so rather than improvising children). Pass the workflow
+-   args `{quest, exp, ts, harness, model}`: `ts` is a UTC
+-   compact timestamp (for example `20261107T143022Z`) supplied
+-   by this skill in args because workflow scripts cannot read
+-   the clock, and children embed it in every run-id; `harness`
+-   and `model` carry this session's identity (`muse-code` and
+-   its model), because workflow children do not inherit the
+-   launching session's env and would otherwise record
+-   `unknown`. Children load role skills themselves: the author
+-   child loads `code-writer`, the review child loads
+-   `code-reviewer` (its `fix_first` becomes `needs_fix`), and
+-   the check child judges in the `verify` stance. It loops the exp's
+-   inner FSM — one fresh child Run per edge, review and
+-   check in parallel on the exact commit in `submitted`,
+-   autoland at `approved` — until the exp exits `landed`,
+-   `blocked`, or `deleted`, or a step changes nothing
+-   (refusals, no commit) and it returns `refused` to this
+-   skill for re-judging. It never loops on an unchanged state.
+-   The skill itself never dispatches edges one by one. Every
+-   state move goes through `bp3 q <quest> u <exp> <edge>` —
+-   no exceptions.
+-6. Re-read after every workflow return (`bp3 q r <quest>`). A
+-   refusal is information, not failure: read its error code,
+-   facts, and guidance, pick a legal edge, continue. Never
+-   retry an edge unchanged against a moved tip; re-judge from
+-   the fresh read.
+-7. Stop when the rollup is terminal (every exp `landed` or
++   by hand. At a fan-out group, stop and ask the human which
++   members run; members are exploration only and never
++   landable.
++3. Dispatch exactly one step per read, by state only:
++
++   | State | Dispatch | Args |
++   |---|---|---|
++   | `todo` | `induct-exp` workflow | `{quest, exp, ts, harness, model}` |
++   | `submitted` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit}` with `commit` from this read |
++   | `approved` | `quest-land` workflow | `{quest, exp, ts, harness, model}` |
++   | `blocked` | human gate (step 4) | — |
++   | `landed` / `deleted` | none | advance to the next exp, or report at terminal |
++
++   `ts` is a UTC compact timestamp (for example
++   `20261107T143022Z`) supplied in args because workflow
++   scripts cannot read the clock; `harness` and `model` carry
++   this session's identity (`muse-code` and its model),
++   because workflow children do not inherit the launching
++   session's env. Steps are installed with this skill by
++   `bp3 skills install`; if a named step is missing, stop and
++   say so rather than improvising children. Grade replay is
++   free: re-dispatching `induct-grade` on the same `commit`
++   is always safe, so a killed grade is simply dispatched
++   again — no attempt bookkeeping here.
++4. Blocked gate: present the inbox in the main session (exp,
++   reason, checkpoint, cycle), capture the human's decision in
++   their words, attest it (`BP3_DECIDER=human`), and take
++   `resume` or `delete` through `bp3 q <quest> u <exp>`. The
++   human never calls bp3 and never supplies a commit. A
++   blocked Run is never resumed in place; after a `resume`,
++   the next read dispatches a fresh step.
++5. Re-read after every dispatch return (`bp3 q r <quest>`)
++   and go to step 3. A return that moved nothing (refusal, no
++   commit) is re-judged from the fresh read, never retried
++   unchanged against a moved tip.
++6. Stop when the rollup is terminal (every exp `landed` or
+    `deleted`) or a human decision is owed that this session
+-   cannot get. Report: edges taken per exp with their ledger
+-   evidence, Runs and tapes left behind, scorecard fields
+-   (wall time, context tokens, human-active minutes — or
+-   "unmeasured", never zero), and the next decision owed.
++   cannot get. Report: dispatches per exp with their ledger
++   evidence, the grade matrices quoted verbatim, Runs and
++   tapes left behind, scorecard fields (wall time, context
++   tokens, human-active minutes — or "unmeasured", never
++   zero), and the next decision owed.
+ 
+ ## Rules
+ 
+-- The skill writes no state. `bp3 q u` is the only writer;
+-  ledger files, `state.yaml`, and branch tips are never
+-  hand-edited, and tape is evidence, never parsed into facts.
++- The skill writes no state. `bp3 q u` is the only writer,
++  called by step children (and at the blocked gate, by this
++  session on attested human words); ledger files, `state.yaml`,
++  and branch tips are never hand-edited, and tape is evidence,
++  never parsed into facts.
+ - Human attestation comes only from actual human words in
+   this session. The engine never attests on the human's
+   behalf, and `resume` without it is refused
+@@ -88,7 +96,7 @@ human wants the landing writeup. A design under review is
+   by the launcher or hooks. Unset means `unknown` plus a
+   warning in the verdict; never guess a model name.
+ - Verdicts bind the exact commit reviewed. A verdict naming a
+-  superseded commit is refused; dispatch a fresh Run against
++  superseded commit is refused; dispatch a fresh step against
+   the current commit instead of arguing with the refusal.
+ - Instructions only: this skill holds no state, spawns no
+   daemon, and assumes no runtime beyond the main session, its
+---branches---
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-2-cli-scaffold
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-3-fsm
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-4-tape-hooks
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-5-muse-engine
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-6-hooks
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-7-live-hooks
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-1-rendered-tables
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-2-tab-completion
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-3-icebox-search
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-4-help
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-5-release-pattern
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-6-installable-bp3
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-7-shared-release
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-1-induct-grade
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-2-induct-exp-slim
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-3-conductor
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-4-desks
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-5-grade-matrix-fix
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-6-cycle-autonomy
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-7-landing-vocabulary
+  bp3/exp/2026-11-14-bp3-worktrees/exp-1-util-layer
+  bp3/exp/2026-11-14-bp3-worktrees/exp-2-bookkeeping
+  bp3/exp/2026-11-15-toy-conductor-drive/exp-1-hello
+  bp3/exp/2026-11-15-toy-conductor-drive/exp-2-hello-monolith
+  bp3/exp/toy-drive/blocked-demo
+  bp3/exp/toy-drive/identity-check
+  bp3/exp/toy-drive/parser-fix
+  bp3/exp/toy-drive/skill-check
+  bp3/exp2-astra-author
+  bp3/exp2-author
+  bp3/exp7-fork-author
+  bp3/quest/2026-11-07-bp3-mvp-engine-core
+  bp3/quest/2026-11-14-bp3-cli-small-fixes
+* bp3/quest/2026-11-14-bp3-workflows-v2
+  bp3/quest/2026-11-14-bp3-worktrees
+  bp3/quest/2026-11-15-toy-conductor-drive
+  bp3/quest/toy-drive
+  master
+  quest/bp3-mvp-engine
+  remotes/origin/HEAD -> origin/master
+---exp branches---
+1ec53d5 merge: promote bp3-workflows-v2 quest to master (owner, 2026-11-15)
+e90f083 docs(quest): land bp3-workflows-v2, record landing
+bf0acec bp3: land exp-4-desks
+1644a13 bp3: exp-4-desks
+bc0cdda bp3: hooks
+e90f083 docs(quest): land bp3-workflows-v2, record landing
+bf0acec bp3: land exp-4-desks
+1644a13 bp3: exp-4-desks
+---exp6 branch---
+7152858 bp3: create exp exp-6-cycle-autonomy
+e90f083 docs(quest): land bp3-workflows-v2, record landing
+bf0acec bp3: land exp-4-desks
+1644a13 bp3: exp-4-desks
+bc0cdda bp3: hooks
+---exp6 skill head---
+---
+name: induct
+description: Induct one bp3 quest along its railway from the main session — loop the railway with induct-exp workflows until the quest is terminal or a human decision is owed.
+---
+
+# Induct
+
+Use when a human in a bp3-enabled repo invokes this skill by
+name (`/induct <quest>`, `$induct <quest>`) or asks to "induct",
+"run", or "keep going on" a named quest until it lands or
+blocks. One quest per induct. One output: Runs dispatched
+through `bp3 q`, ending in an induct report — what landed, what
+is blocked, and what human decision is owed next.
+
+Use `quest` instead to frame a new quest. Use `using-bp3`
+instead for a single state operation by hand (one submit, one
+review, recovery after a dead session). Use
+`red-ink-quest-landing-demo` instead when the quest is done and the
+human wants the landing writeup. A design under review is
+`red-ink`'s job, not an induct.
+
+## Procedure
+
+1. Take exactly one argument: the quest. Confirm the engine
+   exists: `bp3 q r <quest>` must answer JSON. If `bp3 q` is
+   unavailable, stop and say so — never improvise state with
+   file edits or another command.
+2. Read the world live: `bp3 q r <quest>` gives exp states,
+   the railway order, and the blocked inbox. Trust only this
+   read — never session memory, `state.yaml`, or a ledger read
+---merge base---
+e90f083388545697702c38875be9625340eee434
+---master skill check needs_fix---
+13:is blocked, and what human decision is owed next.
+39:   the railway order, and the blocked inbox. Trust only this
+51:   | `blocked` | human gate (step 4) | — |
+66:   reason, checkpoint, cycle), capture the human's decision in
+70:   blocked Run is never resumed in place; after a `resume`,
+87:  called by step children (and at the blocked gate, by this
+.agents/skills/induct/SKILL.md
+.claude/skills/induct/SKILL.md
+.pi/skills/induct/SKILL.md
+skills/induct/SKILL.md
+skills/induct/workflows/induct-exp.js
+---ls induct workflows---
+induct-exp.js
+---check induct-grade workflow needs_fix handling---
+1:// induct-exp: loop one exp's inner FSM to landed, blocked, deleted,
+71:    "the code. Its verdict maps ship -> ship, fix_first -> " +
+72:    "needs_fix. ";
+171:    before.state === "blocked" ||
+182:  // progress steps; extra headroom covers a needs_fix/fail bounce
+221:        "or the same call with `--verdict needs_fix` when it is " +
+277:      after.state === "blocked" ||
+---FSM states---
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"--reason is required"},"guidance":"Fix the call: --reason is required"}}
+src/quest/gitx.ml:47:let run_capture args =
+src/quest/gitx.ml:55:let run_status args = snd (run_capture args)
+src/quest/gitx.ml:57:let git_out args = run_capture (git args)
+src/quest/hooks.ml:58:let parse_edge_cycle run_id =
+src/quest/hooks.ml:61:  let cycle =
+src/quest/hooks.ml:67:  (edge, cycle)
+src/quest/hooks.ml:263:                            let (_edge, cycle) = parse_edge_cycle run_id in
+src/quest/hooks.ml:274:                               [("cycle", `Int cycle);
+src/quest/hooks.ml:384:                     let (_edge, cycle) = parse_edge_cycle b.run_id in
+src/quest/hooks.ml:386:                        [("cycle", `Int cycle);
+src/quest/main.ml:102:  let line = ledger_line ~edge:"create" ~from:"" ~to_:"proposed" ~cycle:1
+src/quest/main.ml:128:       let line = ledger_line ~edge:"delete" ~from:qs.st ~to_:"deleted" ~cycle:1
+src/quest/main.ml:147:  let line = ledger_line ~edge:"create" ~from:"" ~to_:"todo" ~cycle:1
+src/quest/main.ml:155:    ("exp", json_str exp); ("state", json_str "todo"); ("cycle", `Int 1);
+src/quest/main.ml:170:       let line = ledger_line ~edge:"delete" ~from:s.st ~to_:"deleted" ~cycle:s.cycle
+src/quest/main.ml:188:      ("exp", json_str exp); ("state", json_str ns.st); ("cycle", `Int ns.cycle);
+src/quest/main.ml:208:      let line = ledger_line ~edge ~from:s.st ~to_:ns.st ~cycle:s.cycle
+src/quest/main.ml:214:      let valid = if edge = "review" then (v = "ship" || v = "needs_fix") else (v = "pass" || v = "fail") in
+src/quest/main.ml:227:          if s.cycle >= knobs.max_cycles then ("blocked", s.cycle) else ("todo", s.cycle + 1) in
+src/quest/main.ml:228:        let ns = { s with st = nst; cycle = ncyc; review_ok = false; check_ok = false } in
+src/quest/main.ml:230:        let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:ncyc
+src/quest/main.ml:244:        let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:s.cycle
+src/quest/main.ml:260:      let line = ledger_line ~edge ~from:s.st ~to_:"landed" ~cycle:s.cycle
+src/quest/main.ml:270:          ("exp", json_str exp); ("state", json_str "landed"); ("cycle", `Int s.cycle);
+src/quest/main.ml:278:          let line2 = ledger_line ~edge:"land" ~from:"approved" ~to_:"todo" ~cycle:s.cycle
+src/quest/main.ml:282:            ("state", json_str "todo"); ("cycle", `Int s.cycle);
+src/quest/main.ml:295:            ("exp", json_str exp); ("state", json_str "landed"); ("cycle", `Int s.cycle);
+src/quest/main.ml:305:      let line = ledger_line ~edge ~from:s.st ~to_:"blocked" ~cycle:s.cycle
+src/quest/main.ml:314:      let ncyc = if s.has_bound then s.cycle + 1 else s.cycle in
+src/quest/main.ml:315:      let ns = { s with st = "todo"; cycle = ncyc; bound = None; has_bound = false;
+src/quest/main.ml:317:      let line = ledger_line ~edge ~from:s.st ~to_:"todo" ~cycle:ncyc
+src/quest/render.ml:28:    ("exp", json_str e); ("state", json_str s.st); ("cycle", `Int s.cycle);
+src/quest/render.ml:52:          ("cycle", `Int s.cycle); ("since", json_str s.blocked_since);
+src/quest/render.ml:129:        let cycle = match g "cycle" with Some (`Int c) -> c | _ -> 0 in
+src/quest/render.ml:144:        Printf.printf "%s%s %s - %s, cycle %d, commit %s%s%s\n"
+src/quest/render.ml:145:          branch (tree_marker state) (s "exp") state cycle (short_commit commit) counts owed;
+src/quest/render.ml:163:  let cycle = match g "cycle" with Some (`Int c) -> c | _ -> 0 in
+src/quest/render.ml:169:  Printf.printf "%s\n└── %s %s - %s, cycle %d, commit %s\n"
+src/quest/render.ml:170:    (s "quest") (tree_marker state) (s "exp") state cycle
+src/quest/store.ml:36:type knobs = { max_cycles : int; review_required : bool; checks_required : bool }
+src/quest/store.ml:52:  let max_cycles =
+src/quest/store.ml:54:      let re = Str.regexp "max_cycles:[ \t]*\\([0-9]+\\)" in
+src/quest/store.ml:70:  { max_cycles; review_required; checks_required }
+src/quest/store.ml:87:  mutable cycle : int;
+src/quest/store.ml:100:  st = "todo"; cycle = 1; bound = None; has_bound = false;
+src/quest/store.ml:127:        let cyc = get_int j "cycle" s.cycle in
+src/quest/store.ml:136:        s.cycle <- cyc;
+src/quest/store.ml:141:        if (edge = "review" && get_str j "verdict" "" = "needs_fix") ||
+src/quest/store.ml:201:  Printf.sprintf "quest: %s\nexp: %s\nstate: %s\ncycle: %d\ncommit: %s\n"
+src/quest/store.ml:202:    q e s.st s.cycle (match s.last_commit with Some c -> c | None -> "none")
+src/quest/store.ml:204:let ledger_line ~edge ~from ~to_ ~cycle ~commit ~verdict ~reason ~id
+src/quest/store.ml:211:    ("cycle", `Int cycle);
+src/quest/worktree.ml:21:   path cannot escape the worktree root by construction. *)
+src/quest/worktree.ml:43:let git_in dir args = run_capture ("git" :: "-C" :: dir :: args)
+---edges---
+src/quest/store.ml:92:  mutable blocked_reason : string;
+src/quest/store.ml:93:  mutable blocked_checkpoint : string option;
+src/quest/store.ml:94:  mutable blocked_since : string;
+src/quest/store.ml:102:  blocked_reason = ""; blocked_checkpoint = None; blocked_since = "";
+src/quest/store.ml:146:        if to_ = "blocked" then begin
+src/quest/store.ml:147:          s.blocked_reason <- get_str j "reason" "";
+src/quest/store.ml:148:          s.blocked_checkpoint <- get_opt j "checkpoint";
+src/quest/store.ml:149:          s.blocked_since <- get_str j "ts" ""
+src/quest/store.ml:192:let legal_edges st =
+src/quest/store.ml:195:  | "submitted" -> ["review"; "check"; "block"; "delete"]
+src/quest/store.ml:197:  | "blocked" -> ["resume"; "delete"]
+add-bp3-skill
+add-yap-skill
+icebox
+induct
+naming
+quest
+red-ink-quest-landing-demo
+using-bp3
+---master skills list---
+skills/add-bp3-skill
+skills/add-yap-skill
+skills/icebox
+skills/induct-quest
+skills/induct
+skills/naming
+skills/quest
+skills/red-ink-quest-landing-demo
+skills/using-bp3
+---master induct-quest---
+---
+name: induct-quest
+description: Alias for induct — conduct one bp3 quest from the main session with exactly the induct procedure; this body is a pointer, never a fork.
+---
+
+# Induct quest
+
+`/induct-quest <quest>` means exactly `/induct <quest>`.
+
+Follow the canonical `induct` skill (`skills/induct/SKILL.md`)
+procedure and rules as written there — read state with
+`bp3 q r`, dispatch the one step that state calls for,
+re-read. This file carries no procedure of its own, so the
+two names cannot drift.
+---quest branch workflows---
+skills/induct/SKILL.md
+skills/induct/workflows/induct-exp.js
+skills/induct/workflows/induct-exp.js
+skills/induct/workflows/induct-grade.js
+skills/induct/workflows/quest-land.js
+     103 /tmp/conductor-skill.md
+copied
+skills check: ok (8 files)
+installed add-bp3-skill -> .pi/skills/add-bp3-skill/SKILL.md (pi)
+installed add-bp3-skill -> .claude/skills/add-bp3-skill/SKILL.md (claude)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (codex)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (muse)
+installed add-yap-skill -> .pi/skills/add-yap-skill/SKILL.md (pi)
+installed add-yap-skill -> .claude/skills/add-yap-skill/SKILL.md (claude)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (codex)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (muse)
+installed icebox -> .pi/skills/icebox/SKILL.md (pi)
+installed icebox -> .claude/skills/icebox/SKILL.md (claude)
+installed icebox -> .agents/skills/icebox/SKILL.md (codex)
+installed icebox -> .agents/skills/icebox/SKILL.md (muse)
+installed induct -> .pi/skills/induct/SKILL.md (pi)
+installed induct -> .claude/skills/induct/SKILL.md (claude)
+installed induct -> .agents/skills/induct/SKILL.md (codex)
+installed induct -> .agents/skills/induct/SKILL.md (muse)
+installed naming -> .pi/skills/naming/SKILL.md (pi)
+installed naming -> .claude/skills/naming/SKILL.md (claude)
+installed naming -> .agents/skills/naming/SKILL.md (codex)
+installed naming -> .agents/skills/naming/SKILL.md (muse)
+installed quest -> .pi/skills/quest/SKILL.md (pi)
+installed quest -> .claude/skills/quest/SKILL.md (claude)
+installed quest -> .agents/skills/quest/SKILL.md (codex)
+installed quest -> .agents/skills/quest/SKILL.md (muse)
+installed red-ink-quest-landing-demo -> .pi/skills/red-ink-quest-landing-demo/SKILL.md (pi)
+installed red-ink-quest-landing-demo -> .claude/skills/red-ink-quest-landing-demo/SKILL.md (claude)
+installed red-ink-quest-landing-demo -> .agents/skills/red-ink-quest-landing-demo/SKILL.md (codex)
+installed red-ink-quest-landing-demo -> .agents/skills/red-ink-quest-landing-demo/SKILL.md (muse)
+installed using-bp3 -> .pi/skills/using-bp3/SKILL.md (pi)
+installed using-bp3 -> .claude/skills/using-bp3/SKILL.md (claude)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (codex)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (muse)
+installed induct-exp -> .agents/workflows/induct-exp.js
+installed hooks -> .claude/hooks.json
+installed hooks -> .claude/settings.json
+installed hooks -> .muse/hooks.json
+install exit: 0
+ M .agents/skills/induct/SKILL.md
+ M .claude/skills/induct/SKILL.md
+ M .pi/skills/induct/SKILL.md
+ M skills/induct/SKILL.md
+      93 test/skills.sh
+"$root/bin/bp3" skills install --harness=claude > /dev/null
+assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+cp "$root/.pi/settings.json" "$work/settings.before"
+"$root/bin/bp3" skills install --harness=pi > /dev/null
+assert cmp "$work/settings.before" "$root/.pi/settings.json"
+assert cmp "$root/skills/induct/workflows/induct-exp.js" "$root/.agents/workflows/induct-exp.js"
+
+# Corrupt settings must fail BEFORE rewriting any installed files.
+printf 'sentinel\n' > "$root/.pi/skills/quest/SKILL.md"
+for settings in '{broken' '{"skills":null}' '{"skills":[1]}'; do
+  printf '%s\n' "$settings" > "$root/.pi/settings.json"
+  rejects "$root/bin/bp3" skills install --harness=all
+  assert grep -qx sentinel "$root/.pi/skills/quest/SKILL.md"
+done
+# Non-Pi installations must leave project Pi settings alone.
+printf '{broken' > "$root/.pi/settings.json"
+"$root/bin/bp3" skills install --harness=codex > /dev/null
+assert grep -qx '{broken' "$root/.pi/settings.json"
+
+printf 'skills tests: ok (%s assertions)\n' "$checks"
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+FAIL: grep -q dispatches the next author cycle itself /Users/whycz/m/bp3/skills/induct/SKILL.md
+skills exit: 1
+---negative check---
+neg grep exit: 0 (1 = clean)
+true
+true
+true
+true
+skills tests: ok (55 assertions)
+exit codes: 0 0 0
+The following paths are ignored by one of your .gitignore files:
+docs/quests/2026-11-14-bp3-workflows-v2
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
+M  .agents/skills/induct/SKILL.md
+M  .claude/skills/induct/SKILL.md
+M  .pi/skills/induct/SKILL.md
+M  skills/induct/SKILL.md
+M  test/skills.sh
+[bp3/quest/2026-11-14-bp3-workflows-v2 9facf55] feat(induct): cycle autonomy — needs_fix rides, blocked pages
+ 5 files changed, 361 insertions(+), 196 deletions(-)
+9facf55aa544b394507cd67be9c6b6cda4314615
+[bp3/quest/2026-11-14-bp3-workflows-v2 9e27a59] feat(induct): cycle autonomy — needs_fix rides, blocked pages
+ Date: Sat Nov 14 21:24:26 2026 -0500
+ 7 files changed, 1392 insertions(+), 196 deletions(-)
+ create mode 100644 docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/runs/20261115T022202Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+ create mode 100644 docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/runs/20261115T022202Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+9e27a5920b8ad675328f2e787d6620c04d83211e
+ M docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/runs/20261115T022202Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+clean-check done

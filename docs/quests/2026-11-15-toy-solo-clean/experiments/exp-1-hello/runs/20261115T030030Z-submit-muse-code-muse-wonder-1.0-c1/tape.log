@@ -1,0 +1,189 @@
+created
+cat: docs/quests/2026-11-15-toy-solo-clean/QUEST.md: No such file or directory
+---FSM---
+cat: docs/quests/2026-11-15-toy-solo-clean/fsm.yaml: No such file or directory
+---EXP---
+# Exp 1 — hello (solo clean toy)
+
+| Output | `docs/quests/2026-11-15-toy-solo-clean/hello.txt` with exact line `hello from solo clean` |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| hello file | exists with the exact line above |
+
+## Tests
+
+known cases: the Acceptance table.
+---STATE---
+cat: docs/quests/2026-11-15-toy-solo-clean/state.yaml: No such file or directory
+---LS---
+experiments
+
+docs/quests/2026-11-15-toy-solo-clean/experiments:
+exp-1-hello
+
+docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello:
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/runs:
+20261115T030030Z-submit-muse-code-muse-wonder-1.0-c1
+
+docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/runs/20261115T030030Z-submit-muse-code-muse-wonder-1.0-c1:
+tape.log
+---GIT---
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/ledger.jsonl
+ M docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/runs/20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/state.yaml
+?? docs/quests/2026-11-15-toy-solo-clean/
+?? docs/quests/2026-11-15-toy-solo-park/
+76cb4e3 feat(induct): add induct-solo alias with unattended rails
+688aac6 bp3: land exp-7-landing-vocabulary
+1add838 bp3: exp-7-landing-vocabulary
+67707ae bp3: hooks
+b131df5 bp3: hooks
+commit b0321786cb79ea972d236b8c0290c3e5f02e0b4a
+Author: whycz <whyczz@gmail.com>
+Date:   Sat Nov 14 21:24:33 2026 -0500
+
+    exp-6-cycle-autonomy c1: tape
+
+ .../20261115T022202Z-submit-muse-code-muse-wonder-1.0-c1/tape.log | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+---
+commit 6946b23bc5c98606025d3a08b72bc5b619dc3dcc
+Merge: b032178 544fd5f
+Author: whycz <whyczz@gmail.com>
+Date:   Sat Nov 14 21:25:49 2026 -0500
+
+    bp3: land exp-6-cycle-autonomy
+
+ .../experiments/exp-6-cycle-autonomy/ledger.jsonl      | 18 ++++++++++++++++++
+ .../experiments/exp-6-cycle-autonomy/state.yaml        |  5 +++++
+ 2 files changed, 23 insertions(+)
+---TEEGATE---
+Makefile
+
+bin/:
+bp3
+.PHONY: check test lint
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/induct.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh
+	node --check skills/induct/workflows/induct-exp.js
+
+test:
+	./test/skills.sh
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"expected: q c|r|d ... or q <quest> c|r|u|d ..."},"guidance":"Fix the call: expected: q c|r|d ... or q <quest> c|r|u|d ..."}}
+---
+hooks.sh
+induct-exp.test.mjs
+induct.sh
+pi-discovery.mjs
+q.sh
+skills.sh
+tape.sh
+worktree.sh
+experiments
+cat: docs/quests/2026-11-15-toy-solo-park/experiments: Is a directory
+{"ok":true,"quest":"2026-11-15-toy-solo-clean","exp":"exp-1-hello","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null}
+---SUBMIT-HELP---
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"--reason is required"},"guidance":"Fix the call: --reason is required"}}
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"unknown flag: --help"},"guidance":"Fix the call: unknown flag: --help"}}
+hello from solo clean
+0000000    h   e   l   l   o       f   r   o   m       s   o   l   o    
+0000020    c   l   e   a   n  \n                                        
+0000026
+ACCEPTANCE_OK
+The following paths are ignored by one of your .gitignore files:
+docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/runs
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/ledger.jsonl
+ M docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/runs/20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/state.yaml
+A  docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/EXPERIMENT.md
+A  docs/quests/2026-11-15-toy-solo-clean/hello.txt
+?? docs/quests/2026-11-15-toy-solo-park/
+---DIFFSTAT---
+ .../exp-7-landing-vocabulary/ledger.jsonl          | 22 ----------------------
+ .../exp-7-landing-vocabulary/state.yaml            |  5 -----
+ .../experiments/exp-1-hello/EXPERIMENT.md          | 13 +++++++++++++
+ docs/quests/2026-11-15-toy-solo-clean/hello.txt    |  1 +
+ 4 files changed, 14 insertions(+), 27 deletions(-)
+ D docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/ledger.jsonl
+ M docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/runs/20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ D docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/state.yaml
+A  docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/EXPERIMENT.md
+A  docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/runs/20261115T030030Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+A  docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/runs/20261115T030030Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+A  docs/quests/2026-11-15-toy-solo-clean/hello.txt
+?? docs/quests/2026-11-15-toy-solo-park/
+---CACHED---
+ .../experiments/exp-1-hello/EXPERIMENT.md          |  13 ++
+ .../notes.md                                       |   6 +
+ .../tape.log                                       | 131 +++++++++++++++++++++
+ docs/quests/2026-11-15-toy-solo-clean/hello.txt    |   1 +
+ 4 files changed, 151 insertions(+)
+[bp3/quest/2026-11-14-bp3-workflows-v2 d94ef57] exp-1-hello c1: hello from solo clean
+ 4 files changed, 151 insertions(+)
+ create mode 100644 docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/EXPERIMENT.md
+ create mode 100644 docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/runs/20261115T030030Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+ create mode 100644 docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/runs/20261115T030030Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ create mode 100644 docs/quests/2026-11-15-toy-solo-clean/hello.txt
+d94ef57cd180875809863c06dca06f45a1a50065
+commit d94ef57cd180875809863c06dca06f45a1a50065
+Author: whycz <whyczz@gmail.com>
+Date:   Sat Nov 14 22:01:27 2026 -0500
+
+    exp-1-hello c1: hello from solo clean
+
+ .../experiments/exp-1-hello/EXPERIMENT.md          |  13 ++
+ .../notes.md                                       |   6 +
+ .../tape.log                                       | 131 +++++++++++++++++++++
+ docs/quests/2026-11-15-toy-solo-clean/hello.txt    |   1 +
+ 4 files changed, 151 insertions(+)
+{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{},"guidance":"Worktree is dirty; clean it and retry."}}
+src/quest/gitx.ml:72:let worktree_dirty () =
+src/quest/main.ml:198:      if worktree_dirty () then
+src/quest/main.ml:199:        err "E_DIRTY_TREE" (`Assoc []) "Worktree is dirty; clean it and retry." 1;
+src/quest/main.ml:302:      let checkpoint = if worktree_dirty () then Some (make_checkpoint ()) else None in
+src/quest/worktree.ml:4:   commit, inspect its ref and dirty state, and remove it.
+src/quest/worktree.ml:5:   The dirty refusal lives in the remove primitive itself,
+src/quest/worktree.ml:63:  idirty : bool; ichanged : int;
+src/quest/worktree.ml:89:    idirty = lines <> []; ichanged = List.length lines }
+src/quest/worktree.ml:94:          ("dirty", `Bool i.idirty); ("changed_count", `Int i.ichanged)]
+src/quest/worktree.ml:146:(* ---------- remove: the dirty refusal lives here ---------- *)
+src/quest/worktree.ml:149:  if info.idirty && not force then
+src/quest/worktree.ml:150:    err "E_DIRTY_TREE"
+src/quest/worktree.ml:152:      "Worktree is dirty; commit the work or remove with --force." 1;
+src/quest/worktree.ml:161:     if again.idirty && not force then
+src/quest/worktree.ml:162:       err "E_DIRTY_TREE"
+src/quest/worktree.ml:164:         "Worktree is dirty; commit the work or remove with --force." 1
+src/quest/worktree.ml:269:               ("dirty", `Bool i.idirty); ("changed_count", `Int i.ichanged);
+src/quest/worktree.ml:317:           ("dirty", `Bool i.idirty); ("changed_count", `Int i.ichanged);
+src/quest/worktree.ml:375:            ("dirty", `Bool i.idirty); ("changed_count", `Int i.ichanged)]
+---STATUS---
+ D docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/ledger.jsonl
+ M docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/runs/20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ D docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/state.yaml
+ M docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/runs/20261115T030030Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+?? docs/quests/2026-11-15-toy-solo-park/
