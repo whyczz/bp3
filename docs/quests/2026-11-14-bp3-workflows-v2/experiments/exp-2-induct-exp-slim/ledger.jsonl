@@ -12,3 +12,4 @@
 {"event":"usage_recorded","ts":"2026-11-15T00:18:11Z","run_id":"20261115T001434Z-check-muse-code-muse-wonder-1.0-c1","input_tokens":429577,"output_tokens":3380,"cached_tokens":416344,"reasoning_tokens":409,"wall_ms":3000,"started_ts":"2026-11-15T00:18:08Z","settled_ts":"2026-11-15T00:18:11Z"}
 {"event":"run_settled","ts":"2026-11-15T00:18:11Z","run_id":"20261115T001434Z-check-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
 {"event":"lint_checked","ts":"2026-11-15T00:18:22Z","run_id":"20261115T001434Z-review-muse-code-muse-wonder-1.0-c1","check":"make check","result":"pass"}
+{"ts":"2026-11-15T00:18:30Z","edge":"review","from":"submitted","to":"blocked","cycle":1,"commit":"b6764c37499bb791c5375f960499c70067c727fe","verdict":"needs_fix","reason":"full-cycle conductor case and toy token measurement lack observed evidence","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
