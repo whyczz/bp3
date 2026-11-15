@@ -1143,3 +1143,38 @@ The following paths are ignored by one of your .gitignore files:
 docs/quests/2026-11-14-bp3-workflows-v2
 hint: Use -f if you really want to add them.
 hint: Disable this message with "git config set advice.addIgnoredFile false"
+A  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/runs/20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1/fleet-drive/CHECKIN-REPORT.md
+A  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/runs/20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+A  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/runs/20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+[bp3/quest/2026-11-14-bp3-workflows-v2 02702ef] bp3: exp-9 restore exp-8 records, add run notes
+ 3 files changed, 1232 insertions(+)
+ create mode 100644 docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/runs/20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1/fleet-drive/CHECKIN-REPORT.md
+ create mode 100644 docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/runs/20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+ create mode 100644 docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/runs/20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+02702ef4a6913fee5885c2d4932cda135776f654
+commit 02702ef4a6913fee5885c2d4932cda135776f654
+Author: whycz <whyczz@gmail.com>
+Date:   Sat Nov 14 22:24:42 2026 -0500
+
+    bp3: exp-9 restore exp-8 records, add run notes
+
+ .../fleet-drive/CHECKIN-REPORT.md                  |   33 +
+ .../notes.md                                       |   54 +
+ .../tape.log                                       | 1145 ++++++++++++++++++++
+ 3 files changed, 1232 insertions(+)
+ M docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/runs/20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+EXPERIMENT.md
+ledger.jsonl
+runs
+state.yaml
+ .agents/skills/induct-quest-no-human/SKILL.md      |   89 +-
+ .claude/skills/induct-quest-no-human/SKILL.md      |   89 +-
+ .pi/skills/induct-quest-no-human/SKILL.md          |   89 +-
+ .../experiments/exp-8-induct-solo/ledger.jsonl     |   43 -
+ .../experiments/exp-8-induct-solo/state.yaml       |    5 -
+ .../fleet-drive/CHECKIN-REPORT.md                  |   33 +
+ .../notes.md                                       |   54 +
+ .../tape.log                                       | 1145 ++++++++++++++++++++
+ skills/induct-quest-no-human/SKILL.md              |   89 +-
+ test/skills.sh                                     |   19 +
+ 10 files changed, 1523 insertions(+), 132 deletions(-)
