@@ -258,3 +258,47 @@ docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/EXPERIMENT.md
 docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/runs/20261115T030030Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
 docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/runs/20261115T030030Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
 docs/quests/2026-11-15-toy-solo-clean/hello.txt
+ .../experiments/exp-1-hello/EXPERIMENT.md          |  13 ++
+ .../notes.md                                       |   6 +
+ .../tape.log                                       | 260 +++++++++++++++++++++
+ docs/quests/2026-11-15-toy-nohuman-clean/hello.txt |   1 +
+ 4 files changed, 280 insertions(+)
+[bp3/quest/2026-11-14-bp3-workflows-v2 c4f2f6d] exp-1-hello c1: hello from no-human clean
+ 4 files changed, 280 insertions(+)
+ create mode 100644 docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/EXPERIMENT.md
+ create mode 100644 docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+ create mode 100644 docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ create mode 100644 docs/quests/2026-11-15-toy-nohuman-clean/hello.txt
+===SHA===
+c4f2f6d45ceb68231d9991800f646dad3bbf69e0
+===SHOW===
+commit c4f2f6d45ceb68231d9991800f646dad3bbf69e0
+Author: whycz <whyczz@gmail.com>
+Date:   Sat Nov 14 22:04:37 2026 -0500
+
+    exp-1-hello c1: hello from no-human clean
+
+ .../experiments/exp-1-hello/EXPERIMENT.md          |  13 ++
+ .../notes.md                                       |   6 +
+ .../tape.log                                       | 260 +++++++++++++++++++++
+ docs/quests/2026-11-15-toy-nohuman-clean/hello.txt |   1 +
+ 4 files changed, 280 insertions(+)
+{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{},"guidance":"Worktree is dirty; clean it and retry."}}
+ M docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+?? docs/quests/2026-11-15-toy-solo-park/
+===DIFF-TAPE===
+ .../tape.log                                       | 29 ++++++++++++++++++++++
+ 1 file changed, 29 insertions(+)
+docs/quests/2026-11-15-toy-solo-park/experiments/exp-1-decision/EXPERIMENT.md
+===EXCLUDE===
+# git ls-files --others --exclude-from=.git/info/exclude
+# Lines that start with '#' are comments.
+# For a project mostly in C, the following would be a good set of
+# exclude patterns (uncomment them if you want to use them):
+# *.[oa]
+# *~
+docs/quests/toy-drive/experiments/parser-fix/runs/
+docs/quests/toy-drive/experiments/identity-check/runs/
+docs/quests/toy-drive/experiments/skill-check/runs/
+docs/quests/*/experiments/*/runs/
+docs/quests/2026-11-14-bp3-workflows-v2/
