@@ -57,6 +57,7 @@ def watch(run, silence_s, timeout):
 | hung child | TERM/KILL inside budget; `settled:false`; no process left |
 | slow-drip child | WAL growth resets silence; never killed mid-work |
 | WAL missing | typed blind outcome + `W_SUPERVISOR_BLIND`, pid still watched |
+| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
 
 ## Acceptance test (goal block)
 
@@ -68,7 +69,9 @@ def watch(run, silence_s, timeout):
 
 ## Tests
 
-known cases: Acceptance table. property-based:
+known cases: Acceptance table; env-set run-id is
+stamped by bp3 into the submit verdict and ledger
+line (the mvp.1 mechanism). property-based:
 drip under budget never kills; silence over budget
 always does. Demos: hung drive observed.
 

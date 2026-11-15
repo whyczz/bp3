@@ -30,6 +30,11 @@ out=$(h s -h) || fail "alias s -h exit"
 echo "$out" | grep -q "supervisor" || fail "alias s help: $out"
 out=$(h i -h) || fail "alias i -h exit"
 echo "$out" | grep -q "init-check" || fail "alias i help: $out"
+out=$(h watch -h) || fail "watch -h exit"
+echo "$out" | grep -q "watchdog_killed" || fail "watch help outcomes: $out"
+echo "$out" | grep -q "W_SUPERVISOR_BLIND" || fail "watch help blindness: $out"
+out=$(h w -h) || fail "alias w -h exit"
+echo "$out" | grep -q "watch" || fail "alias w help: $out"
 
 # --- usage: strict argv, bare positive durations, exit 2 ---
 if out=$(h supervisor 2>&1); then fail "supervisor without quest accepted"; fi
@@ -47,7 +52,7 @@ if out=$(h supervisor no-such-quest --timeout-seconds 1 2>&1); then fail "missin
 echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "missing quest code: $out"
 
 # --- later-exp verbs refuse typed, never fake success ---
-for v in watch desk w d; do
+for v in desk d; do
   if out=$(h "$v" --run-id R1 2>&1); then fail "$v accepted in mvp.1"; fi
   echo "$out" | jq -e '.ok == false and .error.code == "E_UNSUPPORTED"' >/dev/null || fail "$v refusal: $out"
 done
@@ -176,6 +181,104 @@ got=$(echo "$out" | jq -r '.entry.digest' | sed 's/^sha256://')
 [ "$want" = "$got" ] || fail "entry digest: want $want got $got"
 if out=$(h find-tape --run-id R-find --entry nope 2>&1); then fail "unknown entry accepted"; fi
 echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "unknown entry code: $out"
+
+# --- watch (mvp.3): blocking done-signal, sole killer ---
+if out=$(h watch 2>&1); then fail "watch neither identity accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "watch neither code: $out"
+if out=$(h watch --run-id R-find --session-id S-other 2>&1); then fail "watch disagreeing accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "watch disagreeing code: $out"
+if out=$(h watch --run-id R-find --run-id R-find 2>&1); then fail "watch duplicate accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "watch duplicate code: $out"
+if out=$(h watch --run-id=R-find 2>&1); then fail "watch --flag=value accepted"; fi
+if out=$(h watch --run-id R-find --silence-seconds 0 2>&1); then fail "watch zero silence accepted"; fi
+if out=$(h watch --run-id R-find --timeout-seconds 30m 2>&1); then fail "watch suffixed timeout accepted"; fi
+if out=$(h watch --run-id R-find --engine pi 2>&1); then fail "watch stated engine accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "watch engine code: $out"
+if out=$(h watch --run-id "a/b" --timeout-seconds 1 2>&1); then fail "watch invalid run-id accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "watch invalid code: $out"
+if out=$(h watch --run-id R-nope --timeout-seconds 1 2>&1); then fail "watch unknown run accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "watch unknown code: $out"
+cp fixtures/pi-store/pi1.jsonl fixtures/pi-store/pi2.jsonl
+if out=$(h watch --run-id R-pi-run --timeout-seconds 1 2>&1); then fail "watch ambiguous accepted"; fi
+echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "watch ambiguous code: $out"
+rm fixtures/pi-store/pi2.jsonl
+
+mkdir -p fixtures/watch
+printf '%s\n' '{"type":"message","id":"w1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-clean work"}}' '{"type":"session_closed","id":"w2"}' > fixtures/watch/clean.log
+sleep 1 & CLEANPID=$!
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-clean\",\"harness\":\"pi\",\"session_id\":\"S-watch-clean\",\"pid\":$CLEANPID,\"tape_path\":\"$work/repo/fixtures/watch/clean.log\",\"quest\":\"toy\"}" > "$store/R-watch-clean.jsonl"
+out=$(h watch --run-id R-watch-clean --timeout-seconds 5) || fail "watch clean exit: $out"
+echo "$out" | tail -1 | jq -e '.ok == true and .outcome == "settled" and .settled == true and .lifecycle == "finished" and .run_id == "R-watch-clean"' >/dev/null || fail "watch clean verdict: $out"
+echo "$out" | while IFS= read -r line; do echo "$line" | jq -e . >/dev/null || fail "watch non-JSON stdout line: $line"; done
+wait "$CLEANPID" 2>/dev/null || true
+out=$(h w --session-id S-watch-clean --timeout-seconds 5) || fail "watch alias reverse exit: $out"
+echo "$out" | tail -1 | jq -e '.outcome == "settled" and .run_id == "R-watch-clean"' >/dev/null || fail "watch alias reverse verdict: $out"
+
+printf '%s\n' '{"type":"message","id":"h1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-hung work"}}' > fixtures/watch/hung.log
+sleep 30 & HUNGPID=$!
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-hung\",\"harness\":\"pi\",\"pid\":$HUNGPID,\"tape_path\":\"$work/repo/fixtures/watch/hung.log\",\"quest\":\"toy\"}" > "$store/R-watch-hung.jsonl"
+set +e; out=$(h watch --run-id R-watch-hung --silence-seconds 1 --grace-seconds 1 --timeout-seconds 10); rc=$?; set -e
+[ "$rc" = 1 ] || fail "watch hung exit class: $rc ($out)"
+echo "$out" | tail -1 | jq -e '.outcome == "watchdog_killed" and .settled == false and .lifecycle == "orphaned"' >/dev/null || fail "watch hung verdict: $out"
+wait "$HUNGPID" 2>/dev/null || true
+if kill -0 "$HUNGPID" 2>/dev/null; then fail "hung pid survived watch"; fi
+
+cat > fixtures/watch/stubborn.sh <<'EOS'
+#!/usr/bin/env bash
+trap '' TERM
+while true; do sleep 0.2; done
+EOS
+chmod +x fixtures/watch/stubborn.sh
+printf '%s\n' '{"type":"message","id":"t1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-stubborn work"}}' > fixtures/watch/stubborn.log
+fixtures/watch/stubborn.sh & STUBPID=$!
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-stubborn\",\"harness\":\"pi\",\"pid\":$STUBPID,\"tape_path\":\"$work/repo/fixtures/watch/stubborn.log\",\"quest\":\"toy\"}" > "$store/R-watch-stubborn.jsonl"
+set +e; out=$(h watch --run-id R-watch-stubborn --silence-seconds 1 --grace-seconds 1 --timeout-seconds 10); rc=$?; set -e
+[ "$rc" = 1 ] || fail "watch stubborn exit class: $rc ($out)"
+echo "$out" | tail -1 | jq -e '.outcome == "watchdog_killed" and .settled == false and .lifecycle == "orphaned"' >/dev/null || fail "watch stubborn verdict: $out"
+wait "$STUBPID" 2>/dev/null || true
+if kill -0 "$STUBPID" 2>/dev/null; then fail "stubborn pid survived SIGKILL"; fi
+
+cat > fixtures/watch/drip.sh <<'EOS'
+#!/usr/bin/env bash
+tape="$1"
+for i in 1 2 3 4 5 6; do echo "drip $i" >> "$tape"; sleep 0.3; done
+echo '{"type":"session_closed","id":"d9"}' >> "$tape"
+EOS
+chmod +x fixtures/watch/drip.sh
+printf '%s\n' '{"type":"message","id":"p1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-drip work"}}' > fixtures/watch/drip.log
+fixtures/watch/drip.sh "$work/repo/fixtures/watch/drip.log" & DRIPPID=$!
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-drip\",\"harness\":\"pi\",\"pid\":$DRIPPID,\"tape_path\":\"$work/repo/fixtures/watch/drip.log\",\"quest\":\"toy\"}" > "$store/R-watch-drip.jsonl"
+out=$(h watch --run-id R-watch-drip --silence-seconds 1 --grace-seconds 1 --timeout-seconds 10) || fail "watch drip exit: $out"
+echo "$out" | tail -1 | jq -e '.outcome == "settled" and .settled == true and .lifecycle == "finished"' >/dev/null || fail "watch drip verdict: $out"
+wait "$DRIPPID" 2>/dev/null || true
+
+sleep 30 & BLINDPID=$!
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-blind\",\"harness\":\"pi\",\"pid\":$BLINDPID,\"tape_path\":\"$work/repo/fixtures/watch/missing.log\",\"quest\":\"toy\"}" > "$store/R-watch-blind.jsonl"
+set +e; out=$(h watch --run-id R-watch-blind --silence-seconds 1 --grace-seconds 1 --timeout-seconds 10); rc=$?; set -e
+[ "$rc" = 1 ] || fail "watch blind exit class: $rc ($out)"
+echo "$out" | tail -1 | jq -e '.outcome == "watchdog_killed" and .settled == false and (.warnings | index("W_SUPERVISOR_BLIND") != null)' >/dev/null || fail "watch blind verdict: $out"
+wait "$BLINDPID" 2>/dev/null || true
+if kill -0 "$BLINDPID" 2>/dev/null; then fail "blind pid survived watch"; fi
+
+printf '%s\n' '{"type":"message","id":"c1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-closed work"}}' '{"type":"session_closed","id":"c2"}' > fixtures/watch/closed.log
+sleep 30 & CLOSEDPID=$!
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-closed\",\"harness\":\"pi\",\"pid\":$CLOSEDPID,\"tape_path\":\"$work/repo/fixtures/watch/closed.log\",\"quest\":\"toy\"}" > "$store/R-watch-closed.jsonl"
+set +e; out=$(h watch --run-id R-watch-closed --silence-seconds 1 --grace-seconds 1 --timeout-seconds 2); rc=$?; set -e
+[ "$rc" = 3 ] || fail "watch closed exit class: $rc ($out)"
+echo "$out" | tail -1 | jq -e '.outcome == "timeout" and .settled == false and .lifecycle == "active"' >/dev/null || fail "watch closed verdict: $out"
+kill -0 "$CLOSEDPID" 2>/dev/null || fail "closed-but-not-exited pid was killed"
+kill "$CLOSEDPID" 2>/dev/null || true
+wait "$CLOSEDPID" 2>/dev/null || true
+
+printf '%s\n' '{"type":"message","id":"s1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-settle work"}}' > fixtures/watch/settle.log
+sleep 30 & SETTLEPID=$!
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-settle\",\"harness\":\"pi\",\"pid\":$SETTLEPID,\"tape_path\":\"$work/repo/fixtures/watch/settle.log\",\"quest\":\"toy\"}" '{"kind":"observation","settle_row":true,"tape_closed":false}' > "$store/R-watch-settle.jsonl"
+set +e; out=$(h watch --run-id R-watch-settle --silence-seconds 1 --grace-seconds 1 --timeout-seconds 2); rc=$?; set -e
+[ "$rc" = 3 ] || fail "watch settle exit class: $rc ($out)"
+echo "$out" | tail -1 | jq -e '.outcome == "timeout" and .settled == false' >/dev/null || fail "watch settle verdict: $out"
+kill -0 "$SETTLEPID" 2>/dev/null || fail "settling pid was killed"
+kill "$SETTLEPID" 2>/dev/null || true
+wait "$SETTLEPID" 2>/dev/null || true
 
 # tick is idempotent: same fold, same runs on rerun
 set +e; out=$(h supervisor toy --timeout-seconds 1); out2=$(h supervisor toy --timeout-seconds 1); set -e

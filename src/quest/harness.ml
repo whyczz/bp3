@@ -2,7 +2,8 @@
    find-tape, watch, desk. This exp (mvp.1) builds the door,
    the verdict/exit contract, the lifecycle fold, and the
    passive supervisor loop. find-tape (mvp.2), watch (mvp.3),
-   and desk (mvp.6) refuse typed until their exps land.
+   and desk (mvp.6) refuses typed until its exp lands.
+   Watch is the sole TERM/KILL owner.
    The supervisor never signals a pid and never finalizes
    from a watch outcome: tick phases are tell -> watch ->
    judge (fresh quest read) -> finalize. *)
@@ -70,9 +71,17 @@ let derivations_dir () =
     Some (Filename.concat (Filename.concat dir "bp3") "run-lifecycle-derivations")
 
 let pid_alive pid =
-  try Unix.kill pid 0; true
-  with Unix.Unix_error (Unix.EPERM, _, _) -> true
-     | Unix.Unix_error _ -> false
+  let exists =
+    try Unix.kill pid 0; true
+    with Unix.Unix_error (Unix.EPERM, _, _) -> true
+       | Unix.Unix_error _ -> false in
+  if not exists then false
+  else
+    (* a zombie is an exited child its parent has not reaped:
+       kill 0 still sees it, the process state does not *)
+    let (out, code) = run_capture ["ps"; "-o"; "stat="; "-p"; string_of_int pid] in
+    if code <> 0 || out = "" then exists
+    else out.[0] <> 'Z'
 
 let get_bool j key =
   try match Yojson.Safe.Util.member key j with `Bool b -> b | _ -> false
@@ -741,6 +750,284 @@ let do_find_tape args =
             ] in
             print_endline (Yojson.Safe.to_string (`Assoc fields)); 0))
 
+(* ---------- watch (mvp.3) ---------- *)
+type wt_flags = {
+  mutable wt_run : string option; mutable wt_session : string option;
+  mutable wt_silence : int; mutable wt_timeout : int; mutable wt_grace : int;
+  mutable wt_silence_set : bool; mutable wt_timeout_set : bool;
+  mutable wt_grace_set : bool;
+}
+
+let parse_wt_flags args =
+  let fl = { wt_run = None; wt_session = None;
+             wt_silence = 600; wt_timeout = 1800; wt_grace = 1;
+             wt_silence_set = false; wt_timeout_set = false;
+             wt_grace_set = false } in
+  let rec loop = function
+    | [] -> fl
+    | "--run-id" :: v :: rest ->
+        if fl.wt_run <> None then usage "duplicate flag --run-id";
+        fl.wt_run <- Some v; loop rest
+    | "--session-id" :: v :: rest ->
+        if fl.wt_session <> None then usage "duplicate flag --session-id";
+        fl.wt_session <- Some v; loop rest
+    | "--silence-seconds" :: v :: rest ->
+        if fl.wt_silence_set then usage "duplicate flag --silence-seconds";
+        fl.wt_silence <- positive_seconds "--silence-seconds" v;
+        fl.wt_silence_set <- true; loop rest
+    | "--timeout-seconds" :: v :: rest ->
+        if fl.wt_timeout_set then usage "duplicate flag --timeout-seconds";
+        fl.wt_timeout <- positive_seconds "--timeout-seconds" v;
+        fl.wt_timeout_set <- true; loop rest
+    | "--grace-seconds" :: v :: rest ->
+        if fl.wt_grace_set then usage "duplicate flag --grace-seconds";
+        fl.wt_grace <- positive_seconds "--grace-seconds" v;
+        fl.wt_grace_set <- true; loop rest
+    | ["--run-id"] | ["--session-id"] | ["--silence-seconds"]
+    | ["--timeout-seconds"] | ["--grace-seconds"] ->
+        usage "flag needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray) in
+  loop args
+
+(* Mechanical tape signals only: a close marker, or an
+   assistant stop reason, closes a tape; a settle row is a
+   fact of its own and never a close by itself. *)
+let tape_signals text =
+  let closed =
+    contains_sub text "session_closed"
+    || (contains_sub text "stopReason" && contains_sub text "\"stop\"")
+    || (contains_sub text "stop_reason" && contains_sub text "\"stop\"") in
+  let settle = contains_sub text "run_settled" in
+  (closed, settle)
+
+(* InitRecord-first resolution, like find-tape, except a
+   missing or untrusted tape does not end the call: the Run
+   is watched blind (W_SUPERVISOR_BLIND) on its pid alone.
+   Only a Run with no record and no referencing tape is a
+   typed miss. Returns (wal, harness, session_id, pid,
+   run_id, blind). *)
+let resolve_watch fl =
+  (match fl.wt_run, fl.wt_session with
+   | None, None -> usage "watch needs --run-id or --session-id"
+   | Some "", _ | _, Some "" -> usage "identity flags need a non-empty value"
+   | _ -> ());
+  (match fl.wt_run with
+   | Some r when contains_sub r "/" || contains_sub r " " ->
+       usage ("invalid run-id: " ^ r)
+   | _ -> ());
+  let records = all_init_records () in
+  let by_run = match fl.wt_run with
+    | Some r -> List.filter (fun (rec_ : init_record) -> rec_.run_id = r) records
+    | None -> [] in
+  let by_sess = match fl.wt_session with
+    | Some s -> List.filter (fun (rec_ : init_record) -> rec_.session_id = Some s) records
+    | None -> [] in
+  let sess_runs = dedup (List.map (fun (rec_ : init_record) -> rec_.run_id) by_sess) in
+  if List.length sess_runs > 1 then ambiguous "session-id" sess_runs;
+  (match fl.wt_run, fl.wt_session with
+   | Some r, Some s ->
+       if by_run <> [] && by_sess <> [] && sess_runs <> [r] then
+         usage "--run-id and --session-id disagree";
+       List.iter (fun (rec_ : init_record) ->
+         if rec_.session_id <> None && rec_.session_id <> Some s then
+           usage "--run-id and --session-id disagree") by_run
+   | _ -> ());
+  let record = match by_run with
+    | rec_ :: _ -> Some rec_
+    | [] -> (match by_sess with rec_ :: _ -> Some rec_ | [] -> None) in
+  (match by_run with
+   | _ :: _ :: _ ->
+       let tapes = dedup (List.filter_map (fun (rec_ : init_record) -> rec_.tape_path) by_run) in
+       let sessions = dedup (List.filter_map (fun (rec_ : init_record) -> rec_.session_id) by_run) in
+       if List.length tapes > 1 || List.length sessions > 1 then
+         ambiguous "run-id" (tapes @ sessions)
+   | _ -> ());
+  let run_needles = dedup (
+    (match fl.wt_run with Some r -> [r] | None -> []) @
+    (match record with Some rec_ -> [rec_.run_id] | None -> [])) in
+  let sess_needles = dedup (
+    (match fl.wt_session with Some s -> [s] | None -> []) @
+    (match record with Some rec_ -> (match rec_.session_id with Some s -> [s] | None -> []) | None -> [])) in
+  let tape_matches text path =
+    List.exists (fun nd -> tape_references_run text nd) run_needles
+    || List.exists (fun nd -> tape_references_session text nd
+                              || session_id_of_tape path = Some nd) sess_needles in
+  match record with
+  | Some rec_ when rec_.tape_path <> None ->
+      let tp = (match rec_.tape_path with Some t -> t | None -> "") in
+      if not (Sys.file_exists tp) then
+        (Some tp, rec_.harness, rec_.session_id, rec_.pid, rec_.run_id, true)
+      else
+        let text = read_file_or tp "" in
+        if tape_matches text tp then
+          (Some tp, rec_.harness, rec_.session_id, rec_.pid, rec_.run_id, false)
+        else
+          (match rec_.pid with
+           | Some _ -> (None, rec_.harness, rec_.session_id, rec_.pid, rec_.run_id, true)
+           | None -> (None, rec_.harness, rec_.session_id, None, rec_.run_id, true))
+  | _ ->
+      let harnesses = match record with
+        | Some rec_ when rec_.harness <> "" -> [rec_.harness]
+        | _ -> ["muse-code"; "pi"] in
+      let candidates = List.concat_map (fun h ->
+        List.concat_map (fun root_ -> collect_tapes root_ []) (tape_roots h)
+        |> List.filter_map (fun p ->
+             let text = read_file_or p "" in
+             if tape_matches text p
+             then Some (p, h, text) else None)) harnesses in
+      let paths = dedup (List.map (fun (p, _, _) -> p) candidates) in
+      (match paths with
+       | [] ->
+           (match record with
+            | Some rec_ ->
+                (None, rec_.harness, rec_.session_id, rec_.pid, rec_.run_id, true)
+            | None ->
+                let facts = match fl.wt_run with
+                  | Some r -> `Assoc [("run_id", json_str r)]
+                  | None -> `Assoc [("session_id", json_str (match fl.wt_session with Some s -> s | None -> ""))] in
+                err "E_NOT_FOUND" facts "No tape references that run; no guess made." 1)
+       | _ :: _ :: _ -> ambiguous "tape" paths
+       | [p] ->
+           let (_, h, text) = List.find (fun (cp, _, _) -> cp = p) candidates in
+           let sess = (match record with Some rec_ -> rec_.session_id | None -> None) in
+           let sess = match sess with Some _ -> sess | None -> session_id_of_tape p in
+           let sess = match sess with Some _ -> sess | None -> fl.wt_session in
+           let run = (match record with Some rec_ -> rec_.run_id | None ->
+                      match fl.wt_run with Some r -> r | None ->
+                      match extract_run_ids text with
+                      | [r] -> r
+                      | _ :: _ :: _ -> ambiguous "session-id" (extract_run_ids text)
+                      | [] -> (match fl.wt_session with Some s -> s | None -> "")) in
+           let pid = match record with Some rec_ -> rec_.pid | None -> None in
+           (Some p, h, sess, pid, run, false))
+
+(* Watch-local lifecycle: derivation words only. Watch
+   observes pid exit directly, so a dead pid without close
+   evidence is orphaned at once; a settle row or a close
+   marker alone never finishes a live child. *)
+let watch_lifecycle ~alive ~exit_obs ~closed ~settle ~tape_seen ~fresh =
+  if ((exit_obs || settle) && closed && alive <> Some true) then "finished"
+  else if alive = Some false then "orphaned"
+  else if not tape_seen && alive = None && not exit_obs && not settle then "init"
+  else if not fresh && alive <> Some true then "orphaned"
+  else "active"
+
+let do_watch args =
+  let fl = parse_wt_flags args in
+  let (wal, harness, session_id, pid, run_id, blind0) = resolve_watch fl in
+  let start = Unix.time () in
+  let deadline = start +. float_of_int fl.wt_timeout in
+  let last_growth = ref start in
+  let last_size = ref (-1) in
+  let seen_once = ref false in
+  let exit_obs = ref false in
+  let closed = ref false in
+  let settle = ref false in
+  let blind = ref blind0 in
+  let last_key = ref "" in
+  let wait_dead secs =
+    let until = Unix.time () +. secs in
+    let rec go () =
+      match pid with
+      | Some p when pid_alive p && Unix.time () < until ->
+          ignore (Unix.select [] [] [] 0.05); go ()
+      | _ -> () in
+    go () in
+  let rec loop () =
+    let now = Unix.time () in
+    (* derivation fold for this Run: sticky mechanical facts *)
+    (match derivations_dir () with
+     | Some dir ->
+         let path = Filename.concat dir (run_id ^ ".jsonl") in
+         if Sys.file_exists path then begin
+           let (_, dobs, dwarns) = fold_run_file ~silence_seconds:fl.wt_silence path in
+           if dobs.exit_observed then exit_obs := true;
+           if dobs.tape_closed then closed := true;
+           if dobs.settle_row then settle := true;
+           if dwarns <> [] then blind := true
+         end
+     | None -> ());
+    (* tape: growth resets silence; signals are sticky *)
+    let tape_seen = ref false in
+    (match wal with
+     | Some tp ->
+         (try
+            let st = Unix.stat tp in
+            tape_seen := true;
+            if not !seen_once then begin
+              seen_once := true; last_size := st.Unix.st_size;
+              last_growth := now
+            end else if st.Unix.st_size <> !last_size then begin
+              last_size := st.Unix.st_size; last_growth := now
+            end;
+            let (c, s) = tape_signals (read_file_or tp "") in
+            if c then closed := true;
+            if s then settle := true
+          with _ -> blind := true)
+     | None -> blind := true);
+    let alive = match pid with Some p -> Some (pid_alive p) | None -> None in
+    if alive = Some false then exit_obs := true;
+    let fresh = now -. !last_growth <= float_of_int fl.wt_silence in
+    let lifecycle = watch_lifecycle ~alive ~exit_obs:!exit_obs
+      ~closed:!closed ~settle:!settle ~tape_seen:!tape_seen ~fresh in
+    if lifecycle <> !last_key then begin
+      last_key := lifecycle;
+      let row = `Assoc [
+        ("kind", json_str "lifecycle_change");
+        ("run_id", json_str run_id);
+        ("lifecycle", json_str lifecycle);
+        ("harness", json_str harness);
+      ] in
+      print_endline (Yojson.Safe.to_string row);
+      flush stdout
+    end;
+    let finish outcome fin_lifecycle =
+      let warnings = if !blind then ["W_SUPERVISOR_BLIND"] else [] in
+      let fields = [
+        ("ok", `Bool true);
+        ("run_id", json_str run_id);
+        ("harness", json_str harness);
+        ("session_id", (match session_id with Some s -> json_str s | None -> `Null));
+        ("wal", (match wal with Some w -> json_str w | None -> `Null));
+        ("tape_path", (match wal with Some w -> json_str w | None -> `Null));
+        ("pid", (match pid with Some p -> `Int p | None -> `Null));
+        ("outcome", json_str outcome);
+        ("settled", `Bool (outcome = "settled"));
+        ("lifecycle", json_str fin_lifecycle);
+        ("last_growth_seconds_ago", `Int (int_of_float (now -. !last_growth)));
+      ] in
+      let fields = if warnings = [] then fields
+        else fields @ [("warnings", `List (List.map json_str warnings))] in
+      print_endline (Yojson.Safe.to_string (`Assoc fields));
+      exit_of_outcome outcome in
+    if (!exit_obs || !settle) && !closed && alive <> Some true then
+      finish "settled" "finished"
+    else if alive = Some true && not !closed && not !settle
+            && now -. !last_growth > float_of_int fl.wt_silence then begin
+      (* sole killer: silence past budget, no settling grace *)
+      (match pid with
+       | Some p ->
+           (try Unix.kill p Sys.sigterm with _ -> ());
+           wait_dead (float_of_int fl.wt_grace);
+           if pid_alive p then begin
+             (try Unix.kill p Sys.sigkill with _ -> ());
+             wait_dead (float_of_int fl.wt_grace)
+           end
+       | None -> ());
+      finish "watchdog_killed" "orphaned"
+    end
+    else if now >= deadline then
+      finish "timeout" lifecycle
+    else begin
+      ignore (Unix.select [] [] [] 0.05);
+      loop ()
+    end in
+  loop ()
+
 (* ---------- later-exps door ---------- *)
 let not_yet verb =
   err "E_UNSUPPORTED" (`Assoc [("verb", json_str verb)])
@@ -751,7 +1038,7 @@ let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]   passive loop: tell -> watch -> judge -> finalize\n\
   bp3 harness init-check [--engine muse-code|pi]   probe tape sources; blindness is W_SUPERVISOR_BLIND, never blocking\n\
   bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]   InitRecord-first run-id -> tape; --session-id <id> is a reverse lookup\n\
-  bp3 harness watch --run-id <id>                  blocking watch (owned by a later exp)\n\
+  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]   blocking watch: sole TERM/KILL owner\n\
   bp3 harness desk <verb> ...                      desks (owned by a later exp)\n\
 Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
 
@@ -775,6 +1062,15 @@ let help_find_tape = "bp3 harness find-tape - InitRecord-first tape lookup:\n\
   Emits {ok, run_id, harness, session_id, wal, pid} or, with --entry, plus {entry, entries}.\n\
 Example: bp3 harness find-tape --run-id 20261115T000000Z-submit-pi-model-c1\n"
 
+let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
+  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
+  bp3 harness watch --session-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
+  Engine is derived from the Run InitRecord, never stated. Finds the tape like find-tape, then blocks in code: streams NDJSON lifecycle_change rows and ends with one verdict {ok, run_id, harness, session_id, wal, pid, outcome, settled, lifecycle}.\n\
+  A tape closes on a session_closed marker or an assistant stop reason; exit plus closed (or settle plus closed) with no live pid is settled. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. A closed tape or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
+  Identity flags follow find-tape: both, neither, or disagreeing flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS. Durations are bare positive integers; 0, negatives, and suffixed values are E_USAGE.\n\
+  Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
+Example: bp3 harness watch --run-id 20261115T000000Z-submit-pi-model-c1 --silence-seconds 600\n"
+
 let is_help = function "-h" | "--help" -> true | _ -> false
 
 let normalize_verb = function
@@ -793,6 +1089,7 @@ let run = function
         | "supervisor" -> help_supervisor
         | "init-check" -> help_init_check
         | "find-tape" -> help_find_tape
+        | "watch" -> help_watch
         | _ -> help_harness); 0
   | verb_raw :: rest ->
       (match normalize_verb verb_raw with
@@ -802,6 +1099,6 @@ let run = function
             | [] -> usage "supervisor needs a quest")
        | "init-check" -> do_init_check rest
        | "find-tape" -> do_find_tape rest
-       | "watch" -> not_yet "watch"
+       | "watch" -> do_watch rest
        | "desk" -> not_yet "desk"
        | other -> usage ("unknown harness verb: " ^ other))
