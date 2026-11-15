@@ -1,7 +1,8 @@
 ---
 status: frozen
 date: 2026-11-14
-promoted: null
+promoted: docs/quests/2026-11-14-bp3-unit-tests
+retired: 2026-11-15 (owner: retire/delete the icebox; this verbatim fossil in the quest folder is the record, git history the other)
 ---
 
 # OCaml unit and property-based tests for bp3 q
