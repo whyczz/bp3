@@ -15,3 +15,4 @@
 {"ts":"2026-11-15T00:12:32Z","edge":"review","from":"submitted","to":"approved","cycle":1,"commit":"b415f4a323975eb5162626b85a7c00ae59d5153f","verdict":"ship","reason":"typed matrix gates approval; grade/induct/skills tests and lint pass on bound commit","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"usage_recorded","ts":"2026-11-15T00:12:38Z","run_id":"20261115T000656Z-review-muse-code-muse-wonder-1.0-c1","input_tokens":10908802,"output_tokens":109875,"cached_tokens":9970056,"reasoning_tokens":46168,"wall_ms":85000,"started_ts":"2026-11-15T00:11:13Z","settled_ts":"2026-11-15T00:12:38Z"}
 {"event":"run_settled","ts":"2026-11-15T00:12:38Z","run_id":"20261115T000656Z-review-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
+{"event":"run_started","ts":"2026-11-15T00:13:20Z","run_id":"20261115T000656Z-land-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"4b4a9283-248e-7835-8c61-f932192d373d"}
