@@ -15,3 +15,4 @@
 {"event":"run_started","ts":"2026-11-15T03:11:23Z","run_id":"20261115T030936Z-submit-muse-code-muse-wonder-1.0-c2","cycle":2,"session_id":"0102817a-562a-739b-8c94-0865c7567bc3"}
 {"ts":"2026-11-15T03:11:35Z","edge":"submit","from":"todo","to":"submitted","cycle":2,"commit":"c01cb8cc31591857b1803fc4a8da7fe998cb15eb","verdict":null,"reason":"rename induct-solo to induct-quest-no-human, no-human rails as induct skill mode","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"usage_recorded","ts":"2026-11-15T03:11:38Z","run_id":"20261115T030936Z-submit-muse-code-muse-wonder-1.0-c2","input_tokens":4410126,"output_tokens":44800,"cached_tokens":4246344,"reasoning_tokens":12257,"wall_ms":15000,"started_ts":"2026-11-15T03:11:23Z","settled_ts":"2026-11-15T03:11:38Z"}
+{"event":"run_settled","ts":"2026-11-15T03:11:38Z","run_id":"20261115T030936Z-submit-muse-code-muse-wonder-1.0-c2","outcome":"settled"}
