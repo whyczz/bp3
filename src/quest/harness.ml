@@ -12,11 +12,9 @@
    derivation logs under run-lifecycle-derivations (one
    .jsonl per Run, keyed by run-id; session-id is only a
    field on the InitRecord) plus a disposable .json cache
-   per Run. Legacy stores (the session-keyed registry
-   dicts and the bp3-run-events files) are read-only
-   imports, never write targets, never silently merged;
-   their sunset is mvp.5, which owns deleting the old
-   machinery once parity is proven. *)
+   per Run. Since mvp.5 it is also the sole reader: the
+   session-keyed shared maps and legacy per-Run event
+   files are no longer imported on any path. *)
 open Gitx
 open Store
 
@@ -84,10 +82,6 @@ let tape_signals text =
   (closed, settle)
 
 (* ---------- derivation store (mvp.4: supervisor-written) ---------- *)
-(* Legacy witness stores are read-only imports until their
-   mvp.5 sunset: the supervisor never writes them. *)
-let legacy_sunset = "mvp.5"
-
 let git_common_dir () =
   let out, code = git_out ["rev-parse"; "--git-common-dir"] in
   if code <> 0 || out = "" then None
@@ -389,70 +383,6 @@ let append_observation dir (rf : run_fold) ~silence_seconds =
         close_out oc
     with _ -> ()
 
-(* ---------- legacy import (read-only, sunset mvp.5) ---------- *)
-let get_float_opt j key =
-  try match Yojson.Safe.Util.member key j with
-    | `Float x -> Some x | `Int n -> Some (float_of_int n) | _ -> None
-  with _ -> None
-
-(* Derived Runs win by run-id: a legacy row for a Run that
-   already has a derivation log is dropped, never merged.
-   Session-keyed dicts are re-keyed by their run_id field;
-   session-id itself is never a key here. *)
-let legacy_views ~quest ~silence_seconds ~derived_ids =
-  match git_common_dir () with
-  | None -> []
-  | Some base ->
-      let seen = ref derived_ids in
-      let out = ref [] in
-      let add v =
-        if not (List.mem v.rv_id !seen) then begin
-          seen := v.rv_id :: !seen; out := v :: !out
-        end in
-      let events_dir = Filename.concat base "bp3-run-events" in
-      let names = try Array.to_list (Sys.readdir events_dir) with _ -> [] in
-      List.iter (fun n ->
-        if Filename.check_suffix n ".jsonl" then
-          let path = Filename.concat events_dir n in
-          let (init, obs, warns) = fold_run_file ~silence_seconds path in
-          match init with
-          | None -> ()
-          | Some rec_ ->
-              if rec_.quest <> None && rec_.quest <> Some quest then ()
-              else add {
-                rv_id = if rec_.run_id <> "" then rec_.run_id
-                        else Filename.remove_extension n;
-                rv_lifecycle = derive_lifecycle init obs;
-                rv_harness = rec_.harness; rv_warnings = warns;
-              }) names;
-      List.iter (fun fname ->
-        let text = read_file_or (Filename.concat base fname) "" in
-        if String.trim text <> "" then
-          try match Yojson.Safe.from_string text with
-            | `Assoc fs ->
-                (match List.assoc_opt "sessions" fs with
-                 | Some (`Assoc ss) ->
-                     List.iter (fun (_sid, b) ->
-                       let run_id = get_str b "run_id" "" in
-                       if run_id <> "" then
-                         let bq = get_opt b "quest" in
-                         if bq <> None && bq <> Some quest then ()
-                         else
-                           let settled = get_bool b "settled" in
-                           let last_seen = match get_float_opt b "last_seen_epoch" with
-                             | Some v -> v | None -> 0. in
-                           let lifecycle =
-                             if settled then Some "finished"
-                             else if Unix.time () -. last_seen
-                                     <= float_of_int silence_seconds
-                             then Some "active" else Some "orphaned" in
-                           add { rv_id = run_id; rv_lifecycle = lifecycle;
-                                 rv_harness = ""; rv_warnings = [] }) ss
-                 | _ -> ())
-            | _ -> ()
-          with _ -> ()) ["bp3-run-registry.json"; "bp3-run-events.json"];
-      List.rev !out
-
 (* ---------- argv ---------- *)
 let positive_seconds flag v =
   let n = try int_of_string v with _ -> -1 in
@@ -535,10 +465,7 @@ let do_supervisor quest args =
     (* tell: derive Runs; watch: passive observation only,
        this loop never signals a pid *)
     let folds = fold_all ~quest ~silence_seconds:fl.silence_seconds in
-    let derived = List.map (fun f -> f.rf_view) folds in
-    let legacy = legacy_views ~quest ~silence_seconds:fl.silence_seconds
-      ~derived_ids:(List.map (fun v -> v.rv_id) derived) in
-    let runs = derived @ legacy in
+    let runs = List.map (fun f -> f.rf_view) folds in
     let run_warns = List.concat_map (fun v -> v.rv_warnings) runs in
     (* judge: fresh quest read, never a cached view *)
     let (view, inbox, rollup, _qs) = Render.quest_view quest in
@@ -559,8 +486,7 @@ let do_supervisor quest args =
       print_endline (Yojson.Safe.to_string row);
       flush stdout;
       (* mechanism: persist this tick's probe as one
-         observation row per derived Run (legacy imports
-         are never written) *)
+         observation row per derived Run *)
       (match derivations_dir () with
        | Some dir ->
            List.iter (fun f -> append_observation dir f
@@ -1328,7 +1254,7 @@ let help_supervisor = "bp3 harness supervisor - passive supervisor loop for one 
   Streams NDJSON lifecycle_change rows on stdout, ends with one JSON verdict {ok, quest, outcome, settled, rollup, runs, inbox, orphans}.\n\
   Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
   Durations are bare positive integers; 0, negatives, and suffixed values are usage errors.\n\
-  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Legacy registry/event stores are read-only imports until their mvp.5 sunset and are never written or silently merged.\n\
+  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Since mvp.5 the derivation logs are the sole lifecycle read path; the retired shared maps are never read or written.\n\
 Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
 
 let help_init_check = "bp3 harness init-check - probe tape sources per harness:\n\

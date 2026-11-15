@@ -286,7 +286,7 @@ r1=$(echo "$out" | tail -1 | jq -cS '.runs | sort_by(.run_id)')
 r2=$(echo "$out2" | tail -1 | jq -cS '.runs | sort_by(.run_id)')
 [ "$r1" = "$r2" ] || fail "tick not idempotent: $r1 vs $r2"
 
-# --- supervisor mechanism (mvp.4): per-Run writer, cache, legacy import ---
+# --- supervisor mechanism (mvp.4 writer/cache; mvp.5 legacy read retired) ---
 out=$(h supervisor -h) || fail "supervisor -h mvp.4 exit"
 echo "$out" | grep -q "run-lifecycle-derivations" || fail "supervisor help mechanism: $out"
 common=$(git rev-parse --git-common-dir)
@@ -317,9 +317,9 @@ set +e; out=$(h supervisor toy --timeout-seconds 3); set -e
 last=$(echo "$out" | tail -1)
 echo "$last" | jq -e '(.runs[] | select(.run_id == "R-noprefix") | .lifecycle == "active")' >/dev/null || fail "mvp.4 no-prefix fold: $last"
 echo "$last" | jq -e '(.runs[] | select(.run_id == "R-cache") | .lifecycle == "finished")' >/dev/null || fail "mvp.4 finished fold: $last"
-echo "$last" | jq -e '(.runs[] | select(.run_id == "L-leg") | .lifecycle == "finished")' >/dev/null || fail "mvp.4 legacy registry import: $last"
-echo "$last" | jq -e '(.runs[] | select(.run_id == "L-events") | .lifecycle == "init")' >/dev/null || fail "mvp.4 legacy events import: $last"
-echo "$last" | jq -e '(.runs[] | select(.run_id == "R-active") | .lifecycle == "active")' >/dev/null || fail "mvp.4 no silent merge: $last"
+echo "$last" | jq -e '([.runs[] | select(.run_id == "L-leg")] | length) == 0' >/dev/null || fail "mvp.5 legacy registry still read: $last"
+echo "$last" | jq -e '([.runs[] | select(.run_id == "L-events")] | length) == 0' >/dev/null || fail "mvp.5 legacy events still read: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-active") | .lifecycle == "active")' >/dev/null || fail "mvp.5 derived wins, no silent merge: $last"
 grep -q '"kind":"observation"' "$store/R-active.jsonl" || fail "mvp.4 observation row missing"
 grep -q '"lifecycle":"active"' "$store/R-active.jsonl" || fail "mvp.4 observation lifecycle missing"
 grep -q '"kind":"observation"' "$store/R-cache.jsonl" || fail "mvp.4 cache-run observation missing"
@@ -329,9 +329,9 @@ jq -e '.run_id == "R-cache" and .lifecycle == "finished"' "$store/R-cache.json" 
 grep -q "R-par-b" "$store/R-par-a.jsonl" && fail "mvp.4 parallel files cross-contaminated" || true
 grep -q '"run_id":"R-par-a"' "$store/R-par-a.jsonl" || fail "mvp.4 parallel file a"
 grep -q '"run_id":"R-par-b"' "$store/R-par-b.jsonl" || fail "mvp.4 parallel file b"
-[ "$(shasum -a 256 "$reg" | cut -d' ' -f1)" = "$reg_hash" ] || fail "mvp.4 legacy registry rewritten"
-[ "$(stat -f %m "$reg" 2>/dev/null || stat -c %Y "$reg")" = "$reg_mtime" ] || fail "mvp.4 legacy registry mtime moved"
-[ "$(shasum -a 256 "$evdir/L-events.jsonl" | cut -d' ' -f1)" = "$ev_hash" ] || fail "mvp.4 legacy events rewritten"
+[ "$(shasum -a 256 "$reg" | cut -d' ' -f1)" = "$reg_hash" ] || fail "mvp.5 legacy registry rewritten"
+[ "$(stat -f %m "$reg" 2>/dev/null || stat -c %Y "$reg")" = "$reg_mtime" ] || fail "mvp.5 legacy registry mtime moved"
+[ "$(shasum -a 256 "$evdir/L-events.jsonl" | cut -d' ' -f1)" = "$ev_hash" ] || fail "mvp.5 legacy events rewritten"
 kill -0 "$LIVE" 2>/dev/null || fail "mvp.4 passive supervisor disturbed a live pid"
 
 # derived cache is disposable: deleting it rebuilds the same verdict
@@ -351,6 +351,9 @@ kill $LIVE 2>/dev/null || true
 # --- naming gate: retired spellings stay out of the new code ---
 retired="Spawn""Record|spawn""ed|run""ning"
 if grep -E "$retired" "$root/src/quest/harness.ml" >/dev/null; then fail "retired lifecycle spelling in harness.ml"; fi
+if grep -q "bp3-run-registry" "$root/src/quest/harness.ml"; then fail "mvp.5 retired registry spelling in harness.ml"; fi
+if grep -q "bp3-run-events" "$root/src/quest/harness.ml"; then fail "mvp.5 retired events spelling in harness.ml"; fi
+if grep -q "legacy_views" "$root/src/quest/harness.ml"; then fail "mvp.5 legacy import still in harness.ml"; fi
 grep -q "init_record" "$root/src/quest/harness.ml" || fail "init_record missing"
 for w in '"init"' '"active"' '"finished"' '"orphaned"'; do
   grep -q "$w" "$root/src/quest/harness.ml" || fail "lifecycle word missing: $w"

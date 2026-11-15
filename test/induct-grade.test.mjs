@@ -3,7 +3,7 @@
 // missing-evidence row blocks approval, an untyped row never
 // carries pass, a deferred row naming its owning exp never
 // blocks (an unnamed or untyped deferral is missing), the
-// audit quotes env-preset evidence from the run registry,
+// audit quotes env-preset evidence from the stamped ledger line,
 // row order never changes the outcome, replay on the same
 // commit returns the same matrix, and grade children are
 // judge-only (audit spawns no edge, review/check bind the
@@ -182,10 +182,11 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   assert(result.outcome === "approved", "deferred row does not block approval, got " + result.outcome);
   assert(inputs.audit.includes("verdict: pass|fail|missing|deferred"),
     "audit may emit deferred rows");
-  assert(inputs.audit.includes(".git/bp3-run-registry.json"),
-    "audit looks for env-preset evidence in the run registry");
-  assert(inputs.audit.includes("run_settled"), "audit quotes run_settled hook events");
-  assert(inputs.audit.includes("usage_recorded"), "audit quotes usage_recorded hook events");
+  assert(!inputs.audit.includes("bp3-run-registry"),
+    "audit never names the retired run registry");
+  assert(inputs.audit.includes("run-lifecycle-derivations"),
+    "audit corroborates from the per-Run derivation log");
+  assert(inputs.audit.includes("stamped"), "audit quotes the stamped ledger line");
   assert(inputs.review.includes("deferred"), "review is told deferred rows never block");
   assert(inputs.check.includes("deferred"), "check is told deferred rows never block");
 }

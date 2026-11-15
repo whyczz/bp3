@@ -296,16 +296,17 @@ export default async function workflow(host) {
       "or pass for lacking this exp's artifact. A deferral that " +
       "names no owning exp is not deferred: emit missing. For " +
       "the adherence row `env preset on the first command`, quote " +
-      "hook evidence from the run registry at " +
-      "`.git/bp3-run-registry.json` (resolve the git dir with " +
-      "`git rev-parse --absolute-git-dir` when `.git` is a file): " +
-      "find the entry whose run_id is the build Run that produced " +
-      "this commit (the submit run folder under this exp's runs/) " +
-      "and quote its run_settled and usage_recorded events (its " +
-      "emitted list and settled flag) as {kind: ledger, ref: the " +
-      "registry entry for that run id, quote: the entry verbatim}. " +
-      "Hooks write the registry in the git dir, never under " +
-      "`.bp3/`; do not look for hook evidence there and never " +
+      "the bp3-stamped ledger line for the submit edge (the mvp.1 " +
+      "mechanism: BP3_RUN_ID arrives via environment and bp3 stamps " +
+      "it into the verdict and the ledger line): find the submit " +
+      "line whose run_id is the build Run that produced this commit " +
+      "(the submit run folder under this exp's runs/) and quote it " +
+      "as {kind: ledger, ref: the exp ledger submit line, quote: " +
+      "the line verbatim}. Corroborate from the per-Run derivation " +
+      "log at `<git-common-dir>/bp3/run-lifecycle-derivations/" +
+      "<run-id>.jsonl` (resolve the common dir with " +
+      "`git rev-parse --git-common-dir`) when it exists. The hooks " +
+      "registry witness does not gate this row; never " +
       "parse tape.log into facts. Judge only; do " +
       "not edit any file and do not call any `bp3 q u` update edge. " +
       "Write the matrix verbatim as JSON in your run folder's " +
