@@ -1,6 +1,6 @@
 ---
 name: induct
-description: Induct one bp3 quest along its railway from the main session — loop the railway with induct-exp workflows until the quest is terminal or a human decision is owed.
+description: Conduct one bp3 quest from the main session — read state with bp3 q r, dispatch the one step that state calls for, re-read, until the quest is terminal or a human decision is owed.
 ---
 
 # Induct
@@ -8,7 +8,7 @@ description: Induct one bp3 quest along its railway from the main session — lo
 Use when a human in a bp3-enabled repo invokes this skill by
 name (`/induct <quest>`, `$induct <quest>`) or asks to "induct",
 "run", or "keep going on" a named quest until it lands or
-blocks. One quest per induct. One output: Runs dispatched
+blocks. One quest per induct. One output: step dispatches
 through `bp3 q`, ending in an induct report — what landed, what
 is blocked, and what human decision is owed next.
 
@@ -19,6 +19,16 @@ review, recovery after a dead session). Use
 human wants the landing writeup. A design under review is
 `red-ink`'s job, not an induct.
 
+## Conductor rule
+
+This skill is the conductor: it owns the loop and nothing
+else. It reads state, dispatches the one step the state calls
+for, and re-reads. It never does a step's work itself, never
+calls a verdict edge for a step, and never re-judges a grade
+matrix — it quotes the matrix verbatim. Legality is `bp3 q`'s
+call, never this skill's: a refusal is information, answered by
+re-reading, not by arguing or retrying unchanged.
+
 ## Procedure
 
 1. Take exactly one argument: the quest. Confirm the engine
@@ -28,58 +38,56 @@ human wants the landing writeup. A design under review is
 2. Read the world live: `bp3 q r <quest>` gives exp states,
    the railway order, and the blocked inbox. Trust only this
    read — never session memory, `state.yaml`, or a ledger read
-   by hand.
-3. Work the inbox first. For each blocked exp, present the
-   facts in the main session (exp, reason, checkpoint, cycle),
-   capture the human's decision in their words, attest it
-   (`BP3_DECIDER=human`), and take `resume` or `delete`
-   through `bp3 q <quest> u <exp>`. The human never calls bp3
-   and never supplies a commit. Dispatch a fresh Run after a
-   resume; a blocked Run is never resumed in place.
-4. At a fan-out group, stop and ask the human which members
-   run. Members are exploration only and never landable; when
-   they settle, ask which result feeds the follow-up exp.
-5. Otherwise take the next landable exp and launch the
-   `induct-exp` workflow for that exp (installed with this
-   skill by `bp3 skills install`; if it is missing, stop and
-   say so rather than improvising children). Pass the workflow
-   args `{quest, exp, ts, harness, model}`: `ts` is a UTC
-   compact timestamp (for example `20261107T143022Z`) supplied
-   by this skill in args because workflow scripts cannot read
-   the clock, and children embed it in every run-id; `harness`
-   and `model` carry this session's identity (`muse-code` and
-   its model), because workflow children do not inherit the
-   launching session's env and would otherwise record
-   `unknown`. Children load role skills themselves: the author
-   child loads `code-writer`, the review child loads
-   `code-reviewer` (its `fix_first` becomes `needs_fix`), and
-   the check child judges in the `verify` stance. It loops the exp's
-   inner FSM — one fresh child Run per edge, review and
-   check in parallel on the exact commit in `submitted`,
-   autoland at `approved` — until the exp exits `landed`,
-   `blocked`, or `deleted`, or a step changes nothing
-   (refusals, no commit) and it returns `refused` to this
-   skill for re-judging. It never loops on an unchanged state.
-   The skill itself never dispatches edges one by one. Every
-   state move goes through `bp3 q <quest> u <exp> <edge>` —
-   no exceptions.
-6. Re-read after every workflow return (`bp3 q r <quest>`). A
-   refusal is information, not failure: read its error code,
-   facts, and guidance, pick a legal edge, continue. Never
-   retry an edge unchanged against a moved tip; re-judge from
-   the fresh read.
-7. Stop when the rollup is terminal (every exp `landed` or
+   by hand. At a fan-out group, stop and ask the human which
+   members run; members are exploration only and never
+   landable.
+3. Dispatch exactly one step per read, by state only:
+
+   | State | Dispatch | Args |
+   |---|---|---|
+   | `todo` | `induct-exp` workflow | `{quest, exp, ts, harness, model}` |
+   | `submitted` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit}` with `commit` from this read |
+   | `approved` | `quest-land` workflow | `{quest, exp, ts, harness, model}` |
+   | `blocked` | human gate (step 4) | — |
+   | `landed` / `deleted` | none | advance to the next exp, or report at terminal |
+
+   `ts` is a UTC compact timestamp (for example
+   `20261107T143022Z`) supplied in args because workflow
+   scripts cannot read the clock; `harness` and `model` carry
+   this session's identity (`muse-code` and its model),
+   because workflow children do not inherit the launching
+   session's env. Steps are installed with this skill by
+   `bp3 skills install`; if a named step is missing, stop and
+   say so rather than improvising children. Grade replay is
+   free: re-dispatching `induct-grade` on the same `commit`
+   is always safe, so a killed grade is simply dispatched
+   again — no attempt bookkeeping here.
+4. Blocked gate: present the inbox in the main session (exp,
+   reason, checkpoint, cycle), capture the human's decision in
+   their words, attest it (`BP3_DECIDER=human`), and take
+   `resume` or `delete` through `bp3 q <quest> u <exp>`. The
+   human never calls bp3 and never supplies a commit. A
+   blocked Run is never resumed in place; after a `resume`,
+   the next read dispatches a fresh step.
+5. Re-read after every dispatch return (`bp3 q r <quest>`)
+   and go to step 3. A return that moved nothing (refusal, no
+   commit) is re-judged from the fresh read, never retried
+   unchanged against a moved tip.
+6. Stop when the rollup is terminal (every exp `landed` or
    `deleted`) or a human decision is owed that this session
-   cannot get. Report: edges taken per exp with their ledger
-   evidence, Runs and tapes left behind, scorecard fields
-   (wall time, context tokens, human-active minutes — or
-   "unmeasured", never zero), and the next decision owed.
+   cannot get. Report: dispatches per exp with their ledger
+   evidence, the grade matrices quoted verbatim, Runs and
+   tapes left behind, scorecard fields (wall time, context
+   tokens, human-active minutes — or "unmeasured", never
+   zero), and the next decision owed.
 
 ## Rules
 
-- The skill writes no state. `bp3 q u` is the only writer;
-  ledger files, `state.yaml`, and branch tips are never
-  hand-edited, and tape is evidence, never parsed into facts.
+- The skill writes no state. `bp3 q u` is the only writer,
+  called by step children (and at the blocked gate, by this
+  session on attested human words); ledger files, `state.yaml`,
+  and branch tips are never hand-edited, and tape is evidence,
+  never parsed into facts.
 - Human attestation comes only from actual human words in
   this session. The engine never attests on the human's
   behalf, and `resume` without it is refused
@@ -88,7 +96,7 @@ human wants the landing writeup. A design under review is
   by the launcher or hooks. Unset means `unknown` plus a
   warning in the verdict; never guess a model name.
 - Verdicts bind the exact commit reviewed. A verdict naming a
-  superseded commit is refused; dispatch a fresh Run against
+  superseded commit is refused; dispatch a fresh step against
   the current commit instead of arguing with the refusal.
 - Instructions only: this skill holds no state, spawns no
   daemon, and assumes no runtime beyond the main session, its
