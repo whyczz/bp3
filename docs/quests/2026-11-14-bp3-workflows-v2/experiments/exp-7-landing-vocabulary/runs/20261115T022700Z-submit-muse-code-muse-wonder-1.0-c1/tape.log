@@ -1,0 +1,877 @@
+EXPERIMENT.md
+runs
+---
+status: landed
+home_repo: bp3
+date: 2026-11-14
+---
+
+# bp3-workflows-v2: one workflow per state transition
+
+TL;DR
+The fat bootstrap workflow splits into step functions:
+`induct-exp` builds only, a new `induct-grade` judges
+only, the `induct` conductor owns the loop, and every step
+Runs from a prepared worktree desk. Promoted from
+the workflows-v2 icebox entry (promoted with this quest and deleted at promotion, per owner rule 2026-11-15; preserved in git history);
+promotion per the `quest` skill — transcription, not
+adoption. Depends on [bp3-worktrees](../2026-11-14-bp3-worktrees/QUEST.md)
+for the desk verbs.
+
+ELI5
+One worker used to build the thing, grade it, and stamp
+it, all in one long shift. Now the builder builds, a
+separate judge grades against the checklist, the foreman
+decides what's next, and everybody works at their own
+desk so nobody's papers blow into anyone else's pile.
+
+## Terms
+
+| Term | One line |
+|---|---|
+| Step function | a workflow that reads state once, does exactly one stage, returns; owns nothing between invocations |
+| Conductor | the `induct` skill in the main session: loops `bp3 q r` → dispatch step → re-read |
+| Grade | judge-only verdict work on a bound commit: evidence audit, review, check; never edits |
+| Evidence audit | one row per acceptance case with its observed artifact or `missing`; missing required evidence = not pass |
+| Grade return | what `induct-grade` hands the conductor (owner, Round 1): the outcome word **plus the evidence matrix** — `{case, evidence, verdict}` per case, acceptance and adherence rows alike — in the workflow return and in the grade Run's `notes.md`. The conductor quotes it verbatim; nothing is re-judged downstream |
+| Step inputs | every step workflow takes `{quest, exp, ts, harness, model}` from the conductor; `induct-grade` additionally takes `commit` (owner, Round 2): the conductor reads state and hands over exactly the commit to judge. Staleness stays the FSM's problem (`E_COMMIT_MISMATCH`), not the grade's |
+| Matrix row | `{case, evidence: {kind: file\|command\|ledger\|grep, ref, quote}, verdict: pass\|fail\|missing}` (owner, Round 3). `missing` is first-class: a row without typed evidence cannot be `pass`, and a free-string evidence field is not a row |
+| Grade replay | re-dispatching `induct-grade` on the same commit is always safe (owner, Round 4): the audit is read-only, re-cast verdicts bind the same commit, and the FSM absorbing or refusing them is information either way. No conductor-side attempt bookkeeping |
+| Matrix rows, two families | the matrix carries **acceptance rows** (the exp's cases) and **adherence rows** (owner, Round 4): did the build Run follow the workflow contract — edge called by the child directly, env preset on the first command, clean commit, tape + notes present, no hand-edited state, worktree exited — or did it skip, substitute, or stay silent? Adherence is not a separate audit layer; it is rows, with the same typed evidence and `pass\|fail\|missing` verdicts |
+| Edge guard | the adherence checker inside `bp3 q u` itself (owner, Rounds 5+8, simplified): before applying an edge for a Run, the binary verifies that Run's adherence rows (run folder + tape present, worktree state sane, evidence the verdict binds to) and refuses with the failing rows when incomplete. Two placements only: the guard makes cheating fail at the state move; the grade re-derives the same rows and makes everything visible in the matrix. A `Stop` hook placement was considered and dropped entirely (owner, 2026-11-15) — guards live in `bp3 q u` plus grade reporting, nowhere else |
+| `E_ADHERENCE` | the edge guard's refusal code (owner, Round 6): one family code for "the workflow did not follow its contract," failing rows in `facts`, guidance naming the first fix. Per-row codes (`E_DIRTY_TREE`, …) still exist underneath; `E_ADHERENCE` is what a conductor greps for |
+| Desk | a prepared worktree (`bp3 worktree`, bp3-worktrees quest) |
+
+## Demos
+
+### Observed — the monolith (MVP, 2026-11-13/14)
+
+```text
+induct-exp one invocation: author 66 tool calls -> review -> check -> land
+usage_recorded per Run (exp-7 c2): 6.85M / 1.58M / 537K / 426K input tokens
+grade cannot rerun without re-entering the implementation workflow
+```
+
+### Observed — the pieces already exist (2026-11-14)
+
+Worktree verbs, live in this repo (DEMO-show run):
+
+```text
+$ ./bin/bp3 worktree prepare <q> <e> --run DEMO-show
+{"ok":true,"path":".bp3/worktrees/<q>/<e>/DEMO-show","ref":"bp3/exp/<q>/<e>", ...}
+$ (stray edit) ./bin/bp3 worktree release --run DEMO-show
+{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{"changed_count":1},
+ "guidance":"Worktree is dirty; commit the work or remove with --force."}}
+$ (edit reverted) release -> {"ok":true,"released":true}; list -> []
+```
+
+Hook facts, live (exp-7 of the MVP quest): ledgers carry
+`run_started` / `usage_recorded` / `run_settled` written
+by `bp3 q hooks` — the adherence checker's raw material
+already flows.
+
+### Design traces — v2 (nothing here has run yet)
+
+**Grade with a typed matrix:**
+
+```text
+bp3 q r -> submitted (commit abc1234)
+induct-grade {quest, exp, ts, harness, model, commit: abc1234}
+  audit child -> matrix:
+    {case:"acceptance: dirty desk refuses release", verdict:"pass",
+     evidence:{kind:"command", ref:"test/worktree.sh", quote:"worktree tests: ok"}}
+    {case:"adherence: submit edge called by the child", verdict:"pass",
+     evidence:{kind:"ledger", ref:"submit line", quote:"run_id matches, muse-code"}}
+    {case:"adherence: worktree exited at settle", verdict:"missing",
+     evidence:{kind:"command", ref:"bp3 worktree list", quote:"1 still open"}}
+  reviewer || checker (parallel, worktrees detached at abc1234)
+-> needs_fix (missing row named) — conductor quotes the matrix verbatim
+```
+
+**The cheat, caught mechanically:**
+
+```text
+child returns a verdict JSON but never calls bp3 q u
+  -> conductor re-reads state: nothing moved; the Run is wasted, never believed
+child calls bp3 q u submit with no tape / dirty worktree
+  -> {"ok":false,"error":{"code":"E_ADHERENCE", facts:{rows:[...]}, guidance:"..."}}
+```
+
+**Grade replay:** conductor re-dispatches `induct-grade`
+on the same commit after a killed checker — audit
+re-runs read-only, verdicts re-cast against the same
+commit, same matrix out. No attempt bookkeeping.
+
+## Goal and why
+
+The monolith worked — it dogfooded a quest to landed —
+but it concentrates trust: one driver builds and judges,
+its JS re-derives the FSM that `bp3 q` already owns, and
+a grade cannot be rerun against the same commit without
+re-entering the whole machine. Exp 4/6 showed where that
+leads: motion mistaken for proof. Splitting by state
+transition makes each piece small, separately rerunnable,
+and honest about what it cannot prove.
+
+## Success picture
+
+A quest driven end to end by the conductor with the split
+workflows: build Runs and grade Runs as distinct ledger
+citizens, a grade rerun on an unchanged commit producing
+the same verdict without touching implementation, graders
+in detached desks, and the monolith deleted.
+
+**Landed 2026-11-15 (owner gate).** All five exps landed
+through `bp3 q` (exp-1 `b415f4a3`, exp-2 `546a4b3f` c3,
+exp-3 `e5e09bea` c3, exp-4 `caf880e1`, owner-ruled
+follow-up exp-5 `4460ea7c` c2); rollup `landed`, inbox
+empty, `bp3 worktree list` empty, `make check` green.
+The live drive and token comparison rode the toy quest
+`2026-11-15-toy-conductor-drive` (also landed).
+
+## Scope
+
+| In | Out |
+|---|---|
+| `induct-grade` workflow (new), `induct-exp` slimmed to build-only, `induct` conductor loop | quest-level E2E (stays in the landing pass) |
+| desk adoption in every step (via bp3-worktrees) | changing `bp3 q` or the FSM |
+| skill changes as their own exp (Exp 3, per /quest step 6.6) | folding skill text into the workflow-code exps |
+
+## Human touchpoints
+
+Quest approval (this file); blocked-exps inbox as today;
+landing gate. Grade verdicts remain child-cast edges
+bound to exact commits, as today.
+
+## Exps
+
+### Exp 1 — [induct-grade](experiments/exp-1-induct-grade/EXPERIMENT.md)
+New judge-only workflow: evidence audit, then review +
+check in parallel on the bound commit. Depends on: none
+(consumes today's `submitted` state). Lane: standard.
+
+### Exp 2 — [induct-exp slimmed](experiments/exp-2-induct-exp-slim/EXPERIMENT.md)
+`induct-exp` keeps only author + submit; grading stages
+deleted; conductor dispatches by state instead.
+Depends on: Exp 1 (grade must exist before the monolith
+stops grading). Lane: standard.
+
+### Exp 3 — [Conductor](experiments/exp-3-conductor/EXPERIMENT.md)
+Skill-change exp: `induct` SKILL.md rewritten as the
+state loop over step functions (build / grade / land /
+inbox). Includes the QoL alias (owner, Round 2):
+`induct-quest`, a second name meaning exactly `/induct`
+— one canonical skill body, the alias a thin pointer,
+never a forked copy that can drift. Depends on:
+Exp 1 + 2. Lane: standard.
+
+### Exp 4 — [Desks](experiments/exp-4-desks/EXPERIMENT.md)
+Every step Runs from a prepared `bp3 worktree` desk
+(author on branch, graders detached). Depends on: Exp 2
++ bp3-worktrees Exp 1. Lane: standard.
+
+## Scorecard
+
+| Field | Value |
+|---|---|
+| Wall time / context tokens | measured 2026-11-15 on the same toy (one hello file, toy quest `2026-11-15-toy-conductor-drive`): step dispatches (`exp-1-hello`: induct-exp + induct-grade + quest-land, separate workflows) 12,523,838 input / 108,592 output tokens, 17 LLM calls, 4 registered Runs vs monolith (`exp-2-hello-monolith`, monolith recovered from `31f82b2`, one workflow) 16,417,835 input / 157,726 output, 33 calls, 4 Runs — the split is cheaper on this toy even before caching effects; per-Run `usage_recorded` sums from `.git/bp3-run-registry.json` |
+| Exp 2 file-weight proxy (2026-11-15) | monolith `induct-exp.js` 296 lines / 12349 B at `b415f4a` -> slim `induct-exp.js` 213 lines / 8039 B plus `quest-land.js` 197 lines / 7320 B; the build step alone sheds ~35% of its bytes. The live `usage_recorded` per-Run token comparison on a re-driven toy exp is NOT gated by Exp 2 — explicitly deferred to Exp 3 (cycle-2 amendment after cycle-1 review); the proxy above is all Exp 2 records. |
+| Human-active minutes | approval + inbox + landing |
+
+## Risks and red chair
+
+| Attack | What it changed |
+|---|---|
+| Split is ceremony: same children, more files | grade gets a different contract (evidence audit, missing = not pass), not just a new folder; without that, this quest is pointless and should not start |
+| Conductor loop in a skill = prose FSM duplicating `bp3 q` | conductor only dispatches on state `bp3 q` reports; it decides nothing about legality |
+| More invocations, more overhead | measured in Scorecard against the monolith on the same toy exp; if overhead dominates, the split is revisited at Exp 2's gate |
+| Two workflows drift apart in run/tape conventions | run-id, env preset, and tape derivation stay shared and pinned by the same contract test family |
+
+## Open questions
+
+| # | Question | Owner |
+|---|---|---|
+| 1 | Land: mini-workflow, or single conductor-spawned child? | human, at Exp 2 |
+| 2 | ~~Grade on a different model~~ — not this quest (owner, 2026-11-15): TODO frozen in [grade-model-routing icebox](../../icebox/2026-11-15-grade-model-routing.md) | icebox |
+---
+date: 2026-11-15
+quest: ../QUEST.md
+exp: 7
+status: proposed
+---
+
+# Exp 7 — landing vocabulary: exp_fin and quest_fin
+
+## TL;DR
+
+Owner-coined terms (2026-11-15). Today "land" names
+three different merges (exp edge, quest branch merge,
+promotion to master) and only the first is a real FSM
+move. Two finish lines get their own words:
+
+- `exp_fin` — an experiment has landed (its `land` edge
+  taken, state `landed`). The exp-level finish line.
+- `quest_fin` — the quest is done and merging back to
+  master (promotion). The quest-level finish line, and
+  the only owner-gated one.
+
+## Diagram
+
+```text
+todo -> ... -> approved --land edge--> landed   == exp_fin
+quest branch --quest_fin (owner gate, demo first)--> master
+```
+
+## Pseudocode
+
+```python
+def report(exp):  return "exp_fin"   if exp.state == "landed"
+def report(quest): return "quest_fin" if quest.promoted_to_master
+# land stays the edge name; fin words name the finish lines, not new edges
+```
+
+| Field | Value |
+|---|---|
+| Intent | one word per finish line; promotion stops borrowing the exp verb |
+| Lane | standard (skill change; own exp per rule 6.6) |
+| Output | the terms propagated everywhere the finish lines are named: `skills/induct/SKILL.md`, the induct workflows' return vocabulary, `bp3 q` report/rollup presentation in `src/`, tests naming the finish lines, QUEST.md terms sync; installed copies. FSM state spelling `landed` in code/data does not change — `exp_fin`/`quest_fin` are the report words the codebase speaks at the two finish lines |
+| Depends on | Exp 3, Exp 6 (report language rides the conductor rewrite) |
+
+## Acceptance (fails today: reports say only landed/landed)
+
+| Case | Expected |
+|---|---|
+| exp reaches landed | conductor report and workflow outcomes name it `exp_fin` (state itself stays `landed`) |
+| quest promotion to master completes | the promotion report names it `quest_fin` |
+| term sync | `exp_fin` / `quest_fin` spelled identically in skill text, workflow returns, `src/` report strings, tests, and QUEST.md; no synonym (promoted, merged, done) names either finish line; `landed` remains the FSM state in data |
+| no new edges | bp3 q gains no fin edges; these are report/term words, not state |
+
+## Acceptance test (goal block)
+
+- **Objective:** you can tell which finish line a
+  report is about without context.
+- **Prove by:** grep the installed skills and workflow
+  returns for both terms; this quest's own landing
+  report uses `quest_fin`.
+- **Done when:** both terms are live in the conductor's
+  vocabulary and used in this quest's reports.
+
+## Tests
+
+known cases: the Acceptance table · property-based:
+none — term sync is a finite grep check (stated
+omission) · fixtures: skills tests · demos: Demo
+trace, observed at landing.
+
+## Context
+
+Owner, 2026-11-15: "why do we land on master
+immediately? land means we first merge back to the
+quest itself; the real land is from the quest to
+master." The red-chair pass found the word doing three
+jobs with the least machinery on the biggest one.
+`exp_fin` / `quest_fin` split the finish lines so the
+owner gate can attach to exactly one word: `quest_fin`.
+---GIT LOG---
+6946b23 bp3: land exp-6-cycle-autonomy
+544fd5f bp3: exp-6-cycle-autonomy
+d4c0920 bp3: hooks
+36c3352 bp3: hooks
+64eb8b8 bp3: hooks
+ec7d95f bp3: exp-6-cycle-autonomy
+0750094 bp3: hooks
+ab8b310 bp3: hooks
+c835eb5 bp3: exp-6-cycle-autonomy
+353026a bp3: hooks
+ade26c1 bp3: hooks
+806e970 bp3: hooks
+388cb0e bp3: hooks
+2ae152b bp3: hooks
+b75925d bp3: hooks
+---STATE---
+{"ok":true,"quest":"2026-11-14-bp3-workflows-v2","state":"proposed","exps":[{"exp":"exp-1-induct-grade","state":"landed","cycle":1,"commit":"b415f4a323975eb5162626b85a7c00ae59d5153f","legal_edges":[],"changes":[{"change":"+","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"skills/induct/workflows/induct-grade.js"},{"change":"+","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/induct.sh"},{"change":"u","path":"test/skills.sh"}]},{"exp":"exp-2-induct-exp-slim","state":"landed","cycle":3,"commit":"546a4b3f1abba2b180a2f713734dfbf02e5e0e70","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/quest-land.js"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/quest-land.js"}]},{"exp":"exp-3-conductor","state":"landed","cycle":3,"commit":"e5e09bea8d92abc8cfd38a3e318ddb30ea96b4d0","legal_edges":[],"changes":[{"change":"u","path":"docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-3-conductor/runs/20261115T013321Z-submit-muse-code-muse-wonder-1.0-c3/tape.log"}]},{"exp":"exp-4-desks","state":"landed","cycle":1,"commit":"caf880e1338af5ae00e1d4c6907865f76a123609","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"src/quest/gitx.ml"},{"change":"u","path":"src/quest/hooks.ml"},{"change":"u","path":"src/quest/worktree.ml"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/worktree.sh"}]},{"exp":"exp-5-grade-matrix-fix","state":"landed","cycle":2,"commit":"4460ea7ce67c166b7bd9bd669f4bfe658dc8e5fc","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"test/induct-grade.test.mjs"}]},{"exp":"exp-6-cycle-autonomy","state":"landed","cycle":1,"commit":"b0321786cb79ea972d236b8c0290c3e5f02e0b4a","legal_edges":[],"changes":[{"change":"u","path":"docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/runs/20261115T022202Z-submit-muse-code-muse-wonder-1.0-c1/tape.log"}]},{"exp":"exp-7-landing-vocabulary","state":"todo","cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null}],"rollup":"active","inbox":[]}
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:8:# Exp 7 — landing vocabulary: exp_fin and quest_fin
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:17:- `exp_fin` — an experiment has landed (its `land` edge
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:19:- `quest_fin` — the quest is done and merging back to
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:26:todo -> ... -> approved --land edge--> landed   == exp_fin
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:27:quest branch --quest_fin (owner gate, demo first)--> master
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:33:def report(exp):  return "exp_fin"   if exp.state == "landed"
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:34:def report(quest): return "quest_fin" if quest.promoted_to_master
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:42:| Output | the terms propagated everywhere the finish lines are named: `skills/induct/SKILL.md`, the induct workflows' return vocabulary, `bp3 q` report/rollup presentation in `src/`, tests naming the finish lines, QUEST.md terms sync; installed copies. FSM state spelling `landed` in code/data does not change — `exp_fin`/`quest_fin` are the report words the codebase speaks at the two finish lines |
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:49:| exp reaches landed | conductor report and workflow outcomes name it `exp_fin` (state itself stays `landed`) |
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:50:| quest promotion to master completes | the promotion report names it `quest_fin` |
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:51:| term sync | `exp_fin` / `quest_fin` spelled identically in skill text, workflow returns, `src/` report strings, tests, and QUEST.md; no synonym (promoted, merged, done) names either finish line; `landed` remains the FSM state in data |
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:60:  report uses `quest_fin`.
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:78:`exp_fin` / `quest_fin` split the finish lines so the
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/EXPERIMENT.md:79:owner gate can attach to exactly one word: `quest_fin`.
+===LAND WORD===
+skills/induct/SKILL.md:12:through `bp3 q`, ending in an induct report — what landed, what
+skills/induct/SKILL.md:59:   | `landed` / `deleted` | none | advance to the next exp, or report at terminal |
+skills/induct/SKILL.md:84:   leaves the cycle (`landed`, `blocked`, or `deleted`) or
+skills/induct/SKILL.md:104:6. Stop when the rollup is terminal (every exp `landed` or
+src/quest/main.ml:165:       if s.st = "landed" || s.st = "deleted" then illegal s.st "delete";
+src/quest/main.ml:203:          "Dependencies are not landed yet." 1;
+src/quest/main.ml:258:      (* 1. landed line on exp branch *)
+src/quest/main.ml:259:      let ns = { s with st = "landed" } in
+src/quest/main.ml:260:      let line = ledger_line ~edge ~from:s.st ~to_:"landed" ~cycle:s.cycle
+src/quest/main.ml:270:          ("exp", json_str exp); ("state", json_str "landed"); ("cycle", `Int s.cycle);
+src/quest/main.ml:295:            ("exp", json_str exp); ("state", json_str "landed"); ("cycle", `Int s.cycle);
+src/quest/render.ml:56:        else if exp_states <> [] && List.for_all (fun (_, s) -> s.st = "landed" || s.st = "deleted") exp_states then "landed"
+src/quest/render.ml:69:  | _ -> " " (* landed: clean, like git status *)
+src/quest/store.ml:259:          match fold_exp dep e with Some (_, s, _) -> s.st = "landed" || s.st = "deleted" | None -> false) exps
+.agents/workflows/:
+induct-exp.js
+
+skills/induct/:
+SKILL.md
+workflows
+
+skills/induct/workflows/:
+induct-exp.js
+
+src/quest/:
+dune
+gitx.ml
+hooks.ml
+main.ml
+render.ml
+store.ml
+worktree.ml
+
+test/:
+hooks.sh
+induct-exp.test.mjs
+induct.sh
+pi-discovery.mjs
+q.sh
+skills.sh
+tape.sh
+worktree.sh
+experiments
+ICEBOX.md
+ledger.jsonl
+QUEST.md
+.agents/:
+skills
+workflows
+
+.agents//skills:
+add-bp3-skill
+add-yap-skill
+icebox
+induct
+naming
+quest
+red-ink-quest-landing-demo
+using-bp3
+
+.agents//skills/add-bp3-skill:
+SKILL.md
+
+.agents//skills/add-yap-skill:
+SKILL.md
+
+.agents//skills/icebox:
+SKILL.md
+
+.agents//skills/induct:
+SKILL.md
+
+.agents//skills/naming:
+SKILL.md
+
+.agents//skills/quest:
+SKILL.md
+
+.agents//skills/red-ink-quest-landing-demo:
+SKILL.md
+
+.agents//skills/using-bp3:
+SKILL.md
+
+.agents//workflows:
+induct-exp.js
+
+skills/:
+add-bp3-skill
+add-yap-skill
+icebox
+induct
+naming
+quest
+red-ink-quest-landing-demo
+using-bp3
+
+skills//add-bp3-skill:
+SKILL.md
+
+skills//add-yap-skill:
+SKILL.md
+
+skills//icebox:
+SKILL.md
+
+skills//induct:
+SKILL.md
+workflows
+
+skills//induct/workflows:
+induct-exp.js
+
+skills//naming:
+SKILL.md
+
+skills//quest:
+SKILL.md
+
+skills//red-ink-quest-landing-demo:
+SKILL.md
+
+skills//using-bp3:
+SKILL.md
+skills/add-yap-skill/SKILL.md:13:outcome.
+skills/quest/SKILL.md:205:At `landed`, run `red-ink-quest-landing-demo` and record its Landing IIUC
+skills/red-ink-quest-landing-demo/SKILL.md:2:name: red-ink-quest-landing-demo
+skills/red-ink-quest-landing-demo/SKILL.md:9:name (`/red-ink-quest-landing-demo`), when a Quest reaches
+skills/induct/workflows/induct-exp.js:82:      outcome: "refused",
+skills/induct/workflows/induct-exp.js:174:    return { exp: exp, outcome: before.state, run_ids: runIds, refusals: refusals };
+skills/induct/workflows/induct-exp.js:178:    return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+skills/induct/workflows/induct-exp.js:264:      return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+skills/induct/workflows/induct-exp.js:280:      return { exp: exp, outcome: after.state, run_ids: runIds, refusals: refusals };
+skills/induct/workflows/induct-exp.js:289:      return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+skills/induct/workflows/induct-exp.js:295:  return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+skills/induct/SKILL.md:18:`red-ink-quest-landing-demo` instead when the quest is done and the
+skills/induct/SKILL.md:56:   | `submitted` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit}` with `commit` from this read |
+skills/induct/SKILL.md:57:   | `approved` | `quest-land` workflow | `{quest, exp, ts, harness, model}` |
+skills/induct/SKILL.md:69:   free: re-dispatching `induct-grade` on the same `commit`
+.agents/workflows/induct-exp.js:82:      outcome: "refused",
+.agents/workflows/induct-exp.js:174:    return { exp: exp, outcome: before.state, run_ids: runIds, refusals: refusals };
+.agents/workflows/induct-exp.js:178:    return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+.agents/workflows/induct-exp.js:264:      return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+.agents/workflows/induct-exp.js:280:      return { exp: exp, outcome: after.state, run_ids: runIds, refusals: refusals };
+.agents/workflows/induct-exp.js:289:      return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+.agents/workflows/induct-exp.js:295:  return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+.agents/skills/add-yap-skill/SKILL.md:14:outcome.
+.agents/skills/quest/SKILL.md:206:At `landed`, run `red-ink-quest-landing-demo` and record its Landing IIUC
+.agents/skills/red-ink-quest-landing-demo/SKILL.md:2:name: red-ink-quest-landing-demo
+.agents/skills/red-ink-quest-landing-demo/SKILL.md:5:<!-- GENERATED from skills/red-ink-quest-landing-demo/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+.agents/skills/red-ink-quest-landing-demo/SKILL.md:10:name (`/red-ink-quest-landing-demo`), when a Quest reaches
+.agents/skills/induct/SKILL.md:19:`red-ink-quest-landing-demo` instead when the quest is done and the
+.agents/skills/induct/SKILL.md:57:   | `submitted` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit}` with `commit` from this read |
+.agents/skills/induct/SKILL.md:58:   | `approved` | `quest-land` workflow | `{quest, exp, ts, harness, model}` |
+.agents/skills/induct/SKILL.md:70:   free: re-dispatching `induct-grade` on the same `commit`
+test/induct-exp.test.mjs:39:assert(result.outcome === "landed", "outcome landed, got " + result.outcome);
+test/hooks.sh:109:echo "$out" | jq -e '.event_line.event == "run_settled" and .event_line.outcome == "settled"' >/dev/null || fail "run_settled verdict: $out"
+test/skills.sh:59:assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink-quest-landing-demo/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
+test/q.sh:27:echo "$out" | jq -e '.ok == true and .quest == "demo" and .state == "proposed" and (.exps | type == "array") and (.inbox | type == "array") and has("rollup")' >/dev/null || fail "quest read shape: $out"
+test/q.sh:74:echo "$out" | jq -e '.ok == true and .state == "landed"' >/dev/null || fail "land: $out"
+test/q.sh:76:echo "$out" | jq -e '.ok == true and (.exps[] | select(.exp == "parser-fix") | .state == "landed")' >/dev/null || fail "read after land: $out"
+test/q.sh:92:# tree format: the human view (git-status alphabet: + todo, u in-flight, - deleted, blank landed)
+test/q.sh:155:echo "$out" | jq -e '.ok == true and .state == "landed"' >/dev/null || fail "alt land B: $out"
+test/q.sh:187:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "stale land: $out"
+test/q.sh:207:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "parallel land: $out"
+test/q.sh:218:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "parallel-rev land: $out"
+test/q.sh:253:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-a land: $out"
+test/q.sh:255:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-b clean merge: $out"
+test/q.sh:261:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-b verdicts kept: $out"
+test/q.sh:284:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-c land: $out"
+test/q.sh:291:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-c demoted by other conflict: $out"
+test/q.sh:293:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-a demoted by other conflict: $out"
+test/q.sh:346:before_clone=$(q r demo | jq -S -c '{quest, state, rollup, exps: (.exps | sort_by(.exp) | map({exp, state, cycle, commit})), inbox: (.inbox | sort_by(.exp))}')
+test/q.sh:353:after_clone=$(clone_q r demo | jq -S -c '{quest, state, rollup, exps: (.exps | sort_by(.exp) | map({exp, state, cycle, commit})), inbox: (.inbox | sort_by(.exp))}')
+test/q.sh:358:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "clone landed exp: $out"
+test/q.sh:362:echo "$out" | jq -e '.rollup == "blocked" and ([.inbox[] | select(.exp == "clone-blocked" and .reason == "clone blocked reason")] | length == 1)' >/dev/null || fail "clone rollup/inbox: $out"
+src/quest/store.ml:259:          match fold_exp dep e with Some (_, s, _) -> s.st = "landed" || s.st = "deleted" | None -> false) exps
+.PHONY: check test lint
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/induct.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh
+	node --check skills/induct/workflows/induct-exp.js
+
+test:
+	./test/skills.sh
+skills/quest/SKILL.md:83:A Quest that starts from a `docs/icebox/` entry promotes it.
+skills/quest/SKILL.md:88:| Trigger check | the entry's stated promotion trigger has observably fired; the owner names the entry |
+skills/quest/SKILL.md:91:| Marking | when the owner approves the framed Quest (it now governs build), set the entry's `promoted:` to the Quest path. The entry's `status:` stays `frozen` forever, its text is never edited, and it is never deleted — it remains the fossil of the day the idea was shelved |
+skills/quest/SKILL.md:92:| Thaw that dies | if the framed Quest is canceled before landing, `promoted:` stays set: it records that the thaw happened and where it went |
+skills/quest/SKILL.md:94:An entry without a fired trigger is not promotable; a
+skills/quest/SKILL.md:199:| `landed` | success picture met | human promotion recorded with exact commit + limitations |
+skills/red-ink-quest-landing-demo/SKILL.md:3:description: Produce the Landing IIUC for a bp3 Quest being promoted — diligence gate first (every exp checked against its own acceptance; unsettled or improperly-done exps route to red-ink, not landing), then decision record, settled picture, demo traces, files touched, verification, and deliberately-open items.
+skills/red-ink-quest-landing-demo/SKILL.md:10:Quest-to-master promotion, or when asked “walk me through
+skills/red-ink-quest-landing-demo/SKILL.md:76:   promote, or another pass. On promotion, offer to record
+src/quest/gitx.ml:79:let is_ancestor a b = git_ok ["merge-base"; "--is-ancestor"; a; b]
+src/quest/main.ml:274:        let tree_out, code = git_out ["merge-tree"; "--write-tree"; qtip; exp_tip] in
+src/quest/main.ml:287:          let cf = tmp_path "merge-commit" in
+3:# later; the interface stays: bp3 skills install --harness=<name|all>.
+7:src_dir="$root/skills"
+9:# harness -> skills_dir. Sources are plain Markdown: no templating in bp3.
+13:    pi)     echo ".pi/skills" ;;
+14:    claude) echo ".claude/skills" ;;
+15:    codex)  echo ".agents/skills" ;;
+16:    muse)   echo ".agents/skills" ;;
+27:    /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
+32:skills_install() {
+51:  "$root/scripts/check-skills" "$src_dir"
+58:  # without deleting Codex/Muse skills or hiding unrelated .agents skills.
+67:        if has("skills") and (.skills | type != "array" or any(.[]; type != "string")) then error("skills must be an array of strings") else . end |
+68:        (.skills // []) as $existing |
+69:        .skills = ($existing + [$ids[] | "!**/.agents/skills/" + . + "/SKILL.md" | select(. as $p | $existing | index($p) | not)])
+70:      ' <<< "$existing")" || { echo 'invalid .pi/settings.json skills list' >&2; exit 1; }
+138:  # Note: codex and muse share .agents/skills; under --harness=all the muse
+143:usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 worktree derive|create|inspect|remove ...'
+153:  init) shift; skills_install "$@" ;;
+154:  skills)
+157:      install) shift; skills_install "$@" ;;
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+quest_alias() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 quest "$@"; }
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+# --- create / read verdict shapes, both spellings ---
+out=$(q c demo)
+echo "$out" | jq -e '.ok == true and .quest == "demo" and .state == "proposed"' >/dev/null || fail "quest create shape: $out"
+out=$(q create demo2)
+echo "$out" | jq -e '.ok == true and .state == "proposed"' >/dev/null || fail "quest create alias: $out"
+out=$(quest_alias r demo)
+echo "$out" | jq -e '.ok == true and .quest == "demo" and .state == "proposed" and (.exps | type == "array") and (.inbox | type == "array") and has("rollup")' >/dev/null || fail "quest read shape: $out"
+out=$(q r)
+echo "$out" | jq -e '.ok == true and (.quests | length >= 2)' >/dev/null || fail "quest list: $out"
+
+out=$(q demo c parser-fix)
+echo "$out" | jq -e '.ok == true and .state == "todo" and .cycle == 1' >/dev/null || fail "exp create: $out"
+out=$(q demo create parser-fix2)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "exp create alias: $out"
+out=$(q demo r parser-fix)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "exp read: $out"
+out=$(q demo read parser-fix)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "exp read alias: $out"
+
+# --- strict argv: dup flag, unknown flag, stray positional -> usage before write ---
+before=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+if out=$(q demo u parser-fix submit --commit abc --reason x --reason y 2>&1); then fail "dup flag accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "dup flag code: $out"
+if out=$(q demo u parser-fix submit --commit abc --reason x --bogus y 2>&1); then fail "unknown flag accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "unknown flag code: $out"
+if out=$(q demo u parser-fix submit extra --commit abc --reason x 2>&1); then fail "stray positional accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "stray code: $out"
+after=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+[ "$before" = "$after" ] || fail "strict argv wrote to ledger"
+
+# --- refusal: land from todo, ledger unchanged ---
+if out=$(q demo u parser-fix land --reason "too early" 2>&1); then fail "land from todo accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "todo" and .error.facts.edge == "land" and (.error.facts.legal_edges | index("submit") != null) and (.error.guidance | length > 0)' >/dev/null || fail "illegal edge facts: $out"
+after=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+[ "$before" = "$after" ] || fail "refusal ledgered"
+
+# --- identity: unset -> unknown + warning; invalid -> fail fast ---
+out=$(env -u BP3_HARNESS -u BP3_MODEL BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q demo c id-exp)
+echo "$out" | jq -e '.ok == true and (.warnings | index("W_IDENTITY_UNKNOWN") != null)' >/dev/null || fail "identity warning: $out"
+git show bp3/exp/demo/id-exp:docs/quests/demo/experiments/id-exp/ledger.jsonl | tail -1 | jq -e '.harness == "unknown" and .model == "unknown" and .bp3_version == "0.2.0"' >/dev/null || fail "identity ledger unknown"
+if out=$(BP3_HARNESS=bogus BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q demo r parser-fix 2>&1); then fail "invalid harness accepted"; fi
+echo "$out" | jq -e '.error.code == "E_IDENTITY"' >/dev/null || fail "identity code: $out"
+
+# --- happy path submit/review/check/land (alias spellings mixed) ---
+echo work > b.txt; git add b.txt; git commit -qm work
+B=$(git rev-parse HEAD)
+out=$(q demo u parser-fix submit --commit "$B" --reason "first cut")
+echo "$out" | jq -e '.ok == true and .state == "submitted" and .cycle == 1' >/dev/null || fail "submit: $out"
+out=$(q demo update parser-fix review --verdict ship --reason "looks right")
+echo "$out" | jq -e '.ok == true and .state == "submitted"' >/dev/null || fail "review ship stays submitted until check: $out"
+out=$(q demo u parser-fix check --verdict pass --reason "green")
+echo "$out" | jq -e '.ok == true and .state == "approved"' >/dev/null || fail "check pass approves: $out"
+out=$(q demo u parser-fix land --reason "ship it")
+echo "$out" | jq -e '.ok == true and .state == "landed"' >/dev/null || fail "land: $out"
+out=$(q r demo)
+echo "$out" | jq -e '.ok == true and (.exps[] | select(.exp == "parser-fix") | .state == "landed")' >/dev/null || fail "read after land: $out"
+
+# --- blocked inbox after needs_fix at max_cycles (default max_cycles=1) ---
+out=$(q demo u parser-fix2 submit --commit "$B" --reason "work")
+echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "submit2: $out"
+out=$(q demo u parser-fix2 review --verdict needs_fix --reason "broken")
+echo "$out" | jq -e '.ok == true and .state == "blocked" and .human_action_required == true' >/dev/null || fail "needs_fix blocks at max: $out"
+out=$(q r demo)
+echo "$out" | jq -e '(.inbox | length == 1) and .inbox[0].quest == "demo" and .inbox[0].exp == "parser-fix2" and .inbox[0].reason == "broken" and (.inbox[0] | has("checkpoint")) and (.inbox[0] | has("cycle")) and (.inbox[0] | has("since"))' >/dev/null || fail "blocked inbox: $out"
+
+# table format contains same facts
+tbl=$(q r demo --format table)
+echo "$tbl" | grep -q "demo" || fail "table missing quest"
+echo "$tbl" | grep -q "parser-fix2" || fail "table missing blocked exp"
+echo "$tbl" | grep -q "blocked" || fail "table missing blocked state"
+
+# tree format: the human view (git-status alphabet: + todo, u in-flight, - deleted, blank landed)
+tree=$(q r demo --format tree)
+echo "$tree" | grep -q "^demo " || fail "tree missing quest root: $tree"
+echo "$tree" | grep -q "u parser-fix2 - blocked" || fail "tree blocked marker: $tree"
+echo "$tree" | grep -q "(human owed)" || fail "tree human owed: $tree"
+echo "$tree" | grep -q "human owed:" || fail "tree inbox header: $tree"
+etree=$(q demo r parser-fix2 --format tree)
+echo "$etree" | grep -q "u parser-fix2 - blocked" || fail "exp tree marker: $etree"
+echo "$etree" | grep -q "legal: resume, delete" || fail "exp tree legal edges: $etree"
+
+# delete spellings (d / delete) on a scratch exp
+out=$(q demo c scratch-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "scratch create: $out"
+out=$(q demo d scratch-exp --reason "no longer needed")
+echo "$out" | jq -e '.ok == true and .state == "deleted"' >/dev/null || fail "exp delete d: $out"
+out=$(q demo create scratch-exp2)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "scratch2 create: $out"
+out=$(q demo delete scratch-exp2 --reason "gone")
+echo "$out" | jq -e '.ok == true and .state == "deleted"' >/dev/null || fail "exp delete alias: $out"
+
+# --- scenario helpers ---
+qa() { env BP3_MODEL=executor-a BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+qb() { env BP3_MODEL=executor-b BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+exp_ledger() { git show "bp3/exp/demo/$1:docs/quests/demo/experiments/$1/ledger.jsonl"; }
+commit_on_exp() {
+  local exp_name="$1"
+  local file_path="$2"
+  local content="$3"
+  local branch="refs/heads/bp3/exp/demo/$exp_name"
+SAME
+diff-exit:1
+}
+
+skills_install() {
+  local harness="all"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --harness=*) harness="${1#--harness=}" ;;
+      --harness) [ $# -ge 2 ] || { echo '--harness needs a value' >&2; exit 2; }; harness="$2"; shift ;;
+      *) echo "unknown arg: $1" >&2; exit 2 ;;
+    esac
+    shift
+  done
+
+  local harnesses
+  if [ "$harness" = "all" ]; then
+    harnesses="pi claude codex muse"
+  else
+    harnesses="$harness"
+  fi
+
+  # Preflight every source and the selected harness before writing any render.
+  "$root/scripts/check-skills" "$src_dir"
+  local h
+  for h in $harnesses; do
+    harness_target "$h" >/dev/null || { echo "unknown harness: $h" >&2; exit 2; }
+  done
+
+  # Pi discovers .agents as well as .pi. Prefer our Pi copies per project,
+  # without deleting Codex/Muse skills or hiding unrelated .agents skills.
+  local settings_plan='' existing='{}' ids
+  case " $harnesses " in
+Traceback (most recent call last):
+  File "<stdin>", line 11, in <module>
+AssertionError: 1
+workflow ok 3
+skills check: ok (8 files)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (muse)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (muse)
+installed icebox -> .agents/skills/icebox/SKILL.md (muse)
+installed induct -> .agents/skills/induct/SKILL.md (muse)
+installed naming -> .agents/skills/naming/SKILL.md (muse)
+installed quest -> .agents/skills/quest/SKILL.md (muse)
+installed red-ink-quest-landing-demo -> .agents/skills/red-ink-quest-landing-demo/SKILL.md (muse)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (muse)
+installed induct-exp -> .agents/workflows/induct-exp.js
+installed hooks -> .claude/hooks.json
+installed hooks -> .claude/settings.json
+installed hooks -> .muse/hooks.json
+ M .agents/skills/induct/SKILL.md
+ M .agents/workflows/induct-exp.js
+ M docs/quests/2026-11-14-bp3-workflows-v2/QUEST.md
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/ledger.jsonl
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/state.yaml
+ M skills/induct/SKILL.md
+ M skills/induct/workflows/induct-exp.js
+ M src/quest/main.ml
+ M src/quest/render.ml
+ M test/induct-exp.test.mjs
+ M test/q.sh
+error: pathspec 'docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/ledger.jsonl' did not match any file(s) known to git
+error: pathspec 'docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/state.yaml' did not match any file(s) known to git
+ M .agents/skills/induct/SKILL.md
+ M .agents/workflows/induct-exp.js
+ M docs/quests/2026-11-14-bp3-workflows-v2/QUEST.md
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/ledger.jsonl
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/state.yaml
+ M skills/induct/SKILL.md
+ M skills/induct/workflows/induct-exp.js
+ M src/quest/main.ml
+ M src/quest/render.ml
+ M test/induct-exp.test.mjs
+ M test/q.sh
+On branch bp3/quest/2026-11-14-bp3-workflows-v2
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+	deleted:    docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/ledger.jsonl
+	deleted:    docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/state.yaml
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   .agents/skills/induct/SKILL.md
+	modified:   .agents/workflows/induct-exp.js
+	modified:   docs/quests/2026-11-14-bp3-workflows-v2/QUEST.md
+	modified:   skills/induct/SKILL.md
+	modified:   skills/induct/workflows/induct-exp.js
+	modified:   src/quest/main.ml
+	modified:   src/quest/render.ml
+	modified:   test/induct-exp.test.mjs
+	modified:   test/q.sh
+
+EXPERIMENT.md
+runs
+ .../experiments/exp-6-cycle-autonomy/ledger.jsonl      | 18 ------------------
+ .../experiments/exp-6-cycle-autonomy/state.yaml        |  5 -----
+ 2 files changed, 23 deletions(-)
+ M .agents/skills/induct/SKILL.md
+ M .agents/workflows/induct-exp.js
+ M docs/quests/2026-11-14-bp3-workflows-v2/QUEST.md
+ M skills/induct/SKILL.md
+ M skills/induct/workflows/induct-exp.js
+ M src/quest/main.ml
+ M src/quest/render.ml
+ M test/induct-exp.test.mjs
+ M test/q.sh
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh
+node --check skills/induct/workflows/induct-exp.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (32 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (55 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/worktree.sh
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+MAKE_EXIT:0
+skills/induct/SKILL.md:13:`exp_fin`, what is blocked, and what human decision is owed
+skills/induct/SKILL.md:14:next. Finish lines have report words: `exp_fin` names an exp
+skills/induct/SKILL.md:15:whose state is `landed` (its `land` edge taken); `quest_fin`
+skills/induct/SKILL.md:17:line. The FSM states stay `landed`; `exp_fin`/`quest_fin`
+skills/induct/SKILL.md:64:   | `landed` / `deleted` | none | advance to the next exp, or report at terminal (`landed` is reported as `exp_fin`) |
+skills/induct/SKILL.md:111:   cannot get. Name each `landed` exp `exp_fin` in the
+skills/induct/SKILL.md:113:   finish line `quest_fin` (owner gate, demo first). Report: dispatches per exp with their ledger
+.agents/skills/induct/SKILL.md:14:`exp_fin`, what is blocked, and what human decision is owed
+.agents/skills/induct/SKILL.md:15:next. Finish lines have report words: `exp_fin` names an exp
+.agents/skills/induct/SKILL.md:16:whose state is `landed` (its `land` edge taken); `quest_fin`
+.agents/skills/induct/SKILL.md:18:line. The FSM states stay `landed`; `exp_fin`/`quest_fin`
+.agents/skills/induct/SKILL.md:65:   | `landed` / `deleted` | none | advance to the next exp, or report at terminal (`landed` is reported as `exp_fin`) |
+.agents/skills/induct/SKILL.md:112:   cannot get. Name each `landed` exp `exp_fin` in the
+.agents/skills/induct/SKILL.md:114:   finish line `quest_fin` (owner gate, demo first). Report: dispatches per exp with their ledger
+skills/induct/workflows/induct-exp.js:1:// induct-exp: loop one exp's inner FSM to exp_fin, blocked, deleted,
+skills/induct/workflows/induct-exp.js:174:    return { exp: exp, outcome: before.state === "landed" ? "exp_fin" : before.state, run_ids: runIds, refusals: refusals };
+skills/induct/workflows/induct-exp.js:280:      return { exp: exp, outcome: after.state === "landed" ? "exp_fin" : after.state, run_ids: runIds, refusals: refusals };
+.agents/workflows/induct-exp.js:1:// induct-exp: loop one exp's inner FSM to exp_fin, blocked, deleted,
+.agents/workflows/induct-exp.js:174:    return { exp: exp, outcome: before.state === "landed" ? "exp_fin" : before.state, run_ids: runIds, refusals: refusals };
+.agents/workflows/induct-exp.js:280:      return { exp: exp, outcome: after.state === "landed" ? "exp_fin" : after.state, run_ids: runIds, refusals: refusals };
+src/quest/render.ml:27:let exp_fin s = if s.st = "landed" then `String "exp_fin" else `Null
+src/quest/render.ml:31:    ("exp", json_str e); ("state", json_str s.st); ("fin", exp_fin s); ("cycle", `Int s.cycle);
+src/quest/render.ml:63:         [quest_fin] names promotion of that rollup to master. *)
+src/quest/render.ml:64:      let fin = if rollup = "landed" then `String "quest_fin" else `Null in
+src/quest/main.ml:270:          ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+src/quest/main.ml:295:            ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+test/q.sh:74:echo "$out" | jq -e '.ok == true and .state == "landed" and .fin == "exp_fin"' >/dev/null || fail "land: $out"
+test/q.sh:76:echo "$out" | jq -e '.ok == true and (.exps[] | select(.exp == "parser-fix") | .state == "landed" and .fin == "exp_fin")' >/dev/null || fail "read after land: $out"
+test/q.sh:78:# --- fin report words: exp_fin above; quest_fin when rollup landed ---
+test/q.sh:88:echo "$out" | jq -e '.state == "landed" and .fin == "exp_fin"' >/dev/null || fail "fin land: $out"
+test/q.sh:90:echo "$out" | jq -e '.rollup == "landed" and .fin == "quest_fin" and (.exps[0] | .state == "landed" and .fin == "exp_fin")' >/dev/null || fail "quest_fin read: $out"
+test/q.sh:92:echo "$out" | jq -e '.fin == null' >/dev/null || fail "unfinished quest has no quest_fin: $out"
+test/q.sh:112:echo "$tree" | grep -q "parser-fix - landed (exp_fin)" || fail "tree exp_fin: $tree"
+test/induct-exp.test.mjs:39:assert(result.outcome === "exp_fin", "outcome exp_fin, got " + result.outcome);
+docs/quests/2026-11-14-bp3-workflows-v2/QUEST.md:42:| `exp_fin` | an exp has landed (its `land` edge taken, state `landed`); the exp-level finish line, named in reports |
+docs/quests/2026-11-14-bp3-workflows-v2/QUEST.md:43:| `quest_fin` | the quest is done and merging back to master (promotion); the quest-level finish line, and the only owner-gated one |
+docs/quests/2026-11-14-bp3-workflows-v2/QUEST.md:124:**Landed 2026-11-15 (owner gate) — `quest_fin`.** All five exps reached `exp_fin` and landed
+src/quest/main.ml:270:          ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+src/quest/main.ml:295:            ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+src/quest/render.ml:31:    ("exp", json_str e); ("state", json_str s.st); ("fin", exp_fin s); ("cycle", `Int s.cycle);
+src/quest/render.ml:68:        ("rollup", json_str rollup); ("fin", fin); ("inbox", `List inbox);
+src/quest/render.ml:127:    (match get "fin" with Some (`String f) -> " (" ^ f ^ ")" | _ -> "");
+src/quest/render.ml:151:        let fin = match g "fin" with Some (`String f) -> " (" ^ f ^ ")" | _ -> "" in
+src/quest/render.ml:179:    (match g "fin" with Some (`String f) -> " (" ^ f ^ ")" | _ -> "") cycle
+ M .agents/skills/induct/SKILL.md
+ M .agents/workflows/induct-exp.js
+ M docs/quests/2026-11-14-bp3-workflows-v2/QUEST.md
+ M skills/induct/SKILL.md
+ M skills/induct/workflows/induct-exp.js
+ M src/quest/main.ml
+ M src/quest/render.ml
+ M test/induct-exp.test.mjs
+ M test/q.sh
+ignore:0
+The following paths are ignored by one of your .gitignore files:
+docs/quests/2026-11-14-bp3-workflows-v2
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
+M  .agents/skills/induct/SKILL.md
+M  .agents/workflows/induct-exp.js
+M  docs/quests/2026-11-14-bp3-workflows-v2/QUEST.md
+A  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/runs/20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+A  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/runs/20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+M  skills/induct/SKILL.md
+M  skills/induct/workflows/induct-exp.js
+M  src/quest/main.ml
+M  src/quest/render.ml
+M  test/induct-exp.test.mjs
+M  test/q.sh
+[bp3/quest/2026-11-14-bp3-workflows-v2 07803ce] bp3: exp-7-landing-vocabulary
+ 11 files changed, 937 insertions(+), 27 deletions(-)
+ create mode 100644 docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/runs/20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+ create mode 100644 docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/runs/20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+07803cea641b4451de00369872b7c86b370c9853
+ M docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/runs/20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+[bp3/quest/2026-11-14-bp3-workflows-v2 d375aaa] bp3: exp-7-landing-vocabulary
+ Date: Sat Nov 14 21:31:11 2026 -0500
+ 11 files changed, 954 insertions(+), 27 deletions(-)
+ create mode 100644 docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/runs/20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+ create mode 100644 docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/runs/20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1/tape.log

@@ -36,7 +36,7 @@ const result = await workflow(host);
 function assert(cond, msg) {
   if (!cond) { console.error("FAIL: " + msg); process.exit(1); }
 }
-assert(result.outcome === "landed", "outcome landed, got " + result.outcome);
+assert(result.outcome === "exp_fin", "outcome exp_fin, got " + result.outcome);
 for (const edge of ["submit", "review", "check", "land"]) {
   const input = stageInputs[edge];
   assert(input, edge + " child was spawned");

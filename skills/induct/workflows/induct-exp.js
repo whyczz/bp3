@@ -1,4 +1,4 @@
-// induct-exp: loop one exp's inner FSM to landed, blocked, deleted,
+// induct-exp: loop one exp's inner FSM to exp_fin, blocked, deleted,
 // or refused. Installed to .agents/workflows/induct-exp.js by
 // `bp3 skills install`. All state moves through `bp3 q u`, called
 // directly by the workflow children; this script never writes state.
@@ -171,7 +171,7 @@ export default async function workflow(host) {
     before.state === "blocked" ||
     before.state === "deleted"
   ) {
-    return { exp: exp, outcome: before.state, run_ids: runIds, refusals: refusals };
+    return { exp: exp, outcome: before.state === "landed" ? "exp_fin" : before.state, run_ids: runIds, refusals: refusals };
   }
   if (before.state === "unknown") {
     refusals.push("initial read failed: " + (before.raw || "no verdict"));
@@ -277,7 +277,7 @@ export default async function workflow(host) {
       after.state === "blocked" ||
       after.state === "deleted"
     ) {
-      return { exp: exp, outcome: after.state, run_ids: runIds, refusals: refusals };
+      return { exp: exp, outcome: after.state === "landed" ? "exp_fin" : after.state, run_ids: runIds, refusals: refusals };
     }
     if (snapshot(after) === snapshot(before)) {
       for (let i = 0; i < stageResults.length; i++) {

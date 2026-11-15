@@ -267,7 +267,7 @@ let do_update quest exp edge fl id =
         if run_status (git ["update-ref"; qbranch; exp_tip; qtip]) <> 0 then
           err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
         with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
-          ("exp", json_str exp); ("state", json_str "landed"); ("cycle", `Int s.cycle);
+          ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
           ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
           ("legal_edges", `List [])]
       end else begin
@@ -292,7 +292,7 @@ let do_update quest exp edge fl id =
           if run_status (git ["update-ref"; qbranch; mtip; qtip]) <> 0 then
             err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
           with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
-            ("exp", json_str exp); ("state", json_str "landed"); ("cycle", `Int s.cycle);
+            ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
             ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
             ("legal_edges", `List [])]
         end
