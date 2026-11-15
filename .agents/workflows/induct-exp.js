@@ -1,10 +1,15 @@
-// induct-exp: loop one exp's inner FSM to landed, blocked, deleted,
-// or refused. Installed to .agents/workflows/induct-exp.js by
-// `bp3 skills install`. All state moves through `bp3 q u`, called
-// directly by the workflow children; this script never writes state.
-// Args are supplied by the calling induct skill as {quest, exp, ts};
-// ts is a UTC compact timestamp from the caller, embedded by
-// children in every run-id because scripts cannot read the clock.
+// induct-exp: build one todo exp, then stop. Installed to
+// .agents/workflows/induct-exp.js by `bp3 skills install`.
+// This step owns exactly one transition family: it reads state
+// once, spawns the single author child for a `todo` exp, and
+// returns what the re-read reports. Any other state belongs to
+// a different step; this file refuses it untouched. All state
+// moves through `bp3 q u`, called directly by the author child;
+// this script never writes state.
+// Args are supplied by the calling induct skill as {quest, exp,
+// ts, harness, model}; ts is a UTC compact timestamp from the
+// caller, embedded by the child in its run-id because scripts
+// cannot read the clock.
 
 function textOf(result) {
   if (typeof result === "string") return result;
@@ -64,22 +69,13 @@ export default async function workflow(host) {
     "First load the code-writer skill (read_skill \"code-writer\") " +
     "and follow its procedure, including naming discipline and " +
     "its language references. ";
-  const reviewLoad =
-    "First load the code-reviewer skill (read_skill " +
-    "\"code-reviewer\") and review by its procedure: correctness, " +
-    "design patterns, tests, and comments that must agree with " +
-    "the code. Its verdict maps ship -> ship, fix_first -> " +
-    "needs_fix. ";
-  const checkLoad =
-    "First apply the verify stance (read_skill \"verify\" when " +
-    "available): judge only on fresh output from the project's " +
-    "own check command, never on claimed green. ";
   const refusals = [];
   const runIds = [];
   if (!quest || !exp || !ts) {
     return {
       exp: exp || null,
       outcome: "refused",
+      commit: null,
       run_ids: runIds,
       refusals: ["missing quest, exp, or ts in workflow args"],
     };
@@ -92,7 +88,7 @@ export default async function workflow(host) {
     const result = await host.agent({
       label: "read " + exp,
       input:
-        "Run exactly `"+envPrefix+"./bin/bp3 q " + quest + " r " + exp +
+        "Run exactly `" + envPrefix + "./bin/bp3 q " + quest + " r " + exp +
         "` from the repository root and return only its stdout JSON " +
         "verdict verbatim as your entire reply, with no prose and no " +
         "code fences. If the command fails, return its stdout JSON " +
@@ -116,10 +112,6 @@ export default async function workflow(host) {
       legal_edges: Array.isArray(v.legal_edges) ? v.legal_edges : [],
       raw: textOf(result),
     };
-  }
-
-  function snapshot(s) {
-    return s.state + "|" + String(s.commit) + "|c" + String(s.cycle);
   }
 
   function runFolder(edge, cycle, harnessNote) {
@@ -165,132 +157,57 @@ export default async function workflow(host) {
     );
   }
 
-  let before = await readState();
-  if (
-    before.state === "landed" ||
-    before.state === "blocked" ||
-    before.state === "deleted"
-  ) {
-    return { exp: exp, outcome: before.state, run_ids: runIds, refusals: refusals };
-  }
+  const before = await readState();
   if (before.state === "unknown") {
     refusals.push("initial read failed: " + (before.raw || "no verdict"));
-    return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+    return { exp: exp, outcome: "refused", commit: null, run_ids: runIds, refusals: refusals };
+  }
+  if (before.state !== "todo") {
+    refusals.push(
+      "expected todo, got " + before.state + "; another step owns that state"
+    );
+    return { exp: exp, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
   }
 
-  // Bounded stages: todo -> submitted -> approved -> landed is three
-  // progress steps; extra headroom covers a needs_fix/fail bounce
-  // that still changes state or cycle. No-progress exits at once.
-  for (let stage = 0; stage < 8; stage++) {
-    let stageResults = [];
-
-    if (before.state === "todo") {
-      const author = await host.agent({
-        label: "author " + exp,
-        input:
-          "You are the author child for exp `" + exp + "` of quest `" +
-          quest + "`, currently in state `todo` at cycle " +
-          String(before.cycle) + ". " + authorLoad + tapePreamble("submit", before.cycle) +
-          " Do the exp's work in the repository, then commit the " +
-          "work as a clean git commit and note its full sha. Then " +
-          "call the state edge directly yourself: " +
-          "`"+envPreset("submit", before.cycle)+"./bin/bp3 q " + quest + " u " + exp +
-          " submit --commit <your-commit-sha> --reason \"<short reason>\"`. " +
-          "Children call `bp3 q u` directly; never only return a " +
-          "verdict for the parent to relay. Reply with only a JSON " +
-          "object {ok, run_id, commit, verdict} where verdict is " +
-          "the JSON printed by the submit call.",
-      });
-      stageResults = [author];
-    } else if (before.state === "submitted") {
-      const bound = before.commit ? String(before.commit) : "";
-      const reviewPrompt =
-        "You are the review child for exp `" + exp + "` of quest `" +
-        quest + "`, currently in state `submitted` at cycle " +
-        String(before.cycle) + ", bound to commit `" + bound + "`. " +
-        reviewLoad + tapePreamble("review", before.cycle) +
-        " Review the work at the bound commit against the exp's " +
-        "own Acceptance cases in its EXPERIMENT.md (read it first): " +
-        "every case needs observed evidence, and any open design " +
-        "question in the exp means it was not done properly. Judge " +
-        "only; do not edit the work. Then call the state " +
-        "edge directly yourself, binding the exact commit: " +
-        "`"+envPreset("review", before.cycle)+"./bin/bp3 q " + quest + " u " + exp +
-        " review --verdict ship --commit " + bound +
-        " --reason \"<short reason>\"` when the work is correct, " +
-        "or the same call with `--verdict needs_fix` when it is " +
-        "not. Children call `bp3 q u` directly; never only return " +
-        "a verdict for the parent to relay. Reply with only a " +
-        "JSON object {ok, run_id, commit, verdict} where verdict " +
-        "is the JSON printed by the review call.";
-      const checkPrompt =
-        "You are the check child for exp `" + exp + "` of quest `" +
-        quest + "`, currently in state `submitted` at cycle " +
-        String(before.cycle) + ", bound to commit `" + bound + "`. " +
-        checkLoad + tapePreamble("check", before.cycle) +
-        " Run the exp's checks against the bound commit and judge " +
-        "only; do not edit the work. Then call the state edge " +
-        "directly yourself, binding the exact commit: " +
-        "`"+envPreset("check", before.cycle)+"./bin/bp3 q " + quest + " u " + exp +
-        " check --verdict pass --commit " + bound +
-        " --reason \"<short reason>\"` when every check passes, " +
-        "or the same call with `--verdict fail` when any check " +
-        "fails. Children call `bp3 q u` directly; never only " +
-        "return a verdict for the parent to relay. Reply with " +
-        "only a JSON object {ok, run_id, commit, verdict} where " +
-        "verdict is the JSON printed by the check call.";
-      stageResults = await host.parallel([
-        { label: "review " + exp, input: reviewPrompt },
-        { label: "check " + exp, input: checkPrompt },
-      ]);
-    } else if (before.state === "approved") {
-      const lander = await host.agent({
-        label: "land " + exp,
-        input:
-          "You are the land child for exp `" + exp + "` of quest `" +
-          quest + "`, currently in state `approved` at cycle " +
-          String(before.cycle) + ". " + tapePreamble("land", before.cycle) +
-          " Call the state edge directly yourself: " +
-          "`"+envPreset("land", before.cycle)+"./bin/bp3 q " + quest + " u " + exp +
-          " land --reason \"<short reason>\"`. Children call " +
-          "`bp3 q u` directly; never only return a verdict for " +
-          "the parent to relay. Reply with only a JSON object " +
-          "{ok, run_id, commit, verdict} where verdict is the " +
-          "JSON printed by the land call.",
-      });
-      stageResults = [lander];
-    } else {
-      refusals.push("no stage handles state " + before.state);
-      return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
-    }
-
-    for (let i = 0; i < stageResults.length; i++) {
-      const v = parseVerdict(stageResults[i]);
-      if (v && typeof v.run_id === "string" && v.run_id) {
-        runIds.push(v.run_id);
-      }
-    }
-
-    const after = await readState();
-    if (
-      after.state === "landed" ||
-      after.state === "blocked" ||
-      after.state === "deleted"
-    ) {
-      return { exp: exp, outcome: after.state, run_ids: runIds, refusals: refusals };
-    }
-    if (snapshot(after) === snapshot(before)) {
-      for (let i = 0; i < stageResults.length; i++) {
-        refusals.push(errorText(stageResults[i]));
-      }
-      if (after.state === "unknown") {
-        refusals.push("re-read after stage failed: " + (after.raw || "no verdict"));
-      }
-      return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
-    }
-    before = after;
+  const author = await host.agent({
+    label: "author " + exp,
+    input:
+      "You are the author child for exp `" + exp + "` of quest `" +
+      quest + "`, currently in state `todo` at cycle " +
+      String(before.cycle) + ". " + authorLoad + tapePreamble("submit", before.cycle) +
+      " Do the exp's work in the repository, then commit the " +
+      "work as a clean git commit and note its full sha. Then " +
+      "call the state edge directly yourself: " +
+      "`" + envPreset("submit", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
+      " submit --commit <your-commit-sha> --reason \"<short reason>\"`. " +
+      "Children call `bp3 q u` directly; never only return a " +
+      "verdict for the parent to relay. Reply with only a JSON " +
+      "object {ok, run_id, commit, verdict} where verdict is " +
+      "the JSON printed by the submit call.",
+  });
+  const authorVerdict = parseVerdict(author);
+  if (authorVerdict && typeof authorVerdict.run_id === "string" && authorVerdict.run_id) {
+    runIds.push(authorVerdict.run_id);
   }
 
-  refusals.push("stage budget exhausted without reaching a terminal state");
-  return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+  const after = await readState();
+  if (after.state === "submitted") {
+    const commit = after.commit
+      ? String(after.commit)
+      : (authorVerdict && authorVerdict.commit ? String(authorVerdict.commit) : null);
+    return { exp: exp, outcome: "submitted", commit: commit, run_ids: runIds, refusals: refusals };
+  }
+  refusals.push(errorText(author));
+  if (after.state === "unknown") {
+    refusals.push("re-read after author failed: " + (after.raw || "no verdict"));
+  } else {
+    refusals.push("author left state " + after.state + ", expected submitted");
+  }
+  return {
+    exp: exp,
+    outcome: "refused",
+    commit: after.commit === undefined ? null : after.commit,
+    run_ids: runIds,
+    refusals: refusals,
+  };
 }
