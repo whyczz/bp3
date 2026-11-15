@@ -25,3 +25,4 @@
 {"event":"usage_recorded","ts":"2026-11-15T01:29:26Z","run_id":"20261115T012709Z-review-muse-code-muse-wonder-1.0-c2","input_tokens":1388559,"output_tokens":17194,"cached_tokens":1321132,"reasoning_tokens":6471,"wall_ms":10000,"started_ts":"2026-11-15T01:29:16Z","settled_ts":"2026-11-15T01:29:26Z"}
 {"event":"run_settled","ts":"2026-11-15T01:29:26Z","run_id":"20261115T012709Z-review-muse-code-muse-wonder-1.0-c2","outcome":"settled"}
 {"ts":"2026-11-15T01:33:21Z","edge":"resume","from":"blocked","to":"todo","cycle":3,"commit":null,"verdict":null,"reason":"owner chose restore + resume: toy ledger/state restored from landed branch tip; cycle 3 commits restoration only with exp-3 evidence","harness":"muse-code","model":"none","bp3_version":"0.2.0"}
+{"event":"run_started","ts":"2026-11-15T01:33:38Z","run_id":"20261115T013321Z-submit-muse-code-muse-wonder-1.0-c3","cycle":3,"session_id":"9fb79ae9-e0fc-75f9-8d08-dd6bdbf18b81"}
