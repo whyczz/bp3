@@ -11,3 +11,4 @@
 {"event":"lint_checked","ts":"2026-11-15T03:37:23Z","run_id":"20261115T033425Z-check-muse-code-muse-wonder-1.0-c1","check":"q.sh","result":"pass"}
 {"event":"usage_recorded","ts":"2026-11-15T03:37:31Z","run_id":"20261115T033425Z-check-muse-code-muse-wonder-1.0-c1","input_tokens":3173576,"output_tokens":39435,"cached_tokens":3029180,"reasoning_tokens":9328,"wall_ms":21000,"started_ts":"2026-11-15T03:37:10Z","settled_ts":"2026-11-15T03:37:31Z"}
 {"event":"run_settled","ts":"2026-11-15T03:37:31Z","run_id":"20261115T033425Z-check-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
+{"event":"run_started","ts":"2026-11-15T03:37:44Z","run_id":"20261115T033425Z-review-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"083e7fea-6300-7564-883b-29b3d98951bc"}
