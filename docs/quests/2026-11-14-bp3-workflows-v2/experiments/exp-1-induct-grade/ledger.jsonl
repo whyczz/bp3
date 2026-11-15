@@ -1,1 +1,2 @@
 {"ts":"2026-11-15T00:06:55Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","exp_type":"default"}
+{"event":"run_started","ts":"2026-11-15T00:10:51Z","run_id":"20261115T000656Z-submit-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"4b4a8d83-248e-7fb6-8c61-f432192d2ebe"}
