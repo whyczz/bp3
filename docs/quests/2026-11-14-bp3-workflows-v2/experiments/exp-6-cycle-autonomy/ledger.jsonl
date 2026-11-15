@@ -10,3 +10,4 @@
 {"event":"lint_checked","ts":"2026-11-15T02:25:07Z","run_id":"20261115T022202Z-check-muse-code-muse-wonder-1.0-c1","check":"skills.sh","result":"pass"}
 {"ts":"2026-11-15T02:25:17Z","edge":"check","from":"submitted","to":"submitted","cycle":1,"commit":"b0321786cb79ea972d236b8c0290c3e5f02e0b4a","verdict":"pass","reason":"test/skills.sh ok 55 assertions; skill text confirms all acceptance rows","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"usage_recorded","ts":"2026-11-15T02:25:20Z","run_id":"20261115T022202Z-check-muse-code-muse-wonder-1.0-c1","input_tokens":1530235,"output_tokens":18786,"cached_tokens":1458972,"reasoning_tokens":2750,"wall_ms":23000,"started_ts":"2026-11-15T02:24:57Z","settled_ts":"2026-11-15T02:25:20Z"}
+{"event":"run_settled","ts":"2026-11-15T02:25:20Z","run_id":"20261115T022202Z-check-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
