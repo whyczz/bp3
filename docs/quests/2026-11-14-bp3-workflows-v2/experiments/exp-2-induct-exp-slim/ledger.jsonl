@@ -1,2 +1,3 @@
 {"ts":"2026-11-15T00:06:55Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","exp_type":"default"}
 {"event":"run_started","ts":"2026-11-15T00:16:52Z","run_id":"20261115T001434Z-submit-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"04e5c8de-ddb7-7348-875e-559bbb2630b0"}
+{"ts":"2026-11-15T00:16:52Z","edge":"submit","from":"todo","to":"submitted","cycle":1,"commit":"b6764c37499bb791c5375f960499c70067c727fe","verdict":null,"reason":"induct-exp slimmed to build-only; quest-land step added; make check green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
