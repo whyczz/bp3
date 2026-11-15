@@ -100,6 +100,10 @@ function normalizeRow(row, i) {
     evidence = { kind: evidence.kind, ref: evidence.ref, quote: evidence.quote };
     if (verdict === "deferred" && !deferralNamesOwner(name + " " + evidence.quote)) {
       verdict = "missing";
+    } else if (verdict === "missing" && deferralNamesOwner(name + " " + evidence.quote)) {
+      // The deferral text itself is the disposition, whatever
+      // label the audit put on the row.
+      verdict = "deferred";
     }
   }
   return { case: name, evidence: evidence, verdict: verdict };

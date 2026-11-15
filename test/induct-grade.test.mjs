@@ -200,6 +200,16 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   assert(result.outcome === "needs_fix", "unnamed deferral blocks approval, got " + result.outcome);
 }
 
+// --- deferral text naming its owner is deferred even if mislabeled missing ---
+{
+  const mislabeled = deferredRow("acceptance: full cycle — NOT gated by this exp, deferred to Exp 3");
+  mislabeled.verdict = "missing";
+  const { host } = mockHost({ reads: [submitted, approved], auditRows: [passRow("acceptance: a"), mislabeled] });
+  const result = await workflow(host);
+  assert(result.matrix[1].verdict === "deferred", "mislabeled deferral upgraded to deferred");
+  assert(result.outcome === "approved", "mislabeled deferral does not block approval, got " + result.outcome);
+}
+
 // --- deferred without typed evidence is missing, never deferred ---
 {
   const untyped = { case: "acceptance: x — deferred to Exp 3", evidence: "deferred to Exp 3", verdict: "deferred" };
