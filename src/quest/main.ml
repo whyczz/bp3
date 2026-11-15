@@ -391,10 +391,27 @@ Example: bp3 worktree prepare my-quest exp-1 --run R1\n"
 
 let is_help = function "-h" | "--help" -> true | _ -> false
 
+(* Exp 5 guard: an older-MAJOR binary never writes in a newer repo.
+   Newer MINOR/PATCH only warns (warnings_of carries W_VERSION_AHEAD). *)
+let guard_write argv =
+  let is_write = match argv with
+    | v :: _ when is_verb v -> let n = normalize_verb v in n = "c" || n = "d"
+    | _q :: v :: _ when is_verb v -> normalize_verb v <> "r"
+    | _ -> false in
+  if is_write && not (List.exists is_help (List.filteri (fun i _ -> i < 3) argv)) then
+    match version_ahead () with
+    | Some v when version_major v > version_major bp3_version ->
+        err "E_VERSION_AHEAD"
+          (`Assoc [("binary", json_str bp3_version); ("repo", json_str v)])
+          "Repo was stamped by a newer MAJOR bp3; upgrade bp3 before writing." 1
+    | _ -> ()
+
 let run argv =
   let id = identity () in
+  guard_write argv;
   match argv with
   | "-h" :: _ | "--help" :: _ -> print_string help_q; 0
+  | "--version" :: _ -> print_endline bp3_version; 0
   | "worktree" :: (h :: _) when is_help h -> print_string help_worktree; 0
   | "icebox" :: (h :: _) when is_help h -> print_string help_icebox; 0
   | "icebox" :: ("r" | "read") :: (h :: _) when is_help h -> print_string help_icebox; 0

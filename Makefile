@@ -1,4 +1,4 @@
-.PHONY: check test lint
+.PHONY: check test lint release publish
 
 # This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
 # cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
@@ -16,12 +16,31 @@ check: lint
 	./test/hooks.sh
 	./test/induct.sh
 	./test/completion.sh
+	./test/release.sh
 
 lint:
-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh test/completion.sh completions/bp3.bash
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh completions/bp3.bash scripts/release-check
 	node --check skills/induct/workflows/induct-exp.js
 	node --check skills/induct/workflows/induct-grade.js
 	node --check skills/induct/workflows/quest-land.js
 
 test:
 	./test/skills.sh
+
+# --- release (Exp 5): tag-gated artifact + checksum; publish-once via gh ---
+RELEASE_VERSION := $(shell sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' src/quest/gitx.ml | head -1)
+RELEASE_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+RELEASE_ARCH := $(shell uname -m)
+RELEASE_ARTIFACT := dist/bp3-q-v$(RELEASE_VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
+
+release:
+	@./scripts/release-check >/dev/null
+	$(DUNE_BUILD) src/quest/main.exe
+	mkdir -p dist
+	cp _build/default/src/quest/main.exe $(RELEASE_ARTIFACT)
+	cd dist && shasum -a 256 $$(basename $(RELEASE_ARTIFACT)) > $$(basename $(RELEASE_ARTIFACT)).sha256
+	@echo "released $(RELEASE_ARTIFACT)"
+
+publish: release
+	@if gh release view v$(RELEASE_VERSION) >/dev/null 2>&1; then echo "publish: v$(RELEASE_VERSION) already published; refusing" >&2; exit 1; fi
+	gh release create v$(RELEASE_VERSION) $(RELEASE_ARTIFACT) $(RELEASE_ARTIFACT).sha256 --title "v$(RELEASE_VERSION)" --notes "bp3 v$(RELEASE_VERSION)"

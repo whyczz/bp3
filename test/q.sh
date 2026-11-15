@@ -474,6 +474,33 @@ if out=$(q icebox c nope 2>&1); then fail "icebox write verb accepted"; fi
 echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "icebox write verb code: $out"
 [ "$(git status --porcelain)" = "$icebox_status_before" ] || fail "icebox command wrote to worktree"
 
+# --- version guard: minor-ahead warns and writes; major-ahead refuses writes ---
+stamp_ledger() { # $1 quest $2 exp $3 version
+  local br="bp3/exp/$1/$2" path="docs/quests/$1/experiments/$2/ledger.jsonl" tip idx led blob tree nt
+  tip=$(git rev-parse "$br")
+  led=$(git show "$br:$path")
+  idx=$(mktemp)
+  GIT_INDEX_FILE="$idx" git read-tree "$tip"
+  blob=$(printf '%s\n{"ts":"2026-01-01T00:00:00Z","edge":"note","from":"todo","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"fixture stamp","harness":"t","model":"t","bp3_version":"%s"}\n' "$led" "$3" | git hash-object -w --stdin)
+  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$path"
+  tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+  nt=$(git commit-tree "$tree" -p "$tip" -m "fixture stamp $3")
+  git update-ref "refs/heads/$br" "$nt" "$tip"
+  rm -f "$idx"
+}
+out=$(q demo c vf-exp)
+echo "$out" | jq -e '.ok == true' >/dev/null || fail "vf-exp create: $out"
+stamp_ledger demo vf-exp 0.3.0
+out=$(q demo r vf-exp)
+echo "$out" | jq -e '.warnings | index("W_VERSION_AHEAD") != null' >/dev/null || fail "minor-ahead read warning: $out"
+out=$(q demo u vf-exp block --reason "minor ahead still writes")
+echo "$out" | jq -e '.ok == true and .state == "blocked" and (.warnings | index("W_VERSION_AHEAD") != null)' >/dev/null || fail "minor-ahead write: $out"
+stamp_ledger demo parser-fix 99.0.0
+before=$(git rev-parse bp3/exp/demo/parser-fix)
+if out=$(q demo u parser-fix block --reason "major ahead must refuse" 2>&1); then fail "major-ahead write accepted: $out"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_VERSION_AHEAD" and .error.facts.binary == "0.2.0" and .error.facts.repo == "99.0.0"' >/dev/null || fail "major-ahead refusal: $out"
+[ "$(git rev-parse bp3/exp/demo/parser-fix)" = "$before" ] || fail "major-ahead refusal wrote"
+
 # --- help: -h/--help at every door, stdout, exit 0, no state read ---
 out=$(q -h) || fail "q -h exit"
 echo "$out" | grep -q "bp3 q c|r|d" || fail "q -h doors: $out"

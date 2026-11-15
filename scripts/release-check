@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# release-check: gate a release on version/tag agreement.
+# Usage: release-check [version]
+# Version defaults to bp3_version in src/quest/gitx.ml.
+# Refuses (exit 1, message on stderr) unless annotated tag
+# v<version> exists and points at HEAD. Prints version on ok.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+version=${1:-}
+if [ -z "$version" ]; then
+  version=$(sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' "$root/src/quest/gitx.ml" | head -1)
+fi
+[ -n "$version" ] || { echo "release-check: no version found" >&2; exit 1; }
+tag="v$version"
+tag_commit=$(git -C "$root" rev-parse -q --verify "$tag^{commit}" 2>/dev/null || true)
+[ -n "$tag_commit" ] || { echo "release-check: tag $tag missing; create it at the release commit first" >&2; exit 1; }
+head_commit=$(git -C "$root" rev-parse HEAD)
+[ "$tag_commit" = "$head_commit" ] || { echo "release-check: tag $tag at $tag_commit, HEAD is $head_commit" >&2; exit 1; }
+tag_type=$(git -C "$root" cat-file -t "$tag")
+[ "$tag_type" = "tag" ] || { echo "release-check: $tag is not an annotated tag" >&2; exit 1; }
+echo "$version"
