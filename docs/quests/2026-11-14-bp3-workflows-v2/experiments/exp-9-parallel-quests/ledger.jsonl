@@ -2,3 +2,4 @@
 {"event":"run_started","ts":"2026-11-15T03:22:45Z","run_id":"20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"f747cc31-58dc-709a-8f2f-8f4b5d2067e2"}
 {"event":"lint_checked","ts":"2026-11-15T03:24:31Z","run_id":"20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1","check":"make check","result":"pass"}
 {"event":"lint_checked","ts":"2026-11-15T03:24:39Z","run_id":"20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1","check":"skills.sh","result":"pass"}
+{"ts":"2026-11-15T03:25:08Z","edge":"submit","from":"todo","to":"submitted","cycle":1,"commit":"c29715b6848e17edc539486c438c86ebe784d7ff","verdict":null,"reason":"fleet rules in no-human skill, tests and installed copies; make check green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
