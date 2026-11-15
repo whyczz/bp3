@@ -14,3 +14,4 @@
 {"event":"lint_checked","ts":"2026-11-15T00:18:22Z","run_id":"20261115T001434Z-review-muse-code-muse-wonder-1.0-c1","check":"make check","result":"pass"}
 {"ts":"2026-11-15T00:18:30Z","edge":"review","from":"submitted","to":"blocked","cycle":1,"commit":"b6764c37499bb791c5375f960499c70067c727fe","verdict":"needs_fix","reason":"full-cycle conductor case and toy token measurement lack observed evidence","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"usage_recorded","ts":"2026-11-15T00:18:33Z","run_id":"20261115T001434Z-review-muse-code-muse-wonder-1.0-c1","input_tokens":6547584,"output_tokens":77695,"cached_tokens":6102960,"reasoning_tokens":25090,"wall_ms":78000,"started_ts":"2026-11-15T00:17:15Z","settled_ts":"2026-11-15T00:18:33Z"}
+{"event":"run_settled","ts":"2026-11-15T00:18:33Z","run_id":"20261115T001434Z-review-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
