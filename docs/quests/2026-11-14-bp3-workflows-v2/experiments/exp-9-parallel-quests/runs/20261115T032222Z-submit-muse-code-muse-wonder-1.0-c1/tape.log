@@ -1,0 +1,1145 @@
+---
+status: landed
+home_repo: bp3
+date: 2026-11-14
+---
+
+# bp3-workflows-v2: one workflow per state transition
+
+TL;DR
+The fat bootstrap workflow splits into step functions:
+`induct-exp` builds only, a new `induct-grade` judges
+only, the `induct` conductor owns the loop, and every step
+Runs from a prepared worktree desk. Promoted from
+the workflows-v2 icebox entry (promoted with this quest and deleted at promotion, per owner rule 2026-11-15; preserved in git history);
+promotion per the `quest` skill — transcription, not
+adoption. Depends on [bp3-worktrees](../2026-11-14-bp3-worktrees/QUEST.md)
+for the desk verbs.
+
+ELI5
+One worker used to build the thing, grade it, and stamp
+it, all in one long shift. Now the builder builds, a
+separate judge grades against the checklist, the foreman
+decides what's next, and everybody works at their own
+desk so nobody's papers blow into anyone else's pile.
+
+## Terms
+
+| Term | One line |
+|---|---|
+| Step function | a workflow that reads state once, does exactly one stage, returns; owns nothing between invocations |
+| Conductor | the `induct` skill in the main session: loops `bp3 q r` → dispatch step → re-read |
+| Grade | judge-only verdict work on a bound commit: evidence audit, review, check; never edits |
+| Evidence audit | one row per acceptance case with its observed artifact or `missing`; missing required evidence = not pass |
+| Grade return | what `induct-grade` hands the conductor (owner, Round 1): the outcome word **plus the evidence matrix** — `{case, evidence, verdict}` per case, acceptance and adherence rows alike — in the workflow return and in the grade Run's `notes.md`. The conductor quotes it verbatim; nothing is re-judged downstream |
+| Step inputs | every step workflow takes `{quest, exp, ts, harness, model}` from the conductor; `induct-grade` additionally takes `commit` (owner, Round 2): the conductor reads state and hands over exactly the commit to judge. Staleness stays the FSM's problem (`E_COMMIT_MISMATCH`), not the grade's |
+| Matrix row | `{case, evidence: {kind: file\|command\|ledger\|grep, ref, quote}, verdict: pass\|fail\|missing}` (owner, Round 3). `missing` is first-class: a row without typed evidence cannot be `pass`, and a free-string evidence field is not a row |
+| Grade replay | re-dispatching `induct-grade` on the same commit is always safe (owner, Round 4): the audit is read-only, re-cast verdicts bind the same commit, and the FSM absorbing or refusing them is information either way. No conductor-side attempt bookkeeping |
+| Matrix rows, two families | the matrix carries **acceptance rows** (the exp's cases) and **adherence rows** (owner, Round 4): did the build Run follow the workflow contract — edge called by the child directly, env preset on the first command, clean commit, tape + notes present, no hand-edited state, worktree exited — or did it skip, substitute, or stay silent? Adherence is not a separate audit layer; it is rows, with the same typed evidence and `pass\|fail\|missing` verdicts |
+| Edge guard | the adherence checker inside `bp3 q u` itself (owner, Rounds 5+8, simplified): before applying an edge for a Run, the binary verifies that Run's adherence rows (run folder + tape present, worktree state sane, evidence the verdict binds to) and refuses with the failing rows when incomplete. Two placements only: the guard makes cheating fail at the state move; the grade re-derives the same rows and makes everything visible in the matrix. A `Stop` hook placement was considered and dropped entirely (owner, 2026-11-15) — guards live in `bp3 q u` plus grade reporting, nowhere else |
+| `E_ADHERENCE` | the edge guard's refusal code (owner, Round 6): one family code for "the workflow did not follow its contract," failing rows in `facts`, guidance naming the first fix. Per-row codes (`E_DIRTY_TREE`, …) still exist underneath; `E_ADHERENCE` is what a conductor greps for |
+| Desk | a prepared worktree (`bp3 worktree`, bp3-worktrees quest) |
+| `exp_fin` | an exp has landed (its `land` edge taken, state `landed`); the exp-level finish line, named in reports |
+| `quest_fin` | the quest is done and merging back to master (promotion); the quest-level finish line, and the only owner-gated one |
+
+## Demos
+
+### Observed — the monolith (MVP, 2026-11-13/14)
+
+```text
+induct-exp one invocation: author 66 tool calls -> review -> check -> land
+usage_recorded per Run (exp-7 c2): 6.85M / 1.58M / 537K / 426K input tokens
+grade cannot rerun without re-entering the implementation workflow
+```
+
+### Observed — the pieces already exist (2026-11-14)
+
+Worktree verbs, live in this repo (DEMO-show run):
+
+```text
+$ ./bin/bp3 worktree prepare <q> <e> --run DEMO-show
+{"ok":true,"path":".bp3/worktrees/<q>/<e>/DEMO-show","ref":"bp3/exp/<q>/<e>", ...}
+$ (stray edit) ./bin/bp3 worktree release --run DEMO-show
+{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{"changed_count":1},
+ "guidance":"Worktree is dirty; commit the work or remove with --force."}}
+$ (edit reverted) release -> {"ok":true,"released":true}; list -> []
+```
+
+Hook facts, live (exp-7 of the MVP quest): ledgers carry
+`run_started` / `usage_recorded` / `run_settled` written
+by `bp3 q hooks` — the adherence checker's raw material
+already flows.
+
+### Design traces — v2 (nothing here has run yet)
+
+**Grade with a typed matrix:**
+
+```text
+bp3 q r -> submitted (commit abc1234)
+induct-grade {quest, exp, ts, harness, model, commit: abc1234}
+  audit child -> matrix:
+    {case:"acceptance: dirty desk refuses release", verdict:"pass",
+     evidence:{kind:"command", ref:"test/worktree.sh", quote:"worktree tests: ok"}}
+    {case:"adherence: submit edge called by the child", verdict:"pass",
+     evidence:{kind:"ledger", ref:"submit line", quote:"run_id matches, muse-code"}}
+    {case:"adherence: worktree exited at settle", verdict:"missing",
+     evidence:{kind:"command", ref:"bp3 worktree list", quote:"1 still open"}}
+  reviewer || checker (parallel, worktrees detached at abc1234)
+-> needs_fix (missing row named) — conductor quotes the matrix verbatim
+```
+
+**The cheat, caught mechanically:**
+
+```text
+child returns a verdict JSON but never calls bp3 q u
+  -> conductor re-reads state: nothing moved; the Run is wasted, never believed
+child calls bp3 q u submit with no tape / dirty worktree
+  -> {"ok":false,"error":{"code":"E_ADHERENCE", facts:{rows:[...]}, guidance:"..."}}
+```
+
+**Grade replay:** conductor re-dispatches `induct-grade`
+on the same commit after a killed checker — audit
+re-runs read-only, verdicts re-cast against the same
+commit, same matrix out. No attempt bookkeeping.
+
+## Goal and why
+
+The monolith worked — it dogfooded a quest to landed —
+but it concentrates trust: one driver builds and judges,
+its JS re-derives the FSM that `bp3 q` already owns, and
+a grade cannot be rerun against the same commit without
+re-entering the whole machine. Exp 4/6 showed where that
+leads: motion mistaken for proof. Splitting by state
+transition makes each piece small, separately rerunnable,
+and honest about what it cannot prove.
+
+## Success picture
+
+A quest driven end to end by the conductor with the split
+workflows: build Runs and grade Runs as distinct ledger
+citizens, a grade rerun on an unchanged commit producing
+the same verdict without touching implementation, graders
+in detached desks, and the monolith deleted.
+
+**Landed 2026-11-15 (owner gate) — `quest_fin`.** All five exps reached `exp_fin` and landed
+through `bp3 q` (exp-1 `b415f4a3`, exp-2 `546a4b3f` c3,
+exp-3 `e5e09bea` c3, exp-4 `caf880e1`, owner-ruled
+follow-up exp-5 `4460ea7c` c2); rollup `landed`, inbox
+empty, `bp3 worktree list` empty, `make check` green.
+The live drive and token comparison rode the toy quest
+`2026-11-15-toy-conductor-drive` (also landed).
+
+## Scope
+
+| In | Out |
+|---|---|
+| `induct-grade` workflow (new), `induct-exp` slimmed to build-only, `induct` conductor loop | quest-level E2E (stays in the landing pass) |
+| desk adoption in every step (via bp3-worktrees) | changing `bp3 q` or the FSM |
+| skill changes as their own exp (Exp 3, per /quest step 6.6) | folding skill text into the workflow-code exps |
+
+## Human touchpoints
+
+Quest approval (this file); blocked-exps inbox as today;
+landing gate. Grade verdicts remain child-cast edges
+bound to exact commits, as today.
+
+## Exps
+
+### Exp 1 — [induct-grade](experiments/exp-1-induct-grade/EXPERIMENT.md)
+New judge-only workflow: evidence audit, then review +
+check in parallel on the bound commit. Depends on: none
+(consumes today's `submitted` state). Lane: standard.
+
+### Exp 2 — [induct-exp slimmed](experiments/exp-2-induct-exp-slim/EXPERIMENT.md)
+`induct-exp` keeps only author + submit; grading stages
+deleted; conductor dispatches by state instead.
+Depends on: Exp 1 (grade must exist before the monolith
+stops grading). Lane: standard.
+
+### Exp 3 — [Conductor](experiments/exp-3-conductor/EXPERIMENT.md)
+Skill-change exp: `induct` SKILL.md rewritten as the
+state loop over step functions (build / grade / land /
+inbox). Includes the QoL alias (owner, Round 2):
+`induct-quest`, a second name meaning exactly `/induct`
+— one canonical skill body, the alias a thin pointer,
+never a forked copy that can drift. Depends on:
+Exp 1 + 2. Lane: standard.
+
+### Exp 4 — [Desks](experiments/exp-4-desks/EXPERIMENT.md)
+Every step Runs from a prepared `bp3 worktree` desk
+(author on branch, graders detached). Depends on: Exp 2
++ bp3-worktrees Exp 1. Lane: standard.
+
+## Scorecard
+
+| Field | Value |
+|---|---|
+| Wall time / context tokens | measured 2026-11-15 on the same toy (one hello file, toy quest `2026-11-15-toy-conductor-drive`): step dispatches (`exp-1-hello`: induct-exp + induct-grade + quest-land, separate workflows) 12,523,838 input / 108,592 output tokens, 17 LLM calls, 4 registered Runs vs monolith (`exp-2-hello-monolith`, monolith recovered from `31f82b2`, one workflow) 16,417,835 input / 157,726 output, 33 calls, 4 Runs — the split is cheaper on this toy even before caching effects; per-Run `usage_recorded` sums from `.git/bp3-run-registry.json` |
+| Exp 2 file-weight proxy (2026-11-15) | monolith `induct-exp.js` 296 lines / 12349 B at `b415f4a` -> slim `induct-exp.js` 213 lines / 8039 B plus `quest-land.js` 197 lines / 7320 B; the build step alone sheds ~35% of its bytes. The live `usage_recorded` per-Run token comparison on a re-driven toy exp is NOT gated by Exp 2 — explicitly deferred to Exp 3 (cycle-2 amendment after cycle-1 review); the proxy above is all Exp 2 records. |
+| Human-active minutes | approval + inbox + landing |
+
+## Risks and red chair
+
+| Attack | What it changed |
+|---|---|
+| Split is ceremony: same children, more files | grade gets a different contract (evidence audit, missing = not pass), not just a new folder; without that, this quest is pointless and should not start |
+| Conductor loop in a skill = prose FSM duplicating `bp3 q` | conductor only dispatches on state `bp3 q` reports; it decides nothing about legality |
+| More invocations, more overhead | measured in Scorecard against the monolith on the same toy exp; if overhead dominates, the split is revisited at Exp 2's gate |
+| Two workflows drift apart in run/tape conventions | run-id, env preset, and tape derivation stay shared and pinned by the same contract test family |
+
+## Open questions
+
+| # | Question | Owner |
+|---|---|---|
+| 1 | Land: mini-workflow, or single conductor-spawned child? | human, at Exp 2 |
+| 2 | ~~Grade on a different model~~ — not this quest (owner, 2026-11-15): TODO frozen in [grade-model-routing icebox](../../icebox/2026-11-15-grade-model-routing.md) | icebox |
+===LEDGER===
+{"ts":"2026-11-15T00:06:55Z","edge":"create","from":"","to":"proposed","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","quest_type":"default","depends_on":[]}
+===EXP8===
+exp-1-induct-grade
+exp-2-induct-exp-slim
+exp-3-conductor
+exp-4-desks
+exp-5-grade-matrix-fix
+exp-6-cycle-autonomy
+exp-7-landing-vocabulary
+exp-8-induct-solo
+exp-9-parallel-quests
+===SKILL===
+SKILL.md
+add-bp3-skill
+add-yap-skill
+icebox
+induct
+induct-quest-no-human
+naming
+quest
+red-ink-quest-landing-demo
+using-bp3
+---
+name: induct-quest-no-human
+description: Run several bp3 quests with no human present using the induct conductor — preflight, queue, park blocked work in the inbox, and end with the dawn report; never attests, never pages, never promotes.
+---
+
+# Induct quest, no human
+
+Use when a human in a bp3-enabled repo invokes this skill
+by name (`/induct-quest-no-human <quest>...`,
+`$induct-quest-no-human`) or asks to run quests unattended,
+overnight, or in a queue with no human present. Several
+quests may be named; a Run budget may be stated. One
+output: the dawn report (step 5). For one quest with a
+human present, use `induct` instead.
+
+`/induct-quest-no-human <quest>...` means `/induct <quest>` per
+quest, in queue order, under the no-human rails below. Follow
+the canonical `induct` skill (`skills/induct/SKILL.md`)
+procedure and rules as written there — read state with
+`bp3 q r`, dispatch the one step that state calls for,
+re-read. This file carries no step procedure of its own,
+so the two names cannot drift; it adds only the rails
+that make the conductor safe with no human in the room.
+
+## Shape
+
+This ships as a skill mode of `induct`, not its own FSM.
+The rails below (preflight, parking, budget, dawn report)
+all state as conductor rules over the existing exp FSM
+without special cases: the queue is ordered iteration,
+parking is stopping a quest on a `blocked` read, the
+budget is a stop on dispatching, and the dawn report is
+a read. No queue-level state is written anywhere; queue
+words name report outcomes, never new edges.
+
+## No-human rails
+
+- Desks only: every step Run works from a prepared
+  `bp3 worktree` desk, one quest per checkout. No-human
+  never works in the shared tree and never runs two
+  quests in one checkout at once.
+- No-human never attests: `BP3_DECIDER` stays unset for
+  the whole run, exactly as the launcher left it.
+  No-human never takes `resume` or `delete`, and never
+  pages a question to the owner. A decision only a human
+  can make is not asked for; the work parks (below) and
+  waits for morning.
+- No-human never promotes or pushes: `quest_fin` stays the
+  owner gate. A quest whose exps all reach `exp_fin`
+  stops there; promotion waits for the owner.
+
+## Procedure
+
+1. Preflight each named quest before queueing it. A
+   quest is not queued — and is reported with the failed
+   check named — when any of these fails:
+   - every exp's EXPERIMENT.md carries Acceptance rows
+     (an exp missing Acceptance rows fails this check);
+   - no EXPERIMENT.md in the quest carries an open
+     design question;
+   - `make check` is green (`make check` red fails
+     this check).
+   A quest that fails preflight is reported, not queued;
+   the queue moves on to the next named quest.
+2. Run the queue in the order named. Per quest, ride
+   the `induct` conductor loop: `needs_fix` below the
+   cycle cap rides to the next cycle (Exp 6 rule, no
+   owner question); `landed` is reported as `exp_fin`
+   and the conductor advances to the next exp.
+3. Park, never page: when an exp enters `blocked`, or
+   the cycle cap is hit, park it — the exp stays in the
+   blocked inbox with its reason, its quest stops, and
+   the queue moves on to the next quest. Nothing is
+   resumed, deleted, or attested to unpark it.
+4. Budget: when the stated Run budget is spent, the
+   queue stops, even mid-quest. No new step is
+   dispatched after the budget is spent, and the dawn
+   report says the budget stopped it.
+5. Dawn report (the only output): per quest, from
+   `bp3 q r`, the run registry, and `bp3 worktree list`
+   — never from memory or tape text:
+   - exps at `exp_fin` (state `landed`);
+   - parked inbox items with their reasons;
+   - `usage_recorded` token totals summed per quest;
+   - the worktree sweep result: `bp3 worktree list`
+     output, naming any desk still open.
+   Then stop. Judgment waits for a human; this report
+   is where the night hands over.
+
+## Rules
+
+- The skill writes no state. `bp3 q u` is the only
+  writer, called by step children; no-human itself takes
+  no verdict edge and no human edge.
+- Identity rides env (`BP3_HARNESS`, `BP3_MODEL`) as in
+  `induct`; `BP3_DECIDER` is the one env name no-human
+  must never set.
+- Instructions only: this skill holds no state, spawns
+  no daemon, and assumes no runtime beyond the main
+  session, its workflow children, and the `bp3 q`
+  binary.
+===EXP8EXP===
+---
+date: 2026-11-15
+quest: ../QUEST.md
+exp: 8
+status: proposed
+---
+
+# Exp 8 — induct-quest-no-human: the run with no human in it
+
+## TL;DR
+
+Owner-ruled follow-up (2026-11-15, after a red-chair
+pass). Owner-renamed 2026-11-15: was induct-solo; solo named no dimension. `/induct-quest-no-human <quest>...` runs the conductor with
+no human present — overnight, for quests that are
+already fleshed out and mechanical. It queues several
+quests, rides cycles per Exp 6, and never pages, never
+attests, never promotes. Blocked work parks in the
+inbox for the morning. Its only output is the dawn
+report.
+
+## Diagram
+
+```text
+/induct-quest-no-human Q1 Q2 Q3
+  preflight each quest --fail--> reported, not queued
+  queue -> conductor per quest (desks only)
+    needs_fix -> next cycle        (Exp 6 rule)
+    blocked   -> PARK in inbox, quest stops, queue moves on
+    cap hit   -> PARK, queue moves on
+    landed    -> exp_fin, next exp
+  budget hit -> queue stops, report says so
+  dawn report: exp_fin list, parked inbox, tokens, sweep
+```
+
+## Pseudocode
+
+```python
+def no_human(quests, budget):
+    for q in quests:
+        if not preflight(q): report(q, "not queued"); continue
+        while budget.left and (exp := next_exp(q)):
+            step = dispatch_by_state(exp)      # never attest/page
+            if exp.state == "blocked": park(q, exp); break
+    return dawn_report()   # exp_fin, parked, usage sums, worktree sweep
+```
+
+| Field | Value |
+|---|---|
+| Intent | mechanical quests finish overnight; judgment waits for morning |
+| Lane | standard (skill change; own exp per rule 6.6) |
+| Output | new alias skill `skills/induct-quest-no-human/SKILL.md` (pointer to induct + no-human rails); no-human rules in `skills/induct/SKILL.md` where they generalize; installed copies |
+| Depends on | Exp 6 (cycle autonomy), Exp 7 (report words) |
+
+## Acceptance (fails today: no induct-quest-no-human exists)
+
+| Case | Expected |
+|---|---|
+| human edges | solo never attests (`BP3_DECIDER` unset by it), never takes `resume`/`delete`, never pages a question |
+| blocked exp mid-queue | exp parks with its inbox reason; its quest stops; the next queued quest still runs |
+| preflight | a quest with an exp missing Acceptance rows, an open design question in any EXPERIMENT.md, or a red `make check` is not queued and is reported with the failed check named |
+| budget | queue stops at the stated Run budget; the dawn report says the budget stopped it |
+| quest_fin | solo never promotes or pushes; promotion stays the owner gate from Exp 7 |
+| dawn report | per quest: exps at `exp_fin`, parked inbox items with reasons, `usage_recorded` token totals, and the worktree sweep result |
+| alias | `/induct-quest-no-human` renders in all harness dirs and resolves; body is a pointer plus no-human rails, not a fork of induct |
+| rename complete | `induct-solo` and the word `solo` for this mode are gone from skill dirs, code, and tests (the c1 `skills/induct-solo/` and its installed copies are removed/renamed, not left as a synonym) |
+
+## Acceptance test (goal block)
+
+- **Objective:** the queue runs itself; only judgment
+  waits for a human.
+- **Prove by:** skills tests for the alias and rails;
+  one live no-human drive of a toy queue (two toy quests,
+  one seeded to park) with its dawn report quoted.
+- **Done when:** the alias is installed and the live
+  drive parks the seeded quest, finishes the clean one,
+  and reports both.
+
+## Tests
+
+known cases: the Acceptance table · property-based:
+none — prose skill plus one live drive (stated
+omission) · fixtures: skills tests, toy queue ·
+demos: the live no-human drive, observed.
+
+## Design question (owner, 2026-11-15 — settle in this exp)
+
+Solo may be its own FSM rather than a mode of induct:
+a queue-level machine (`queued -> preflight -> running
+-> parked | finished -> reported`) sitting above the
+exp FSM. Take the FSM shape if the rails (preflight,
+parking, budget, dawn report) cannot be stated as
+conductor rules over the existing exp FSM without
+special cases; stay a skill mode if they can. The exp
+must say which shape it shipped and why.
+
+## Context
+
+Red chair (2026-11-15) attacks that shaped this exp:
+attestation forgery (no-human must park, never attest);
+parallel queues multiplying the shared-tree branch
+flip (desks only, one quest per checkout until proven
+otherwise); "hopefully fleshed out" unmeasured
+(preflight gate); unsupervised cycle burn (queue
+budget); dawn needs data, not vibes (report from
+`bp3 q r`, the registry, and `bp3 worktree list`).
+===INDUCT===
+---
+name: induct
+description: Conduct one bp3 quest from the main session — read state with bp3 q r, dispatch the one step that state calls for, re-read, until the quest is terminal or a human decision is owed.
+---
+
+# Induct
+
+Use when a human in a bp3-enabled repo invokes this skill by
+name (`/induct <quest>`, `$induct <quest>`) or asks to "induct",
+"run", or "keep going on" a named quest until it lands or
+blocks. One quest per induct. One output: step dispatches
+through `bp3 q`, ending in an induct report — what reached
+`exp_fin`, what is blocked, and what human decision is owed
+next. Finish lines have report words: `exp_fin` names an exp
+whose state is `landed` (its `land` edge taken); `quest_fin`
+names quest promotion to master, the only owner-gated finish
+line. The FSM states stay `landed`; `exp_fin`/`quest_fin`
+name the finish lines in reports, never new edges.
+
+Use `quest` instead to frame a new quest. Use `using-bp3`
+instead for a single state operation by hand (one submit, one
+review, recovery after a dead session). Use
+`red-ink-quest-landing-demo` instead when the quest is done and the
+human wants the landing writeup. A design under review is
+`red-ink`'s job, not an induct.
+
+## Conductor rule
+
+This skill is the conductor: it owns the loop and nothing
+else. It reads state, dispatches the one step the state calls
+for, and re-reads. It never does a step's work itself, never
+calls a verdict edge for a step, and never re-judges a grade
+matrix — it quotes the matrix verbatim. Legality is `bp3 q`'s
+call, never this skill's: a refusal is information, answered by
+re-reading, not by arguing or retrying unchanged.
+
+Cycles are weather; blocks are decisions. A `needs_fix`
+verdict below the cycle cap is weather: the conductor rides
+it (Procedure step 3) without paging the owner. `blocked` is
+the only page: it means a decision only a human can make is
+owed. Fake blocks train rubber-stamps; never manufacture one
+out of a cycle.
+
+## No-human variant
+
+With no human present, the `induct-quest-no-human` skill
+runs this same conductor over a queue of quests under
+no-human rails: preflight before queueing, desks only,
+blocked work parks in the inbox instead of paging, a
+stated Run budget stops the queue, and the run ends in
+the dawn report. No-human never attests (`BP3_DECIDER`
+stays unset), never takes `resume` or `delete`, and
+never promotes — `quest_fin` stays the owner gate. The
+rails live in `skills/induct-quest-no-human/SKILL.md`;
+this section names the variant only, so the procedure
+above stays the one conductor procedure.
+
+## Procedure
+
+1. Take exactly one argument: the quest. Confirm the engine
+   exists: `bp3 q r <quest>` must answer JSON. If `bp3 q` is
+   unavailable, stop and say so — never improvise state with
+   file edits or another command.
+2. Read the world live: `bp3 q r <quest>` gives exp states,
+   the railway order, and the blocked inbox. Trust only this
+   read — never session memory, `state.yaml`, or a ledger read
+   by hand. At a fan-out group, stop and ask the human which
+   members run; members are exploration only and never
+   landable.
+3. Dispatch exactly one step per read, by state only:
+
+   | State | Dispatch | Args |
+   |---|---|---|
+   | `todo` | `induct-exp` workflow | `{quest, exp, ts, harness, model}` |
+   | `submitted` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit}` with `commit` from this read |
+   | `approved` | `quest-land` workflow | `{quest, exp, ts, harness, model}` |
+   | `blocked` | human gate (step 4) | — |
+   | `landed` / `deleted` | none | advance to the next exp, or report at terminal (`landed` is reported as `exp_fin`) |
+
+   `ts` is a UTC compact timestamp (for example
+   `20261107T143022Z`) supplied in args because workflow
+   scripts cannot read the clock; `harness` and `model` carry
+   this session's identity (`muse-code` and its model),
+   because workflow children do not inherit the launching
+   session's env. Steps are installed with this skill by
+   `bp3 skills install`; if a named step is missing, stop and
+   say so rather than improvising children. Grade replay is
+   free: re-dispatching `induct-grade` on the same `commit`
+   is always safe, so a killed grade is simply dispatched
+   again — no attempt bookkeeping here.
+
+   Cycle autonomy: when a grade returns `needs_fix` (or a
+   check returns `fail`) and the re-read shows the exp back
+   in `todo` below the cycle cap, the conductor dispatches
+   the next author cycle itself, carrying the reviewer's
+   named fix — including any regression test or acceptance
+   amendment that fix demands — in the next dispatch's
+   context. It does not ask the owner about the cycle, does
+   not wait for an owner answer, and does not present the
+   cycle as a decision. The named fix rides along verbatim;
+   the conductor never re-judges it, widens it, or drops it.
+   It keeps dispatching grade → author → grade until the exp
+   leaves the cycle (`landed`, `blocked`, or `deleted`) or
+   the cap is hit. When the re-read shows the cycle cap
+   reached (the exp in `blocked` at the cap), the conductor
+   stops looping and escalates to the owner through the
+   blocked gate instead of dispatching another cycle.
+4. Blocked gate (the only page): present the inbox in the
+   main session (exp, reason, checkpoint, cycle), capture
+   the human's decision in their words, attest it
+   (`BP3_DECIDER=human`), and take `resume` or `delete`
+   through `bp3 q <quest> u <exp>`. The human never calls bp3
+   and never supplies a commit. A blocked Run is never
+   resumed in place; after a `resume`, the next read
+   dispatches a fresh step. Only human-only calls reach
+   this gate: scope changes, `delete`, and moves touching
+   another quest's state. The conductor never takes a
+   `delete` or a scope change autonomously, at any cycle.
+5. Re-read after every dispatch return (`bp3 q r <quest>`)
+   and go to step 3. A return that moved nothing (refusal, no
+   commit) is re-judged from the fresh read, never retried
+   unchanged against a moved tip.
+6. Stop when the rollup is terminal (every exp `landed` or
+   `deleted`) or a human decision is owed that this session
+   cannot get. Name each `landed` exp `exp_fin` in the
+   report; when the quest is promoted to master, name that
+   finish line `quest_fin` (owner gate, demo first). Report: dispatches per exp with their ledger
+   evidence, the grade matrices quoted verbatim, Runs and
+   tapes left behind, scorecard fields (wall time, context
+   tokens, human-active minutes — or "unmeasured", never
+   zero), and the next decision owed.
+
+## Rules
+
+- The skill writes no state. `bp3 q u` is the only writer,
+  called by step children (and at the blocked gate, by this
+  session on attested human words); ledger files, `state.yaml`,
+  and branch tips are never hand-edited, and tape is evidence,
+  never parsed into facts.
+- Human attestation comes only from actual human words in
+  this session. The engine never attests on the human's
+  behalf, and `resume` without it is refused
+  (`E_HUMAN_REQUIRED`) — that refusal is the gate working.
+  Attestation is owed at the blocked gate only; a
+  `needs_fix` cycle below the cap needs no attestation,
+  because no human decision is being recorded.
+- Identity rides env (`BP3_HARNESS`, `BP3_MODEL`) set per Run
+  by the launcher or hooks. Unset means `unknown` plus a
+  warning in the verdict; never guess a model name.
+- Verdicts bind the exact commit reviewed. A verdict naming a
+  superseded commit is refused; dispatch a fresh step against
+  the current commit instead of arguing with the refusal.
+- Instructions only: this skill holds no state, spawns no
+  daemon, and assumes no runtime beyond the main session, its
+  workflow children, and the `bp3 q` binary.
+hooks.sh
+induct-exp.test.mjs
+induct.sh
+pi-discovery.mjs
+q.sh
+skills.sh
+tape.sh
+worktree.sh
+===MAKE===
+.PHONY: check test lint
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/induct.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh
+	node --check skills/induct/workflows/induct-exp.js
+
+test:
+	./test/skills.sh
+===SKILLS-TEST===
+test/skills.sh
+
+skills/add-bp3-skill/:
+SKILL.md
+
+skills/add-yap-skill/:
+SKILL.md
+
+skills/icebox/:
+SKILL.md
+
+skills/induct-quest-no-human/:
+SKILL.md
+
+skills/induct/:
+SKILL.md
+workflows
+
+skills/naming/:
+SKILL.md
+
+skills/quest/:
+SKILL.md
+
+skills/red-ink-quest-landing-demo/:
+SKILL.md
+
+skills/using-bp3/:
+SKILL.md
+===BIN===
+bp3
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 worktree derive|create|inspect|remove ...
+#!/bin/bash
+# shellcheck disable=SC2016 # Literal JSON and Markdown in fixtures.
+set -euo pipefail
+repo=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d "${TMPDIR:-/tmp}/bp3-skills-tests.XXXXXX")
+trap 'rm -rf -- "$work"' EXIT
+checks=0
+assert() { "$@" || { printf 'FAIL: %s\n' "$*" >&2; exit 1; }; checks=$((checks + 1)); }
+rejects() {
+  if "$@" > "$work/out" 2> "$work/error"; then printf 'FAIL: expected rejection: %s\n' "$*" >&2; exit 1; fi
+  checks=$((checks + 1))
+}
+# A fresh checkout must carry the project-scope discovery exclusions too.
+for skill_dir in "$repo"/skills/*/; do
+  id=$(basename "$skill_dir")
+  assert jq -e --arg pattern "!**/.agents/skills/$id/SKILL.md" '.skills | index($pattern) != null' "$repo/.pi/settings.json"
+done
+
+mkdir -p "$work/project with spaces/bin" "$work/project with spaces/scripts"
+root="$work/project with spaces"
+cp "$repo/bin/bp3" "$root/bin/"
+cp "$repo/scripts/check-skills" "$root/scripts/"
+cp -R "$repo/skills" "$root/"
+source="$root/skills/add-yap-skill/SKILL.md"
+cp "$source" "$work/good.md"
+
+# The exact original nested-mapping regression: an unquoted colon+space.
+awk '/^description:/ {$0="description: Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests."} {print}' "$work/good.md" > "$source"
+rejects "$root/scripts/check-skills"
+rejects "$root/bin/bp3" skills install --harness=all
+assert test ! -e "$root/.pi"
+assert test ! -e "$root/.agents"
+assert test ! -e "$root/.claude"
+assert grep -Eq 'mapping|YAML' "$work/error"
+
+# Quoted colon and block-scalar descriptions must pass real YAML parsing.
+cp "$work/good.md" "$source"
+"$root/scripts/check-skills" > /dev/null
+assert test "$(yq --front-matter=extract '.description' "$source")" = 'Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests.'
+awk '/^description:/ {$0="description: |\n  A valid description: with a colon."} {print}' "$work/good.md" > "$source"
+"$root/scripts/check-skills" > /dev/null
+
+for description in 'description: [broken' 'description: {nested: mapping}' 'description: 42' 'description: ""'; do
+  awk -v description="$description" '/^description:/ {$0=description} {print}' "$work/good.md" > "$source"
+  rejects "$root/scripts/check-skills"
+done
+cp "$work/good.md" "$source"
+awk '/^name:/ {$0="name: wrong"} {print}' "$work/good.md" > "$source"
+rejects "$root/scripts/check-skills"
+cp "$work/good.md" "$source"
+rejects "$root/bin/bp3" skills install --harness=unknown
+assert test ! -e "$root/.pi"
+rejects "$root/bin/bp3" skills install --harness
+
+mkdir -p "$root/.pi"
+printf '{"defaultModel":"keep","skills":["/extra","!**/ignored/**"]}\n' > "$root/.pi/settings.json"
+"$root/bin/bp3" skills install --harness=all > /dev/null
+"$root/scripts/check-skills" "$root/skills" "$root/.pi/skills" "$root/.agents/skills" "$root/.claude/skills" > /dev/null
+assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/induct-quest-no-human/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink-quest-landing-demo/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
+for h in .pi .agents .claude; do
+  assert test "$(yq --front-matter=extract '.description' "$root/$h/skills/add-yap-skill/SKILL.md")" = "$(yq --front-matter=extract '.description' "$source")"
+  assert test -f "$root/$h/skills/quest/SKILL.md"
+done
+assert test -f "$root/.agents/workflows/induct-exp.js"
+assert cmp "$root/skills/induct/workflows/induct-exp.js" "$root/.agents/workflows/induct-exp.js"
+assert test -f "$root/.claude/hooks.json"
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.claude/hooks.json"
+assert test -f "$root/.muse/hooks.json"
+assert cmp "$root/.claude/hooks.json" "$root/.muse/hooks.json"
+assert test -f "$root/.claude/settings.json"
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+mkdir -p "$root/.claude"
+printf '{"keepMe":true}\n' > "$root/.claude/settings.json"
+"$root/bin/bp3" skills install --harness=claude > /dev/null
+assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+cp "$root/.pi/settings.json" "$work/settings.before"
+"$root/bin/bp3" skills install --harness=pi > /dev/null
+assert cmp "$work/settings.before" "$root/.pi/settings.json"
+assert cmp "$root/skills/induct/workflows/induct-exp.js" "$root/.agents/workflows/induct-exp.js"
+
+# Corrupt settings must fail BEFORE rewriting any installed files.
+printf 'sentinel\n' > "$root/.pi/skills/quest/SKILL.md"
+for settings in '{broken' '{"skills":null}' '{"skills":[1]}'; do
+  printf '%s\n' "$settings" > "$root/.pi/settings.json"
+  rejects "$root/bin/bp3" skills install --harness=all
+  assert grep -qx sentinel "$root/.pi/skills/quest/SKILL.md"
+done
+# Non-Pi installations must leave project Pi settings alone.
+printf '{broken' > "$root/.pi/settings.json"
+"$root/bin/bp3" skills install --harness=codex > /dev/null
+assert grep -qx '{broken' "$root/.pi/settings.json"
+
+# Cycle autonomy (exp-6): needs_fix rides, blocked pages.
+assert grep -q 'next author cycle itself' "$repo/skills/induct/SKILL.md"
+assert grep -q 'named fix rides along verbatim' "$repo/skills/induct/SKILL.md"
+assert grep -q 'does not ask the owner about the cycle' "$repo/skills/induct/SKILL.md"
+assert grep -q 'cycle cap' "$repo/skills/induct/SKILL.md"
+assert grep -q 'scope change autonomously' "$repo/skills/induct/SKILL.md"
+assert grep -q 'Human attestation comes only from actual human words' "$repo/skills/induct/SKILL.md"
+assert grep -q 'next author cycle itself' "$root/.agents/skills/induct/SKILL.md"
+
+# Induct-quest-no-human (exp-8): alias renders everywhere, pointer plus rails.
+for h in .pi .agents .claude; do
+  assert test -f "$root/$h/skills/induct-quest-no-human/SKILL.md"
+  assert grep -q 'skills/induct/SKILL.md' "$root/$h/skills/induct-quest-no-human/SKILL.md"
+done
+assert grep -q 'means `/induct <quest>` per' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'BP3_DECIDER` stays unset' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'never takes `resume` or `delete`' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'park it' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'missing Acceptance rows' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'open' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'design question' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'make check` is green' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'the budget stopped it' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'quest_fin` stays the' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'usage_recorded` token totals' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'bp3 worktree list' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'skill mode of `induct`' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'induct-quest-no-human' "$repo/skills/induct/SKILL.md"
+assert grep -q 'No-human never' "$root/.agents/skills/induct/SKILL.md"
+
+printf 'skills tests: ok (%s assertions)\n' "$checks"
+===CHECK-SKILLS===
+#!/bin/bash
+# Validate actual YAML before the installer propagates a malformed source.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+command -v jq >/dev/null || { echo 'jq is required (brew bundle)' >&2; exit 2; }
+command -v yq >/dev/null || { echo 'Mike Farah yq v4 is required (brew bundle)' >&2; exit 2; }
+[[ $(yq --version) == *github.com/mikefarah/yq/*'version v4.'* ]] || { echo 'Mike Farah yq v4 is required' >&2; exit 2; }
+[[ $# -gt 0 ]] || set -- "$root/skills"
+count=0
+for dir in "$@"; do
+  for source in "$dir"/*/SKILL.md; do
+    [[ -f $source ]] || { echo "no SKILL.md files in $dir" >&2; exit 1; }
+    id=$(basename "$(dirname "$source")")
+    [[ $id =~ ^[a-z][a-z0-9-]*$ ]] || { echo "invalid skill id: $id" >&2; exit 1; }
+    IFS= read -r first < "$source"
+    if [[ $first != --- ]] || ! awk '/^---$/ {n++} END {exit (n < 2)}' "$source"; then
+      echo "$source: missing frontmatter delimiters" >&2
+      exit 1
+    fi
+    yq --front-matter=extract -o=json '.' "$source" |
+      jq -se --arg id "$id" 'length == 1 and (.[0] | type == "object" and .name == $id and (.description | type == "string" and test("\\S")))' >/dev/null || { echo "$source: invalid YAML frontmatter/name/description" >&2; exit 1; }
+    count=$((count + 1))
+  done
+done
+printf 'skills check: ok (%s files)\n' "$count"
+===INDUCT-TEST===
+#!/bin/sh
+# induct-exp workflow contract test (mock host, no agent calls).
+set -eu
+cd "$(dirname "$0")/.."
+node test/induct-exp.test.mjs
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/EXPERIMENT.md:25:queue [Q1..Q5] --footprint preflight--> run (desks per child)
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/EXPERIMENT.md:35:    ok = [q for q in quests if disjoint(q.footprints) and nohuman_preflight(q)]
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/EXPERIMENT.md:45:| Output | fleet rules in `skills/induct-quest-no-human/SKILL.md` (queue of quests: footprint preflight, merge-order declaration, fleet budget, combined report); installed copies |
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/EXPERIMENT.md:52:| disjoint queue | two toy quests with disjoint footprints both reach `exp_fin` in one fleet run |
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/EXPERIMENT.md:53:| overlapping footprints | a quest whose declared footprint overlaps another's is refused at preflight, named in the report, zero Runs spent on it |
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/EXPERIMENT.md:81:  Rail: footprint preflight + predeclared merge order.
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/EXPERIMENT.md:84:  footprints only; anything shared queues serially.
+===GITLOG===
+7748336 bp3: land exp-8-induct-solo
+94fdb9c bp3: exp-8-induct-solo
+ba89113 bp3: hooks
+78fb9c0 bp3: hooks
+d6c6431 bp3: hooks
+fd860fe bp3: hooks
+18cc54b bp3: hooks
+de81411 bp3: hooks
+19886a7 bp3: exp-8-induct-solo
+056b7ab bp3: hooks
+b9f80d7 bp3: exp-8-induct-solo
+62af44c bp3: hooks
+c8c97b2 bp3: hooks
+d1c8c9f bp3: hooks
+6407e16 bp3: exp-8-induct-solo
+===QUEST-SKILL-HEAD===
+182:## Scope            (In: / Out: as a table)
+203:Files stay in `docs/quests/` for life — exp records point at them.
+commit 77483368e7afdee86454bd4df2bb81aed9fbba95
+Merge: 75fb68f 94fdb9c
+Author: whycz <whyczz@gmail.com>
+Date:   Sat Nov 14 22:22:05 2026 -0500
+
+    bp3: land exp-8-induct-solo
+
+ .../experiments/exp-8-induct-solo/ledger.jsonl     | 43 ++++++++++++++++++++++
+ .../experiments/exp-8-induct-solo/state.yaml       |  5 +++
+ 2 files changed, 48 insertions(+)
+===
+commit 94fdb9c97e1111a87bb5c5c6d5da055e46058909
+Author: whycz <whyczz@gmail.com>
+Date:   Sat Nov 14 22:22:05 2026 -0500
+
+    bp3: exp-8-induct-solo
+
+ .../experiments/exp-8-induct-solo/ledger.jsonl                          | 1 +
+ .../experiments/exp-8-induct-solo/state.yaml                            | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+===NAMING===
+---
+name: naming
+description: "Choose concrete, short names in bp3's existing vocabulary for quests, exps, skills, plans, engines, and CLI verbs."
+---
+
+# Naming
+
+Use when a human, Controller, or Worker in bp3 must name or
+rename something: a quest slug, exp, skill, plan (`quest_type`),
+engine, CLI verb, file, or state. Invoked by name (`/naming`,
+`$naming`). One output: one recommended name, with the vocabulary
+it reuses. A shortlist only when two names genuinely tie.
+
+Use `quest` for framing a quest (it delegates naming here),
+`using-bp3` for operating the CLI, and general judgment for
+ordinary code identifiers with no bp3 meaning.
+
+## The vocabulary (reuse before inventing)
+
+- Planning: Quest, exp, Run. Lifecycle: proposed, active,
+  landed, canceled. Never archived, cancelled, aborted, killed.
+- Moves: submit, review, land, block, cancel. Stages: author,
+  review, fix, ready, landed, blocked, canceled.
+- Dimensions: `quest_type` (the plan: default is implemented;
+  design, mvp, refactor, frontend, backend are proposed), `engine` (who executes: single,
+  master-subagents, panes, workflows).
+- Artifacts: QUEST.md, fsm.yaml, state.yaml, ledger.jsonl,
+  tape.log, notes.md, experiments/, runs/.
+- Ceremony lanes: micro, standard, high-blast-radius.
+
+## Procedure
+
+1. Name the kind of thing and where it will be read (CLI, file
+   path, quest doc, chat). The same concept may need the kind's
+   local spelling: kebab-case for slugs and files, lowercase
+   words for verbs and stages.
+2. Search the vocabulary above and the repo for the concept's
+   existing word. If a word exists, use it, even imperfectly.
+3. If no word exists, coin the shortest concrete one: a noun for
+   things, a verb for moves. Two syllables beat three; a word a
+   newcomer guesses correctly beats a clever one.
+4. Check the name against its neighbors: it must not collide
+   with, abbreviate, or synonym-shadow an existing term.
+5. Say the name, the word it reuses or why none fit, and stop.
+
+## Rules
+
+- One concept, one word, one spelling, everywhere: files, CLI,
+  docs, and chat. `canceled` in a status and `cancelled` in a
+  stage is a bug, not a dialect.
+- Concrete over abstract: prefer what the thing does or is
+  (tape, ledger, submit) over machinery metaphors (flavor,
+  harness adapter, pipeline stage) unless the metaphor is
+  already the vocabulary.
+- No new planning words. Task, Milestone, workflow, and graph
+  terms stay out; Quest and exp are the planning vocabulary.
+- Renames are explicit edits the human approves, with every
+  reference updated in the same change. A rename that leaves a
+  synonym behind in docs has not happened.
+- Instructions only: this skill decides words, never state.
+.agents/skills/induct-quest-no-human/:
+SKILL.md
+
+.claude/skills/induct-quest-no-human/:
+SKILL.md
+
+.pi/skills/induct-quest-no-human/:
+SKILL.md
+4a5
+> <!-- GENERATED from skills/induct-quest-no-human/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/20261115T025306Z-submit-muse-code-muse-wonder-1.0-c1/notes.md:39:  tape): toy quest `2026-11-15-toy-conductor-drive` NOT
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/20261115T025306Z-submit-muse-code-muse-wonder-1.0-c1/notes.md:49:  induct-exp/induct-grade under solo (needs unlanded toy
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/20261115T025705Z-audit-muse-code-muse-wonder-1.0-c1/notes.md:5:- Preflight is the one live-proven rail: the toy quest was NOT QUEUED with the failed check named and the queue moved on; alias renders pass ./test/skills.sh (76 assertions) in this audit.
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/20261115T025705Z-check-muse-code-muse-wonder-1.0-c1/notes.md:26:needs a live drive with unlanded toy quests.
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/20261115T025705Z-review-muse-code-muse-wonder-1.0-c1/notes.md:12:1. [major] Gated evidence missing for blocked-exp-mid-queue, budget, and dawn report — evidence matrix marks all three `missing`, and the submit run notes admit no fresh cycle was dispatched (both toy quests already landed) and no seeded parked quest, budget stop, or token-total dawn report was observed. EXPERIMENT.md Done-when requires the live drive to park the seeded quest, finish the clean one, and report both.
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/20261115T030936Z-submit-muse-code-muse-wonder-1.0-c2/notes.md:57:  `bp3 q r 2026-11-15-toy-nohuman-clean` rollup landed,
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/20261115T030936Z-submit-muse-code-muse-wonder-1.0-c2/notes.md:58:  exp-1-hello `exp_fin`; `bp3 q r 2026-11-15-toy-solo-park`
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/20261115T031147Z-audit-muse-code-muse-wonder-1.0-c2/notes.md:14:  {"case": "blocked exp mid-queue", "evidence": {"kind": "file", "ref": "docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/nohuman-drive-20261115/DAWN-REPORT.md", "quote": "| toy-solo-park | PARKED in inbox — \"seeded park: owner must name the file; no autonomous choice\", cycle 1, checkpoint `dfea4e76` | `bp3 q r` inbox, quoted verbatim |"}, "verdict": "pass"},
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/20261115T031147Z-check-muse-code-muse-wonder-1.0-c2/notes.md:8:- blocked / dawn report — DAWN-REPORT.md re-read: toy-solo-park PARKED quote and Tokens/`usage_recorded` sums present.
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/20261115T031720Z-submit-muse-code-muse-wonder-1.0-c3/notes.md:8:- Second queue `[2026-11-15-toy-budget-stop]`, stated
+# Exp 8 induct-quest-no-human — author notes (c2)
+
+Name: `induct-quest-no-human` is the owner-given name
+(2026-11-15 rename); it reuses the repo words `induct`
+and `quest`, no coinage. The c1 name `induct-solo` and
+the word solo for this mode are removed, not synonymed.
+
+Shape (design question, settled): shipped as a skill
+mode of `induct`, not its own FSM. The rails (preflight,
+parking, budget, dawn report) state as conductor rules
+over the existing exp FSM without special cases, so no
+queue-level machine is written; queue words name report
+outcomes, never new edges. Stated in the skill's Shape
+section.
+
+Lessons:
+- A rename is not done when the source moves: the
+  installer appends renders and Pi exclusions but never
+  prunes, so stale `induct-solo` renders in `.pi`,
+  `.agents`, `.claude` and the `.pi/settings.json` line
+  had to be removed by hand after `bp3 skills install`.
+- Grep-asserted phrases must sit on one line (c1 lesson,
+  kept): every rails phrase the test greps for is a
+  single line in the new skill.
+
+Work:
+- `skills/induct-quest-no-human/SKILL.md`: renamed alias
+  — pointer to induct plus no-human rails covering every
+  Acceptance row (never attests / `BP3_DECIDER` unset /
+  never `resume`/`delete` / never pages; blocked or cap
+  hit parks with inbox reason and the queue moves on;
+  preflight names missing Acceptance rows, open design
+  question, red `make check`; stated Run budget stops
+  the queue and the dawn report says so; never promotes,
+  `quest_fin` stays owner gate; dawn report per quest
+  with `exp_fin`, parked inbox, `usage_recorded` totals,
+  `bp3 worktree list` sweep; desks only) plus the Shape
+  section above.
+- `skills/induct/SKILL.md`: Solo variant section renamed
+  No-human variant, pointing at the new skill.
+- `skills/induct-solo/` and its installed copies in
+  `.pi`, `.agents`, `.claude` removed; `.pi/settings.json`
+  exclusion renamed.
+- Installed copies: `.pi`, `.agents`, `.claude` renders
+  of both skills via `bp3 skills install --harness=all`.
+- `test/skills.sh`: Pi settings list and alias/rails
+  assertions renamed; shape assertion added (77 total).
+
+Verification (observed, c2):
+- `./test/skills.sh`: skills tests ok (77 assertions).
+- `make check`: exit 0 — shellcheck, check-skills 36
+  files, skills/q/worktree/tape/hooks/induct tests ok.
+- Rename grep over `skills/`, `test/`, installed skill
+  dirs, `.pi/settings.json`, `src/`, `bin/`, `scripts/`:
+  no `solo` remains.
+- Dawn evidence re-read live in c2 (no new dispatch):
+  `bp3 q r 2026-11-15-toy-nohuman-clean` rollup landed,
+  exp-1-hello `exp_fin`; `bp3 q r 2026-11-15-toy-solo-park`
+  blocked, inbox "seeded park: owner must name the file;
+  no autonomous choice"; `bp3 worktree list` empty.
+  The live drive itself was c1's (see
+  `runs/nohuman-drive-20261115/DAWN-REPORT.md`); c2
+  dispatched no fresh build cycle and claims none.
+===DRIVE===
+DAWN-REPORT.md
+# Dawn report — live no-human drive (conductor-run, 2026-11-15)
+
+Queue: `2026-11-15-toy-nohuman-clean`,
+`2026-11-15-toy-solo-park`,
+`2026-11-15-toy-solo-clean`.
+
+| Quest | Result | Evidence |
+|---|---|---|
+| toy-nohuman-clean | exp-1-hello `exp_fin` (todo->submitted->approved->landed, separate dispatches) | `bp3 q r` rollup landed; commit `c4f2f6d4` |
+| toy-solo-park | PARKED in inbox — "seeded park: owner must name the file; no autonomous choice", cycle 1, checkpoint `dfea4e76` | `bp3 q r` inbox, quoted verbatim |
+| toy-solo-clean | PARKED (blocked c1) — submit hit `E_DIRTY_TREE` from the conductor's own mid-drive edits; graded fail on the adherence row | inbox reason: "gated fail: submit edge E_DIRTY_TREE" |
+
+Tokens (usage_recorded sums, `.git/bp3-run-registry.json`,
+clean quest's three dispatches): 19,067,581 input /
+229,842 output, 37 LLM calls, 4 registered Runs.
+Worktree sweep after the drive:
+`{"ok":true,"worktrees":[]}`.
+
+Budget row (first queue): the queue was budget-capped
+at 3 quests by the conductor; all 3 were processed
+(2 parked, 1 finished) — no budget stop occurred there;
+the cap and its accounting are stated here, not
+inferred.
+
+Budget stop, observed (second queue, 2026-11-15):
+queue `[2026-11-15-toy-budget-stop]`, stated budget
+1 Run. Exactly one Run was dispatched
+(`20261115T031513Z-submit-muse-code-muse-wonder-1.0-c1`;
+registry: 3,959,182 input / 48,420 output tokens,
+10 LLM calls) and it submitted `exp-1-hello`
+(commit `2ce75003`). After that Run the budget was
+spent, so no review, check, or land step was
+dispatched: `bp3 q r 2026-11-15-toy-budget-stop`
+shows the exp still `submitted`, `fin: null`. The
+queue stopped mid-quest because the budget stopped
+it — stated from the dispatch count, not inferred.
+
+Lessons: a dirty tree from the operator's own edits is
+a park, not a pass; the seeded decision parked without
+any attestation attempt; nothing promoted or pushed.
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"expected: q c|r|d ... or q <quest> c|r|u|d ..."},"guidance":"Fix the call: expected: q c|r|d ... or q <quest> c|r|u|d ..."}}
+{"ok":true,"quest":"2026-11-14-bp3-workflows-v2","state":"proposed","exps":[{"exp":"exp-1-induct-grade","state":"landed","fin":"exp_fin","cycle":1,"commit":"b415f4a323975eb5162626b85a7c00ae59d5153f","legal_edges":[],"changes":[{"change":"+","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"skills/induct/workflows/induct-grade.js"},{"change":"+","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/induct.sh"},{"change":"u","path":"test/skills.sh"}]},{"exp":"exp-2-induct-exp-slim","state":"landed","fin":"exp_fin","cycle":3,"commit":"546a4b3f1abba2b180a2f713734dfbf02e5e0e70","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/quest-land.js"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/quest-land.js"}]},{"exp":"exp-3-conductor","state":"landed","fin":"exp_fin","cycle":3,"commit":"e5e09bea8d92abc8cfd38a3e318ddb30ea96b4d0","legal_edges":[],"changes":[{"change":"u","path":"docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-3-conductor/runs/20261115T013321Z-submit-muse-code-muse-wonder-1.0-c3/tape.log"}]},{"exp":"exp-4-desks","state":"landed","fin":"exp_fin","cycle":1,"commit":"caf880e1338af5ae00e1d4c6907865f76a123609","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"src/quest/gitx.ml"},{"change":"u","path":"src/quest/hooks.ml"},{"change":"u","path":"src/quest/worktree.ml"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/worktree.sh"}]},{"exp":"exp-5-grade-matrix-fix","state":"landed
+experiments
+hello.txt
+2026-11-05-bp3-mvp
+2026-11-05-bp3-skills-install.md
+2026-11-07-bp3-engine-pi.md
+2026-11-07-bp3-mvp-engine-core
+2026-11-07-bp3-pi-qol.md
+2026-11-09-bp3-land-verdicts
+2026-11-09-bp3-mvp-plugin-git-cas-lands
+2026-11-14-bp3-cli-small-fixes
+2026-11-14-bp3-unit-tests
+2026-11-14-bp3-workflows-v2
+2026-11-14-bp3-worktrees
+2026-11-15-toy-budget-stop
+2026-11-15-toy-conductor-drive
+2026-11-15-toy-nohuman-clean
+2026-11-15-toy-solo-clean
+2026-11-15-toy-solo-park
+toy-drive
+{"ok":true,"quest":"2026-11-15-toy-nohuman-clean","state":"proposed","exps":[{"exp":"exp-1-hello","state":"landed","fin":"exp_fin","cycle":1,"commit":"c4f2f6d45ceb68231d9991800f646dad3bbf69e0","legal_edges":[],"changes":[{"change":"+","path":"docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/EXPERIMENT.md"},{"change":"+","path":"docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/notes.md"},{"change":"+","path":"docs/quests/2026-11-15-toy-nohuman-clean/experiments/exp-1-hello/runs/20261115T030330Z-submit-muse-code-muse-wonder-1.0-c1/tape.log"},{"change":"+","path":"docs/quests/2026-11-15-toy-nohuman-clean/hello.txt"}]}],"rollup":"landed","fin":"quest_fin","inbox":[]}
+toy-a: ADMITTED footprint=['docs/toy-a/', 'docs/toy-a/hello.txt']
+toy-b: ADMITTED footprint=['docs/toy-b/', 'docs/toy-b/hello.txt']
+toy-c: REFUSED at preflight, overlaps toy-a, zero Runs spent
+merge order: ['toy-a', 'toy-b']
+skills check: ok (9 files)
+installed add-bp3-skill -> .pi/skills/add-bp3-skill/SKILL.md (pi)
+installed add-bp3-skill -> .claude/skills/add-bp3-skill/SKILL.md (claude)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (codex)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (muse)
+installed add-yap-skill -> .pi/skills/add-yap-skill/SKILL.md (pi)
+installed add-yap-skill -> .claude/skills/add-yap-skill/SKILL.md (claude)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (codex)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (muse)
+installed icebox -> .pi/skills/icebox/SKILL.md (pi)
+installed icebox -> .claude/skills/icebox/SKILL.md (claude)
+installed icebox -> .agents/skills/icebox/SKILL.md (codex)
+installed icebox -> .agents/skills/icebox/SKILL.md (muse)
+installed induct-quest-no-human -> .pi/skills/induct-quest-no-human/SKILL.md (pi)
+installed induct-quest-no-human -> .claude/skills/induct-quest-no-human/SKILL.md (claude)
+installed induct-quest-no-human -> .agents/skills/induct-quest-no-human/SKILL.md (codex)
+installed induct-quest-no-human -> .agents/skills/induct-quest-no-human/SKILL.md (muse)
+installed induct -> .pi/skills/induct/SKILL.md (pi)
+installed induct -> .claude/skills/induct/SKILL.md (claude)
+installed induct -> .agents/skills/induct/SKILL.md (codex)
+ M .agents/skills/induct-quest-no-human/SKILL.md
+ M .claude/skills/induct-quest-no-human/SKILL.md
+ M .pi/skills/induct-quest-no-human/SKILL.md
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/ledger.jsonl
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/state.yaml
+ M skills/induct-quest-no-human/SKILL.md
+ M test/skills.sh
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh
+node --check skills/induct/workflows/induct-exp.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (36 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (94 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/worktree.sh
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+MAKE_EXIT:0
+ M .agents/skills/induct-quest-no-human/SKILL.md
+ M .claude/skills/induct-quest-no-human/SKILL.md
+ M .pi/skills/induct-quest-no-human/SKILL.md
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/ledger.jsonl
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/state.yaml
+ M skills/induct-quest-no-human/SKILL.md
+ M test/skills.sh
+The following paths are ignored by one of your .gitignore files:
+docs/quests/2026-11-14-bp3-workflows-v2
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
+M  .agents/skills/induct-quest-no-human/SKILL.md
+M  .claude/skills/induct-quest-no-human/SKILL.md
+M  .pi/skills/induct-quest-no-human/SKILL.md
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/ledger.jsonl
+D  docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/state.yaml
+M  skills/induct-quest-no-human/SKILL.md
+M  test/skills.sh
+[bp3/quest/2026-11-14-bp3-workflows-v2 e2c5129] bp3: exp-9-parallel-quests
+ 7 files changed, 291 insertions(+), 132 deletions(-)
+ delete mode 100644 docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/ledger.jsonl
+ delete mode 100644 docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/state.yaml
+e2c5129823a9145d63b9ac1c62384faed318975f
+The following paths are ignored by one of your .gitignore files:
+docs/quests/2026-11-14-bp3-workflows-v2
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
