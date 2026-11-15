@@ -19,7 +19,13 @@
    files are no longer imported on any path. Since mvp.8
    the InitRecord has a named writer: record-init, called
    by the induct workflow launcher before it spawns each
-   workflow child (the child never writes its own proof). *)
+   workflow child (the child never writes its own proof).
+   followup.1 fixed the writer discipline for parallel
+   supervisors: one write() per derivation row on an
+   O_APPEND descriptor, the derived-state cache written
+   to a uniquely named temp file in the same directory
+   and renamed over the old cache, and a torn final line
+   ignored by readers and reported as W_TORN_TAIL. *)
 open Gitx
 open Store
 
@@ -103,6 +109,69 @@ let ensure_dir dir =
   (try Unix.mkdir parent 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> () | _ -> ());
   (try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> () | _ -> ())
 
+(* ---------- writer discipline (followup.1) ---------- *)
+(* Parallel supervisors fold the same Run, so the store
+   stays safe with no locks and no daemon. A derivation
+   row is exactly one write() on an O_APPEND descriptor:
+   the kernel moves the offset as part of that write, so
+   rows from concurrent writers interleave whole or not
+   at all and no row is lost to a tear. The derived-state
+   cache is written to a uniquely named temp file in the
+   same directory, fsynced, then renamed over the cache:
+   a reader sees the old snapshot or the new one, never
+   a torn one, and the last writer wins whole. Readers
+   in turn fold only newline-terminated rows; a final
+   unterminated fragment is a torn tail — ignored, and
+   reported as W_TORN_TAIL, never folded as fact. *)
+let write_one fd path s =
+  let n = Unix.write_substring fd s 0 (String.length s) in
+  if n <> String.length s then
+    raise (Unix.Unix_error (Unix.EIO, "write", path))
+
+let append_row path row =
+  let fd = Unix.openfile path
+    [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_APPEND] 0o644 in
+  (try write_one fd path (row ^ "\n")
+   with e -> (try Unix.close fd with _ -> ()); raise e);
+  Unix.close fd
+
+(* Create-only sibling of append_row for the InitRecord:
+   O_EXCL makes a racing second writer fail, never append. *)
+let create_row path row =
+  let fd = Unix.openfile path
+    [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_EXCL; Unix.O_APPEND] 0o644 in
+  (try write_one fd path (row ^ "\n")
+   with e -> (try Unix.close fd with _ -> ()); raise e);
+  Unix.close fd
+
+let cache_tmp_counter = ref 0
+
+let write_cache_file path content =
+  incr cache_tmp_counter;
+  let tmp = Printf.sprintf "%s.tmp.%d.%d" path
+    (Unix.getpid ()) !cache_tmp_counter in
+  let fd = Unix.openfile tmp
+    [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC] 0o644 in
+  (try write_one fd tmp content; Unix.fsync fd
+   with e ->
+     (try Unix.close fd with _ -> ());
+     (try Unix.unlink tmp with _ -> ());
+     raise e);
+  Unix.close fd;
+  Sys.rename tmp path
+
+(* Only newline-terminated lines are whole rows; the
+   second result is true when an unterminated, non-blank
+   final fragment (a torn tail) was dropped. *)
+let whole_lines text =
+  if text = "" then ([], false)
+  else if text.[String.length text - 1] = '\n' then
+    (String.split_on_char '\n' text, false)
+  else
+    match List.rev (String.split_on_char '\n' text) with
+    | tail :: rest -> (List.rev rest, String.trim tail <> "")
+    | [] -> ([], false)
+
 let pid_alive pid =
   let exists =
     try Unix.kill pid 0; true
@@ -124,13 +193,17 @@ let get_int_opt j key =
   try match Yojson.Safe.Util.member key j with `Int n -> Some n | _ -> None
   with _ -> None
 
-(* Fold one Run's derivation log. Malformed lines (a torn
-   final line included) carry no fact and are skipped. *)
+(* Fold one Run's derivation log. Only whole rows carry
+   fact: a malformed whole line is skipped, and a torn
+   tail (an unterminated final fragment left by a reader
+   racing an append) is skipped and reported, never folded. *)
 let fold_run_file ~silence_seconds path =
   let text = read_file_or path "" in
+  let (lines, torn) = whole_lines text in
+  let tail_warns = if torn then ["W_TORN_TAIL"] else [] in
   let init = ref None in
   let obs = ref no_observation in
-  String.split_on_char '\n' text |> List.iter (fun ln ->
+  lines |> List.iter (fun ln ->
     let ln = String.trim ln in
     if ln <> "" then
       try
@@ -160,7 +233,7 @@ let fold_run_file ~silence_seconds path =
         | _ -> ()
       with _ -> ());
   (match !init with
-   | None -> (!init, !obs, [])
+   | None -> (!init, !obs, tail_warns)
    | Some rec_ ->
        let o = !obs in
        let alive = match rec_.pid with
@@ -175,7 +248,8 @@ let fold_run_file ~silence_seconds path =
                         <= float_of_int silence_seconds)
               with _ -> blind := true; (o.tape_seen, o.fresh)) in
        let o = { o with pid_alive = alive; tape_seen; fresh } in
-       (!init, o, if !blind then ["W_SUPERVISOR_BLIND"] else []))
+       (!init, o,
+        (if !blind then ["W_SUPERVISOR_BLIND"] else []) @ tail_warns))
 
 type run_view = {
   rv_id : string;
@@ -228,12 +302,7 @@ let write_cache dir (rec_ : init_record) run_id lifecycle warns obs silence_seco
       ("jsonl_size", `Int jsz); ("jsonl_mtime", `Int jmt);
       ("tape_size", `Int tsz); ("tape_mtime", `Int tmt);
     ] in
-    let path = cache_path dir run_id in
-    let tmp = path ^ ".tmp" ^ string_of_int (Unix.getpid ()) in
-    let oc = open_out_bin tmp in
-    output_string oc (Yojson.Safe.to_string j);
-    close_out oc;
-    Sys.rename tmp path
+    write_cache_file (cache_path dir run_id) (Yojson.Safe.to_string j)
   with _ -> ()
 
 let read_cache dir run_id silence_seconds =
@@ -314,8 +383,9 @@ let fold_all ~quest ~silence_seconds =
 (* ---------- per-Run writer (supervisor-owned) ---------- *)
 let last_observed_lifecycle path =
   let text = read_file_or path "" in
+  let (lines, _torn) = whole_lines text in
   let last = ref None in
-  String.split_on_char '\n' text |> List.iter (fun ln ->
+  lines |> List.iter (fun ln ->
     let ln = String.trim ln in
     if ln <> "" then
       try
@@ -351,7 +421,8 @@ let probe_observation ~silence_seconds (rec_ : init_record) prior =
 
 (* Append one observation row to the Run's own derivation
    log, only when its derived lifecycle changed. Parallel
-   Runs write separate files; no shared file is touched. *)
+   Runs write separate files; parallel supervisors folding
+   the same Run append whole rows only (append_row). *)
 let append_observation dir (rf : run_fold) ~silence_seconds =
   let run_id = rf.rf_view.rv_id in
   if run_id = "" || contains_sub run_id "/" || contains_sub run_id ".." then ()
@@ -383,9 +454,7 @@ let append_observation dir (rf : run_fold) ~silence_seconds =
           ("pid", (match rf.rf_rec.pid with Some p -> `Int p | None -> `Null));
           ("warnings", `List (List.map json_str warns));
         ] in
-        let oc = open_out_gen [Open_append; Open_creat] 0o644 rf.rf_jsonl in
-        output_string oc (Yojson.Safe.to_string row ^ "\n");
-        close_out oc
+        append_row rf.rf_jsonl (Yojson.Safe.to_string row)
     with _ -> ()
 
 (* ---------- argv ---------- *)
@@ -640,8 +709,9 @@ let all_init_records () =
         if not (Filename.check_suffix n ".jsonl") then []
         else
           let text = read_file_or (Filename.concat dir n) "" in
+          let (lines, _torn) = whole_lines text in
           let found = ref [] in
-          String.split_on_char '\n' text |> List.iter (fun ln ->
+          lines |> List.iter (fun ln ->
             let ln = String.trim ln in
             if ln <> "" then
               try
@@ -1160,7 +1230,7 @@ let do_watch args =
            if dobs.exit_observed then exit_obs := true;
            if dobs.tape_closed then closed := true;
            if dobs.settle_row then settle := true;
-           if dwarns <> [] then blind := true
+           if List.mem "W_SUPERVISOR_BLIND" dwarns then blind := true
          end
      | None -> ());
     (* tape: growth resets silence; signals are sticky *)
@@ -1336,9 +1406,11 @@ let do_record_init args =
          ("harness", json_str harness);
          ("ts", json_str (now_ts ()));
        ] @ opt_fields) in
-       let oc = open_out_gen [Open_append; Open_creat; Open_excl] 0o644 path in
-       output_string oc (Yojson.Safe.to_string row ^ "\n");
-       close_out oc;
+       (try create_row path (Yojson.Safe.to_string row)
+        with Unix.Unix_error (Unix.EEXIST, _, _) ->
+          err "E_EXISTS" (`Assoc [("run_id", json_str run_id);
+                                  ("path", json_str path)])
+            "An InitRecord already exists for that run-id; refusing to overwrite." 1);
        print_endline (Yojson.Safe.to_string (`Assoc [
          ("ok", `Bool true);
          ("run_id", json_str run_id);
@@ -1367,7 +1439,7 @@ let help_supervisor = "bp3 harness supervisor - passive supervisor loop for one 
   Streams NDJSON lifecycle_change rows on stdout, ends with one JSON verdict {ok, quest, outcome, settled, rollup, runs, inbox, orphans}.\n\
   Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
   Durations are bare positive integers; 0, negatives, and suffixed values are usage errors.\n\
-  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Since mvp.5 the derivation logs are the sole lifecycle read path; the retired shared maps are never read or written.\n\
+  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Since mvp.5 the derivation logs are the sole lifecycle read path; the retired shared maps are never read or written. Writer discipline (followup.1): each row is a single write() on an O_APPEND descriptor and the cache is a uniquely named temp file in the same directory, fsynced and renamed over the old cache, so parallel supervisors never tear a row or the cache; a torn final line is ignored by the fold and reported as W_TORN_TAIL.\n\
 Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
 
 let help_init_check = "bp3 harness init-check - probe tape sources per harness:\n\
