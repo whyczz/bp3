@@ -45,9 +45,12 @@ Use `red-ink` when an existing design needs a decision walk.
 
 Promotion is defined in the `quest` skill (section
 "Promotion from the icebox"): trigger fires, owner names the
-entry, the Quest procedure re-decides everything, and this
-entry gains only a `promoted:` field pointing at the Quest.
-This skill never edits an entry beyond that field.
+entry, the Quest procedure re-decides everything, and at
+owner approval the entry is copied verbatim to `ICEBOX.md`
+in the Quest folder, gains a `promoted:` field pointing
+at the Quest, and is then **deleted** — git history is the
+fossil. This skill never edits an entry beyond that field
+before the delete.
 
 ## Rules
 
@@ -56,7 +59,8 @@ This skill never edits an entry beyond that field.
   anything the entry merely assumed.
 - Quick means quick: one short file. If the sketch needs exp
   breakdowns and acceptance checks, it is ready for `/quest`.
-- Never delete an entry. On promotion, set `promoted:` to the
-  quest path and leave the entry as the fossil record.
+- On promotion, set `promoted:` to the quest path, then
+  delete the entry (owner rule, 2026-11-15). Git history is
+  the fossil record; an unpromoted entry is never deleted.
 - Instructions only: this skill writes docs. It creates no
   branches, ledger lines, or Board records.

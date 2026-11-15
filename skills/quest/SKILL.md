@@ -88,8 +88,9 @@ Promotion means exactly this, no more:
 | Trigger check | the entry's stated promotion trigger has observably fired; the owner names the entry |
 | Transcription, not adoption | the entry is research input to step 2, nothing more. This skill's whole procedure still runs: sync, research, names, exps, red chair. Every assumption the entry made is re-decided here; entry text is never copied in as settled design |
 | Link both ways | the Quest file names the entry in its Context; the entry gains one field (below) |
-| Marking | when the owner approves the framed Quest (it now governs build), set the entry's `promoted:` to the Quest path. The entry's `status:` stays `frozen` forever, its text is never edited, and it is never deleted — it remains the fossil of the day the idea was shelved |
-| Thaw that dies | if the framed Quest is canceled before landing, `promoted:` stays set: it records that the thaw happened and where it went |
+| Context copy | at promotion, copy the entry **verbatim** to `ICEBOX.md` in the Quest folder (a straight-up copy, never transcribed into prose): the frozen context travels with the Quest even after the original is deleted. The Quest file links `ICEBOX.md` wherever it would have linked the entry |
+| Marking | when the owner approves the framed Quest (it now governs build), set the entry's `promoted:` to the Quest path, take the `ICEBOX.md` copy, then **delete the entry** (owner rule, 2026-11-15). The Quest file is the living record; git history is the fossil of the day the idea was shelved |
+| Thaw that dies | if the framed Quest is canceled before landing, restore the entry from git history with `promoted:` still set: it records that the thaw happened and where it went |
 
 An entry without a fired trigger is not promotable; a
 Quest framed from one anyway says so in its Open questions.
