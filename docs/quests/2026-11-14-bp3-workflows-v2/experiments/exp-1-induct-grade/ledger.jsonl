@@ -11,3 +11,4 @@
 {"ts":"2026-11-15T00:12:14Z","edge":"check","from":"submitted","to":"submitted","cycle":1,"commit":"b415f4a323975eb5162626b85a7c00ae59d5153f","verdict":"pass","reason":"make check exit 0; induct-grade tests ok on bound commit","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"lint_checked","ts":"2026-11-15T00:12:15Z","run_id":"20261115T000656Z-review-muse-code-muse-wonder-1.0-c1","check":"make lint","result":"pass"}
 {"event":"usage_recorded","ts":"2026-11-15T00:12:18Z","run_id":"20261115T000656Z-check-muse-code-muse-wonder-1.0-c1","input_tokens":1792347,"output_tokens":28717,"cached_tokens":1520180,"reasoning_tokens":10756,"wall_ms":64000,"started_ts":"2026-11-15T00:11:14Z","settled_ts":"2026-11-15T00:12:18Z"}
+{"event":"run_settled","ts":"2026-11-15T00:12:18Z","run_id":"20261115T000656Z-check-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
