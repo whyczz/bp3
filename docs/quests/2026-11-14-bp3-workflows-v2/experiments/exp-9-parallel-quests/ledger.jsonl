@@ -14,3 +14,4 @@
 {"event":"run_started","ts":"2026-11-15T03:37:44Z","run_id":"20261115T033425Z-review-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"083e7fea-6300-7564-883b-29b3d98951bc"}
 {"ts":"2026-11-15T03:37:44Z","edge":"review","from":"submitted","to":"approved","cycle":1,"commit":"c29715b6848e17edc539486c438c86ebe784d7ff","verdict":"ship","reason":"fleet rules cover all six acceptance cases; live fleet drive observed; make check green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"lint_checked","ts":"2026-11-15T03:37:44Z","run_id":"20261115T033425Z-review-muse-code-muse-wonder-1.0-c1","check":"make check","result":"pass"}
+{"event":"usage_recorded","ts":"2026-11-15T03:37:47Z","run_id":"20261115T033425Z-review-muse-code-muse-wonder-1.0-c1","input_tokens":622530,"output_tokens":5530,"cached_tokens":601012,"reasoning_tokens":1203,"wall_ms":3000,"started_ts":"2026-11-15T03:37:44Z","settled_ts":"2026-11-15T03:37:47Z"}
