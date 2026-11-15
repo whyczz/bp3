@@ -90,4 +90,13 @@ printf '{broken' > "$root/.pi/settings.json"
 "$root/bin/bp3" skills install --harness=codex > /dev/null
 assert grep -qx '{broken' "$root/.pi/settings.json"
 
+# Cycle autonomy (exp-6): needs_fix rides, blocked pages.
+assert grep -q 'next author cycle itself' "$repo/skills/induct/SKILL.md"
+assert grep -q 'named fix rides along verbatim' "$repo/skills/induct/SKILL.md"
+assert grep -q 'does not ask the owner about the cycle' "$repo/skills/induct/SKILL.md"
+assert grep -q 'cycle cap' "$repo/skills/induct/SKILL.md"
+assert grep -q 'scope change autonomously' "$repo/skills/induct/SKILL.md"
+assert grep -q 'Human attestation comes only from actual human words' "$repo/skills/induct/SKILL.md"
+assert grep -q 'next author cycle itself' "$root/.agents/skills/induct/SKILL.md"
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"
