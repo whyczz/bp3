@@ -105,6 +105,12 @@ printf '{broken' > "$root/.pi/settings.json"
 "$root/bin/bp3" skills install --harness=codex > /dev/null
 assert grep -qx '{broken' "$root/.pi/settings.json"
 
+# Quest red-chair of the source: critical/major concerns settle or become follow-up exps.
+assert grep -q 'Red-chair the source itself' "$repo/skills/quest/SKILL.md"
+assert grep -q 'appended as a \*\*follow-up exp\*\*' "$repo/skills/quest/SKILL.md"
+assert grep -q 'Risks is not a parking lot' "$repo/skills/quest/SKILL.md"
+assert grep -q 'Red-chair the source itself' "$root/.agents/skills/quest/SKILL.md"
+
 # Cycle autonomy (exp-6): needs_fix rides, blocked pages.
 assert grep -q 'next author cycle itself' "$repo/skills/induct/SKILL.md"
 assert grep -q 'named fix rides along verbatim' "$repo/skills/induct/SKILL.md"

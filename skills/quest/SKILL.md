@@ -26,6 +26,9 @@ def quest(intent):
     names = define_terms(intent)         # spellings synced with code/data
     exps = break_down(intent, acceptance="fails today")
     attack(goal, scope, exp_order)       # red chair, recorded
+    attack(source)                       # the icebox/prompt itself
+    for c in concerns if c.severity in (critical, major):
+        settle(c) or append_followup_exp(c)   # proof owed, not prose
     return write_quest_file(names, exps)  # governs after human approval
 ```
 
@@ -72,6 +75,7 @@ because a gate that starts green certifies nothing.
 | 6.5 | Diligence gate per exp: design settled (no open questions), acceptance fails today, demo defined up front | an exp with open design questions is not ready for `induct`; settle it with `red-ink` first — Exp 4 of the MVP quest shipped unsettled design and the landing review caught it late |
 | 6.6 | Skill changes ride as their own exp | if the Quest's changes touch any skill (bp3 `skills/`, yap skills, installed copies), name a skill-change exp with its own acceptance (skill tests, render/install assertions); never edit a skill inline during framing, and never fold a skill change into a code exp — skills are how children behave, so they get the same gate as code |
 | 7 | Red-chair passes on goal, scope, exp order | strongest attack + what it changed, recorded |
+| 7.5 | Red-chair the source itself: the icebox entry or the owner's prompt (its assumptions, wrong problem, boring alternative), before approving the draft built on it | every **critical or major** concern ends in exactly one of two places: settled by a recorded change to the design it attacked, or appended as a **follow-up exp** (next numbers on the railway, labeled `(follow-up)`) whose acceptance proves the design addressed it. A critical/major concern left as prose in Risks, or with neither settlement nor exp, blocks approval |
 | 8 | Stage fat exps as numbered substeps (1.1, 1.2, ...) | each substep passes on its own |
 
 Keep exp detail inside the Quest file: intent, order, dependencies,
@@ -217,6 +221,7 @@ Success picture.
 | Case | Move |
 |---|---|
 | acceptance reads like a hope | rewrite until it can fail today |
+| red-chair concern parked as a Risks paragraph | Risks is not a parking lot: a critical/major concern is settled in the design or appended as a follow-up exp (step 7.5); prose is neither |
 | file claims a result never observed | mark it proposed / unmet |
 | new planning vocabulary creeps in | Quest, exp, Run carry the load; send the rest back |
 | accepted Quest needs a goal change mid-build | explicit edit, human-approved |
