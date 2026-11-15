@@ -13,3 +13,4 @@
 {"event":"lint_checked","ts":"2026-11-15T00:34:08Z","run_id":"20261115T003140Z-review-muse-code-muse-wonder-1.0-c1","check":"make check","result":"pass"}
 {"event":"usage_recorded","ts":"2026-11-15T00:34:17Z","run_id":"20261115T003140Z-review-muse-code-muse-wonder-1.0-c1","input_tokens":1748569,"output_tokens":19578,"cached_tokens":1660040,"reasoning_tokens":7492,"wall_ms":10000,"started_ts":"2026-11-15T00:34:07Z","settled_ts":"2026-11-15T00:34:17Z"}
 {"event":"run_settled","ts":"2026-11-15T00:34:17Z","run_id":"20261115T003140Z-review-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
+{"ts":"2026-11-15T00:34:50Z","edge":"resume","from":"blocked","to":"todo","cycle":2,"commit":null,"verdict":null,"reason":"owner chose amend + resume: exp-2 re-grade row reworded as NOT gated, deferred to Exp 2","harness":"muse-code","model":"none","bp3_version":"0.2.0"}
