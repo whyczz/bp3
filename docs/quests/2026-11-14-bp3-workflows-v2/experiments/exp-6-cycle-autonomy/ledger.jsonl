@@ -13,3 +13,4 @@
 {"event":"run_settled","ts":"2026-11-15T02:25:20Z","run_id":"20261115T022202Z-check-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
 {"ts":"2026-11-15T02:25:30Z","edge":"review","from":"submitted","to":"approved","cycle":1,"commit":"b0321786cb79ea972d236b8c0290c3e5f02e0b4a","verdict":"ship","reason":"all 5 acceptance cases evidenced in skill text; test/skills.sh 55 assertions pass","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"usage_recorded","ts":"2026-11-15T02:25:32Z","run_id":"20261115T022202Z-review-muse-code-muse-wonder-1.0-c1","input_tokens":2897224,"output_tokens":35491,"cached_tokens":2777532,"reasoning_tokens":11872,"wall_ms":32000,"started_ts":"2026-11-15T02:25:00Z","settled_ts":"2026-11-15T02:25:32Z"}
+{"event":"run_settled","ts":"2026-11-15T02:25:32Z","run_id":"20261115T022202Z-review-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
