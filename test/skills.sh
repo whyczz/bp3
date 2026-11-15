@@ -120,4 +120,23 @@ assert grep -q 'skill mode of `induct`' "$repo/skills/induct-quest-no-human/SKIL
 assert grep -q 'induct-quest-no-human' "$repo/skills/induct/SKILL.md"
 assert grep -q 'No-human never' "$root/.agents/skills/induct/SKILL.md"
 
+# Fleet (exp-9): footprint preflight, merge order, fleet budget, check-in report.
+assert grep -q 'one fleet, not several queues' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'merge order before the queue starts' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'Footprint: the paths a quest declares' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'no declared footprint' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'Disjoint quests run in parallel' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'refused at preflight, named' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'zero Runs spent on it' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'queues serially in a later fleet' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'The fleet never merges' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'predeclared merge order (fleet never merges)' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'one budget caps the whole fleet' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'every quest stops' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'one check-in list' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'grouped by quest, each with its inbox reason' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'same human decision appear as one' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'attested per exp at resume time' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'Disjoint quests run in parallel' "$root/.agents/skills/induct-quest-no-human/SKILL.md"
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"
