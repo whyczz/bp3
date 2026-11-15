@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: canceled
 home_repo: bp3
 date: 2026-11-07
 ---
@@ -146,3 +146,7 @@ claims are stated as claims until a fixture confirms them.
 3. Does the winner change the bridge, or live behind it? Default:
    behind the existing contract; contract changes belong to the
    engine Quest. Owner: implementer.
+
+## Disposition (2026-11-15)
+
+Canceled by the owner at the framing of the pi-engine-conductor quest. Superseded by docs/quests/2026-11-15-pi-engine-conductor/QUEST.md. Frozen evidence: this file, unchanged since framing.
