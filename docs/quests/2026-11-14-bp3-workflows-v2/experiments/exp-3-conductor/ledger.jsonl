@@ -28,3 +28,4 @@
 {"event":"run_started","ts":"2026-11-15T01:33:38Z","run_id":"20261115T013321Z-submit-muse-code-muse-wonder-1.0-c3","cycle":3,"session_id":"9fb79ae9-e0fc-75f9-8d08-dd6bdbf18b81"}
 {"ts":"2026-11-15T01:34:19Z","edge":"submit","from":"todo","to":"submitted","cycle":3,"commit":"e5e09bea8d92abc8cfd38a3e318ddb30ea96b4d0","verdict":null,"reason":"clean resubmit: acceptance evidence fresh-verified, c2 adherence fails fixed","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"usage_recorded","ts":"2026-11-15T01:34:22Z","run_id":"20261115T013321Z-submit-muse-code-muse-wonder-1.0-c3","input_tokens":4585076,"output_tokens":48288,"cached_tokens":4343320,"reasoning_tokens":8234,"wall_ms":44000,"started_ts":"2026-11-15T01:33:38Z","settled_ts":"2026-11-15T01:34:22Z"}
+{"event":"run_settled","ts":"2026-11-15T01:34:22Z","run_id":"20261115T013321Z-submit-muse-code-muse-wonder-1.0-c3","outcome":"settled"}
