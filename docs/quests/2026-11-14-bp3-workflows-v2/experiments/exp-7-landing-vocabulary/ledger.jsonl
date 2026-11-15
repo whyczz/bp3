@@ -15,3 +15,4 @@
 {"event":"run_settled","ts":"2026-11-15T02:34:06Z","run_id":"20261115T023135Z-check-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
 {"event":"run_started","ts":"2026-11-15T02:34:19Z","run_id":"20261115T023135Z-review-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"b1692b60-0bff-7800-80bf-6d54dca50748"}
 {"ts":"2026-11-15T02:34:19Z","edge":"review","from":"submitted","to":"approved","cycle":1,"commit":"3f140e631bbbb801ca0085341f5230f03cae63ff","verdict":"ship","reason":"exp_fin/quest_fin synced in skill workflow src tests QUEST; make check green; no new edges","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"event":"lint_checked","ts":"2026-11-15T02:34:19Z","run_id":"20261115T023135Z-review-muse-code-muse-wonder-1.0-c1","check":"make check","result":"pass"}
