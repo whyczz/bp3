@@ -7,3 +7,4 @@
 {"event":"run_started","ts":"2026-11-15T00:34:02Z","run_id":"20261115T003140Z-check-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"311d40d3-20bb-75c5-88b4-f2a0bd72007d"}
 {"ts":"2026-11-15T00:34:03Z","edge":"check","from":"submitted","to":"blocked","cycle":1,"commit":"e0958fdfcdbde0d8caad775c70ac8a4139c3a2ae","verdict":"fail","reason":"make check passes but gated exp-2 re-grade row is missing","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"lint_checked","ts":"2026-11-15T00:34:03Z","run_id":"20261115T003140Z-check-muse-code-muse-wonder-1.0-c1","check":"make check","result":"pass"}
+{"event":"usage_recorded","ts":"2026-11-15T00:34:05Z","run_id":"20261115T003140Z-check-muse-code-muse-wonder-1.0-c1","input_tokens":459343,"output_tokens":6821,"cached_tokens":437348,"reasoning_tokens":2582,"wall_ms":3000,"started_ts":"2026-11-15T00:34:02Z","settled_ts":"2026-11-15T00:34:05Z"}
