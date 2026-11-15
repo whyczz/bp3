@@ -30,3 +30,4 @@
 {"event":"usage_recorded","ts":"2026-11-15T00:26:00Z","run_id":"20261115T002421Z-check-muse-code-muse-wonder-1.0-c2","input_tokens":1018986,"output_tokens":13843,"cached_tokens":982388,"reasoning_tokens":3676,"wall_ms":8000,"started_ts":"2026-11-15T00:25:52Z","settled_ts":"2026-11-15T00:26:00Z"}
 {"event":"run_settled","ts":"2026-11-15T00:26:00Z","run_id":"20261115T002421Z-check-muse-code-muse-wonder-1.0-c2","outcome":"settled"}
 {"ts":"2026-11-15T00:52:25Z","edge":"resume","from":"blocked","to":"todo","cycle":3,"commit":null,"verdict":null,"reason":"owner: resume exp-2 cycle 3 under fixed grade (exp-5 landed)","harness":"muse-code","model":"none","bp3_version":"0.2.0"}
+{"event":"run_started","ts":"2026-11-15T00:52:51Z","run_id":"20261115T005226Z-submit-muse-code-muse-wonder-1.0-c3","cycle":3,"session_id":"89572364-fb77-7c31-80be-713f4350abf9"}
