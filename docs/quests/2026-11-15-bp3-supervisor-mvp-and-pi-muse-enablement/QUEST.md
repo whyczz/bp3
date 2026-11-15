@@ -114,9 +114,23 @@ InitRecord, no finish evidence, pid alive where a
 pid exists, and freshness within the named budget,
 where `freshness = max(tape mtime, latest
 derivation-observation timestamp)`. `finished` requires exit
-observed and tape closed, or a settle row and
-tape closed; a row alone never finishes a live
-child. `orphaned` = stale and pid dead/absent.
+observed (or a settle row) plus the harness's finish
+evidence, and no live pid: a live pid is never
+`finished`, whatever the tape tail says, and a row
+alone never finishes a live child. Finish evidence
+is per harness, proved on the real corpora
+(followup.2), and only the last whole tape entry can
+carry it:
+
+| Harness | Finish evidence (last whole entry) | Exit entry |
+|---|---|---|
+| `muse-code` | `session.end` entry (close marker) | runtime `terminal` entry — a child tape ends here, with no close marker |
+| `pi` | `session_closed` entry, or a final assistant entry with stopReason `stop` | process exit (pid dead); pi tapes never close |
+
+A torn final tape entry (unterminated or
+unparseable) is evidence of nothing: it finishes no
+Run and is reported as `W_TORN_TAIL`.
+`orphaned` = stale and pid dead/absent.
 Derivation uses files plus live pid probes, never
 an in-memory live set, so a restarted reader does
 not orphan every active child.

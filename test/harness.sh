@@ -473,6 +473,50 @@ out=$(h r --run-id R-killed --harness muse-code --quest toy --exp e1 --pid 99999
 set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
 echo "$out" | tail -1 | jq -e '(.runs[] | select(.run_id == "R-killed") | .lifecycle == "orphaned")' >/dev/null || fail "killed run not orphaned: $out"
 
+# --- finish evidence (followup.2): per-harness, tail-scoped ---
+sleep 60 & F2LIVE=$!
+# muse child tape: exit entry (runtime terminal), no close marker
+printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' '{"payload_type":"runtime.session","payload":{"kind":"run","run_id":"x","event":{"kind":"terminal","terminal":"completed"}}}' > fixtures/f2-muse-exit.log
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-muse-exit\",\"harness\":\"muse-code\",\"quest\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-muse-exit.log\"}" > "$store/R-f2-muse-exit.jsonl"
+# muse main tape: session.end close marker
+printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' '{"payload_type":"session.end","payload":{"kind":"session_end"}}' > fixtures/f2-muse-end.log
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-muse-end\",\"harness\":\"muse-code\",\"quest\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-muse-end.log\"}" > "$store/R-f2-muse-end.jsonl"
+# same exit entry, live pid, stale tape: pid alive wins, never finished
+cp fixtures/f2-muse-exit.log fixtures/f2-muse-live.log
+touch -t 202001010000 fixtures/f2-muse-live.log
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-muse-live\",\"harness\":\"muse-code\",\"quest\":\"toy\",\"pid\":$F2LIVE,\"tape_path\":\"$work/repo/fixtures/f2-muse-live.log\"}" > "$store/R-f2-muse-live.jsonl"
+# pi clean exit: final assistant entry stopped, pid dead
+printf '%s\n' '{"type":"session","version":3,"id":"S-f2-pi","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}' '{"type":"message","id":"p1","message":{"role":"user","content":"work"}}' '{"type":"message","id":"p2","message":{"role":"assistant","stopReason":"stop","content":[]}}' > fixtures/f2-pi-exit.log
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-pi-exit\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-pi-exit.log\"}" > "$store/R-f2-pi-exit.jsonl"
+# pi died mid-work: final entry is a tool call, stale, pid dead
+printf '%s\n' '{"type":"session","version":3,"id":"S-f2-pic","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}' '{"type":"message","id":"q1","message":{"role":"assistant","stopReason":"toolUse","content":[]}}' > fixtures/f2-pi-crash.log
+touch -t 202001010000 fixtures/f2-pi-crash.log
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-pi-crash\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-pi-crash.log\"}" > "$store/R-f2-pi-crash.jsonl"
+# truncated mid-entry: torn final entry finishes nothing
+printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' > fixtures/f2-torn.log
+printf '%s' '{"payload_type":"session.end","payl' >> fixtures/f2-torn.log
+touch -t 202001010000 fixtures/f2-torn.log
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-torn\",\"harness\":\"muse-code\",\"quest\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-torn.log\"}" > "$store/R-f2-torn.jsonl"
+
+set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
+last=$(echo "$out" | tail -1)
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f2-muse-exit") | .lifecycle == "finished")' >/dev/null || fail "followup.2 muse exit-entry fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f2-muse-end") | .lifecycle == "finished")' >/dev/null || fail "followup.2 muse close-marker fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f2-muse-live") | .lifecycle == "active")' >/dev/null || fail "followup.2 live pid wins: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f2-pi-exit") | .lifecycle == "finished")' >/dev/null || fail "followup.2 pi process-exit fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f2-pi-crash") | .lifecycle == "orphaned")' >/dev/null || fail "followup.2 pi crash fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f2-torn") | .lifecycle == "orphaned")' >/dev/null || fail "followup.2 torn fold: $last"
+echo "$last" | jq -e '(.warnings | index("W_TORN_TAIL") != null)' >/dev/null || fail "followup.2 torn warning: $last"
+kill $F2LIVE 2>/dev/null || true
+
+# watch settles a muse child tape on its exit entry, no close marker
+printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' '{"payload_type":"runtime.session","payload":{"kind":"run","run_id":"y","event":{"kind":"terminal","terminal":"completed"}}}' > fixtures/watch/f2-muse.log
+sleep 1 & F2WPID=$!
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-watch-muse\",\"harness\":\"muse-code\",\"pid\":$F2WPID,\"tape_path\":\"$work/repo/fixtures/watch/f2-muse.log\",\"quest\":\"toy\"}" > "$store/R-f2-watch-muse.jsonl"
+out=$(h watch --run-id R-f2-watch-muse --timeout-seconds 5) || fail "followup.2 watch muse exit: $out"
+echo "$out" | tail -1 | jq -e '.outcome == "settled" and .settled == true and .lifecycle == "finished"' >/dev/null || fail "followup.2 watch muse verdict: $out"
+wait "$F2WPID" 2>/dev/null || true
+
 # --- naming gate: retired spellings stay out of the new code ---
 retired="Spawn""Record|spawn""ed|run""ning"
 if grep -E "$retired" "$root/src/quest/harness.ml" >/dev/null; then fail "retired lifecycle spelling in harness.ml"; fi

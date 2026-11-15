@@ -53,6 +53,20 @@ def finished(adapter, run):
 | live long-quiet muse run | never `finished` early (pid alive wins) |
 | pi run, process exit | derives `finished` |
 | tape truncated mid-entry | not `finished`; blind/torn handling fires |
+| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
+
+## Finish evidence (proved on the real corpora)
+
+Only the last whole tape entry can carry finish
+evidence; a marker named mid-tape is content.
+
+| Harness | Finish evidence (last whole entry) | Exit entry |
+|---|---|---|
+| `muse-code` | `session.end` entry (close marker) | runtime `terminal` entry — a child tape ends here, with no close marker |
+| `pi` | `session_closed` entry, or a final assistant entry with stopReason `stop` | process exit (pid dead); pi tapes never close |
+
+A torn final entry finishes nothing and warns
+`W_TORN_TAIL`. A live pid is never `finished`.
 
 ## Acceptance test (goal block)
 
@@ -68,6 +82,8 @@ is a finding for dogfood.2, not a silent rule bend.
 
 ## Tests
 
-Known cases: Acceptance table. Property-based: for
+Known cases: Acceptance table; env-set run-id is
+stamped by bp3 into the submit verdict and ledger
+line (the mvp.1 mechanism). Property-based: for
 any tape whose pid is alive, lifecycle is never
 `finished` regardless of tail shape.

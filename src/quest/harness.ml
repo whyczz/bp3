@@ -25,7 +25,15 @@
    O_APPEND descriptor, the derived-state cache written
    to a uniquely named temp file in the same directory
    and renamed over the old cache, and a torn final line
-   ignored by readers and reported as W_TORN_TAIL. *)
+   ignored by readers and reported as W_TORN_TAIL.
+   followup.2 replaced the assumed close marker with
+   per-harness finish evidence proved on the real
+   corpora: muse-code closes on a session.end entry and
+   a muse child tape ends on a runtime terminal entry
+   with no close marker at all; pi never closes, so a
+   final assistant entry that stopped is its clean end
+   and process exit is its exit entry. Only the last
+   whole tape entry can carry the evidence. *)
 open Gitx
 open Store
 
@@ -43,27 +51,30 @@ type init_record = {
 type observation = {
   pid_alive : bool option;
   exit_observed : bool;
-  tape_closed : bool;
+  finish_evidence : bool;
   settle_row : bool;
   tape_seen : bool;
   fresh : bool;
 }
 
 let no_observation = {
-  pid_alive = None; exit_observed = false; tape_closed = false;
+  pid_alive = None; exit_observed = false; finish_evidence = false;
   settle_row = false; tape_seen = false; fresh = false;
 }
 
 (* Lifecycle is derived, never narrated: init / active /
-   finished / orphaned. A settle row alone never finishes a
-   live child; stale plus alive stays active; blind probes
-   add no fifth word (None means no InitRecord, no claim). *)
+   finished / orphaned. A live pid is never finished,
+   whatever the tape tail says; a settle row alone never
+   finishes a live child; stale plus alive stays active;
+   blind probes add no fifth word (None means no
+   InitRecord, no claim). *)
 let derive_lifecycle init obs =
   match init with
   | None -> None
   | Some _ ->
-      if (obs.exit_observed && obs.tape_closed)
-         || (obs.settle_row && obs.tape_closed) then Some "finished"
+      if obs.pid_alive <> Some true
+         && ((obs.exit_observed && obs.finish_evidence)
+             || (obs.settle_row && obs.finish_evidence)) then Some "finished"
       else if not obs.tape_seen && obs.pid_alive = None
               && not obs.exit_observed && not obs.settle_row then Some "init"
       else if not obs.fresh && obs.pid_alive <> Some true then Some "orphaned"
@@ -81,16 +92,10 @@ let exit_of_outcome = function
   | "human_gate" -> 4
   | _ -> 1
 
-(* Mechanical tape signals only: a close marker, or an
-   assistant stop reason, closes a tape; a settle row is a
-   fact of its own and never a close by itself. *)
-let tape_signals text =
-  let closed =
-    contains_sub text "session_closed"
-    || (contains_sub text "stopReason" && contains_sub text "\"stop\"")
-    || (contains_sub text "stop_reason" && contains_sub text "\"stop\"") in
-  let settle = contains_sub text "run_settled" in
-  (closed, settle)
+(* A settle row named in tape text is a fact of its own
+   and never finish evidence by itself. Finish evidence
+   is per-harness and tail-scoped: tape_evidence below. *)
+let tape_settle text = contains_sub text "run_settled"
 
 (* ---------- derivation store (mvp.4: supervisor-written) ---------- *)
 let git_common_dir () =
@@ -172,6 +177,52 @@ let whole_lines text =
     | tail :: rest -> (List.rev rest, String.trim tail <> "")
     | [] -> ([], false)
 
+let nested_str j outer key =
+  try match Yojson.Safe.Util.member outer j with
+    | `Assoc _ as o -> get_str o key ""
+    | _ -> ""
+  with _ -> ""
+
+(* Per-harness finish evidence (followup.2), read off the
+   last whole tape entry only: a marker named mid-tape is
+   content, not an ending. muse-code: a session.end entry
+   closes the tape; a runtime terminal entry is a child
+   tape's exit entry (its tapes carry no close marker).
+   pi: no tape ever closes; a session_closed entry or a
+   final assistant entry that stopped is the clean end,
+   and the exit itself is the pid's. Returns (finish
+   evidence, exit entry, torn tail): a torn final entry —
+   unterminated or unparseable — is evidence of nothing. *)
+let tape_evidence harness text =
+  let (lines, torn) = whole_lines text in
+  let tail = List.fold_left (fun acc ln ->
+    if String.trim ln = "" then acc else Some ln) None lines in
+  match tail with
+  | None -> (false, false, torn)
+  | Some ln ->
+      (try
+         let j = Yojson.Safe.from_string ln in
+         if harness = "pi" then
+           let msg = try Yojson.Safe.Util.member "message" j with _ -> `Null in
+           let stopped = get_str j "type" "" = "message"
+             && get_str msg "role" "" = "assistant"
+             && get_str msg "stopReason" "" = "stop" in
+           (get_str j "type" "" = "session_closed" || stopped, false, torn)
+         else
+           let ended = get_str j "payload_type" "" = "session.end" in
+           let terminal = get_str j "payload_type" "" = "runtime.session"
+             && nested_str j "payload" "kind" = "run"
+             && (try match Yojson.Safe.Util.member "payload" j with
+                  | `Assoc _ as p ->
+                      (match Yojson.Safe.Util.member "event" p with
+                       | `Assoc _ as e -> get_str e "kind" "" = "terminal"
+                       | _ -> false)
+                  | _ -> false
+                with _ -> false) in
+           let fin = ended || terminal in
+           (fin, fin, torn)
+       with _ -> (false, false, true))
+
 let pid_alive pid =
   let exists =
     try Unix.kill pid 0; true
@@ -225,7 +276,11 @@ let fold_run_file ~silence_seconds path =
               pid_alive = (match Yojson.Safe.Util.member "pid_alive" j with
                 | `Bool b -> Some b | _ -> o.pid_alive);
               exit_observed = o.exit_observed || get_bool j "exit_observed";
-              tape_closed = o.tape_closed || get_bool j "tape_closed";
+              finish_evidence = o.finish_evidence
+                || get_bool j "finish_evidence"
+                (* rows written before followup.2 named the
+                   same fact tape_closed; they still fold *)
+                || get_bool j "tape_closed";
               settle_row = o.settle_row || get_bool j "settle_row";
               tape_seen = o.tape_seen || get_bool j "tape_seen";
               fresh = o.fresh;
@@ -247,9 +302,18 @@ let fold_run_file ~silence_seconds path =
                 (true, Unix.time () -. st.Unix.st_mtime
                         <= float_of_int silence_seconds)
               with _ -> blind := true; (o.tape_seen, o.fresh)) in
-       let o = { o with pid_alive = alive; tape_seen; fresh } in
+       (* the tape tail itself is folded live, so a Run
+          derives finished from files + pid alone, with no
+          probe row written first and no memory carried *)
+       let (fin, exit_e, torn_t) = match rec_.tape_path with
+         | Some tp -> tape_evidence rec_.harness (read_file_or tp "")
+         | None -> (false, false, false) in
+       let o = { o with pid_alive = alive; tape_seen; fresh;
+                 exit_observed = o.exit_observed || exit_e;
+                 finish_evidence = o.finish_evidence || fin } in
        (!init, o,
-        (if !blind then ["W_SUPERVISOR_BLIND"] else []) @ tail_warns))
+        (if !blind then ["W_SUPERVISOR_BLIND"] else [])
+        @ (if torn_t then ["W_TORN_TAIL"] else []) @ tail_warns))
 
 type run_view = {
   rv_id : string;
@@ -400,10 +464,13 @@ let last_observed_lifecycle path =
    pointers only (tape path, pid probe), never tape content. *)
 let probe_observation ~silence_seconds (rec_ : init_record) prior =
   let alive = match rec_.pid with Some p -> Some (pid_alive p) | None -> prior.pid_alive in
-  let exit_obs = prior.exit_observed
+  let tape_text = match rec_.tape_path with
+    | Some tp -> read_file_or tp "" | None -> "" in
+  let (fin, exit_e, torn_t) = match rec_.tape_path with
+    | Some _ -> tape_evidence rec_.harness tape_text | None -> (false, false, false) in
+  let exit_obs = prior.exit_observed || exit_e
     || (match rec_.pid with Some p -> not (pid_alive p) | None -> false) in
-  let (closed, settle) = match rec_.tape_path with
-    | Some tp -> tape_signals (read_file_or tp "") | None -> (false, false) in
+  let settle = tape_settle tape_text in
   let tape_seen = prior.tape_seen
     || (match rec_.tape_path with Some tp -> Sys.file_exists tp | None -> false) in
   let fresh = match rec_.tape_path with
@@ -414,10 +481,11 @@ let probe_observation ~silence_seconds (rec_ : init_record) prior =
   let blind = match rec_.tape_path with
     | Some tp -> not (Sys.file_exists tp) | None -> false in
   let obs = { pid_alive = alive; exit_observed = exit_obs;
-              tape_closed = prior.tape_closed || closed;
+              finish_evidence = prior.finish_evidence || fin;
               settle_row = prior.settle_row || settle;
               tape_seen; fresh } in
-  (obs, if blind then ["W_SUPERVISOR_BLIND"] else [])
+  (obs, (if blind then ["W_SUPERVISOR_BLIND"] else [])
+        @ (if torn_t then ["W_TORN_TAIL"] else []))
 
 (* Append one observation row to the Run's own derivation
    log, only when its derived lifecycle changed. Parallel
@@ -447,7 +515,7 @@ let append_observation dir (rf : run_fold) ~silence_seconds =
           ("lifecycle", json_str lifecycle_s);
           ("pid_alive", (match obs.pid_alive with Some b -> `Bool b | None -> `Null));
           ("exit_observed", `Bool obs.exit_observed);
-          ("tape_closed", `Bool obs.tape_closed);
+          ("finish_evidence", `Bool obs.finish_evidence);
           ("settle_row", `Bool obs.settle_row);
           ("tape_seen", `Bool obs.tape_seen);
           ("tape_path", (match rf.rf_rec.tape_path with Some s -> json_str s | None -> `Null));
@@ -1188,11 +1256,11 @@ let resolve_watch fl =
            (Some p, h, sess, pid, run, false))
 
 (* Watch-local lifecycle: derivation words only. Watch
-   observes pid exit directly, so a dead pid without close
-   evidence is orphaned at once; a settle row or a close
-   marker alone never finishes a live child. *)
-let watch_lifecycle ~alive ~exit_obs ~closed ~settle ~tape_seen ~fresh =
-  if ((exit_obs || settle) && closed && alive <> Some true) then "finished"
+   observes pid exit directly, so a dead pid without
+   finish evidence is orphaned at once; a settle row or
+   finish evidence alone never finishes a live child. *)
+let watch_lifecycle ~alive ~exit_obs ~evidence ~settle ~tape_seen ~fresh =
+  if ((exit_obs || settle) && evidence && alive <> Some true) then "finished"
   else if alive = Some false then "orphaned"
   else if not tape_seen && alive = None && not exit_obs && not settle then "init"
   else if not fresh && alive <> Some true then "orphaned"
@@ -1207,7 +1275,8 @@ let do_watch args =
   let last_size = ref (-1) in
   let seen_once = ref false in
   let exit_obs = ref false in
-  let closed = ref false in
+  let evidence = ref false in
+  let torn_t = ref false in
   let settle = ref false in
   let blind = ref blind0 in
   let last_key = ref "" in
@@ -1228,7 +1297,7 @@ let do_watch args =
          if Sys.file_exists path then begin
            let (_, dobs, dwarns) = fold_run_file ~silence_seconds:fl.wt_silence path in
            if dobs.exit_observed then exit_obs := true;
-           if dobs.tape_closed then closed := true;
+           if dobs.finish_evidence then evidence := true;
            if dobs.settle_row then settle := true;
            if List.mem "W_SUPERVISOR_BLIND" dwarns then blind := true
          end
@@ -1246,16 +1315,19 @@ let do_watch args =
             end else if st.Unix.st_size <> !last_size then begin
               last_size := st.Unix.st_size; last_growth := now
             end;
-            let (c, s) = tape_signals (read_file_or tp "") in
-            if c then closed := true;
-            if s then settle := true
+            let text = read_file_or tp "" in
+            let (fin, exit_e, tr) = tape_evidence harness text in
+            if fin then evidence := true;
+            if exit_e then exit_obs := true;
+            if tr then torn_t := true;
+            if tape_settle text then settle := true
           with _ -> blind := true)
      | None -> blind := true);
     let alive = match pid with Some p -> Some (pid_alive p) | None -> None in
     if alive = Some false then exit_obs := true;
     let fresh = now -. !last_growth <= float_of_int fl.wt_silence in
     let lifecycle = watch_lifecycle ~alive ~exit_obs:!exit_obs
-      ~closed:!closed ~settle:!settle ~tape_seen:!tape_seen ~fresh in
+      ~evidence:!evidence ~settle:!settle ~tape_seen:!tape_seen ~fresh in
     if lifecycle <> !last_key then begin
       last_key := lifecycle;
       let row = `Assoc [
@@ -1268,7 +1340,8 @@ let do_watch args =
       flush stdout
     end;
     let finish outcome fin_lifecycle =
-      let warnings = if !blind then ["W_SUPERVISOR_BLIND"] else [] in
+      let warnings = (if !blind then ["W_SUPERVISOR_BLIND"] else [])
+        @ (if !torn_t then ["W_TORN_TAIL"] else []) in
       let fields = [
         ("ok", `Bool true);
         ("run_id", json_str run_id);
@@ -1286,9 +1359,9 @@ let do_watch args =
         else fields @ [("warnings", `List (List.map json_str warnings))] in
       print_endline (Yojson.Safe.to_string (`Assoc fields));
       exit_of_outcome outcome in
-    if (!exit_obs || !settle) && !closed && alive <> Some true then
+    if (!exit_obs || !settle) && !evidence && alive <> Some true then
       finish "settled" "finished"
-    else if alive = Some true && not !closed && not !settle
+    else if alive = Some true && not !evidence && not !settle
             && now -. !last_growth > float_of_int fl.wt_silence then begin
       (* sole killer: silence past budget, no settling grace *)
       (match pid with
@@ -1459,7 +1532,7 @@ let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
   bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
   bp3 harness watch --session-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
   Engine is derived from the Run InitRecord, never stated. Finds the tape like find-tape, then blocks in code: streams NDJSON lifecycle_change rows and ends with one verdict {ok, run_id, harness, session_id, wal, pid, outcome, settled, lifecycle}.\n\
-  A tape closes on a session_closed marker or an assistant stop reason; exit plus closed (or settle plus closed) with no live pid is settled. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. A closed tape or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
+  Finish evidence is per harness, read off the last whole tape entry: muse-code closes on a session.end entry, and a runtime terminal entry is a child tape's exit entry (child tapes carry no close marker); pi never closes, so a session_closed entry or a final assistant entry that stopped is its clean end. Exit plus finish evidence (or settle plus finish evidence) with no live pid is settled; a live pid is never finished. A torn final tape entry finishes nothing and warns W_TORN_TAIL. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. Finish evidence or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
   Identity flags follow find-tape: both, neither, or disagreeing flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS. Durations are bare positive integers; 0, negatives, and suffixed values are E_USAGE.\n\
   Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
 Example: bp3 harness watch --run-id 20261115T000000Z-submit-pi-model-c1 --silence-seconds 600\n"
