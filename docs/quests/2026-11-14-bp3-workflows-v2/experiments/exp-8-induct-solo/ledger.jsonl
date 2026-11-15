@@ -35,3 +35,4 @@
 {"event":"run_started","ts":"2026-11-15T03:21:13Z","run_id":"20261115T031911Z-check-muse-code-muse-wonder-1.0-c3","cycle":3,"session_id":"642e7caa-d1cb-7ee1-8814-308fb59b5889"}
 {"ts":"2026-11-15T03:21:13Z","edge":"check","from":"submitted","to":"approved","cycle":3,"commit":"75fb68faf86f4bf774b729768165dd6b52d3a3d5","verdict":"pass","reason":"fresh make check pass (77 assertions); all gated matrix rows re-verified","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"lint_checked","ts":"2026-11-15T03:21:14Z","run_id":"20261115T031911Z-check-muse-code-muse-wonder-1.0-c3","check":"make check","result":"pass"}
+{"event":"usage_recorded","ts":"2026-11-15T03:21:16Z","run_id":"20261115T031911Z-check-muse-code-muse-wonder-1.0-c3","input_tokens":415633,"output_tokens":5149,"cached_tokens":400484,"reasoning_tokens":1492,"wall_ms":3000,"started_ts":"2026-11-15T03:21:13Z","settled_ts":"2026-11-15T03:21:16Z"}
