@@ -422,6 +422,24 @@ let run argv =
   | "worktree" :: rest ->
       (* util layer: machine-local git mechanics, never ledgered *)
       print_verdict ~fmt:"json" (Worktree.run rest); 0
+  | "init-repo" :: _ ->
+      (* Exp 6: scaffold plans/ into the caller's repo; never clobber differing plans *)
+      let plans = [("plans/default.yaml", "quest_type: default\nmax_cycles: 1\nreview:\n  required: true\nchecks: required\n");
+                   ("plans/direct.yaml", "quest_type: direct\nmax_cycles: 0\nreview:\n  required: false\nchecks: required\n")] in
+      (try Unix.mkdir (Filename.concat root "plans") 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+      List.iter (fun (rel, content) ->
+        let path = Filename.concat root rel in
+        if Sys.file_exists path then begin
+          let existing = let ic = open_in_bin path in
+            let s = really_input_string ic (in_channel_length ic) in close_in ic; s in
+          if existing <> content then
+            err "E_EXISTS" (`Assoc [("plan", json_str rel)])
+              "Plan already exists with different content; refusing to overwrite." 1
+        end else begin
+          let oc = open_out_bin path in output_string oc content; close_out oc
+        end) plans;
+      print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true);
+        ("plans", `List (List.map (fun (p, _) -> json_str p) plans))]); 0
   | "hooks" :: _ ->
       (* fail-open emitter: Hooks.handle never raises, always exit 0 *)
       print_endline (Yojson.Safe.to_string (Hooks.handle ())); 0

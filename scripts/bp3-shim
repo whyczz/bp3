@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# bp3 shim (installed next to bp3-q by scripts/install-bp3.sh).
+# Roots at the caller's repo: the binary takes BP3_ROOT or cwd.
+#   bp3 q|quest ...   -> bp3-q ...        bp3 init-repo -> bp3-q init-repo
+#   bp3 -h|--version  -> bp3-q same       anything else -> bp3-q as-is
+set -euo pipefail
+case "${1:-}" in
+  q|quest) shift ;;
+esac
+exec bp3-q "$@"
