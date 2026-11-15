@@ -40,3 +40,4 @@
 {"event":"usage_recorded","ts":"2026-11-15T03:21:22Z","run_id":"20261115T031911Z-review-muse-code-muse-wonder-1.0-c3","input_tokens":3503752,"output_tokens":28134,"cached_tokens":3377628,"reasoning_tokens":3647,"wall_ms":38000,"started_ts":"2026-11-15T03:20:44Z","settled_ts":"2026-11-15T03:21:22Z"}
 {"event":"run_settled","ts":"2026-11-15T03:21:22Z","run_id":"20261115T031911Z-review-muse-code-muse-wonder-1.0-c3","outcome":"settled"}
 {"event":"run_started","ts":"2026-11-15T03:22:04Z","run_id":"20261115T032130Z-land-muse-code-muse-wonder-1.0-c3","cycle":3,"session_id":"1e863d99-8c5d-7b81-86ce-b4df25b60609"}
+{"ts":"2026-11-15T03:22:05Z","edge":"land","from":"approved","to":"landed","cycle":3,"commit":"75fb68faf86f4bf774b729768165dd6b52d3a3d5","verdict":null,"reason":"c3 grade pass at 75fb68f: audit/check/review all pass","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
