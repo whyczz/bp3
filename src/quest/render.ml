@@ -273,6 +273,7 @@ let render_table_icebox fields =
   render_rows ["slug"; "date"; "status"; "promoted"; "title"] rows
 
 let print_verdict ~fmt v =
+  let v = stamp_run_id v in
   (* Exp 5: any verdict in a version-ahead repo carries the warning *)
   let v = match v with
     | `Assoc fs when not (List.mem_assoc "warnings" fs) ->

@@ -11,7 +11,18 @@ let valid_slug s =
 
 let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
 
-type identity = { harness : string; model : string; decider_human : bool; incomplete : bool }
+type identity = { harness : string; model : string; decider_human : bool; incomplete : bool; run_id : string option }
+
+let run_id_of_env () =
+  match Sys.getenv_opt "BP3_RUN_ID" with Some v when v <> "" -> Some v | _ -> None
+
+let stamp_run_id = function
+  | `Assoc fs as v ->
+      if List.mem_assoc "run_id" fs then v
+      else (match run_id_of_env () with
+        | Some r -> `Assoc (fs @ [("run_id", json_str r)])
+        | None -> v)
+  | v -> v
 
 let identity () =
   let h = Sys.getenv_opt "BP3_HARNESS" in
@@ -27,7 +38,7 @@ let identity () =
     if decider_human then "none"
     else match Sys.getenv_opt "BP3_MODEL" with Some v when v <> "" -> v | _ -> "unknown" in
   let incomplete = harness = "unknown" || model = "unknown" in
-  { harness; model; decider_human; incomplete }
+  { harness; model; decider_human; incomplete; run_id = run_id_of_env () }
 
 let parse_version s =
   try List.map int_of_string (String.split_on_char '.' s) with _ -> [0]
@@ -257,6 +268,7 @@ let ledger_line ~edge ~from ~to_ ~cycle ~commit ~verdict ~reason ~id
     ("model", json_str id.model);
     ("bp3_version", json_str bp3_version);
   ] in
+  let base = match id.run_id with Some r -> base @ [("run_id", json_str r)] | None -> base in
   let base = match checkpoint with Some c -> base @ [("checkpoint", json_str c)] | None -> base in
   let base = base @ (match extra with Some xs -> xs | None -> []) in
   Yojson.Safe.to_string (`Assoc base)

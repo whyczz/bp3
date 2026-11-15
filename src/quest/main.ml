@@ -523,7 +523,7 @@ let () =
   let argv = List.tl (Array.to_list Sys.argv) in
   try exit (run argv)
   with Verdict (code, v) ->
-    print_endline (Yojson.Safe.to_string v);
+    print_endline (Yojson.Safe.to_string (stamp_run_id v));
     exit code
 
 
