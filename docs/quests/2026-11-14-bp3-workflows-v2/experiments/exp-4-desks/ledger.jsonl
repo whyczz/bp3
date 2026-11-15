@@ -1,0 +1,29 @@
+{"ts":"2026-11-15T00:06:56Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","exp_type":"default"}
+{"event":"run_started","ts":"2026-11-15T01:38:35Z","run_id":"20261115T013814Z-submit-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"ec77a412-7391-7703-8a23-ee47f47a178b"}
+{"event":"lint_checked","ts":"2026-11-15T01:38:53Z","run_id":"20261115T013814Z-submit-muse-code-muse-wonder-1.0-c1","check":"*.sh","result":"pass"}
+{"event":"lint_checked","ts":"2026-11-15T01:39:03Z","run_id":"20261115T013814Z-submit-muse-code-muse-wonder-1.0-c1","check":"induct.sh","result":"pass"}
+{"event":"lint_checked","ts":"2026-11-15T01:42:23Z","run_id":"20261115T013814Z-submit-muse-code-muse-wonder-1.0-c1","check":"make lint","result":"pass"}
+{"event":"lint_checked","ts":"2026-11-15T01:42:39Z","run_id":"20261115T013814Z-submit-muse-code-muse-wonder-1.0-c1","check":"worktree.sh","result":"pass"}
+{"event":"lint_checked","ts":"2026-11-15T01:43:50Z","run_id":"20261115T013814Z-submit-muse-code-muse-wonder-1.0-c1","check":"hooks.sh","result":"pass"}
+{"event":"lint_checked","ts":"2026-11-15T01:44:27Z","run_id":"20261115T013814Z-submit-muse-code-muse-wonder-1.0-c1","check":"make check","result":"pass"}
+{"ts":"2026-11-15T01:44:40Z","edge":"submit","from":"todo","to":"submitted","cycle":1,"commit":"caf880e1338af5ae00e1d4c6907865f76a123609","verdict":null,"reason":"desk wiring in both step workflows, common-git-dir resolution, live desk proof, make check green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"event":"usage_recorded","ts":"2026-11-15T01:44:44Z","run_id":"20261115T013814Z-submit-muse-code-muse-wonder-1.0-c1","input_tokens":170332072,"output_tokens":1254444,"cached_tokens":165746608,"reasoning_tokens":533636,"wall_ms":369000,"started_ts":"2026-11-15T01:38:35Z","settled_ts":"2026-11-15T01:44:44Z"}
+{"event":"run_settled","ts":"2026-11-15T01:44:44Z","run_id":"20261115T013814Z-submit-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
+{"event":"run_started","ts":"2026-11-15T01:45:14Z","run_id":"20261115T014452Z-audit-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"a167f1b2-d3d1-7c15-8f97-9f1a8887887d"}
+{"event":"usage_recorded","ts":"2026-11-15T01:46:08Z","run_id":"20261115T014452Z-audit-muse-code-muse-wonder-1.0-c1","input_tokens":6652083,"output_tokens":89182,"cached_tokens":6343004,"reasoning_tokens":25285,"wall_ms":54000,"started_ts":"2026-11-15T01:45:14Z","settled_ts":"2026-11-15T01:46:08Z"}
+{"event":"run_settled","ts":"2026-11-15T01:46:08Z","run_id":"20261115T014452Z-audit-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
+{"event":"run_started","ts":"2026-11-15T01:46:19Z","run_id":"20261115T014452Z-check-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"c778bfed-fc8f-7597-8a56-c3b47fb7174f"}
+{"event":"run_started","ts":"2026-11-15T01:46:21Z","run_id":"20261115T014452Z-review-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"c778bced-fc8f-707e-8a56-c0b47fb71236"}
+{"event":"lint_checked","ts":"2026-11-15T01:46:38Z","run_id":"20261115T014452Z-check-muse-code-muse-wonder-1.0-c1","check":"make check","result":"pass"}
+{"event":"lint_checked","ts":"2026-11-15T01:47:08Z","run_id":"20261115T014452Z-review-muse-code-muse-wonder-1.0-c1","check":"make check","result":"pass"}
+{"event":"lint_checked","ts":"2026-11-15T01:47:31Z","run_id":"20261115T014452Z-check-muse-code-muse-wonder-1.0-c1","check":"$t.sh","result":"pass"}
+{"event":"lint_checked","ts":"2026-11-15T01:47:55Z","run_id":"20261115T014452Z-review-muse-code-muse-wonder-1.0-c1","check":"q.sh","result":"pass"}
+{"event":"lint_checked","ts":"2026-11-15T01:48:16Z","run_id":"20261115T014452Z-review-muse-code-muse-wonder-1.0-c1","check":"shellcheck","result":"pass"}
+{"ts":"2026-11-15T01:48:21Z","edge":"review","from":"submitted","to":"submitted","cycle":1,"commit":"caf880e1338af5ae00e1d4c6907865f76a123609","verdict":"ship","reason":"All 5 acceptance cases verified live; registry and desk records resolve via common git dir; full suites pass in desk","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"ts":"2026-11-15T01:48:28Z","edge":"check","from":"submitted","to":"approved","cycle":1,"commit":"caf880e1338af5ae00e1d4c6907865f76a123609","verdict":"pass","reason":"make check passes on bound commit export; all desk suites ok; matrix evidence verified fresh","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
+{"event":"usage_recorded","ts":"2026-11-15T01:48:30Z","run_id":"20261115T014452Z-review-muse-code-muse-wonder-1.0-c1","input_tokens":15927251,"output_tokens":203770,"cached_tokens":15171136,"reasoning_tokens":95732,"wall_ms":129000,"started_ts":"2026-11-15T01:46:21Z","settled_ts":"2026-11-15T01:48:30Z"}
+{"event":"run_settled","ts":"2026-11-15T01:48:31Z","run_id":"20261115T014452Z-review-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
+{"event":"usage_recorded","ts":"2026-11-15T01:48:37Z","run_id":"20261115T014452Z-check-muse-code-muse-wonder-1.0-c1","input_tokens":10419769,"output_tokens":113886,"cached_tokens":9903368,"reasoning_tokens":32487,"wall_ms":138000,"started_ts":"2026-11-15T01:46:19Z","settled_ts":"2026-11-15T01:48:37Z"}
+{"event":"run_settled","ts":"2026-11-15T01:48:37Z","run_id":"20261115T014452Z-check-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
+{"event":"run_started","ts":"2026-11-15T01:49:20Z","run_id":"20261115T014845Z-land-muse-code-muse-wonder-1.0-c1","cycle":1,"session_id":"3d8917d1-cc17-7a1f-87a2-42cade7b8907"}
+{"ts":"2026-11-15T01:49:20Z","edge":"land","from":"approved","to":"landed","cycle":1,"commit":"caf880e1338af5ae00e1d4c6907865f76a123609","verdict":null,"reason":"approved c1: all acceptance and adherence pass, worktrees empty","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
