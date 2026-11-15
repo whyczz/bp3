@@ -261,6 +261,17 @@ let render_table_exp fields =
        render_rows ["change"; "path"] rows
    | _ -> Printf.printf "? changes unknown\n")
 
+let render_table_icebox fields =
+  let entries = match List.assoc_opt "entries" fields with Some (`List xs) -> xs | _ -> [] in
+  let rows = List.filter_map (fun item ->
+    match item with
+    | `Assoc fs ->
+        Some [cell_str fs "slug"; cell_str fs "date"; cell_str fs "status";
+              (match List.assoc_opt "promoted" fs with Some (`String p) -> p | _ -> "-");
+              cell_str fs "title"]
+    | _ -> None) entries in
+  render_rows ["slug"; "date"; "status"; "promoted"; "title"] rows
+
 let print_verdict ~fmt v =
   match fmt, v with
   | "tree", `Assoc fields when List.mem_assoc "exps" fields ->
@@ -272,6 +283,8 @@ let print_verdict ~fmt v =
   | "table", `Assoc fields when List.mem_assoc "exp" fields
       && List.mem_assoc "changes" fields ->
       render_table_exp fields
+  | "table", `Assoc fields when List.mem_assoc "entries" fields ->
+      render_table_icebox fields
   | "table", `Assoc fields ->
       List.iter (fun (k, v) ->
         match v with

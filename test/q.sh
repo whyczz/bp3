@@ -427,4 +427,51 @@ echo "$ftree" | grep -q "? changes unknown" || fail "unsure changes marker: $ftr
 out=$(q chg r fresh)
 echo "$out" | jq -e '.changes == null' >/dev/null || fail "unsure changes json: $out"
 
+# --- icebox door: read-only list/search/slug over docs/icebox ---
+mkdir -p docs/icebox
+cat > docs/icebox/2026-01-01-alpha-idea.md <<'EOF'
+---
+status: frozen
+date: 2026-01-01
+promoted: null
+---
+
+# Alpha idea
+
+Body mentions Tables and completion.
+EOF
+cat > docs/icebox/2026-01-02-beta-idea.md <<'EOF'
+---
+status: frozen
+date: 2026-01-02
+promoted: docs/quests/some-quest/QUEST.md
+---
+
+# Beta idea
+
+Plain body.
+EOF
+printf 'no frontmatter here\njust text about tables\n' > docs/icebox/2026-01-03-broken.md
+printf '# Icebox\n\nnot an entry\n' > docs/icebox/README.md
+icebox_status_before=$(git status --porcelain)
+out=$(q icebox r)
+echo "$out" | jq -e '.ok == true and (.entries | length == 3) and .entries[0].slug == "2026-01-01-alpha-idea" and .entries[0].date == "2026-01-01" and .entries[0].status == "frozen" and .entries[0].promoted == null and .entries[0].title == "Alpha idea" and .entries[1].promoted == "docs/quests/some-quest/QUEST.md" and .entries[2].slug == "2026-01-03-broken" and .entries[2].date == "-" and .entries[2].status == "-" and .entries[2].title == "-"' >/dev/null || fail "icebox list: $out"
+out=$(q icebox read)
+echo "$out" | jq -e '.ok == true and (.entries | length == 3)' >/dev/null || fail "icebox read alias: $out"
+out=$(q icebox r TABLE)
+echo "$out" | jq -e '.ok == true and (.entries | length == 2) and .entries[0].slug == "2026-01-01-alpha-idea" and .entries[1].slug == "2026-01-03-broken"' >/dev/null || fail "icebox term case-insensitive: $out"
+out=$(q icebox r alpha tables)
+echo "$out" | jq -e '.ok == true and (.entries | length == 1) and .entries[0].slug == "2026-01-01-alpha-idea"' >/dev/null || fail "icebox all terms: $out"
+out=$(q icebox r zzz-no-hit)
+echo "$out" | jq -e '.ok == true and (.entries | length == 0)' >/dev/null || fail "icebox no hits empty: $out"
+q icebox r 2026-01-01-alpha-idea > "$work/icebox-out.txt"
+cmp docs/icebox/2026-01-01-alpha-idea.md "$work/icebox-out.txt" || fail "icebox slug verbatim"
+itbl=$(q icebox r --format table)
+echo "$itbl" | sed -n 1p | grep -Eq '^slug +date +status +promoted +title$' || fail "icebox table header: $itbl"
+echo "$itbl" | grep -Eq '^2026-01-01-alpha-idea +2026-01-01 +frozen +- +Alpha idea$' || fail "icebox table alpha row: $itbl"
+echo "$itbl" | grep -q 'docs/quests/some-quest/QUEST.md' || fail "icebox table promoted: $itbl"
+if out=$(q icebox c nope 2>&1); then fail "icebox write verb accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "icebox write verb code: $out"
+[ "$(git status --porcelain)" = "$icebox_status_before" ] || fail "icebox command wrote to worktree"
+
 echo "q tests: ok"

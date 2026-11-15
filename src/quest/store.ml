@@ -258,3 +258,65 @@ let dep_satisfied dep =
         exps <> [] && List.for_all (fun e ->
           match fold_exp dep e with Some (_, s, _) -> s.st = "landed" || s.st = "deleted" | None -> false) exps
 
+(* ---------- icebox reader ---------- *)
+(* Frozen entries are plain files, not state: read-only, dumb
+   line parsing, malformed files degrade to [-] fields. *)
+type icebox_entry = {
+  slug : string; date : string; status : string;
+  promoted : string option; title : string; text : string;
+}
+
+let parse_icebox_entry slug text =
+  let lines = String.split_on_char '\n' text in
+  let fm_lines = match lines with
+    | first :: rest when String.trim first = "---" ->
+        let rec take acc = function
+          | [] -> []
+          | l :: _ when String.trim l = "---" -> List.rev acc
+          | l :: r -> take (l :: acc) r in
+        take [] rest
+    | _ -> [] in
+  let field k =
+    let rec go = function
+      | [] -> None
+      | l :: r ->
+          (match String.index_opt l ':' with
+           | Some i when String.trim (String.sub l 0 i) = k ->
+               let v = String.trim (String.sub l (i + 1) (String.length l - i - 1)) in
+               if v = "" then None else Some v
+           | _ -> go r) in
+    go fm_lines in
+  let or_dash = function Some v -> v | None -> "-" in
+  let promoted = match field "promoted" with Some "null" -> None | other -> other in
+  let title =
+    let rec go = function
+      | [] -> "-"
+      | l :: r when String.length l >= 2 && String.sub l 0 2 = "# " ->
+          let t = String.trim (String.sub l 2 (String.length l - 2)) in
+          if t = "" then go r else t
+      | _ :: r -> go r in
+    go lines in
+  { slug; date = or_dash (field "date"); status = or_dash (field "status");
+    promoted; title; text }
+
+let list_icebox_entries () =
+  let dir = Filename.concat root "docs/icebox" in
+  let names = try Array.to_list (Sys.readdir dir) with _ -> [] in
+  names
+  |> List.filter (fun n -> n <> "README.md" && Filename.check_suffix n ".md"
+      && not (try Sys.is_directory (Filename.concat dir n) with _ -> false))
+  |> List.sort String.compare
+  |> List.map (fun n ->
+       parse_icebox_entry (Filename.remove_extension n)
+         (read_file_or (Filename.concat dir n) ""))
+
+let icebox_matches e terms =
+  let hay = String.lowercase_ascii (e.slug ^ "\n" ^ e.title ^ "\n" ^ e.text) in
+  List.for_all (fun t -> contains_sub hay (String.lowercase_ascii t)) terms
+
+let icebox_entry_json e =
+  `Assoc [("slug", json_str e.slug); ("date", json_str e.date);
+          ("status", json_str e.status);
+          ("promoted", (match e.promoted with Some p -> json_str p | None -> `Null));
+          ("title", json_str e.title)]
+

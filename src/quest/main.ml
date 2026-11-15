@@ -327,6 +327,24 @@ let normalize_verb = function
 
 let is_verb = function "c" | "create" | "r" | "read" | "u" | "update" | "d" | "delete" -> true | _ -> false
 
+(* icebox door: bp3 q icebox r [term...] | r <slug> (read-only) *)
+let do_icebox = function
+  | verb_raw :: rest when is_verb verb_raw ->
+      if normalize_verb verb_raw <> "r" then usage "icebox door is read-only: only r";
+      let (terms, fl) = split_flags rest in
+      let entries = list_icebox_entries () in
+      let print_list () =
+        let hits = List.filter (fun e -> icebox_matches e terms) entries in
+        print_verdict ~fmt:fl.fmt (`Assoc [("ok", `Bool true);
+          ("entries", `List (List.map icebox_entry_json hits))]); 0 in
+      (match terms with
+       | [slug] ->
+           (match List.find_opt (fun e -> e.slug = slug) entries with
+            | Some e -> print_string e.text; 0
+            | None -> print_list ())
+       | _ -> print_list ())
+  | _ -> usage "icebox door verbs are r"
+
 let run argv =
   let id = identity () in
   match argv with
@@ -336,6 +354,7 @@ let run argv =
   | "hooks" :: _ ->
       (* fail-open emitter: Hooks.handle never raises, always exit 0 *)
       print_endline (Yojson.Safe.to_string (Hooks.handle ())); 0
+  | "icebox" :: rest -> do_icebox rest
   | [] -> usage "no command"
   | first :: rest when is_verb first ->
       let verb = normalize_verb first in
