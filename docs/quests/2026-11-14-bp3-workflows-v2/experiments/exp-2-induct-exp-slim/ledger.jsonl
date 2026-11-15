@@ -46,3 +46,4 @@
 {"event":"usage_recorded","ts":"2026-11-15T00:56:02Z","run_id":"20261115T005402Z-check-muse-code-muse-wonder-1.0-c3","input_tokens":484503,"output_tokens":6897,"cached_tokens":465240,"reasoning_tokens":2619,"wall_ms":3000,"started_ts":"2026-11-15T00:55:59Z","settled_ts":"2026-11-15T00:56:02Z"}
 {"event":"run_settled","ts":"2026-11-15T00:56:02Z","run_id":"20261115T005402Z-check-muse-code-muse-wonder-1.0-c3","outcome":"settled"}
 {"event":"run_started","ts":"2026-11-15T00:56:47Z","run_id":"20261115T005611Z-land-muse-code-muse-wonder-1.0-c3","cycle":3,"session_id":"fe2ca793-a2a3-720f-8f12-551bf8b048c7"}
+{"ts":"2026-11-15T00:56:47Z","edge":"land","from":"approved","to":"landed","cycle":3,"commit":"546a4b3f1abba2b180a2f713734dfbf02e5e0e70","verdict":null,"reason":"c3 grade pass: slim build-only + quest-land, deferred rows to Exp 3","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
