@@ -15,9 +15,10 @@ check: lint
 	./test/tape.sh
 	./test/hooks.sh
 	./test/induct.sh
+	./test/completion.sh
 
 lint:
-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh test/completion.sh completions/bp3.bash
 	node --check skills/induct/workflows/induct-exp.js
 	node --check skills/induct/workflows/induct-grade.js
 	node --check skills/induct/workflows/quest-land.js

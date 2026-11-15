@@ -140,6 +140,31 @@ HOOKS_JSON
   # Note: codex and muse share .agents/skills; under --harness=all the muse
   # render (same dir) is written last. Invocation text differs only in the
   # trigger line; both harnesses accept the skill by name.
+  # Tab completion delivery: copy the scripts into an existing zsh
+  # completions dir when one is found (BP3_COMPLETIONS_DIR overrides the
+  # search); otherwise print the path to add. Never edit a shell rc file.
+  local comp_src="$root/completions/_bp3" comp_bash_src="$root/completions/bp3.bash"
+  if [ -f "$comp_src" ]; then
+    local comp_dest=''
+    if [ -n "${BP3_COMPLETIONS_DIR:-}" ]; then
+      comp_dest="$BP3_COMPLETIONS_DIR"
+    else
+      local cand
+      for cand in "${ZDOTDIR:-$HOME}/.zsh/completions" "$HOME/.zsh/completions" \
+        /opt/homebrew/share/zsh/site-functions /usr/local/share/zsh/site-functions \
+        "$HOME/.local/share/zsh/site-functions"; do
+        if [ -d "$cand" ]; then comp_dest="$cand"; break; fi
+      done
+    fi
+    if [ -n "$comp_dest" ]; then
+      mkdir -p "$comp_dest"
+      cp "$comp_src" "$comp_dest/_bp3"
+      echo "installed _bp3 -> $comp_dest/_bp3"
+      echo "completion: source $comp_bash_src (bash)"
+    else
+      echo "completion: add $root/completions to fpath (zsh: fpath=($root/completions \$fpath); compinit) or source $comp_bash_src (bash)"
+    fi
+  fi
 }
 
 usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 worktree derive|create|inspect|remove ...'
