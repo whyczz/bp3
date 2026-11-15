@@ -119,6 +119,7 @@ outside a bp3 repo or with an unbuilt binary.
 | Release pattern: `--version`, `make release` artifacts + checksums, version-ahead guard, mapped to git releases (annotated tag `v<version>` → GitHub Release via `gh`, publish-once) | package registries beyond GitHub Releases, CI-built assets, auto-update, prerelease version suffixes |
 | Installable bp3: `make install` (copied artifact), cwd-rooted shim, `init-repo` plan scaffolding; esc3 dogfood | symlinks into `_build`, side-by-side multi-version installs, overwriting a repo's differing `plans/` |
 | Shared release mechanism (Exp 7): bp3-owned scripts, yap-skills vendored copy + config, both repos publishing to their own GitHub Releases | yap calling into a bp3 checkout at release time; synced version numbers across repos; a version-ahead guard for skills (no ledger there) |
+| Induct worktree default (Exp 8): quest-level `bp3 worktree prepare`, desk-aware step workflows, induct skill defaults, parallel-induct fixture | per-Run desks as the induct default (they stay for parallel graders); working in the conductor's checkout as a fallback when a desk cannot be prepared (refuse instead) |
 
 ## Human touchpoints
 
@@ -182,6 +183,18 @@ skills to its own GitHub Releases. One discipline, two
 repos, independent numbers. Added at framing on the
 owner's ask. Depends on: Exp 5. Lane: standard
 (cross-repo: yap-side work lands in bp3-yap-skills).
+
+### Exp 8 — [Induct worktree default](experiments/exp-8-induct-worktree-default/EXPERIMENT.md)
+Every `/induct` runs its quest in one quest-level
+worktree by default (`.bp3/worktrees/<quest>/`, branch
+`quest/<quest>`), so parallel inducts and the owner's
+master work never collide. Mechanism-first: quest-level
+`bp3 worktree prepare`, desk-aware step workflows, then
+the skill text. Born from this quest's own Exp 3
+`E_DIRTY_TREE` refusal; red chair at framing (in its
+record): ship, with the dune-nesting fix as an acceptance
+case. Follow-up exp, added 2026-11-15 on the owner's ask.
+Depends on: none. Lane: high-blast-radius.
 
 ## Scorecard
 
