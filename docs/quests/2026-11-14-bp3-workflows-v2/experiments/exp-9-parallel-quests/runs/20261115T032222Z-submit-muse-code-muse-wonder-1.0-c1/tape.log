@@ -1296,3 +1296,7 @@ let head_sha () =
 
 let is_ancestor a b = git_ok ["merge-base"; "--is-ancestor"; a; b]
 
+[bp3/quest/2026-11-14-bp3-workflows-v2 62d65d1] bp3: exp-9 tape
+ 1 file changed, 118 insertions(+)
+62d65d13ed716d18369252b7be8fe1a1b4842639
+ M docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/runs/20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
