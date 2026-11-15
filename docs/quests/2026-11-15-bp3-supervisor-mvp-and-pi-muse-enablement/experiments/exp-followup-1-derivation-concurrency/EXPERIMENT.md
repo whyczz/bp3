@@ -52,6 +52,7 @@ write_cache(path, snap)   # temp file in same dir + rename
 | 2 supervisors, same run, 100 ticks | every `.jsonl` line parses; no row lost or torn |
 | cache write race | `.json` always valid JSON; fingerprint check catches staleness |
 | reader during append | reader sees whole rows only; torn tail ignored and reported |
+| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
 
 ## Acceptance test (goal block)
 
@@ -67,7 +68,9 @@ semantics only, no locks service, no daemon.
 
 ## Tests
 
-Known cases: Acceptance table. Property-based: for
+Known cases: Acceptance table; env-set run-id is
+stamped by bp3 into the submit verdict and ledger
+line (the mvp.1 mechanism). Property-based: for
 any interleaving of N writers x M rows, the log is
 a merge of whole rows and fold result equals the
 sequential fold of the same rows.
