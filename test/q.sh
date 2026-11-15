@@ -474,4 +474,28 @@ if out=$(q icebox c nope 2>&1); then fail "icebox write verb accepted"; fi
 echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "icebox write verb code: $out"
 [ "$(git status --porcelain)" = "$icebox_status_before" ] || fail "icebox command wrote to worktree"
 
+# --- help: -h/--help at every door, stdout, exit 0, no state read ---
+out=$(q -h) || fail "q -h exit"
+echo "$out" | grep -q "bp3 q c|r|d" || fail "q -h doors: $out"
+echo "$out" | grep -q "icebox" || fail "q -h icebox: $out"
+out=$(q --help) || fail "q --help exit"
+echo "$out" | grep -q "quest door" || fail "q --help text: $out"
+out=$(q c -h) || fail "quest door -h exit"
+for w in --type --depends-on --format --reason; do echo "$out" | grep -q -- "$w" || fail "quest door help missing $w: $out"; done
+out=$(q demo -h) || fail "exp door -h exit"
+echo "$out" | grep -q "exp door" || fail "exp door help: $out"
+out=$(q demo u -h) || fail "update -h exit"
+for w in submit review check land block resume --verdict --commit --reason --target; do echo "$out" | grep -qw -- "$w" || fail "update help missing $w: $out"; done
+out=$(q icebox -h) || fail "icebox -h exit"
+echo "$out" | grep -q "icebox r" || fail "icebox help: $out"
+out=$(q icebox r --help) || fail "icebox r --help exit"
+echo "$out" | grep -q "read-only" || fail "icebox r help: $out"
+out=$(./bin/bp3 -h) || fail "wrapper -h exit"
+echo "$out" | grep -q "usage: bp3" || fail "wrapper help: $out"
+out=$(q r --help) || fail "r --help should be quest-door help"
+echo "$out" | grep -q "quest door" || fail "r --help text: $out"
+# help reads no state: works for a nonexistent quest
+out=$(q no-such-quest -h) || fail "ghost quest -h exit"
+echo "$out" | grep -q "exp door" || fail "ghost quest help: $out"
+
 echo "q tests: ok"

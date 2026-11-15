@@ -345,9 +345,63 @@ let do_icebox = function
        | _ -> print_list ())
   | _ -> usage "icebox door verbs are r"
 
+(* ---------- help (docstrings beside dispatch; Exp 4) ---------- *)
+let help_q = "bp3 q - quest/exp state. Doors:\n\
+  bp3 q c|r|d ...              quest door (create, read, delete)\n\
+  bp3 q <quest> c|r|u|d ...    exp door for one quest\n\
+  bp3 q icebox r [term...]     search frozen icebox entries (read-only)\n\
+  bp3 q worktree <verb> ...    worktree desks (machine-local)\n\
+  bp3 q hooks                  harness hook emitter (fail-open)\n\
+Run bp3 q <door> -h for that door's verbs, edges, and flags.\n"
+
+let help_quest_door = "bp3 q <quest door> - verbs:\n\
+  bp3 q c <quest> [--type <quest_type>] [--depends-on <a,b>]   create a quest\n\
+  bp3 q r [<quest>] [--format json|table|tree]                 list quests, or read one\n\
+  bp3 q d <quest> --reason <why>                               delete a quest\n\
+Long forms: create, read, delete. Example: bp3 q c my-quest --type default\n"
+
+let help_exp_door = "bp3 q <quest> <exp door> - verbs:\n\
+  bp3 q <quest> c <exp> [--type <exp_type>]                    create an exp\n\
+  bp3 q <quest> r [<exp>] [--format json|table|tree]           read the quest, or one exp\n\
+  bp3 q <quest> u <exp> <edge> [flags]                         take an FSM edge (see u -h)\n\
+  bp3 q <quest> d <exp> --reason <why>                         delete an exp\n\
+Long forms: create, read, update, delete. Example: bp3 q my-quest r exp-1\n"
+
+let help_update = "bp3 q <quest> u <exp> <edge> - edges and their flags:\n\
+  edges: submit review check land block resume\n\
+  submit --commit <sha> --reason <why>     bind a clean commit for review\n\
+  review --verdict ship|needs_fix --reason <why>\n\
+  check  --verdict pass|fail --reason <why>\n\
+  land   --reason <why>                    land an approved exp\n\
+  block  --reason <why>                    park for a human decision\n\
+  resume --reason <why>                    human only: unblock\n\
+Shared flags: --format json|table|tree, --target <name>.\n\
+Example: bp3 q my-quest u exp-1 submit --commit abc123 --reason \"ready\"\n"
+
+let help_icebox = "bp3 q icebox r - search frozen icebox entries (read-only):\n\
+  bp3 q icebox r [term...] [--format json|table|tree]   list entries matching all terms\n\
+  bp3 q icebox r <slug>                                 print one entry in full\n\
+Example: bp3 q icebox r table completion\n"
+
+let help_worktree = "bp3 worktree - machine-local desks, never ledgered:\n\
+  verbs: derive, create, inspect, remove, prepare, check, exit, release, list\n\
+  bp3 worktree prepare <quest> <exp> --run <run-id> [--commit <sha>] [--path <dir>]\n\
+  bp3 worktree list [--quest <quest>]\n\
+Example: bp3 worktree prepare my-quest exp-1 --run R1\n"
+
+let is_help = function "-h" | "--help" -> true | _ -> false
+
 let run argv =
   let id = identity () in
   match argv with
+  | "-h" :: _ | "--help" :: _ -> print_string help_q; 0
+  | "worktree" :: (h :: _) when is_help h -> print_string help_worktree; 0
+  | "icebox" :: (h :: _) when is_help h -> print_string help_icebox; 0
+  | "icebox" :: ("r" | "read") :: (h :: _) when is_help h -> print_string help_icebox; 0
+  | first :: (h :: _) when is_verb first && is_help h -> print_string help_quest_door; 0
+  | _quest :: (h :: _) when is_help h -> print_string help_exp_door; 0
+  | _quest :: verb_raw :: (h :: _) when is_verb verb_raw && is_help h ->
+      print_string (if normalize_verb verb_raw = "u" then help_update else help_exp_door); 0
   | "worktree" :: rest ->
       (* util layer: machine-local git mechanics, never ledgered *)
       print_verdict ~fmt:"json" (Worktree.run rest); 0
