@@ -6,3 +6,4 @@
 {"event":"lint_checked","ts":"2026-11-15T02:30:35Z","run_id":"20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1","check":"make check","result":"pass"}
 {"ts":"2026-11-15T02:31:23Z","edge":"submit","from":"todo","to":"submitted","cycle":1,"commit":"3f140e631bbbb801ca0085341f5230f03cae63ff","verdict":null,"reason":"exp_fin/quest_fin report vocabulary synced across src, skill, workflow, tests","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0"}
 {"event":"usage_recorded","ts":"2026-11-15T02:31:26Z","run_id":"20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1","input_tokens":63525742,"output_tokens":334934,"cached_tokens":61485260,"reasoning_tokens":58898,"wall_ms":231000,"started_ts":"2026-11-15T02:27:35Z","settled_ts":"2026-11-15T02:31:26Z"}
+{"event":"run_settled","ts":"2026-11-15T02:31:26Z","run_id":"20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1","outcome":"settled"}
