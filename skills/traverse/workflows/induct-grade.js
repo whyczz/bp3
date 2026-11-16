@@ -14,7 +14,7 @@
 // writes its own proof. Returns {outcome, matrix, run_ids,
 // refusals}; replay on the same commit is safe: the audit is
 // read-only and re-cast verdicts bind the same commit.
-// Args are supplied by the calling induct skill as
+// Args are supplied by the calling traverse skill as
 // {quest, exp, ts, harness, model, commit}; ts is a UTC compact
 // timestamp from the caller, embedded by children in every
 // run-id because scripts cannot read the clock.

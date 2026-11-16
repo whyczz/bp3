@@ -1,8 +1,8 @@
-// Mock-host test for skills/induct/workflows/quest-land.js.
+// Mock-host test for skills/traverse/workflows/quest-land.js.
 // The land step owns one transition: an approved exp spawns
 // exactly one land child; any other state refuses with zero
 // children and untouched state.
-import workflow from "../skills/induct/workflows/quest-land.js";
+import workflow from "../skills/traverse/workflows/quest-land.js";
 
 const TS = "20260101T000000Z";
 let failures = 0;

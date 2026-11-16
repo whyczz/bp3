@@ -1,16 +1,15 @@
 ---
-name: induct
+name: traverse
 description: Conduct one bp3 quest from the main session — read state with bp3 q r, dispatch the one step that state calls for, re-read, until the quest is terminal or a human decision is owed.
 ---
-<!-- GENERATED from skills/induct/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->
 
-# Induct
+# Traverse
 
 Use when a human in a bp3-enabled repo invokes this skill by
-name (`/induct <quest>`, `$induct <quest>`) or asks to "induct",
+name (`/traverse <quest>`, `$traverse <quest>`) or asks to "traverse",
 "run", or "keep going on" a named quest until it lands or
-blocks. One quest per induct. One output: step dispatches
-through `bp3 q`, ending in an induct report — what reached
+blocks. One quest per traverse. One output: step dispatches
+through `bp3 q`, ending in a traverse report — what reached
 `exp_fin`, what is blocked, and what human decision is owed
 next. Finish lines have report words: `exp_fin` names an exp
 whose state is `landed` (its `land` edge taken); `quest_fin`
@@ -23,7 +22,7 @@ instead for a single state operation by hand (one handoff, one
 grade, recovery after a dead session). Use
 `red-ink-quest-landing-demo` instead when the quest is done and the
 human wants the landing writeup. A design under review is
-`red-ink`'s job, not an induct.
+`red-ink`'s job, not a traverse.
 
 ## Conductor rule
 
@@ -44,7 +43,7 @@ out of a cycle.
 
 ## No-human variant
 
-With no human present, the `induct-quest-no-human` skill
+With no human present, the `traverse-no-human` skill
 runs this same conductor over a queue of quests under
 no-human rails: preflight before queueing, desks only,
 blocked work parks in the inbox instead of paging, a
@@ -52,7 +51,7 @@ stated Run budget stops the queue, and the run ends in
 the dawn report. No-human never attests (`BP3_DECIDER`
 stays unset), never takes `resume` or `delete`, and
 never promotes — `quest_fin` stays the owner gate. The
-rails live in `skills/induct-quest-no-human/SKILL.md`;
+rails live in `skills/traverse-no-human/SKILL.md`;
 this section names the variant only, so the procedure
 above stays the one conductor procedure.
 
@@ -73,7 +72,7 @@ above stays the one conductor procedure.
    `path` as `desk` in every step's args. All step children
    work in that one worktree for the whole quest; the
    conductor's checkout is never worked in, so parallel
-   inducts and the owner's own work cannot collide with the
+   traverses and the owner's own work cannot collide with the
    Run. If the desk cannot be prepared, stop and say so —
    never fall back to the shared tree. Release it only at
    `quest_fin` or on the owner's word (`bp3 harness desk
@@ -83,7 +82,7 @@ above stays the one conductor procedure.
 
    | State | Dispatch | Args |
    |---|---|---|
-   | `todo` | `induct-exp` workflow | `{quest, exp, ts, harness, model, desk}` |
+   | `todo` | `node-loop` workflow | `{quest, exp, ts, harness, model, desk}` |
    | `handed_off` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit, desk}` with `commit` from this read |
    | `approved` | `quest-land` workflow | `{quest, exp, ts, harness, model, desk}` |
    | `blocked` | human gate (step 4) | — |

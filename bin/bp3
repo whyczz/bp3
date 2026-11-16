@@ -71,10 +71,10 @@ skills_install() {
       ;;
   esac
 
-  # The induct saved workflows ship with the induct skill. They are
+  # The traverse saved workflows ship with the traverse skill. They are
   # plain copies (no render notice); the target is the project workflows
   # dir every harness discovers. Absent source means nothing to copy.
-  local workflow_names="induct-exp induct-grade quest-land"
+  local workflow_names="node-loop induct-grade quest-land"
 
   local skill_dir skill
   for skill_dir in "$src_dir"/*/; do
@@ -89,9 +89,9 @@ skills_install() {
   fi
   local workflow_name
   for workflow_name in $workflow_names; do
-    if [ -f "$src_dir/induct/workflows/$workflow_name.js" ]; then
+    if [ -f "$src_dir/traverse/workflows/$workflow_name.js" ]; then
       mkdir -p "$root/.agents/workflows"
-      cp "$src_dir/induct/workflows/$workflow_name.js" "$root/.agents/workflows/$workflow_name.js"
+      cp "$src_dir/traverse/workflows/$workflow_name.js" "$root/.agents/workflows/$workflow_name.js"
       echo "installed $workflow_name -> .agents/workflows/$workflow_name.js"
     fi
   done

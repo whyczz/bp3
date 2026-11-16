@@ -18,7 +18,7 @@
    session-keyed shared maps and legacy per-Run event
    files are no longer imported on any path. Since mvp.8
    the InitRecord has a named writer: record-init, called
-   by the induct workflow launcher before it spawns each
+   by the traverse workflow launcher before it spawns each
    workflow child (the child never writes its own proof).
    followup.1 fixed the writer discipline for parallel
    supervisors: one write() per derivation row on an
@@ -1627,7 +1627,7 @@ let do_watch args =
   loop ()
 
 (* ---------- record-init (mvp.8: the InitRecord writer) ---------- *)
-(* The induct workflow launcher is the named writer: it is
+(* The traverse workflow launcher is the named writer: it is
    the only actor present before a workflow child exists, so
    it calls this verb before spawning the child. The child
    never writes its own proof. Create-only: an existing
@@ -1746,7 +1746,7 @@ let do_record_init args =
        0)
 
 (* ---------- bind-tape (followup.3: the launcher's bind step) ---------- *)
-(* The induct workflow launcher is the named binder: it runs
+(* The traverse workflow launcher is the named binder: it runs
    after the author child returns, when the child's session
    tape exists and has closed. The author child writes no
    InitRecord, binding, or observation. A binding row is a

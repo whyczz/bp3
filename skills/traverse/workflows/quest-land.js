@@ -1,19 +1,15 @@
-// induct-exp: build one todo exp, then stop. Installed to
-// .agents/workflows/induct-exp.js by `bp3 skills install`.
-// This step owns exactly one transition family: it reads state,
-// spawns the single author child for a `todo` exp, re-reads, and
+// quest-land: land one approved exp, then stop. Installed to
+// .agents/workflows/quest-land.js by `bp3 skills install`.
+// This step owns exactly one transition: it reads state,
+// spawns the single land child for an `approved` exp, re-reads, and
 // returns what the re-read reports. Any other state belongs to
-// a different step; this file refuses it untouched. All state
-// moves through `bp3 q u`, called directly by the author child;
-// this script never writes state. Its one write is proof, not
-// state: as the named InitRecord writer (mvp.8) it records the
-// child's InitRecord via `bp3 harness record-init` before the
-// child spawns; the child never writes its own proof. As the
-// named tape binder (followup.3) it then binds the child's
-// session tape via `bp3 harness bind-tape` after the child
-// returns; the child writes no InitRecord, binding, or
-// observation.
-// Args are supplied by the calling induct skill as {quest, exp,
+// a different step; this file refuses it untouched. The land
+// child calls `bp3 q u` directly; this script never writes
+// state. Its one write is proof, not state: as the named
+// InitRecord writer (mvp.8) it records the child's InitRecord
+// via `bp3 harness record-init` before the child spawns; the
+// child never writes its own proof.
+// Args are supplied by the calling traverse skill as {quest, exp,
 // ts, harness, model}; ts is a UTC compact timestamp from the
 // caller, embedded by the child in its run-id because scripts
 // cannot read the clock.
@@ -71,20 +67,15 @@ export default async function workflow(host) {
   const harness = rawArgs.harness || "muse-code";
   const model = rawArgs.model || "unknown";
   const desk = rawArgs.desk ? String(rawArgs.desk) : "";
+  const deskNote = desk ? ("Your working directory is the quest worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
   const envPrefix =
     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
-  const deskNote = desk ? ("Your working directory is the quest worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
-  const authorLoad =
-    "First load the code-writer skill (read_skill \"code-writer\") " +
-    "and follow its procedure, including naming discipline and " +
-    "its language references. ";
   const refusals = [];
   const runIds = [];
   if (!quest || !exp || !ts) {
     return {
       exp: exp || null,
       outcome: "refused",
-      commit: null,
       run_ids: runIds,
       refusals: ["missing quest, exp, or ts in workflow args"],
     };
@@ -149,11 +140,7 @@ export default async function workflow(host) {
 
   // The named InitRecord writer (mvp.8): this launcher, before
   // the child spawns. The child never writes its own proof; a
-  // refused write means the child never starts. The record
-  // names no tape (followup.3): the child's session tape does
-  // not exist yet, so the launcher binds it after the child
-  // returns (bindTape below). The run folder's tape.log stays
-  // the child's own transcript, never finish evidence.
+  // refused write means the child never starts.
   async function recordInit(edge, cycle) {
     const cmd =
       envPreset(edge, cycle) + "./bin/bp3 harness record-init" +
@@ -178,69 +165,6 @@ export default async function workflow(host) {
       refusals.push(
         "record-init refused before the " + edge + " child: " +
         errorText(result)
-      );
-      return false;
-    }
-    return true;
-  }
-
-  // The named tape binder (followup.3): this launcher, after
-  // the child returns, when its session tape exists and has
-  // closed. Resolution is mechanical — `bp3 harness
-  // find-tape` on the run-id — and a resolution that is not
-  // unique refuses typed, never a guess; the bind itself is
-  // one pointer-only tape_binding row written by bind-tape.
-  // The author child writes no binding.
-  async function bindTape(edge, cycle) {
-    const runId = runIdOf(edge, cycle);
-    const resolveCmd =
-      envPreset(edge, cycle) + "./bin/bp3 harness find-tape" +
-      " --run-id " + runId;
-    const resolved = await host.agent({
-      label: "resolve " + exp,
-      input:
-        deskNote +
-        "Run exactly `" + resolveCmd + "` from the quest worktree if " +
-        "one is named above, else the repository root, and return " +
-        "only its stdout JSON verdict verbatim as your entire " +
-        "reply, with no prose and no code fences. If the command " +
-        "fails, return its stdout JSON verdict verbatim instead. " +
-        "Do not edit any file and do not call any `bp3 q u` " +
-        "update edge.",
-    });
-    const rv = parseVerdict(resolved);
-    const tapePath = rv && rv.ok === true
-      ? (typeof rv.tape_path === "string" && rv.tape_path
-         ? rv.tape_path
-         : (typeof rv.wal === "string" ? rv.wal : ""))
-      : "";
-    if (!tapePath) {
-      refusals.push(
-        "bind-tape resolution refused after the " + edge + " child: " +
-        errorText(resolved)
-      );
-      return false;
-    }
-    const bindCmd =
-      envPreset(edge, cycle) + "./bin/bp3 harness bind-tape" +
-      " --run-id " + runId + " --tape-path " + tapePath;
-    const bound = await host.agent({
-      label: "bind " + exp,
-      input:
-        deskNote +
-        "Run exactly `" + bindCmd + "` from the quest worktree if " +
-        "one is named above, else the repository root, and return " +
-        "only its stdout JSON verdict verbatim as your entire " +
-        "reply, with no prose and no code fences. If the command " +
-        "fails, return its stdout JSON verdict verbatim instead. " +
-        "Do not edit any file and do not call any `bp3 q u` " +
-        "update edge.",
-    });
-    const bv = parseVerdict(bound);
-    if (!bv || bv.ok !== true) {
-      refusals.push(
-        "bind-tape refused after the " + edge + " child: " +
-        errorText(bound)
       );
       return false;
     }
@@ -275,62 +199,47 @@ export default async function workflow(host) {
   const before = await readState();
   if (before.state === "unknown") {
     refusals.push("initial read failed: " + (before.raw || "no verdict"));
-    return { exp: exp, outcome: "refused", commit: null, run_ids: runIds, refusals: refusals };
+    return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
   }
-  if (before.state !== "todo") {
+  if (before.state !== "approved") {
     refusals.push(
-      "expected todo, got " + before.state + "; another step owns that state"
+      "expected approved, got " + before.state + "; another step owns that state"
     );
-    return { exp: exp, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
+    return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
   }
 
-  if (!(await recordInit("handoff", before.cycle))) {
-    return { exp: exp, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
+  if (!(await recordInit("land", before.cycle))) {
+    return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
   }
 
-  const author = await host.agent({
-    label: "author " + exp,
+  const lander = await host.agent({
+    label: "land " + exp,
     input:
-      deskNote + "You are the author child for exp `" + exp + "` of quest `" +
-      quest + "`, currently in state `todo` at cycle " +
-      String(before.cycle) + ". " + authorLoad + tapePreamble("handoff", before.cycle) +
-      " Do the exp's work in the repository, then commit the " +
-      "work as a clean git commit and note its full sha. Then " +
-      "call the state edge directly yourself: " +
-      "`" + envPreset("handoff", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
-      " handoff --commit <your-commit-sha> --reason \"<short reason>\"`. " +
-      "Children call `bp3 q u` directly; never only return a " +
-      "verdict for the parent to relay. Reply with only a JSON " +
-      "object {ok, run_id, commit, verdict} where verdict is " +
-      "the JSON printed by the handoff call.",
+      deskNote + "You are the land child for exp `" + exp + "` of quest `" +
+      quest + "`, currently in state `approved` at cycle " +
+      String(before.cycle) + ". " + tapePreamble("land", before.cycle) +
+      " Call the state edge directly yourself: " +
+      "`" + envPreset("land", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
+      " land --reason \"<short reason>\"`. Children call " +
+      "`bp3 q u` directly; never only return a verdict for " +
+      "the parent to relay. Reply with only a JSON object " +
+      "{ok, run_id, commit, verdict} where verdict is the " +
+      "JSON printed by the land call.",
   });
-  const authorVerdict = parseVerdict(author);
-  if (authorVerdict && typeof authorVerdict.run_id === "string" && authorVerdict.run_id) {
-    runIds.push(authorVerdict.run_id);
+  const landVerdict = parseVerdict(lander);
+  if (landVerdict && typeof landVerdict.run_id === "string" && landVerdict.run_id) {
+    runIds.push(landVerdict.run_id);
   }
-
-  // The child has returned and its session tape has closed:
-  // bind it to the Run before re-reading state.
-  await bindTape("handoff", before.cycle);
 
   const after = await readState();
-  if (after.state === "handed_off") {
-    const commit = after.commit
-      ? String(after.commit)
-      : (authorVerdict && authorVerdict.commit ? String(authorVerdict.commit) : null);
-    return { exp: exp, outcome: "handed_off", commit: commit, run_ids: runIds, refusals: refusals };
+  if (after.state === "landed") {
+    return { exp: exp, outcome: "landed", run_ids: runIds, refusals: refusals };
   }
-  refusals.push(errorText(author));
+  refusals.push(errorText(lander));
   if (after.state === "unknown") {
-    refusals.push("re-read after author failed: " + (after.raw || "no verdict"));
+    refusals.push("re-read after land failed: " + (after.raw || "no verdict"));
   } else {
-    refusals.push("author left state " + after.state + ", expected handed_off");
+    refusals.push("land left state " + after.state + ", expected landed");
   }
-  return {
-    exp: exp,
-    outcome: "refused",
-    commit: after.commit === undefined ? null : after.commit,
-    run_ids: runIds,
-    refusals: refusals,
-  };
+  return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
 }

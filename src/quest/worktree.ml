@@ -304,7 +304,7 @@ let do_prepare quest exp run_id commit path_override =
             | Some existing -> prepare_verdict existing true
             | None -> prepare_verdict r false)
 
-(* Exp 8: one worktree per quest for a whole induct.
+(* Exp 8: one worktree per quest for a whole traverse.
    Record key is quest-<quest>; exp field is "(quest)". *)
 let quest_run_id quest = "quest-" ^ quest
 

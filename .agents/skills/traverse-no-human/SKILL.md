@@ -1,22 +1,22 @@
 ---
-name: induct-quest-no-human
-description: Run several bp3 quests with no human present using the induct conductor — fleet preflight, park blocked work in the inbox, and end with the check-in report; never attests, never pages, never promotes.
+name: traverse-no-human
+description: Run several bp3 quests with no human present using the traverse conductor — fleet preflight, park blocked work in the inbox, and end with the check-in report; never attests, never pages, never promotes.
 ---
-<!-- GENERATED from skills/induct-quest-no-human/SKILL.md by: bp3 skills install --harness=pi. Edit the source, then re-run. -->
+<!-- GENERATED from skills/traverse-no-human/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
 
-# Induct quest, no human
+# Traverse, no human
 
 Use when a human in a bp3-enabled repo invokes this skill
-by name (`/induct-quest-no-human <quest>...`,
-`$induct-quest-no-human`) or asks to run quests unattended,
+by name (`/traverse-no-human <quest>...`,
+`$traverse-no-human`) or asks to run quests unattended,
 overnight, or in a queue with no human present. Several
 quests may be named; a Run budget may be stated. One
 output: the check-in report (step 5). For one quest with a
-human present, use `induct` instead.
+human present, use `traverse` instead.
 
-`/induct-quest-no-human <quest>...` means `/induct <quest>` per
+`/traverse-no-human <quest>...` means `/traverse <quest>` per
 quest, in queue order, under the no-human rails below. Follow
-the canonical `induct` skill (`skills/induct/SKILL.md`)
+the canonical `traverse` skill (`skills/traverse/SKILL.md`)
 procedure and rules as written there — read state with
 `bp3 q r`, dispatch the one step that state calls for,
 re-read. This file carries no step procedure of its own,
@@ -25,7 +25,7 @@ that make the conductor safe with no human in the room.
 
 ## Shape
 
-This ships as a skill mode of `induct`, not its own FSM.
+This ships as a skill mode of `traverse`, not its own FSM.
 The rails below (preflight, parking, budget, check-in report)
 all state as conductor rules over the existing exp FSM
 without special cases: the queue is ordered iteration,
@@ -97,7 +97,7 @@ quest up it. Names below reuse the exp's words: `fleet`,
    A quest that fails preflight is reported, not queued;
    the queue moves on to the next named quest.
 2. Run admitted quests in parallel, each in merge order
-   for reporting. Per quest, ride the `induct` conductor
+   for reporting. Per quest, ride the `traverse` conductor
    loop: `needs_fix` below the cycle cap rides to the
    next cycle (Exp 6 rule, no owner question); `landed`
    is reported as `exp_fin` and the conductor advances
@@ -141,7 +141,7 @@ quest up it. Names below reuse the exp's words: `fleet`,
   writer, called by step children; no-human itself takes
   no verdict edge and no human edge.
 - Identity rides env (`BP3_HARNESS`, `BP3_MODEL`) as in
-  `induct`; `BP3_DECIDER` is the one env name no-human
+  `traverse`; `BP3_DECIDER` is the one env name no-human
   must never set.
 - Instructions only: this skill holds no state, spawns
   no daemon, and assumes no runtime beyond the main

@@ -9,7 +9,7 @@
 // InitRecord writer (mvp.8) it records the child's InitRecord
 // via `bp3 harness record-init` before the child spawns; the
 // child never writes its own proof.
-// Args are supplied by the calling induct skill as {quest, exp,
+// Args are supplied by the calling traverse skill as {quest, exp,
 // ts, harness, model}; ts is a UTC compact timestamp from the
 // caller, embedded by the child in its run-id because scripts
 // cannot read the clock.

@@ -1,4 +1,4 @@
-// Mock-host test for skills/induct/workflows/induct-grade.js.
+// Mock-host test for skills/traverse/workflows/induct-grade.js.
 // Covers the exp Acceptance table: typed matrix returned, a
 // missing-evidence row blocks approval, an untyped row never
 // carries pass, a deferred row naming its owning exp never
@@ -10,7 +10,7 @@
 // whole-tape escalation must name itself), and grade children are
 // judge-only (audit spawns no edge, grade/verify bind the
 // exact commit).
-import workflow from "../skills/induct/workflows/induct-grade.js";
+import workflow from "../skills/traverse/workflows/induct-grade.js";
 
 const TS = "20260101T000000Z";
 const COMMIT = "abc1234";
