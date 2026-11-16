@@ -353,6 +353,12 @@ role files routing effective `BP3_MODEL` /
 `BP3_THINKING`. Hung/silent/closed-not-exited cases
 proved on the fake-pi suite.
 
+### followup.7 - pi-worktree-root — [record](experiments/exp-followup-7-pi-worktree-root/EXPERIMENT.md)
+dogfood.4 papercut, owner-ruled at the quest_fin
+gate: dispatcher root resolution lands on the main
+checkout inside worktrees. Resolve the worktree
+toplevel for binary + cwd; state stays common-dir.
+
 ### Milestone: backtest — findings, not gates
 
 ### backtest.1 - muse — [record](experiments/exp-backtest-1-muse/EXPERIMENT.md)
