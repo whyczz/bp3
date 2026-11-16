@@ -4,7 +4,7 @@ home_repo: bp3
 date: 2026-11-16
 ---
 
-# 2026-11-16-bp3-graph-link
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
 
 ## TL;DR
 

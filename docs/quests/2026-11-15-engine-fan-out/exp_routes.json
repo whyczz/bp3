@@ -1,0 +1,45 @@
+{
+  "quest": "2026-11-15-engine-fan-out",
+  "status": "proposed",
+  "stages": [
+    {
+      "stage": 1,
+      "exps": [
+        {
+          "exp": "exp-1-routes-contract",
+          "paths": ["src/quest/store.ml", "src/quest/render.ml", "test/q.sh"]
+        }
+      ]
+    },
+    {
+      "stage": 2,
+      "exps": [
+        {
+          "exp": "exp-2-groupwise-scheduler",
+          "paths": ["skills/induct/", "skills/induct-quest-no-human/", "test/induct.sh"]
+        },
+        {
+          "exp": "exp-3-routes-framing",
+          "paths": ["skills/quest/", "test/skills.sh"]
+        }
+      ]
+    },
+    {
+      "stage": 3,
+      "exps": [
+        {
+          "exp": "exp-4-integration-order",
+          "paths": ["skills/induct/workflows/quest-land.js", "test/land-integration.sh"]
+        },
+        {
+          "exp": "exp-5-routes-amendments",
+          "paths": ["src/quest/store.ml", "src/quest/main.ml", "test/q.sh"]
+        },
+        {
+          "exp": "exp-6-member-desk-lifecycle",
+          "paths": ["src/quest/worktree.ml", "test/worktree.sh"]
+        }
+      ]
+    }
+  ]
+}

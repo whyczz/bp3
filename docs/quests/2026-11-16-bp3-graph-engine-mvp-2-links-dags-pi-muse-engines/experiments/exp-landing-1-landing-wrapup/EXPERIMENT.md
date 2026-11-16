@@ -9,7 +9,7 @@ status: proposed
 
 ## TL;DR
 
-Close the graph-link quest: scorecard including
+Close the graph-engine quest: scorecard including
 per-node wall/wait/dwell and ready-set timings,
 findings 100% dispositioned with homes, and the
 landing walkthrough actually run

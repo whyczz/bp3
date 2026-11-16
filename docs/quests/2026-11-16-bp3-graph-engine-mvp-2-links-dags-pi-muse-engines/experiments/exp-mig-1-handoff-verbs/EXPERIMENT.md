@@ -64,7 +64,7 @@ def fold_state(lines):
 | new verbs round-trip | fixture node: `handoff -> grade -> verify -> land` under `bp3 q … u …`; old verbs refuse as unknown edges |
 | compat in one place | the old->new mapping appears only in the fold (grep shows one definition site); skills/workflows/tests contain zero old verb spellings as identifiers |
 | conducting surfaces updated | `induct-exp`/`induct-grade` briefs spell `handoff`/`grade`; outcomes read `handed_off`; full `make check` green |
-| this quest survives itself | the graph-link quest's own mixed-vocab ledger (early `submit`, later `handoff`) reads correctly at every step of this node |
+| this quest survives itself | this quest's own mixed-vocab ledger (early `submit`, later `handoff`) reads correctly at every step of this node |
 
 ## Acceptance test (goal block)
 
