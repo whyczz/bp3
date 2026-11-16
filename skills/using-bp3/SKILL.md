@@ -25,20 +25,20 @@ General coding in this repo does not need this skill.
    --engine <engine>`. It scaffolds `docs/quests/<name>/`
    (QUEST.md, fsm.yaml, state.yaml, ledger.jsonl, runs/).
    Two independent dimensions: `quest_type` is the plan in
-   `plans/` (default: one review round), `engine` is who
+   `plans/` (default: one grade round), `engine` is who
    executes (single, master-subagents, panes, workflows).
 3. Quest dependencies live in `fsm.yaml` as `depends_on: [...]`
-   (set at create with `--depends-on`). `submit` refuses until
+   (set at create with `--depends-on`). `handoff` refuses until
    every dependency's stage is `landed`; the verdict JSON shows
    `blocked_by`. Dependencies are by quest folder name.
 4. Take only legal moves. The verdict JSON lists them:
-   `submit --commit <sha>`, `review --verdict ship|fix_first`,
+   `handoff --commit <sha>`, `grade --verdict ship|fix_first`,
    `land`, `block`, `cancel`. Judgment moves need `--reason`;
    it is the move's commit message. Verdicts bind to the exact
    current commit; a second `fix_first` at the cycle cap
    escalates to blocked — do not work around it.
-5. Commit work before submitting it. Only clean commits move:
-   `submit` refuses dirty trees outside quest folders and
+5. Commit work before handing it off. Only clean commits move:
+   `handoff` refuses dirty trees outside quest folders and
    commits that do not descend from the recorded state.
 6. Recover from the ledger, not from memory: after a dead
    session, `bp3 invoke <quest>` rebuilds state from

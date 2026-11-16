@@ -1991,7 +1991,7 @@ let do_backtest args =
       let (fin, exit_e, torn_t) = tape_evidence engine text in
       let torn = torn || torn_t in
       let bp3_calls = count_sub text "bp3 q " + count_sub text "bp3 harness" in
-      let has_submit = contains_sub text " submit" || contains_sub text "\"submit\"" in
+      let has_handoff = contains_sub text " handoff" || contains_sub text "\"handoff\"" in
       let run_id = match run_ids with r :: _ -> r | [] -> "" in
       let (has_header, entries) = if engine = "pi" then pi_shape text
         else (false, 0) in
@@ -2005,7 +2005,7 @@ let do_backtest args =
         ("bp3_calls", `Int bp3_calls);
         ("refusals", `List (List.map json_str refusals));
         ("commits", `List (List.map json_str commits));
-        ("has_submit", `Bool has_submit);
+        ("has_handoff", `Bool has_handoff);
         ("finish_evidence", `Bool fin); ("exit_observed", `Bool exit_e);
         ("torn_tail", `Bool torn)] in
       let extra = if engine = "pi" then [
@@ -2027,15 +2027,15 @@ let do_backtest args =
         if u_missing > 0 then
           add_finding "assistant entry with no usage" "adapter";
         List.iter (fun code ->
-          if not has_submit then
-            add_finding (code ^ " refusal with no submit") "dispatcher") refusals;
+          if not has_handoff then
+            add_finding (code ^ " refusal with no handoff") "dispatcher") refusals;
         if has_header && entries > 1 && not fin && refusals = [] then
           add_finding "pi session with no finish evidence" "adapter"
       end else begin
         if run_ids = [] then add_finding "foreign tape: no BP3_RUN_ID binding" "adapter";
         List.iter (fun code ->
-          if not has_submit then
-            add_finding (code ^ " refusal with no submit") "bp3 q u / hooks") refusals;
+          if not has_handoff then
+            add_finding (code ^ " refusal with no handoff") "bp3 q u / hooks") refusals;
         if run_ids <> [] && not fin && not exit_e && refusals = [] then
           add_finding "identifiable Run with no finish evidence" "adapter"
       end
@@ -2092,7 +2092,7 @@ let help_find_tape = "bp3 harness find-tape - InitRecord-first tape lookup:\n\
   Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate. A tape named by an InitRecord or a binding row wins over any scan; when a scan finds several referencing tapes, only tapes carrying the Run's own engine-fsm-edge invocation (BP3_RUN_ID bound to its bp3 q ... u <exp> <engine-fsm-edge> call, engine-fsm-edge from the run-id, exp from the InitRecord) can resolve, and among them the earliest session started at-or-after the Run's InitRecord wins; a tie or none is E_AMBIGUOUS.\n\
   --entry returns the one digest-verified entry (sha256 over its exact line, with byte range), widened by --before-entries/--after-entries (non-negative integers, default 0).\n\
   Emits {ok, run_id, harness, session_id, wal, pid} or, with --entry, plus {entry, entries}.\n\
-Example: bp3 harness find-tape --run-id 20261115T000000Z-submit-pi-model-c1\n"
+Example: bp3 harness find-tape --run-id 20261115T000000Z-handoff-pi-model-c1\n"
 
 let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
   bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
@@ -2101,7 +2101,7 @@ let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
   Finish evidence is per harness, read off the tape tail: muse-code scans whole entries from the end, skipping task entries, and the first non-task entry decides — a session.end entry closes the tape, and a runtime terminal entry is a child tape's exit entry (child tapes carry no close marker and end with task entries after it); pi never closes, so only its last whole entry counts (a session_closed entry or a final assistant entry that stopped is its clean end). Exit plus finish evidence (or settle plus finish evidence) with no live pid is settled; a live pid is never finished. A torn final tape entry finishes nothing and warns W_TORN_TAIL. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. Finish evidence or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
   Identity flags follow find-tape: both, neither, or disagreeing flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS. Tape resolution is shared with find-tape, including the own engine-fsm-edge start-order rule for scanned tapes. Durations are bare positive integers; 0, negatives, and suffixed values are E_USAGE.\n\
   Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
-Example: bp3 harness watch --run-id 20261115T000000Z-submit-pi-model-c1 --silence-seconds 600\n"
+Example: bp3 harness watch --run-id 20261115T000000Z-handoff-pi-model-c1 --silence-seconds 600\n"
 
 let help_desk = "bp3 harness desk - machine-local desks, never ledgered (same Worktree store as the retired bp3 worktree door, which remains its documented alias):\n\
   verbs: derive, create, inspect, remove, prepare, check, exit, release, list\n\
@@ -2115,12 +2115,12 @@ Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
 let help_bind_tape = "bp3 harness bind-tape - bind a finished child's session tape to its Run (the launcher's bind step; the author child writes no InitRecord, binding, or observation):\n\
   bp3 harness bind-tape --run-id <id> --tape-path <p>\n\
   Appends one pointer-only tape_binding row (run-id, tape path, timestamp; never tape content) as a single write to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl, after the child returns and its session tape has closed. The binding is one-to-one and pinned: the fold names the tape from the InitRecord's own tape path, else the first binding, and that pointer is the only one it reads. Re-binding the same tape is a no-op; a second, different tape for the run-id, or a tape already bound to another run-id, is E_EXISTS, never a silent rebind; a missing tape path is never guessed. A run-id with no InitRecord is E_NOT_FOUND; a bad run-id or a missing, duplicate, or =-formed flag is E_USAGE. Emits {ok, run_id, tape_path, path}.\n\
-Example: bp3 harness bind-tape --run-id 20261115T000000Z-submit-muse-code-model-c1 --tape-path ~/.local/share/muse/sessions/2026/11/15/<session>/session.jsonl\n"
+Example: bp3 harness bind-tape --run-id 20261115T000000Z-handoff-muse-code-model-c1 --tape-path ~/.local/share/muse/sessions/2026/11/15/<session>/session.jsonl\n"
 
 let help_record_init = "bp3 harness record-init - write one Run's InitRecord (the launcher's verb; the child never writes its own proof):\n\
   bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>] [--thinking <t>]\n\
   Appends the first derivation row (kind init_record) to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl before the child starts, so find-tape/watch/supervisor resolve the Run from birth. Create-only: an existing log for the run-id is E_EXISTS; a bad run-id, engine, or pid is E_USAGE. Emits {ok, run_id, harness, session_id, pid, tape_path, quest, exp, path}.\n\
-Example: bp3 harness record-init --run-id 20261115T000000Z-submit-muse-code-model-c1 --harness muse-code --quest toy --exp exp-1\n"
+Example: bp3 harness record-init --run-id 20261115T000000Z-handoff-muse-code-model-c1 --harness muse-code --quest toy --exp exp-1\n"
 
 let is_help = function "-h" | "--help" -> true | _ -> false
 

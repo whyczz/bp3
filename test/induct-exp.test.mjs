@@ -6,7 +6,7 @@
 // bind step follows the author (followup.3: find-tape resolves
 // the session tape, bind-tape binds it; a refused resolution
 // binds nothing), the file carries no other stage's edge
-// commands, a submitted exp is refused with zero stage
+// commands, a handed_off exp is refused with zero stage
 // children (state untouched), and the env-set run-id still
 // holds for the author.
 import { readFileSync } from "node:fs";
@@ -71,54 +71,54 @@ function mockHost({ reads, initFails, bindFails }) {
   return { host, labels, inputs, inits, binds };
 }
 
-const todo = { state: "todo", cycle: 1, commit: null, legal_edges: ["submit"] };
-const submitted = { state: "submitted", cycle: 1, commit: "abc1234", legal_edges: ["review", "check"] };
+const todo = { state: "todo", cycle: 1, commit: null, legal_edges: ["handoff"] };
+const handedOff = { state: "handed_off", cycle: 1, commit: "abc1234", legal_edges: ["grade", "verify"] };
 
 // --- todo: the writer records first, the author runs, the binder follows ---
 {
-  const { host, labels, inputs, inits, binds } = mockHost({ reads: [todo, submitted] });
+  const { host, labels, inputs, inits, binds } = mockHost({ reads: [todo, handedOff] });
   const result = await workflow(host);
-  assert(result.outcome === "submitted", "todo build submits, got " + result.outcome);
+  assert(result.outcome === "handed_off", "todo build hands off, got " + result.outcome);
   assert(result.commit === "abc1234", "commit comes from the re-read, got " + result.commit);
   assert(labels.join(",") === "init,author,resolve,bind", "writer, author, then bind step, got " + labels.join(","));
-  assert(inits.join(",") === TS + "-submit-muse-code-test-model-c1",
+  assert(inits.join(",") === TS + "-handoff-muse-code-test-model-c1",
     "InitRecord names the author's run-id, got " + inits.join(","));
-  assert(inputs.init.includes("harness record-init --run-id " + TS + "-submit-muse-code-test-model-c1"),
+  assert(inputs.init.includes("harness record-init --run-id " + TS + "-handoff-muse-code-test-model-c1"),
     "writer calls record-init for the author run-id");
   assert(inputs.init.includes("--harness muse-code") && inputs.init.includes("--quest toy") && inputs.init.includes("--exp fx"),
     "writer records harness, quest, and exp");
   assert(!inputs.init.includes("--tape-path"),
     "writer names no tape pre-spawn; the session tape is bound after the child returns");
-  assert(inputs.resolve.includes("harness find-tape --run-id " + TS + "-submit-muse-code-test-model-c1"),
+  assert(inputs.resolve.includes("harness find-tape --run-id " + TS + "-handoff-muse-code-test-model-c1"),
     "binder resolves the author's session tape mechanically");
-  assert(inputs.bind.includes("harness bind-tape --run-id " + TS + "-submit-muse-code-test-model-c1"),
+  assert(inputs.bind.includes("harness bind-tape --run-id " + TS + "-handoff-muse-code-test-model-c1"),
     "binder calls bind-tape for the author run-id");
   assert(inputs.bind.includes("--tape-path /tmp/session-tape.jsonl"),
     "binder binds the resolved session tape");
   assert(binds.join(",") === "/tmp/session-tape.jsonl",
     "exactly one binding, for the resolved tape, got " + binds.join(","));
   const input = inputs.author;
-  const want = "BP3_RUN_ID=" + TS + "-submit-muse-code-test-model-c1";
+  const want = "BP3_RUN_ID=" + TS + "-handoff-muse-code-test-model-c1";
   assert(input.includes(want), "author command carries " + want);
   assert(input.includes("BP3_QUEST=toy") && input.includes("BP3_EXP=fx"),
     "author prefix carries quest/exp");
-  assert(input.includes("runs/" + TS + "-submit-muse-code-test-model-c1"),
-    "submit run folder matches BP3_RUN_ID");
+  assert(input.includes("runs/" + TS + "-handoff-muse-code-test-model-c1"),
+    "handoff run folder matches BP3_RUN_ID");
   assert(!input.includes("Prefix your FIRST"),
     "author brief carries no first-command prefix instruction");
   assert(input.includes("arrive via environment"),
     "author is told the run-id arrives via environment");
-  assert(input.includes("u fx submit --commit"), "author calls the submit edge");
+  assert(input.includes("u fx handoff --commit"), "author calls the handoff edge");
   assert(result.run_ids.join(",") === "r-author", "run_ids collect the author, got " + result.run_ids.join(","));
 }
 
-// --- submitted: refuses cleanly, no stage child, state untouched ---
+// --- handed_off: refuses cleanly, no stage child, state untouched ---
 {
-  const { host, labels } = mockHost({ reads: [submitted] });
+  const { host, labels } = mockHost({ reads: [handedOff] });
   const result = await workflow(host);
-  assert(result.outcome === "refused", "submitted exp is refused, got " + result.outcome);
-  assert(labels.length === 0, "no stage child spawns for submitted");
-  assert(result.refusals.some((r) => r.includes("submitted")), "refusal names the state");
+  assert(result.outcome === "refused", "handed_off exp is refused, got " + result.outcome);
+  assert(labels.length === 0, "no stage child spawns for handed_off");
+  assert(result.refusals.some((r) => r.includes("handed_off")), "refusal names the state");
 }
 
 // --- approved and landed also refuse: another step owns them ---
@@ -140,9 +140,9 @@ for (const state of ["approved", "landed", "blocked"]) {
 
 // --- tape resolution refuses: nothing is bound, refusal is typed ---
 {
-  const { host, labels, binds } = mockHost({ reads: [todo, submitted], bindFails: true });
+  const { host, labels, binds } = mockHost({ reads: [todo, handedOff], bindFails: true });
   const result = await workflow(host);
-  assert(result.outcome === "submitted", "bind refusal does not unsubmit the exp, got " + result.outcome);
+  assert(result.outcome === "handed_off", "bind refusal does not unhand the exp, got " + result.outcome);
   assert(labels.join(",") === "init,author,resolve", "no bind child after a refused resolution, got " + labels.join(","));
   assert(binds.length === 0, "a refused resolution binds nothing, got " + binds.join(","));
   assert(result.refusals.some((r) => r.includes("bind-tape")), "refusal names bind-tape");
@@ -172,8 +172,8 @@ for (const state of ["approved", "landed", "blocked"]) {
 {
   const src = readFileSync(new URL("../skills/induct/workflows/induct-exp.js", import.meta.url), "utf8");
   assert(!src.includes("host.parallel"), "no parallel stage fan-out in the file");
-  assert(!src.includes("review --verdict"), "no review prompt in the file");
-  assert(!src.includes("check --verdict"), "no check prompt in the file");
+  assert(!src.includes("grade --verdict"), "no grade prompt in the file");
+  assert(!src.includes("verify --verdict"), "no verify prompt in the file");
   assert(!src.includes(" land --reason"), "no land prompt in the file");
   assert(!src.includes("for (let stage"), "no stage loop in the file");
 }

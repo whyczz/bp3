@@ -220,7 +220,7 @@ Worked example (miniature — voice and scale, not a template):
 | edge verdict | `{state, run_id, source}` stamped from the claim |
 
 ## Demo (design trace)
-root: mint link -> node claims -> edge claims -> submit -> landed;
+root: mint link -> node claims -> edge claims -> handoff -> landed;
 blocked sibling: edge fails typed -> node blocks, exits -> root pages
 human -> resume -> fresh node worker continues.
 ```

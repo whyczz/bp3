@@ -189,9 +189,9 @@ Worked example (miniature — voice and scale, not a template):
 
 ```text
 ## Demo (design trace)
-conductor: mint link for node N, edge submit -> bp3link_7f3a…
+conductor: mint link for node N, edge handoff -> bp3link_7f3a…
 child: claim bp3link_7f3a… -> claimed {run_id, session_id, desk}
-child: build -> bp3 e submit --commit 4fc0cc4 -> {state: submitted}
+child: build -> bp3 e handoff --commit 4fc0cc4 -> {state: handed_off}
 second claim of bp3link_7f3a… -> E_LINK_SPENT {first_claim: …}
 ```
 | ASCII diagram | the flow at a glance: inputs, outputs, where it can stop |

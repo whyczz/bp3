@@ -19,8 +19,8 @@ line. The FSM states stay `landed`; `exp_fin`/`quest_fin`
 name the finish lines in reports, never new edges.
 
 Use `quest` instead to frame a new quest. Use `using-bp3`
-instead for a single state operation by hand (one submit, one
-review, recovery after a dead session). Use
+instead for a single state operation by hand (one handoff, one
+grade, recovery after a dead session). Use
 `red-ink-quest-landing-demo` instead when the quest is done and the
 human wants the landing writeup. A design under review is
 `red-ink`'s job, not an induct.
@@ -84,7 +84,7 @@ above stays the one conductor procedure.
    | State | Dispatch | Args |
    |---|---|---|
    | `todo` | `induct-exp` workflow | `{quest, exp, ts, harness, model, desk}` |
-   | `submitted` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit, desk}` with `commit` from this read |
+   | `handed_off` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit, desk}` with `commit` from this read |
    | `approved` | `quest-land` workflow | `{quest, exp, ts, harness, model, desk}` |
    | `blocked` | human gate (step 4) | — |
    | `landed` / `deleted` | none | advance to the next exp, or report at terminal (`landed` is reported as `exp_fin`) |
@@ -102,9 +102,9 @@ above stays the one conductor procedure.
    again — no attempt bookkeeping here.
 
    Cycle autonomy: when a grade returns `needs_fix` (or a
-   check returns `fail`) and the re-read shows the exp back
+   verify returns `fail`) and the re-read shows the exp back
    in `todo` below the cycle cap, the conductor dispatches
-   the next author cycle itself, carrying the reviewer's
+   the next author cycle itself, carrying the grader's
    named fix — including any regression test or acceptance
    amendment that fix demands — in the next dispatch's
    context. It does not ask the owner about the cycle, does

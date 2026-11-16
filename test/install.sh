@@ -33,8 +33,8 @@ echo "$out" | grep -q '"ok":true' || fail "init-repo verdict: $out"
 out=$(bp3 q c dogfood) || fail "esc3 quest create: $out"
 out=$(bp3 q dogfood c exp-1) || fail "esc3 exp create: $out"
 echo change >> a.txt; git add .; git commit -qm change
-out=$(bp3 q dogfood u exp-1 submit --commit HEAD --reason "esc3 dogfood") || fail "esc3 submit: $out"
-echo "$out" | grep -q '"state":"submitted"' || fail "esc3 submitted: $out"
+out=$(bp3 q dogfood u exp-1 handoff --commit HEAD --reason "esc3 dogfood") || fail "esc3 handoff: $out"
+echo "$out" | grep -q '"state":"handed_off"' || fail "esc3 handed_off: $out"
 out=$(bp3 q r dogfood) || fail "esc3 read: $out"
 git -C "$root" rev-parse -q --verify refs/heads/bp3/quest/dogfood >/dev/null 2>&1 && fail "dogfood quest leaked into home repo refs"
 

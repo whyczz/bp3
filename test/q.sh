@@ -39,18 +39,18 @@ echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "exp r
 
 # --- strict argv: dup flag, unknown flag, stray positional -> usage before write ---
 before=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
-if out=$(q demo u parser-fix submit --commit abc --reason x --reason y 2>&1); then fail "dup flag accepted"; fi
+if out=$(q demo u parser-fix handoff --commit abc --reason x --reason y 2>&1); then fail "dup flag accepted"; fi
 echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "dup flag code: $out"
-if out=$(q demo u parser-fix submit --commit abc --reason x --bogus y 2>&1); then fail "unknown flag accepted"; fi
+if out=$(q demo u parser-fix handoff --commit abc --reason x --bogus y 2>&1); then fail "unknown flag accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "unknown flag code: $out"
-if out=$(q demo u parser-fix submit extra --commit abc --reason x 2>&1); then fail "stray positional accepted"; fi
+if out=$(q demo u parser-fix handoff extra --commit abc --reason x 2>&1); then fail "stray positional accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "stray code: $out"
 after=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
 [ "$before" = "$after" ] || fail "strict argv wrote to ledger"
 
 # --- refusal: land from todo, ledger unchanged ---
 if out=$(q demo u parser-fix land --reason "too early" 2>&1); then fail "land from todo accepted"; fi
-echo "$out" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "todo" and .error.facts.edge == "land" and (.error.facts.legal_edges | index("submit") != null) and (.error.guidance | length > 0)' >/dev/null || fail "illegal edge facts: $out"
+echo "$out" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "todo" and .error.facts.edge == "land" and (.error.facts.legal_edges | index("handoff") != null) and (.error.guidance | length > 0)' >/dev/null || fail "illegal edge facts: $out"
 after=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
 [ "$before" = "$after" ] || fail "refusal ledgered"
 
@@ -78,29 +78,75 @@ out=$(env -u BP3_HARNESS -u BP3_MODEL -u BP3_RUN_ID BP3_Q_BIN="$work/repo/q-bin"
 echo "$out" | jq -e '.ok == true and (has("run_id") | not) and (.warnings | index("W_IDENTITY_UNKNOWN") != null)' >/dev/null || fail "run-id unset identity warning: $out"
 git show bp3/exp/runq/rid-unknown:docs/quests/runq/experiments/rid-unknown/ledger.jsonl | tail -1 | jq -e '(has("run_id") | not) and .harness == "unknown"' >/dev/null || fail "run-id unset unknown ledger"
 
-# --- happy path submit/review/check/land (alias spellings mixed) ---
+# --- happy path handoff/grade/verify/land (alias spellings mixed) ---
 echo work > b.txt; git add b.txt; git commit -qm work
 B=$(git rev-parse HEAD)
-out=$(q demo u parser-fix submit --commit "$B" --reason "first cut")
-echo "$out" | jq -e '.ok == true and .state == "submitted" and .cycle == 1' >/dev/null || fail "submit: $out"
-out=$(q demo update parser-fix review --verdict ship --reason "looks right")
-echo "$out" | jq -e '.ok == true and .state == "submitted"' >/dev/null || fail "review ship stays submitted until check: $out"
-out=$(q demo u parser-fix check --verdict pass --reason "green")
-echo "$out" | jq -e '.ok == true and .state == "approved"' >/dev/null || fail "check pass approves: $out"
+out=$(q demo u parser-fix handoff --commit "$B" --reason "first cut")
+echo "$out" | jq -e '.ok == true and .state == "handed_off" and .cycle == 1' >/dev/null || fail "handoff: $out"
+out=$(q demo update parser-fix grade --verdict ship --reason "looks right")
+echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "grade ship stays handed_off until verify: $out"
+out=$(q demo u parser-fix verify --verdict pass --reason "green")
+echo "$out" | jq -e '.ok == true and .state == "approved"' >/dev/null || fail "verify pass approves: $out"
 out=$(q demo u parser-fix land --reason "ship it")
 echo "$out" | jq -e '.ok == true and .state == "landed" and .fin == "exp_fin"' >/dev/null || fail "land: $out"
 out=$(q r demo)
 echo "$out" | jq -e '.ok == true and (.exps[] | select(.exp == "parser-fix") | .state == "landed" and .fin == "exp_fin")' >/dev/null || fail "read after land: $out"
+
+# --- mig.1 compat: frozen pre-rename ledger folds to new words, file untouched ---
+out=$(q demo c compat-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "compat create: $out"
+append_ledger_line() { # $1 exp $2 json-line
+  local br="bp3/exp/demo/$1" path="docs/quests/demo/experiments/$1/ledger.jsonl" tip idx led blob tree nt
+  tip=$(git rev-parse "$br")
+  led=$(git show "$br:$path")
+  idx=$(mktemp)
+  GIT_INDEX_FILE="$idx" git read-tree "$tip"
+  blob=$(printf '%s\n%s\n' "$led" "$2" | git hash-object -w --stdin)
+  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$path"
+  tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+  nt=$(git commit-tree "$tree" -p "$tip" -m "compat fixture $1")
+  git update-ref "refs/heads/$br" "$nt" "$tip"
+  rm -f "$idx"
+}
+compat_tip_before=$(git rev-parse bp3/exp/demo/compat-exp)
+append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:00:00Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":null,\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+out=$(q demo r compat-exp)
+echo "$out" | jq -e --arg c "$B" '.state == "handed_off" and .cycle == 1 and .commit == $c and (.legal_edges | index("grade") != null) and (.legal_edges | index("verify") != null)' >/dev/null || fail "compat old submit folds handed_off: $out"
+append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:01:00Z\",\"edge\":\"review\",\"from\":\"submitted\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"ship\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:02:00Z\",\"edge\":\"check\",\"from\":\"submitted\",\"to\":\"approved\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"pass\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+out=$(q demo r compat-exp)
+echo "$out" | jq -e '.state == "approved" and .cycle == 1' >/dev/null || fail "compat old grade/verify fold approved: $out"
+# reads never rewrite the frozen file
+q demo r compat-exp >/dev/null
+[ "$(git rev-parse bp3/exp/demo/compat-exp)" != "$compat_tip_before" ] || fail "compat fixture did not land"
+compat_tip_read=$(git rev-parse bp3/exp/demo/compat-exp)
+q r demo >/dev/null
+[ "$(git rev-parse bp3/exp/demo/compat-exp)" = "$compat_tip_read" ] || fail "read rewrote frozen ledger"
+# old verbs refuse as unknown edges, ledger unchanged
+for old in submit review check; do
+  if out=$(q demo u compat-exp "$old" --commit "$B" --verdict ship --reason "old words" 2>&1); then fail "old edge $old accepted"; fi
+  echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "old edge $old code: $out"
+done
+[ "$(git rev-parse bp3/exp/demo/compat-exp)" = "$compat_tip_read" ] || fail "old edge refusal ledgered"
+# mixed vocab in one ledger (this quest's own shape): new handoff, old verdicts
+out=$(q demo c mixed-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "mixed create: $out"
+out=$(q demo u mixed-exp handoff --commit "$B" --reason "new words")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "mixed handoff: $out"
+append_ledger_line mixed-exp "{\"ts\":\"2026-01-01T00:03:00Z\",\"edge\":\"review\",\"from\":\"submitted\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"ship\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+append_ledger_line mixed-exp "{\"ts\":\"2026-01-01T00:04:00Z\",\"edge\":\"check\",\"from\":\"submitted\",\"to\":\"approved\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"pass\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+out=$(q demo r mixed-exp)
+echo "$out" | jq -e '.state == "approved" and .cycle == 1' >/dev/null || fail "mixed vocab folds approved: $out"
 
 # --- fin report words: exp_fin above; quest_fin when rollup landed ---
 out=$(q c fin-demo)
 echo "$out" | jq -e '.ok == true' >/dev/null || fail "fin quest create: $out"
 out=$(q fin-demo c only-exp)
 echo "$out" | jq -e '.state == "todo" and .fin == null' >/dev/null || fail "fin exp create: $out"
-out=$(q fin-demo u only-exp submit --commit "$B" --reason "work")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "fin submit: $out"
-out=$(q fin-demo u only-exp review --verdict ship --reason "ok")
-out=$(q fin-demo u only-exp check --verdict pass --reason "ok")
+out=$(q fin-demo u only-exp handoff --commit "$B" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "fin handoff: $out"
+out=$(q fin-demo u only-exp grade --verdict ship --reason "ok")
+out=$(q fin-demo u only-exp verify --verdict pass --reason "ok")
 out=$(q fin-demo u only-exp land --reason "done")
 echo "$out" | jq -e '.state == "landed" and .fin == "exp_fin"' >/dev/null || fail "fin land: $out"
 out=$(q r fin-demo)
@@ -109,9 +155,9 @@ out=$(q r demo)
 echo "$out" | jq -e '.fin == null' >/dev/null || fail "unfinished quest has no quest_fin: $out"
 
 # --- blocked inbox after needs_fix at max_cycles (default max_cycles=1) ---
-out=$(q demo u parser-fix2 submit --commit "$B" --reason "work")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "submit2: $out"
-out=$(q demo u parser-fix2 review --verdict needs_fix --reason "broken")
+out=$(q demo u parser-fix2 handoff --commit "$B" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "submit2: $out"
+out=$(q demo u parser-fix2 grade --verdict needs_fix --reason "broken")
 echo "$out" | jq -e '.ok == true and .state == "blocked" and .human_action_required == true' >/dev/null || fail "needs_fix blocks at max: $out"
 out=$(q r demo)
 echo "$out" | jq -e '(.inbox | length == 1) and .inbox[0].quest == "demo" and .inbox[0].exp == "parser-fix2" and .inbox[0].reason == "broken" and (.inbox[0] | has("checkpoint")) and (.inbox[0] | has("cycle")) and (.inbox[0] | has("since"))' >/dev/null || fail "blocked inbox: $out"
@@ -136,7 +182,7 @@ echo "$etbl" | grep -Eq '^\+ +b\.txt$' || fail "exp table change row: $etbl"
 out=$(q demo c null-exp)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "null-exp create: $out"
 ntbl=$(q demo r null-exp --format table)
-echo "$ntbl" | sed -n 1p | grep -q 'commit -, legal: submit, block, delete' || fail "null commit cell: $ntbl"
+echo "$ntbl" | sed -n 1p | grep -q 'commit -, legal: handoff, block, delete' || fail "null commit cell: $ntbl"
 echo "$ntbl" | grep -q '? changes unknown' || fail "unknown changes cell: $ntbl"
 qtbl_null=$(q r demo --format table)
 echo "$qtbl_null" | grep -Eq '^null-exp +todo +1 +- +\?$' || fail "quest table null row: $qtbl_null"
@@ -198,74 +244,74 @@ echo "$out_b" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .err
 [ "$(echo "$out_a" | jq -cS '.error.facts')" = "$(echo "$out_b" | jq -cS '.error.facts')" ] || fail "alt guards differ: $out_a vs $out_b"
 echo alt-work > alt.txt; git add alt.txt; git commit -qm alt-work
 ALT=$(git rev-parse HEAD)
-out=$(qa demo u alt-exp submit --commit "$ALT" --reason "work")
-echo "$out" | jq -e '.ok == true and .state == "submitted"' >/dev/null || fail "alt submit A: $out"
-out=$(qb demo u alt-exp review --verdict ship --reason "ok")
-echo "$out" | jq -e '.ok == true and .state == "submitted"' >/dev/null || fail "alt review B: $out"
-out=$(qa demo u alt-exp check --verdict pass --reason "ok")
-echo "$out" | jq -e '.ok == true and .state == "approved"' >/dev/null || fail "alt check A: $out"
+out=$(qa demo u alt-exp handoff --commit "$ALT" --reason "work")
+echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "alt handoff A: $out"
+out=$(qb demo u alt-exp grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "alt grade B: $out"
+out=$(qa demo u alt-exp verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.ok == true and .state == "approved"' >/dev/null || fail "alt verify A: $out"
 out=$(qb demo u alt-exp land --reason "ship")
 echo "$out" | jq -e '.ok == true and .state == "landed"' >/dev/null || fail "alt land B: $out"
-exp_ledger alt-exp | jq -se '([.[] | select(.edge == "submit") | .model] == ["executor-a"]) and ([.[] | select(.edge == "review") | .model] == ["executor-b"]) and ([.[] | select(.edge == "check") | .model] == ["executor-a"]) and ([.[] | select(.edge == "land") | .model] == ["executor-b"])' >/dev/null || fail "alt ledger models"
+exp_ledger alt-exp | jq -se '([.[] | select(.edge == "handoff") | .model] == ["executor-a"]) and ([.[] | select(.edge == "grade") | .model] == ["executor-b"]) and ([.[] | select(.edge == "verify") | .model] == ["executor-a"]) and ([.[] | select(.edge == "land") | .model] == ["executor-b"])' >/dev/null || fail "alt ledger models"
 
 # --- verdict naming a superseded commit refused ---
 out=$(q demo c stale-exp)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "stale create: $out"
 echo stale-a > stale.txt; git add stale.txt; git commit -qm stale-a
 STALE_A=$(git rev-parse HEAD)
-out=$(q demo u stale-exp submit --commit "$STALE_A" --reason "first")
-echo "$out" | jq -e '.state == "submitted" and .cycle == 1' >/dev/null || fail "stale submit A: $out"
+out=$(q demo u stale-exp handoff --commit "$STALE_A" --reason "first")
+echo "$out" | jq -e '.state == "handed_off" and .cycle == 1' >/dev/null || fail "stale handoff A: $out"
 out=$(q demo u stale-exp block --reason "hold")
 echo "$out" | jq -e '.state == "blocked"' >/dev/null || fail "stale block: $out"
 out=$(BP3_DECIDER=human q demo u stale-exp resume --reason "go simpler")
 echo "$out" | jq -e '.state == "todo" and .cycle == 2' >/dev/null || fail "stale resume: $out"
 echo stale-b > stale.txt; git add stale.txt; git commit -qm stale-b
 STALE_B=$(git rev-parse HEAD)
-out=$(q demo u stale-exp submit --commit "$STALE_B" --reason "second")
-echo "$out" | jq -e '.state == "submitted" and .cycle == 2' >/dev/null || fail "stale submit B: $out"
+out=$(q demo u stale-exp handoff --commit "$STALE_B" --reason "second")
+echo "$out" | jq -e '.state == "handed_off" and .cycle == 2' >/dev/null || fail "stale handoff B: $out"
 before=$(exp_ledger stale-exp | wc -l)
-if out=$(q demo u stale-exp review --verdict ship --commit "$STALE_A" --reason "stale" 2>&1); then fail "stale review accepted"; fi
-echo "$out" | jq -e --arg b "$STALE_B" '.ok == false and .error.code == "E_COMMIT_MISMATCH" and .error.facts.bound == $b' >/dev/null || fail "stale review code: $out"
-if out=$(q demo u stale-exp check --verdict pass --commit "$STALE_A" --reason "stale" 2>&1); then fail "stale check accepted"; fi
-echo "$out" | jq -e '.ok == false and .error.code == "E_COMMIT_MISMATCH"' >/dev/null || fail "stale check code: $out"
+if out=$(q demo u stale-exp grade --verdict ship --commit "$STALE_A" --reason "stale" 2>&1); then fail "stale grade accepted"; fi
+echo "$out" | jq -e --arg b "$STALE_B" '.ok == false and .error.code == "E_COMMIT_MISMATCH" and .error.facts.bound == $b' >/dev/null || fail "stale grade code: $out"
+if out=$(q demo u stale-exp verify --verdict pass --commit "$STALE_A" --reason "stale" 2>&1); then fail "stale verify accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_COMMIT_MISMATCH"' >/dev/null || fail "stale verify code: $out"
 after=$(exp_ledger stale-exp | wc -l)
 [ "$before" = "$after" ] || fail "stale verdict ledgered"
 out=$(q demo r stale-exp)
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "stale still submitted: $out"
-out=$(q demo u stale-exp review --verdict ship --commit "$STALE_B" --reason "current")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "stale review current: $out"
-out=$(q demo u stale-exp check --verdict pass --commit "$STALE_B" --reason "current")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "stale check current: $out"
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "stale still handed_off: $out"
+out=$(q demo u stale-exp grade --verdict ship --commit "$STALE_B" --reason "current")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "stale grade current: $out"
+out=$(q demo u stale-exp verify --verdict pass --commit "$STALE_B" --reason "current")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "stale verify current: $out"
 out=$(q demo u stale-exp land --reason "ship")
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "stale land: $out"
 
-# --- review + check on same commit while submitted: approved exactly once ---
+# --- grade + verify on same commit while handed_off: approved exactly once ---
 out=$(q demo c parallel-exp)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "parallel create: $out"
 echo par-work > par.txt; git add par.txt; git commit -qm par-work
 PAR=$(git rev-parse HEAD)
-out=$(q demo u parallel-exp submit --commit "$PAR" --reason "work")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "parallel submit: $out"
-out=$(q demo u parallel-exp review --verdict ship --reason "ok")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "parallel review first: $out"
-out=$(q demo u parallel-exp check --verdict pass --reason "ok")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "parallel check approves: $out"
+out=$(q demo u parallel-exp handoff --commit "$PAR" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel handoff: $out"
+out=$(q demo u parallel-exp grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel grade first: $out"
+out=$(q demo u parallel-exp verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "parallel verify approves: $out"
 [ "$(exp_ledger parallel-exp | grep -c '"to":"approved"')" = "1" ] || fail "parallel approved count"
-if out=$(q demo u parallel-exp review --verdict ship --reason "again" 2>&1); then fail "parallel extra review accepted"; fi
-echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "approved"' >/dev/null || fail "parallel extra review code: $out"
-if out=$(q demo u parallel-exp check --verdict pass --reason "again" 2>&1); then fail "parallel extra check accepted"; fi
-echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "approved"' >/dev/null || fail "parallel extra check code: $out"
+if out=$(q demo u parallel-exp grade --verdict ship --reason "again" 2>&1); then fail "parallel extra grade accepted"; fi
+echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "approved"' >/dev/null || fail "parallel extra grade code: $out"
+if out=$(q demo u parallel-exp verify --verdict pass --reason "again" 2>&1); then fail "parallel extra verify accepted"; fi
+echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "approved"' >/dev/null || fail "parallel extra verify code: $out"
 [ "$(exp_ledger parallel-exp | grep -c '"to":"approved"')" = "1" ] || fail "parallel approved twice"
 out=$(q demo u parallel-exp land --reason "ship")
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "parallel land: $out"
 out=$(q demo c parallel-rev)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "parallel-rev create: $out"
-out=$(q demo u parallel-rev submit --commit "$PAR" --reason "work")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "parallel-rev submit: $out"
-out=$(q demo u parallel-rev check --verdict pass --reason "ok")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "parallel-rev check first: $out"
-out=$(q demo u parallel-rev review --verdict ship --reason "ok")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "parallel-rev review approves: $out"
+out=$(q demo u parallel-rev handoff --commit "$PAR" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel-rev handoff: $out"
+out=$(q demo u parallel-rev verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel-rev verify first: $out"
+out=$(q demo u parallel-rev grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "parallel-rev grade approves: $out"
 [ "$(exp_ledger parallel-rev | grep -c '"to":"approved"')" = "1" ] || fail "parallel-rev approved count"
 out=$(q demo u parallel-rev land --reason "ship")
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "parallel-rev land: $out"
@@ -290,18 +336,18 @@ out=$(q demo c land-b)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "land-b create: $out"
 LAND_A=$(commit_on_exp land-a fa.txt "A-content")
 LAND_B=$(commit_on_exp land-b fb.txt "B-content")
-out=$(q demo u land-a submit --commit "$LAND_A" --reason "work")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "land-a submit: $out"
-out=$(q demo u land-b submit --commit "$LAND_B" --reason "work")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "land-b submit: $out"
-out=$(q demo u land-a review --verdict ship --reason "ok")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "land-a review: $out"
-out=$(q demo u land-a check --verdict pass --reason "ok")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-a check: $out"
-out=$(q demo u land-b review --verdict ship --reason "ok")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "land-b review: $out"
-out=$(q demo u land-b check --verdict pass --reason "ok")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-b check: $out"
+out=$(q demo u land-a handoff --commit "$LAND_A" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-a handoff: $out"
+out=$(q demo u land-b handoff --commit "$LAND_B" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-b handoff: $out"
+out=$(q demo u land-a grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-a grade: $out"
+out=$(q demo u land-a verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-a verify: $out"
+out=$(q demo u land-b grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-b grade: $out"
+out=$(q demo u land-b verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-b verify: $out"
 out=$(q demo u land-a land --reason "ship")
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-a land: $out"
 out=$(q demo u land-b land --reason "ship")
@@ -321,18 +367,18 @@ out=$(q demo c land-d)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "land-d create: $out"
 LAND_C=$(commit_on_exp land-c shared.txt "C-side")
 LAND_D=$(commit_on_exp land-d shared.txt "D-side")
-out=$(q demo u land-c submit --commit "$LAND_C" --reason "work")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "land-c submit: $out"
-out=$(q demo u land-d submit --commit "$LAND_D" --reason "work")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "land-d submit: $out"
-out=$(q demo u land-c review --verdict ship --reason "ok")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "land-c review: $out"
-out=$(q demo u land-c check --verdict pass --reason "ok")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-c check: $out"
-out=$(q demo u land-d review --verdict ship --reason "ok")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "land-d review: $out"
-out=$(q demo u land-d check --verdict pass --reason "ok")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-d check: $out"
+out=$(q demo u land-c handoff --commit "$LAND_C" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-c handoff: $out"
+out=$(q demo u land-d handoff --commit "$LAND_D" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-d handoff: $out"
+out=$(q demo u land-c grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-c grade: $out"
+out=$(q demo u land-c verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-c verify: $out"
+out=$(q demo u land-d grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-d grade: $out"
+out=$(q demo u land-d verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-d verify: $out"
 out=$(q demo u land-c land --reason "ship")
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-c land: $out"
 cycle_before=$(q demo r land-d | jq -r '.cycle')
@@ -346,22 +392,22 @@ out=$(q demo r land-a)
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-a demoted by other conflict: $out"
 [ "$(git show bp3/quest/demo:shared.txt)" = "C-side" ] || fail "conflict overwrote quest work file"
 
-# --- dirty-tree submit refused; block checkpoint is a real commit ---
+# --- dirty-tree handoff refused; block checkpoint is a real commit ---
 out=$(q demo c dirty-exp)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "dirty create: $out"
 echo dirty-work > dirty.txt; git add dirty.txt; git commit -qm dirty-work
 DIRTY_WORK=$(git rev-parse HEAD)
 echo dirty >> a.txt
 before=$(exp_ledger dirty-exp | wc -l)
-if out=$(q demo u dirty-exp submit --commit "$DIRTY_WORK" --reason "work" 2>&1); then fail "dirty submit accepted"; fi
-echo "$out" | jq -e '.ok == false and .error.code == "E_DIRTY_TREE"' >/dev/null || fail "dirty submit code: $out"
+if out=$(q demo u dirty-exp handoff --commit "$DIRTY_WORK" --reason "work" 2>&1); then fail "dirty handoff accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_DIRTY_TREE"' >/dev/null || fail "dirty handoff code: $out"
 after=$(exp_ledger dirty-exp | wc -l)
-[ "$before" = "$after" ] || fail "dirty submit ledgered"
+[ "$before" = "$after" ] || fail "dirty handoff ledgered"
 out=$(q demo r dirty-exp)
-echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "dirty submit changed state: $out"
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "dirty handoff changed state: $out"
 git checkout -- a.txt
-out=$(q demo u dirty-exp submit --commit "$DIRTY_WORK" --reason "work")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "clean submit after dirty: $out"
+out=$(q demo u dirty-exp handoff --commit "$DIRTY_WORK" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "clean handoff after dirty: $out"
 echo dirty-again >> a.txt
 out=$(q demo u dirty-exp block --reason "stuck")
 echo "$out" | jq -e '.ok == true and .state == "blocked" and .human_action_required == true' >/dev/null || fail "dirty block: $out"
@@ -392,9 +438,9 @@ out=$(q demo c clone-blocked)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "clone-blocked create: $out"
 echo cb-work > cb.txt; git add cb.txt; git commit -qm cb-work
 CB_WORK=$(git rev-parse HEAD)
-out=$(q demo u clone-blocked submit --commit "$CB_WORK" --reason "work")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "clone-blocked submit: $out"
-out=$(q demo u clone-blocked review --verdict needs_fix --reason "clone blocked reason")
+out=$(q demo u clone-blocked handoff --commit "$CB_WORK" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "clone-blocked handoff: $out"
+out=$(q demo u clone-blocked grade --verdict needs_fix --reason "clone blocked reason")
 echo "$out" | jq -e '.state == "blocked" and .human_action_required == true' >/dev/null || fail "clone-blocked blocks: $out"
 before_clone=$(q r demo | jq -S -c '{quest, state, rollup, exps: (.exps | sort_by(.exp) | map({exp, state, cycle, commit})), inbox: (.inbox | sort_by(.exp))}')
 git clone -q "$work/repo" "$work/clone"
@@ -421,8 +467,8 @@ q chg c files >/dev/null
 echo new > added.txt; mkdir -p sub; echo deep > sub/deep.txt; echo change >> a.txt; git rm -q b.txt 2>/dev/null || rm -f b.txt
 git add -A; git commit -qm "add+modify+delete"
 CHG=$(git rev-parse HEAD)
-out=$(q chg u files submit --commit "$CHG" --reason "changeset demo")
-echo "$out" | jq -e '.state == "submitted"' >/dev/null || fail "chg submit: $out"
+out=$(q chg u files handoff --commit "$CHG" --reason "changeset demo")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "chg handoff: $out"
 out=$(q chg r files)
 echo "$out" | jq -e '[.changes[] | select(.change == "+" and .path == "added.txt")] | length == 1' >/dev/null || fail "changes +: $out"
 echo "$out" | jq -e '[.changes[] | select(.change == "u" and .path == "a.txt")] | length == 1' >/dev/null || fail "changes u: $out"
@@ -529,7 +575,7 @@ for w in --type --depends-on --format --reason; do echo "$out" | grep -q -- "$w"
 out=$(q demo -h) || fail "exp door -h exit"
 echo "$out" | grep -q "exp door" || fail "exp door help: $out"
 out=$(q demo u -h) || fail "update -h exit"
-for w in submit review check land block resume --verdict --commit --reason --target; do echo "$out" | grep -qw -- "$w" || fail "update help missing $w: $out"; done
+for w in handoff grade verify land block resume --verdict --commit --reason --target; do echo "$out" | grep -qw -- "$w" || fail "update help missing $w: $out"; done
 out=$(q icebox -h) || fail "icebox -h exit"
 echo "$out" | grep -q "icebox r" || fail "icebox help: $out"
 out=$(q icebox r --help) || fail "icebox r --help exit"

@@ -70,7 +70,7 @@ let quest_view q =
 
 let tree_marker = function
   | "todo" -> "+"
-  | "submitted" | "approved" | "blocked" -> "u"
+  | "handed_off" | "approved" | "blocked" -> "u"
   | "deleted" -> "-"
   | _ -> " " (* landed: clean, like git status *)
 

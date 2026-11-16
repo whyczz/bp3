@@ -8,7 +8,7 @@
 // commit returns the same matrix, the ladder fixtures (lying
 // pointer blocks, clean shows zero whole-log reads, confused
 // whole-tape escalation must name itself), and grade children are
-// judge-only (audit spawns no edge, review/check bind the
+// judge-only (audit spawns no edge, grade/verify bind the
 // exact commit).
 import workflow from "../skills/induct/workflows/induct-grade.js";
 
@@ -40,7 +40,7 @@ function deferredRow(name) {
 }
 
 // reads: state replies in order; audit replies with auditRows;
-// review/check reply as cast verdicts. Records stage inputs.
+// grade/verify reply as cast verdicts. Records stage inputs.
 function mockHost({ reads, auditRows, initFails }) {
   let readIdx = 0;
   const inputs = {};
@@ -79,23 +79,23 @@ function mockHost({ reads, auditRows, initFails }) {
   return { host, inputs, order, inits };
 }
 
-const submitted = { state: "submitted", cycle: 1, commit: COMMIT, legal_edges: ["review", "check"] };
+const handedOff = { state: "handed_off", cycle: 1, commit: COMMIT, legal_edges: ["grade", "verify"] };
 const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["land"] };
 
-// --- grade a submitted exp: outcome + typed matrix, bindings ---
+// --- grade a handed_off exp: outcome + typed matrix, bindings ---
 {
   const { host, inputs, order, inits } = mockHost({
-    reads: [submitted, approved],
+    reads: [handedOff, approved],
     auditRows: [passRow("acceptance: a"), passRow("adherence: tape present")],
   });
   const result = await workflow(host);
   assert(result.outcome === "approved", "all-pass grade approves, got " + result.outcome);
   assert(Array.isArray(result.matrix) && result.matrix.length === 2, "matrix has both rows");
   assert(result.matrix.every((r) => r.verdict === "pass"), "all rows pass");
-  assert(order.join(",") === "init,audit,init,init,review,check", "writer precedes each grade child, got " + order.join(","));
-  assert(inits.join(",") === [TS + "-audit-muse-code-test-model-c1", TS + "-review-muse-code-test-model-c1", TS + "-check-muse-code-test-model-c1"].join(","),
+  assert(order.join(",") === "init,audit,init,init,grade,verify", "writer precedes each grade child, got " + order.join(","));
+  assert(inits.join(",") === [TS + "-audit-muse-code-test-model-c1", TS + "-grade-muse-code-test-model-c1", TS + "-verify-muse-code-test-model-c1"].join(","),
     "InitRecords name every grade run-id, got " + inits.join(","));
-  for (const edge of ["audit", "review", "check"]) {
+  for (const edge of ["audit", "grade", "verify"]) {
     const input = inputs[edge];
     assert(input, edge + " child was spawned");
     assert(input.includes("runs/" + TS + "-" + edge + "-muse-code-test-model-c1"),
@@ -105,18 +105,18 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
     assert(input.includes("arrive via environment"),
       edge + " is told the run-id arrives via environment");
   }
-  for (const edge of ["review", "check"]) {
+  for (const edge of ["grade", "verify"]) {
     const want = "BP3_RUN_ID=" + TS + "-" + edge + "-muse-code-test-model-c1";
     assert(inputs[edge].includes(want), edge + " command carries " + want);
   }
   assert(inputs.audit.includes("do not call any `bp3 q u` update edge"),
     "audit child spawns no state edge");
   assert(inputs.audit.includes("notes.md"), "audit writes matrix in its notes.md");
-  assert(inputs.review.includes("review --verdict ship --commit " + COMMIT),
-    "review binds the exact commit");
-  assert(inputs.check.includes("check --verdict pass --commit " + COMMIT),
-    "check binds the exact commit");
-  assert(result.run_ids.join(",") === "r-audit,r-review,r-check",
+  assert(inputs.grade.includes("grade --verdict ship --commit " + COMMIT),
+    "grade binds the exact commit");
+  assert(inputs.verify.includes("verify --verdict pass --commit " + COMMIT),
+    "verify binds the exact commit");
+  assert(result.run_ids.join(",") === "r-audit,r-grade,r-verify",
     "run_ids collect every grade child, got " + result.run_ids.join(","));
 }
 
@@ -124,7 +124,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
 {
   const missing = passRow("acceptance: b");
   missing.verdict = "missing";
-  const { host } = mockHost({ reads: [submitted, approved], auditRows: [passRow("acceptance: a"), missing] });
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [passRow("acceptance: a"), missing] });
   const result = await workflow(host);
   assert(result.matrix[1].verdict === "missing", "missing row stays missing");
   assert(result.outcome === "needs_fix", "missing row blocks approval, got " + result.outcome);
@@ -133,7 +133,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
 // --- untyped evidence never carries pass; free string is not a row ---
 {
   const untyped = { case: "acceptance: c", evidence: "looked fine", verdict: "pass" };
-  const { host } = mockHost({ reads: [submitted, approved], auditRows: [untyped] });
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [untyped] });
   const result = await workflow(host);
   assert(result.matrix[0].verdict === "missing", "untyped pass downgraded to missing");
   assert(result.outcome === "needs_fix", "untyped row blocks approval, got " + result.outcome);
@@ -143,8 +143,8 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
 {
   const fail = passRow("acceptance: d");
   fail.verdict = "fail";
-  const a = mockHost({ reads: [submitted, approved], auditRows: [passRow("acceptance: a"), fail] });
-  const b = mockHost({ reads: [submitted, approved], auditRows: [fail, passRow("acceptance: a")] });
+  const a = mockHost({ reads: [handedOff, approved], auditRows: [passRow("acceptance: a"), fail] });
+  const b = mockHost({ reads: [handedOff, approved], auditRows: [fail, passRow("acceptance: a")] });
   const ra = await workflow(a.host);
   const rb = await workflow(b.host);
   assert(ra.outcome === rb.outcome && ra.outcome === "needs_fix",
@@ -154,7 +154,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
 // --- replay on the same commit: same matrix, still approved ---
 {
   const rows = [passRow("acceptance: a")];
-  const first = mockHost({ reads: [submitted, approved], auditRows: rows });
+  const first = mockHost({ reads: [handedOff, approved], auditRows: rows });
   const r1 = await workflow(first.host);
   const replay = mockHost({ reads: [approved, approved], auditRows: rows });
   const r2 = await workflow(replay.host);
@@ -162,9 +162,9 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   assert(JSON.stringify(r2.matrix) === JSON.stringify(r1.matrix), "replay returns the same matrix");
 }
 
-// --- not submitted: no grade children spawn ---
+// --- not handed_off: no grade children spawn ---
 {
-  const todo = { state: "todo", cycle: 1, commit: null, legal_edges: ["submit"] };
+  const todo = { state: "todo", cycle: 1, commit: null, legal_edges: ["handoff"] };
   const { host, order } = mockHost({ reads: [todo], auditRows: [passRow("acceptance: a")] });
   const result = await workflow(host);
   assert(result.outcome === "todo", "todo exp is not graded, got " + result.outcome);
@@ -173,7 +173,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
 
 // --- commit mismatch and missing args refuse without children ---
 {
-  const other = { state: "submitted", cycle: 1, commit: "def5678", legal_edges: ["review", "check"] };
+  const other = { state: "handed_off", cycle: 1, commit: "def5678", legal_edges: ["grade", "verify"] };
   const { host, order } = mockHost({ reads: [other], auditRows: [passRow("acceptance: a")] });
   const result = await workflow(host);
   assert(result.outcome === "refused", "commit mismatch refuses, got " + result.outcome);
@@ -191,7 +191,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
 // --- deferred row: owned elsewhere, excluded from the gate ---
 {
   const { host, inputs } = mockHost({
-    reads: [submitted, approved],
+    reads: [handedOff, approved],
     auditRows: [
       passRow("acceptance: a"),
       deferredRow("acceptance: full cycle — NOT gated by this exp, deferred to Exp 3"),
@@ -208,15 +208,15 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   assert(inputs.audit.includes("run-lifecycle-derivations"),
     "audit corroborates from the per-Run derivation log");
   assert(inputs.audit.includes("stamped"), "audit quotes the stamped ledger line");
-  assert(inputs.review.includes("deferred"), "review is told deferred rows never block");
-  assert(inputs.check.includes("deferred"), "check is told deferred rows never block");
+  assert(inputs.grade.includes("deferred"), "grade is told deferred rows never block");
+  assert(inputs.verify.includes("deferred"), "verify is told deferred rows never block");
 }
 
 // --- deferral naming no owning exp is missing, not deferred ---
 {
   const unnamed = deferredRow("acceptance: later work — deferred");
   unnamed.evidence.quote = "deferred to a later exp";
-  const { host } = mockHost({ reads: [submitted, approved], auditRows: [passRow("acceptance: a"), unnamed] });
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [passRow("acceptance: a"), unnamed] });
   const result = await workflow(host);
   assert(result.matrix[1].verdict === "missing", "unnamed deferral downgraded to missing");
   assert(result.outcome === "needs_fix", "unnamed deferral blocks approval, got " + result.outcome);
@@ -226,7 +226,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
 {
   const mislabeled = deferredRow("acceptance: full cycle — NOT gated by this exp, deferred to Exp 3");
   mislabeled.verdict = "missing";
-  const { host } = mockHost({ reads: [submitted, approved], auditRows: [passRow("acceptance: a"), mislabeled] });
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [passRow("acceptance: a"), mislabeled] });
   const result = await workflow(host);
   assert(result.matrix[1].verdict === "deferred", "mislabeled deferral upgraded to deferred");
   assert(result.outcome === "approved", "mislabeled deferral does not block approval, got " + result.outcome);
@@ -235,7 +235,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
 // --- deferred without typed evidence is missing, never deferred ---
 {
   const untyped = { case: "acceptance: x — deferred to Exp 3", evidence: "deferred to Exp 3", verdict: "deferred" };
-  const { host } = mockHost({ reads: [submitted, approved], auditRows: [untyped] });
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [untyped] });
   const result = await workflow(host);
   assert(result.matrix[0].verdict === "missing", "untyped deferred downgraded to missing");
   assert(result.outcome === "needs_fix", "untyped deferred blocks approval, got " + result.outcome);
@@ -245,7 +245,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
 {
   const bogus = passRow("acceptance: e");
   bogus.verdict = "bogus";
-  const { host } = mockHost({ reads: [submitted, approved], auditRows: [bogus] });
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [bogus] });
   const result = await workflow(host);
   assert(result.matrix[0].verdict === "missing", "unknown verdict coerced to missing");
   assert(result.outcome === "needs_fix", "coerced row blocks approval, got " + result.outcome);
@@ -261,7 +261,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
     return r;
   }
   async function outcomeOf(rows) {
-    const { host } = mockHost({ reads: [submitted, approved], auditRows: rows });
+    const { host } = mockHost({ reads: [handedOff, approved], auditRows: rows });
     return (await workflow(host)).outcome;
   }
   const seqs = [[]];
@@ -282,7 +282,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
 // --- evidence ladder (mvp.7): prompts climb rungs in order ---
 {
   const { host, inputs } = mockHost({
-    reads: [submitted, approved],
+    reads: [handedOff, approved],
     auditRows: [passRow("acceptance: a")],
   });
   await workflow(host);
@@ -294,10 +294,10 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   assert(inputs.audit.includes("rung 5b the whole tape, escalation only when blocked, confused, or lying"), "whole tape is named escalation only");
   assert(inputs.audit.includes("zero whole-log reads"), "clean grade shows zero whole-log reads");
   assert(inputs.audit.includes("rung: 1|2|3|4|5a|5b"), "rows name the rung that decided them");
-  assert(inputs.review.includes("find-tape --run-id"), "review is told the ladder");
-  assert(inputs.check.includes("find-tape --run-id"), "check is told the ladder");
-  assert(inputs.review.includes("unnamed whole-tape read"), "review gates unnamed whole-tape reads");
-  assert(inputs.check.includes("unnamed whole-tape read"), "check gates unnamed whole-tape reads");
+  assert(inputs.grade.includes("find-tape --run-id"), "grade is told the ladder");
+  assert(inputs.verify.includes("find-tape --run-id"), "verify is told the ladder");
+  assert(inputs.grade.includes("unnamed whole-tape read"), "grade gates unnamed whole-tape reads");
+  assert(inputs.verify.includes("unnamed whole-tape read"), "verify gates unnamed whole-tape reads");
 }
 
 function rungRow(name, rung, verdict, quote) {
@@ -322,7 +322,7 @@ function rungRow(name, rung, verdict, quote) {
     rungRow("acceptance: style", "4", "pass"),
     rungRow("acceptance: claim holds", "5a", "fail", "entry E contradicts the claim"),
   ];
-  const { host } = mockHost({ reads: [submitted, approved], auditRows: rows });
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: rows });
   const result = await workflow(host);
   assert(result.outcome === "needs_fix", "lying fixture blocks, got " + result.outcome);
   assert(result.matrix[4].verdict === "fail", "pointer row stays fail");
@@ -338,7 +338,7 @@ function rungRow(name, rung, verdict, quote) {
     rungRow("acceptance: tests pass", "3", "pass"),
     rungRow("acceptance: style", "4", "pass"),
   ];
-  const { host } = mockHost({ reads: [submitted, approved], auditRows: rows });
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: rows });
   const result = await workflow(host);
   assert(result.outcome === "approved", "clean fixture approves, got " + result.outcome);
   assert(result.matrix.every((r) => r.rung !== "5b"), "clean trace shows zero whole-log reads");
@@ -350,7 +350,7 @@ function rungRow(name, rung, verdict, quote) {
     rungRow("acceptance: records", "1", "pass"),
     rungRow("acceptance: whole tape decides", "5b", "pass", "confused grade: rungs 1-5a undecided, whole tape read"),
   ];
-  const { host } = mockHost({ reads: [submitted, approved], auditRows: rows });
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: rows });
   const result = await workflow(host);
   assert(result.matrix[1].verdict === "pass", "named escalation keeps its verdict");
   assert(result.matrix[1].rung === "5b", "escalation row keeps rung 5b");
@@ -363,7 +363,7 @@ function rungRow(name, rung, verdict, quote) {
     rungRow("acceptance: records", "1", "pass"),
     rungRow("acceptance: tape looked fine", "5b", "pass", "read the whole tape"),
   ];
-  const { host } = mockHost({ reads: [submitted, approved], auditRows: rows });
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: rows });
   const result = await workflow(host);
   assert(result.matrix[1].verdict === "missing", "unnamed whole-tape pass downgraded to missing");
   assert(result.outcome === "needs_fix", "unnamed whole-tape read blocks approval, got " + result.outcome);
@@ -372,7 +372,7 @@ function rungRow(name, rung, verdict, quote) {
 // --- a rung outside the ladder is no rung ---
 {
   const bogus = rungRow("acceptance: records", "9", "pass");
-  const { host } = mockHost({ reads: [submitted, approved], auditRows: [bogus] });
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [bogus] });
   const result = await workflow(host);
   assert(result.matrix[0].rung === null, "unknown rung coerced to null");
   assert(result.matrix[0].verdict === "pass", "row still judged on its typed evidence");
@@ -380,7 +380,7 @@ function rungRow(name, rung, verdict, quote) {
 
 // --- writer refused: no grade child starts (mvp.8) ---
 {
-  const { host, order } = mockHost({ reads: [submitted, approved], auditRows: [passRow("acceptance: a")], initFails: true });
+  const { host, order } = mockHost({ reads: [handedOff, approved], auditRows: [passRow("acceptance: a")], initFails: true });
   const result = await workflow(host);
   assert(result.outcome === "refused", "writer refusal refuses the grade, got " + result.outcome);
   assert(order.join(",") === "init", "no grade child spawns after a refused InitRecord, got " + order.join(","));

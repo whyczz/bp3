@@ -26,7 +26,7 @@ echo "$out" | jq -e '.ok == true and .path == ".bp3/worktrees/demo/exp-a/R1"' >/
 # derive is pure and total over generated slugs, and never escapes the root
 for q in demo quest-2 a; do
   for e in exp-a exp-9 z; do
-    for r in R1 run-2 20261114t221957z-submit-x-c1; do
+    for r in R1 run-2 20261114t221957z-handoff-x-c1; do
       p=$(wt derive "$q" "$e" "$r" | jq -r '.path')
       [ "$p" = ".bp3/worktrees/$q/$e/$r" ] || fail "derive generated: $p"
       case "/$p/" in *"/../"*) fail "derive escapes root: $p" ;; esac

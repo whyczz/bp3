@@ -1,5 +1,5 @@
 quest_type: direct
 max_cycles: 0
-review:
+grade:
   required: false
-checks: required
+verify: required

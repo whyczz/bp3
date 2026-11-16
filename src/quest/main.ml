@@ -176,7 +176,7 @@ let do_exp_delete quest exp fl id =
 let do_update quest exp edge fl id =
   check_slug quest; check_slug exp;
   let reason = require_reason fl in
-  if not (List.mem edge ["submit"; "review"; "check"; "land"; "block"; "resume"]) then
+  if not (List.mem edge ["handoff"; "grade"; "verify"; "land"; "block"; "resume"]) then
     usage ("unknown edge: " ^ edge);
   (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
   let (_, s, _) = (match fold_exp quest exp with Some v -> v | None -> not_found "exp" exp) in
@@ -189,9 +189,9 @@ let do_update quest exp edge fl id =
       ("commit", (match ns.last_commit with Some c -> json_str c | None -> `Null));
       ("legal_edges", `List (List.map json_str (legal_edges ns.st)))] in
   match edge with
-  | "submit" ->
+  | "handoff" ->
       if s.st <> "todo" then illegal s.st edge;
-      let raw = (match fl.commit with Some c -> c | None -> usage "--commit is required for submit") in
+      let raw = (match fl.commit with Some c -> c | None -> usage "--commit is required for handoff") in
       let full = (match resolve_commit raw with Some f -> f
         | None -> err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str raw)])
             "Commit does not exist; bind an existing commit." 1) in
@@ -201,17 +201,17 @@ let do_update quest exp edge fl id =
       if blocked_by <> [] then
         err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str blocked_by))])
           "Dependencies are not landed yet." 1;
-      let approved_now = (not knobs.review_required) && (not knobs.checks_required) in
-      let ns = { s with st = (if approved_now then "approved" else "submitted");
+      let approved_now = (not knobs.grade_required) && (not knobs.verify_required) in
+      let ns = { s with st = (if approved_now then "approved" else "handed_off");
                  bound = Some full; has_bound = true; last_commit = Some full;
-                 review_ok = false; check_ok = false } in
+                 grade_ok = false; verify_ok = false } in
       let line = ledger_line ~edge ~from:s.st ~to_:ns.st ~cycle:s.cycle
         ~commit:(Some full) ~verdict:None ~reason ~id () in
       finish ns line
-  | "review" | "check" ->
-      if s.st <> "submitted" then illegal s.st edge;
+  | "grade" | "verify" ->
+      if s.st <> "handed_off" then illegal s.st edge;
       let v = (match fl.verdict with Some v -> v | None -> usage "--verdict is required") in
-      let valid = if edge = "review" then (v = "ship" || v = "needs_fix") else (v = "pass" || v = "fail") in
+      let valid = if edge = "grade" then (v = "ship" || v = "needs_fix") else (v = "pass" || v = "fail") in
       if not valid then usage ("invalid verdict for " ^ edge ^ ": " ^ v);
       (match fl.commit with
        | Some c ->
@@ -225,7 +225,7 @@ let do_update quest exp edge fl id =
       if not positive then begin
         let (nst, ncyc) =
           if s.cycle >= knobs.max_cycles then ("blocked", s.cycle) else ("todo", s.cycle + 1) in
-        let ns = { s with st = nst; cycle = ncyc; review_ok = false; check_ok = false } in
+        let ns = { s with st = nst; cycle = ncyc; grade_ok = false; verify_ok = false } in
         if nst = "blocked" then begin ns.blocked_reason <- reason; ns.blocked_since <- now_ts () end;
         let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:ncyc
           ~commit:s.last_commit ~verdict:(Some v) ~reason ~id () in
@@ -234,12 +234,12 @@ let do_update quest exp edge fl id =
           (match base with `Assoc fs -> `Assoc (fs @ [("human_action_required", `Bool true)]) | o -> o)
         else base
       end else begin
-        let ns = { s with review_ok = (if edge = "review" then true else s.review_ok);
-                          check_ok = (if edge = "check" then true else s.check_ok) } in
+        let ns = { s with grade_ok = (if edge = "grade" then true else s.grade_ok);
+                          verify_ok = (if edge = "verify" then true else s.verify_ok) } in
         let now_approved =
-          ((not knobs.review_required) || ns.review_ok) &&
-          ((not knobs.checks_required) || ns.check_ok) in
-        let nst = if now_approved then "approved" else "submitted" in
+          ((not knobs.grade_required) || ns.grade_ok) &&
+          ((not knobs.verify_required) || ns.verify_ok) in
+        let nst = if now_approved then "approved" else "handed_off" in
         let ns = { ns with st = nst } in
         let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:s.cycle
           ~commit:s.last_commit ~verdict:(Some v) ~reason ~id () in
@@ -298,7 +298,7 @@ let do_update quest exp edge fl id =
         end
       end
   | "block" ->
-      if not (List.mem s.st ["todo"; "submitted"; "approved"]) then illegal s.st edge;
+      if not (List.mem s.st ["todo"; "handed_off"; "approved"]) then illegal s.st edge;
       let checkpoint = if worktree_dirty () then Some (make_checkpoint ()) else None in
       let ns = { s with st = "blocked"; blocked_reason = reason;
                  blocked_checkpoint = checkpoint; blocked_since = now_ts () } in
@@ -313,7 +313,7 @@ let do_update quest exp edge fl id =
           "Resume requires a human decision (BP3_DECIDER=human)." 1;
       let ncyc = if s.has_bound then s.cycle + 1 else s.cycle in
       let ns = { s with st = "todo"; cycle = ncyc; bound = None; has_bound = false;
-                 review_ok = false; check_ok = false } in
+                 grade_ok = false; verify_ok = false } in
       let line = ledger_line ~edge ~from:s.st ~to_:"todo" ~cycle:ncyc
         ~commit:None ~verdict:None ~reason ~id () in
       finish ns line
@@ -368,15 +368,15 @@ let help_exp_door = "bp3 q <quest> <exp door> - verbs:\n\
 Long forms: create, read, update, delete. Example: bp3 q my-quest r exp-1\n"
 
 let help_update = "bp3 q <quest> u <exp> <edge> - edges and their flags:\n\
-  edges: submit review check land block resume\n\
-  submit --commit <sha> --reason <why>     bind a clean commit for review\n\
-  review --verdict ship|needs_fix --reason <why>\n\
-  check  --verdict pass|fail --reason <why>\n\
+  edges: handoff grade verify land block resume\n\
+  handoff --commit <sha> --reason <why>    bind a clean commit for grade\n\
+  grade  --verdict ship|needs_fix --reason <why>\n\
+  verify --verdict pass|fail --reason <why>\n\
   land   --reason <why>                    land an approved exp\n\
   block  --reason <why>                    park for a human decision\n\
   resume --reason <why>                    human only: unblock\n\
 Shared flags: --format json|table|tree, --target <name>.\n\
-Example: bp3 q my-quest u exp-1 submit --commit abc123 --reason \"ready\"\n"
+Example: bp3 q my-quest u exp-1 handoff --commit abc123 --reason \"ready\"\n"
 
 let help_icebox = "bp3 q icebox r - search frozen icebox entries (read-only):\n\
   bp3 q icebox r [term...] [--format json|table|tree]   list entries matching all terms\n\
@@ -426,8 +426,8 @@ let run argv =
       print_verdict ~fmt:"json" (Worktree.run rest); 0
   | "init-repo" :: _ ->
       (* Exp 6: scaffold plans/ into the caller's repo; never clobber differing plans *)
-      let plans = [("plans/default.yaml", "quest_type: default\nmax_cycles: 1\nreview:\n  required: true\nchecks: required\n");
-                   ("plans/direct.yaml", "quest_type: direct\nmax_cycles: 0\nreview:\n  required: false\nchecks: required\n")] in
+      let plans = [("plans/default.yaml", "quest_type: default\nmax_cycles: 1\ngrade:\n  required: true\nverify: required\n");
+                   ("plans/direct.yaml", "quest_type: direct\nmax_cycles: 0\ngrade:\n  required: false\nverify: required\n")] in
       (try Unix.mkdir (Filename.concat root "plans") 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
       List.iter (fun (rel, content) ->
         let path = Filename.concat root rel in

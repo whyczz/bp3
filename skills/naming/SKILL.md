@@ -19,8 +19,8 @@ ordinary code identifiers with no bp3 meaning.
 
 - Planning: Quest, exp, Run. Lifecycle: proposed, active,
   landed, canceled. Never archived, cancelled, aborted, killed.
-- Moves: submit, review, land, block, cancel. Stages: author,
-  review, fix, ready, landed, blocked, canceled.
+- Moves: handoff, grade, verify, land, block, resume. Stages: author,
+  grade, fix, ready, landed, blocked, canceled.
 - Dimensions: `quest_type` (the plan: default is implemented;
   design, mvp, refactor, frontend, backend are proposed), `engine` (who executes: single,
   master-subagents, panes, workflows).
@@ -49,7 +49,7 @@ ordinary code identifiers with no bp3 meaning.
   docs, and chat. `canceled` in a status and `cancelled` in a
   stage is a bug, not a dialect.
 - Concrete over abstract: prefer what the thing does or is
-  (tape, ledger, submit) over machinery metaphors (flavor,
+  (tape, ledger, handoff) over machinery metaphors (flavor,
   harness adapter, pipeline stage) unless the metaphor is
   already the vocabulary.
 - No new planning words. Task, Milestone, workflow, and graph

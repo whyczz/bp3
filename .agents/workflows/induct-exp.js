@@ -284,7 +284,7 @@ export default async function workflow(host) {
     return { exp: exp, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
   }
 
-  if (!(await recordInit("submit", before.cycle))) {
+  if (!(await recordInit("handoff", before.cycle))) {
     return { exp: exp, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
   }
 
@@ -293,16 +293,16 @@ export default async function workflow(host) {
     input:
       deskNote + "You are the author child for exp `" + exp + "` of quest `" +
       quest + "`, currently in state `todo` at cycle " +
-      String(before.cycle) + ". " + authorLoad + tapePreamble("submit", before.cycle) +
+      String(before.cycle) + ". " + authorLoad + tapePreamble("handoff", before.cycle) +
       " Do the exp's work in the repository, then commit the " +
       "work as a clean git commit and note its full sha. Then " +
       "call the state edge directly yourself: " +
-      "`" + envPreset("submit", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
-      " submit --commit <your-commit-sha> --reason \"<short reason>\"`. " +
+      "`" + envPreset("handoff", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
+      " handoff --commit <your-commit-sha> --reason \"<short reason>\"`. " +
       "Children call `bp3 q u` directly; never only return a " +
       "verdict for the parent to relay. Reply with only a JSON " +
       "object {ok, run_id, commit, verdict} where verdict is " +
-      "the JSON printed by the submit call.",
+      "the JSON printed by the handoff call.",
   });
   const authorVerdict = parseVerdict(author);
   if (authorVerdict && typeof authorVerdict.run_id === "string" && authorVerdict.run_id) {
@@ -311,20 +311,20 @@ export default async function workflow(host) {
 
   // The child has returned and its session tape has closed:
   // bind it to the Run before re-reading state.
-  await bindTape("submit", before.cycle);
+  await bindTape("handoff", before.cycle);
 
   const after = await readState();
-  if (after.state === "submitted") {
+  if (after.state === "handed_off") {
     const commit = after.commit
       ? String(after.commit)
       : (authorVerdict && authorVerdict.commit ? String(authorVerdict.commit) : null);
-    return { exp: exp, outcome: "submitted", commit: commit, run_ids: runIds, refusals: refusals };
+    return { exp: exp, outcome: "handed_off", commit: commit, run_ids: runIds, refusals: refusals };
   }
   refusals.push(errorText(author));
   if (after.state === "unknown") {
     refusals.push("re-read after author failed: " + (after.raw || "no verdict"));
   } else {
-    refusals.push("author left state " + after.state + ", expected submitted");
+    refusals.push("author left state " + after.state + ", expected handed_off");
   }
   return {
     exp: exp,

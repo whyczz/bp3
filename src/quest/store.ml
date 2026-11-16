@@ -70,7 +70,7 @@ let rec version_cmp a b =
 let version_major v = match parse_version v with m :: _ -> m | [] -> 0
 
 (* ---------- plans ---------- *)
-type knobs = { max_cycles : int; review_required : bool; checks_required : bool }
+type knobs = { max_cycles : int; grade_required : bool; verify_required : bool }
 
 let contains_sub s sub =
   let n = String.length s and m = String.length sub in
@@ -92,19 +92,19 @@ let plan_knobs_from_text text =
       ignore (Str.search_forward re text 0);
       int_of_string (Str.matched_group 1 text)
     with _ -> 1 in
-  let review_required =
-    (* look at review section: 'required: false' after 'review:' *)
-    if contains_sub text "required: false" && contains_sub text "review:" then false
-    else if contains_sub text "review.required: false" then false
+  let grade_required =
+    (* look at grade section: 'required: false' after 'grade:' *)
+    if contains_sub text "required: false" && contains_sub text "grade:" then false
+    else if contains_sub text "grade.required: false" then false
     else true in
-  let review_required =
+  let grade_required =
     if contains_sub text "required: false" then
-      (* only counts if a review: key exists or review_required spelling *)
-      review_required else review_required in
-  let checks_required =
-    not (contains_sub text "checks: optional" || contains_sub text "checks: none"
-         || contains_sub text "checks:optional" || contains_sub text "checks:none") in
-  { max_cycles; review_required; checks_required }
+      (* only counts if a grade: key exists or grade_required spelling *)
+      grade_required else grade_required in
+  let verify_required =
+    not (contains_sub text "verify: optional" || contains_sub text "verify: none"
+         || contains_sub text "verify:optional" || contains_sub text "verify:none") in
+  { max_cycles; grade_required; verify_required }
 
 let load_plan_file path =
   let full = Filename.concat root path in
@@ -124,8 +124,8 @@ type exp_state = {
   mutable cycle : int;
   mutable bound : string option;
   mutable has_bound : bool;
-  mutable review_ok : bool;
-  mutable check_ok : bool;
+  mutable grade_ok : bool;
+  mutable verify_ok : bool;
   mutable blocked_reason : string;
   mutable blocked_checkpoint : string option;
   mutable blocked_since : string;
@@ -135,7 +135,7 @@ type exp_state = {
 
 let fresh_state () = {
   st = "todo"; cycle = 1; bound = None; has_bound = false;
-  review_ok = false; check_ok = false;
+  grade_ok = false; verify_ok = false;
   blocked_reason = ""; blocked_checkpoint = None; blocked_since = "";
   last_commit = None; exp_type = "default";
 }
@@ -150,6 +150,15 @@ let get_opt j key =
   try match Yojson.Safe.Util.member key j with `String s -> Some s | _ -> None
   with _ -> None
 
+(* The one compat mapping (mig.1): pre-rename ledger strings fold
+   to the new words here and nowhere else; new ledger lines already
+   carry the new words. *)
+let fold_edge = function
+  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+  | e -> e
+
+let fold_state_name = function "submitted" -> "handed_off" | s -> s
+
 let fold_ledger text =
   let s = fresh_state () in
   let quest_type = ref "default" in
@@ -159,8 +168,8 @@ let fold_ledger text =
     if ln <> "" then
       try
         let j = Yojson.Safe.from_string ln in
-        let edge = get_str j "edge" "" in
-        let to_ = get_str j "to" "" in
+        let edge = fold_edge (get_str j "edge" "") in
+        let to_ = fold_state_name (get_str j "to" "") in
         let cyc = get_int j "cycle" s.cycle in
         if edge = "create" then begin
           s.exp_type <- get_str j "exp_type" (get_str j "quest_type" "default");
@@ -172,14 +181,14 @@ let fold_ledger text =
         if to_ <> "" then s.st <- to_;
         s.cycle <- cyc;
         (match get_opt j "commit" with Some c -> s.last_commit <- Some c; s.bound <- Some c; s.has_bound <- true | None -> ());
-        if edge = "submit" then begin s.review_ok <- false; s.check_ok <- false end;
-        if edge = "review" && get_str j "verdict" "" = "ship" then s.review_ok <- true;
-        if edge = "check" && get_str j "verdict" "" = "pass" then s.check_ok <- true;
-        if (edge = "review" && get_str j "verdict" "" = "needs_fix") ||
-           (edge = "check" && get_str j "verdict" "" = "fail") then begin
-          s.review_ok <- false; s.check_ok <- false
+        if edge = "handoff" then begin s.grade_ok <- false; s.verify_ok <- false end;
+        if edge = "grade" && get_str j "verdict" "" = "ship" then s.grade_ok <- true;
+        if edge = "verify" && get_str j "verdict" "" = "pass" then s.verify_ok <- true;
+        if (edge = "grade" && get_str j "verdict" "" = "needs_fix") ||
+           (edge = "verify" && get_str j "verdict" "" = "fail") then begin
+          s.grade_ok <- false; s.verify_ok <- false
         end;
-        if edge = "resume" then begin s.bound <- None; s.has_bound <- false; s.review_ok <- false; s.check_ok <- false end;
+        if edge = "resume" then begin s.bound <- None; s.has_bound <- false; s.grade_ok <- false; s.verify_ok <- false end;
         if to_ = "blocked" then begin
           s.blocked_reason <- get_str j "reason" "";
           s.blocked_checkpoint <- get_opt j "checkpoint";
@@ -260,8 +269,8 @@ let fold_quest q =
 
 let legal_edges st =
   match st with
-  | "todo" -> ["submit"; "block"; "delete"]
-  | "submitted" -> ["review"; "check"; "block"; "delete"]
+  | "todo" -> ["handoff"; "block"; "delete"]
+  | "handed_off" -> ["grade"; "verify"; "block"; "delete"]
   | "approved" -> ["land"; "block"; "delete"]
   | "blocked" -> ["resume"; "delete"]
   | _ -> []

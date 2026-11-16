@@ -40,7 +40,7 @@ const SPAWN_PARAMS = {
   properties: {
     quest: { type: "string", description: "Quest slug the child Run belongs to" },
     exp: { type: "string", description: "Exp id the child Run belongs to" },
-    edge: { type: "string", description: "FSM edge the child will call (e.g. submit)" },
+    edge: { type: "string", description: "FSM edge the child will call (e.g. handoff)" },
     prompt: { type: "string", description: "Task prompt for the pi child" },
     role: { type: "string", description: "Role name; routing only, never a proof input" },
     model: { type: "string", description: "Model override; beats the conductor's model" },
@@ -55,7 +55,7 @@ export default function bp3Pi(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "spawn_run",
     label: "Spawn Run",
-    description: "Spawn one supervised pi child: record-init (live pid) before work, bind-tape after exit. Example: spawn_run({quest, exp, edge:\"submit\", prompt})",
+    description: "Spawn one supervised pi child: record-init (live pid) before work, bind-tape after exit. Example: spawn_run({quest, exp, edge:\"handoff\", prompt})",
     parameters: SPAWN_PARAMS as never,
     async execute(_id, params, _signal, _onUpdate, ctx) {
       try {

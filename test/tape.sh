@@ -50,19 +50,19 @@ after=$(exp_ledger)
 
 # (c) edges through bp3 q u: no tape-only string reaches the ledger.
 marker="tape-only-marker-9f27c1"
-mkdir -p "$runs_dir/submit-run"
-printf 'session start %s\n' "$marker" | tee "$runs_dir/submit-run/tape.log" >/dev/null
-grep -q "$marker" "$runs_dir/submit-run/tape.log" || fail "marker missing from tape"
+mkdir -p "$runs_dir/handoff-run"
+printf 'session start %s\n' "$marker" | tee "$runs_dir/handoff-run/tape.log" >/dev/null
+grep -q "$marker" "$runs_dir/handoff-run/tape.log" || fail "marker missing from tape"
 echo work > b.txt
 printf '%s\n' "$runs_dir/" > .gitignore
 git add b.txt .gitignore; git commit -qm work
 B=$(git rev-parse HEAD)
-q demo u parser-fix submit --commit "$B" --reason "first cut" >/dev/null
-q demo u parser-fix review --verdict ship --reason "looks right" >/dev/null
-q demo u parser-fix check --verdict pass --reason "green" >/dev/null
+q demo u parser-fix handoff --commit "$B" --reason "first cut" >/dev/null
+q demo u parser-fix grade --verdict ship --reason "looks right" >/dev/null
+q demo u parser-fix verify --verdict pass --reason "green" >/dev/null
 q demo u parser-fix land --reason "ship it" >/dev/null
 lines=$(exp_ledger | wc -l | tr -d ' ')
-[ "$lines" -ge 5 ] || fail "expected submit/review/check/land ledger lines, got $lines"
+[ "$lines" -ge 5 ] || fail "expected handoff/grade/verify/land ledger lines, got $lines"
 if exp_ledger | grep -q "$marker"; then fail "ledger contains a string that appears only in the tape"; fi
 if exp_ledger | grep -q 'hooks-off output'; then fail "ledger contains hooks-off tape text"; fi
 

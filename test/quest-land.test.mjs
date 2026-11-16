@@ -70,7 +70,7 @@ const landed = { state: "landed", cycle: 1, commit: "abc1234", legal_edges: [] }
 }
 
 // --- any other state refuses with zero children ---
-for (const state of ["todo", "submitted", "landed", "blocked"]) {
+for (const state of ["todo", "handed_off", "landed", "blocked"]) {
   const s = { state: state, cycle: 1, commit: "abc1234", legal_edges: [] };
   const { host, labels } = mockHost({ reads: [s] });
   const result = await workflow(host);

@@ -126,12 +126,12 @@ q c gate-q >/dev/null; q gate-q c e1 >/dev/null
 q c toy >/dev/null; q toy c e1 >/dev/null
 echo work > b.txt; git add b.txt; git commit -qm work
 B=$(git rev-parse HEAD)
-q done-q u e1 submit --commit "$B" --reason work >/dev/null
-q done-q u e1 review --verdict ship --reason ok >/dev/null
-q done-q u e1 check --verdict pass --reason ok >/dev/null
+q done-q u e1 handoff --commit "$B" --reason work >/dev/null
+q done-q u e1 grade --verdict ship --reason ok >/dev/null
+q done-q u e1 verify --verdict pass --reason ok >/dev/null
 q done-q u e1 land --reason "done" >/dev/null
-q gate-q u e1 submit --commit "$B" --reason work >/dev/null
-q gate-q u e1 review --verdict needs_fix --reason broken >/dev/null
+q gate-q u e1 handoff --commit "$B" --reason work >/dev/null
+q gate-q u e1 grade --verdict needs_fix --reason broken >/dev/null
 
 # settled: all landed -> outcome settled, exit 0
 out=$(h supervisor done-q --timeout-seconds 5) || fail "settled exit: $out"
@@ -615,19 +615,19 @@ echo "$out" | grep -q "E_EXISTS" || fail "bind-tape help E_EXISTS: $out"
 # the live sibling shape: init and resolve tapes bind the id to
 # their own verbs, the conductor quotes the author's invocation
 # but started before the InitRecord, the author carries it after
-F4RUN="20260101T000000Z-submit-pi-test-model-c1"
+F4RUN="20260101T000000Z-handoff-pi-test-model-c1"
 printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4RUN\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4RUN.jsonl"
 printf '%s\n' '{"type":"session","version":3,"id":"S-f4-init","timestamp":"2026-01-01T00:00:10Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"i1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 harness record-init --run-id $F4RUN\"}}" > fixtures/pi-store/f4-init.jsonl
 printf '%s\n' '{"type":"session","version":3,"id":"S-f4-resolve","timestamp":"2026-01-01T00:00:20Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"v1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 harness find-tape --run-id $F4RUN\"}}" > fixtures/pi-store/f4-resolve.jsonl
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-conductor","timestamp":"2025-12-31T23:59:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"brief: BP3_RUN_ID=$F4RUN bp3 q toy u e1 submit --commit abc --reason work\"}}" "{\"run_id\":\"$F4RUN\",\"note\":\"conductor quotes the run\"}" > fixtures/pi-store/f4-conductor.jsonl
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-author","timestamp":"2026-01-01T00:01:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 q toy u e1 submit --commit abc --reason work\"}}" > fixtures/pi-store/f4-author.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-conductor","timestamp":"2025-12-31T23:59:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"brief: BP3_RUN_ID=$F4RUN bp3 q toy u e1 handoff --commit abc --reason work\"}}" "{\"run_id\":\"$F4RUN\",\"note\":\"conductor quotes the run\"}" > fixtures/pi-store/f4-conductor.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-author","timestamp":"2026-01-01T00:01:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 q toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-author.jsonl
 out=$(h find-tape --run-id "$F4RUN") || fail "followup.4 find-tape exit: $out"
 echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/f4-author.jsonl" '.ok == true and .wal == $w' >/dev/null || fail "followup.4 own engine-fsm-edge resolves author: $out"
 set +e; out=$(h watch --run-id "$F4RUN" --timeout-seconds 1); set -e
 echo "$out" | tail -1 | jq -e --arg w "$work/repo/fixtures/pi-store/f4-author.jsonl" '.wal == $w and .outcome == "timeout"' >/dev/null || fail "followup.4 watch shares engine-fsm-edge: $out"
 
 # no own engine-fsm-edge tape among several references: typed refusal
-F4NONE="20260101T000000Z-submit-pi-test-model-c2"
+F4NONE="20260101T000000Z-handoff-pi-test-model-c2"
 printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4NONE\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4NONE.jsonl"
 printf '%s\n' '{"type":"session","version":3,"id":"S-f4-none-init","timestamp":"2026-01-01T00:00:10Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"i1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4NONE bp3 harness record-init --run-id $F4NONE\"}}" > fixtures/pi-store/f4-none-init.jsonl
 printf '%s\n' '{"type":"session","version":3,"id":"S-f4-none-resolve","timestamp":"2026-01-01T00:00:20Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"v1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4NONE bp3 harness find-tape --run-id $F4NONE\"}}" > fixtures/pi-store/f4-none-resolve.jsonl
@@ -637,27 +637,27 @@ echo "$out" | grep -q "f4-none-init" || fail "followup.4 no-own-edge names init:
 echo "$out" | grep -q "f4-none-resolve" || fail "followup.4 no-own-edge names resolve: $out"
 
 # two own engine-fsm-edge tapes started at the same time: tie refuses
-F4TWO="20260101T000000Z-submit-pi-test-model-c3"
+F4TWO="20260101T000000Z-handoff-pi-test-model-c3"
 printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4TWO\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4TWO.jsonl"
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-two-a","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 submit --commit abc --reason work\"}}" > fixtures/pi-store/f4-two-a.jsonl
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-two-b","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 submit --commit def --reason work\"}}" > fixtures/pi-store/f4-two-b.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-two-a","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-two-a.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-two-b","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 handoff --commit def --reason work\"}}" > fixtures/pi-store/f4-two-b.jsonl
 if out=$(h find-tape --run-id "$F4TWO" 2>&1); then fail "followup.4 tied own-edge accepted"; fi
 echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 tied own-edge code: $out"
 if out=$(h watch --run-id "$F4TWO" --timeout-seconds 1 2>&1); then fail "followup.4 watch tied own-edge accepted"; fi
 echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 watch tied own-edge code: $out"
 
 # two viable own engine-fsm-edge tapes: the earliest session wins
-F4EARLY="20260101T000000Z-submit-pi-test-model-c4"
+F4EARLY="20260101T000000Z-handoff-pi-test-model-c4"
 printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4EARLY\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4EARLY.jsonl"
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-a","timestamp":"2026-01-01T00:03:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4EARLY bp3 q toy u e1 submit --commit abc --reason work\"}}" > fixtures/pi-store/f4-early-a.jsonl
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-b","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4EARLY bp3 q toy u e1 submit --commit def --reason work\"}}" > fixtures/pi-store/f4-early-b.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-a","timestamp":"2026-01-01T00:03:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4EARLY bp3 q toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-early-a.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-b","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4EARLY bp3 q toy u e1 handoff --commit def --reason work\"}}" > fixtures/pi-store/f4-early-b.jsonl
 out=$(h find-tape --run-id "$F4EARLY") || fail "followup.4 earliest exit: $out"
 echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/f4-early-b.jsonl" '.ok == true and .wal == $w' >/dev/null || fail "followup.4 earliest session wins: $out"
 
 # the only own engine-fsm-edge tape started before the InitRecord
-F4OLD="20260101T000000Z-submit-pi-test-model-c5"
+F4OLD="20260101T000000Z-handoff-pi-test-model-c5"
 printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4OLD\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4OLD.jsonl"
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-old-quote","timestamp":"2025-12-31T23:59:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"brief: BP3_RUN_ID=$F4OLD bp3 q toy u e1 submit --commit abc --reason work\"}}" > fixtures/pi-store/f4-old-quote.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-old-quote","timestamp":"2025-12-31T23:59:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"brief: BP3_RUN_ID=$F4OLD bp3 q toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-old-quote.jsonl
 printf '%s\n' '{"type":"session","version":3,"id":"S-f4-old-resolve","timestamp":"2026-01-01T00:00:20Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"v1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4OLD bp3 harness find-tape --run-id $F4OLD\"}}" > fixtures/pi-store/f4-old-resolve.jsonl
 if out=$(h find-tape --run-id "$F4OLD" 2>&1); then fail "followup.4 pre-init own-edge accepted"; fi
 echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 pre-init own-edge code: $out"
@@ -669,13 +669,13 @@ echo "$out" | grep -q "backtest" || fail "backtest help: $out"
 out=$(h b -h) || fail "alias b -h exit"
 echo "$out" | grep -q "backtest" || fail "alias b help: $out"
 mkdir -p fixtures/bt
-printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' 'BP3_RUN_ID=R-bt-1 bp3 q toy u e1 submit --commit 0123456789abcdef0123456789abcdef01234567' '{"payload_type":"session.end","payload":{}}' > fixtures/bt/good.jsonl
+printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' 'BP3_RUN_ID=R-bt-1 bp3 q toy u e1 handoff --commit 0123456789abcdef0123456789abcdef01234567' '{"payload_type":"session.end","payload":{}}' > fixtures/bt/good.jsonl
 printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' 'BP3_RUN_ID=R-bt-2 error E_BINDING_REFUSED' > fixtures/bt/refused.jsonl
 printf '%s' '{"payload_type":"session.end","payl' > fixtures/bt/torn.jsonl
 printf '%s\n' 'hello foreign tape' > fixtures/bt/foreign.jsonl
 out=$(h backtest --corpus fixtures/bt) || fail "backtest exit: $out"
 echo "$out" | jq -e '.ok == true and .tapes_replayed == 4 and .identifiable == 2' >/dev/null || fail "backtest counts: $out"
-echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-1") | .has_submit == true and .finish_evidence == true)' >/dev/null || fail "backtest good trace: $out"
+echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-1") | .has_handoff == true and .finish_evidence == true)' >/dev/null || fail "backtest good trace: $out"
 echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-1") | .commits == ["0123456789abcdef0123456789abcdef01234567"])' >/dev/null || fail "backtest commits extraction: $out"
 echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-2") | .commits == [])' >/dev/null || fail "backtest refused commits empty: $out"
 echo "$out" | jq -e '(.findings[] | select(.run_id == "R-bt-2"))' >/dev/null || fail "backtest refusal finding: $out"

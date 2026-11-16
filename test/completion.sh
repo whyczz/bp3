@@ -24,7 +24,7 @@ for shell_file in "$root/completions/_bp3" "$root/completions/bp3.bash"; do
   for edge in $edges; do
     grep -q "\"$edge\"" "$main_ml" || fail "edge $edge in $shell_file not in main.ml"
   done
-  for edge in submit review check land block resume; do
+  for edge in handoff grade verify land block resume; do
     echo "$edges" | grep -qx -- "$edge" || fail "edge $edge in main.ml not in $shell_file"
   done
   for verb in c create r read u update d delete; do
@@ -53,7 +53,7 @@ q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
 q c toy-drive >/dev/null
 q c demo >/dev/null
 q toy-drive c parser-fix >/dev/null
-q toy-drive c skill-check >/dev/null
+q toy-drive c skill-probe >/dev/null
 
 has() { # has <candidates> <word>
   echo "$1" | grep -qx -- "$2" || fail "candidates [$1] missing $2"
@@ -72,11 +72,11 @@ has "$out" toy-drive; has "$out" demo; lacks "$out" r
 out=$(_bp3_candidates q r "")
 has "$out" toy-drive
 out=$(_bp3_candidates q toy-drive r "")
-has "$out" parser-fix; has "$out" skill-check
+has "$out" parser-fix; has "$out" skill-probe
 out=$(_bp3_candidates q toy-drive r "parser-")
-has "$out" parser-fix; lacks "$out" skill-check
+has "$out" parser-fix; lacks "$out" skill-probe
 out=$(_bp3_candidates q toy-drive u parser-fix "")
-for edge in submit review check land block resume; do has "$out" "$edge"; done
+for edge in handoff grade verify land block resume; do has "$out" "$edge"; done
 out=$(_bp3_candidates q toy-drive r parser-fix "--f")
 has "$out" --format; lacks "$out" --reason
 out=$(_bp3_candidates q toy-drive r parser-fix --format "")
@@ -98,9 +98,9 @@ if command -v zsh >/dev/null 2>&1; then
   out=$(zcand q "toy-")
   has "$out" toy-drive; lacks "$out" demo
   out=$(zcand q toy-drive r "")
-  has "$out" parser-fix; has "$out" skill-check
+  has "$out" parser-fix; has "$out" skill-probe
   out=$(zcand q toy-drive u parser-fix "")
-  for edge in submit review check land block resume; do has "$out" "$edge"; done
+  for edge in handoff grade verify land block resume; do has "$out" "$edge"; done
   out=$(zcand q toy-drive r parser-fix "--f")
   has "$out" --format
 fi

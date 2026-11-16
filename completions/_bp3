@@ -4,7 +4,7 @@
 # current one); completion fails silently on any error.
 
 _bp3_flags=(--format --reason --commit --verdict --target --type --depends-on)
-_bp3_edges=(submit review check land block resume)
+_bp3_edges=(handoff grade verify land block resume)
 _bp3_quest_verbs=(c r d create read delete)
 _bp3_exp_verbs=(c r u d create read update delete)
 _bp3_format_values=(json table tree)

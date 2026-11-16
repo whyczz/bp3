@@ -1,4 +1,4 @@
-// induct-grade: judge one submitted exp on its bound commit.
+// induct-grade: judge one handed_off exp on its bound commit.
 // Installed to .agents/workflows/induct-grade.js by
 // `bp3 skills install`. The grade climbs the evidence ladder
 // (mvp.7): records, diff, tests run, style, then tape via
@@ -6,7 +6,7 @@
 // escalation only, blocked/confused/lying and named. Audit
 // child builds the typed evidence matrix (acceptance rows +
 // adherence rows, no edges), then
-// review and check children run in parallel on the exact bound
+// grade and verify children run in parallel on the exact bound
 // commit and call their verdict edges directly. Grade children
 // never edit the work. As the named InitRecord writer (mvp.8)
 // this launcher records each child's InitRecord via
@@ -190,7 +190,7 @@ function outcomeFor(state, matrix) {
   if (anyBad) return "needs_fix";
   if (state === "approved") return "approved";
   if (state === "todo") return "needs_fix";
-  if (state === "submitted") return "refused";
+  if (state === "handed_off") return "refused";
   return state;
 }
 
@@ -208,13 +208,13 @@ export default async function workflow(host) {
   const deskNote = desk ? ("Your working directory is the quest worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
   const envPrefix =
     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
-  const reviewLoad =
+  const gradeLoad =
     "First load the code-reviewer skill (read_skill " +
     "\"code-reviewer\") and review by its procedure: correctness, " +
     "design patterns, tests, and comments that must agree with " +
     "the code. Its verdict maps ship -> ship, fix_first -> " +
     "needs_fix. ";
-  const checkLoad =
+  const verifyLoad =
     "First apply the verify stance (read_skill \"verify\" when " +
     "available): judge only on fresh output from the project's " +
     "own check command, never on claimed green. ";
@@ -350,7 +350,7 @@ export default async function workflow(host) {
     refusals.push("initial read failed: " + (before.raw || "no verdict"));
     return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
   }
-  if (before.state !== "submitted" && before.state !== "approved") {
+  if (before.state !== "handed_off" && before.state !== "approved") {
     return { exp: exp, outcome: before.state, matrix: [], run_ids: runIds, refusals: refusals };
   }
   const bound = before.commit ? String(before.commit) : "";
@@ -375,7 +375,7 @@ export default async function workflow(host) {
       " Read the exp's EXPERIMENT.md first. Build the evidence " +
       "matrix: one row per Acceptance case (acceptance rows), plus " +
       "adherence rows for the build Run that produced this commit " +
-      "(submit edge called by the child directly, env-set run-id " +
+      "(handoff edge called by the child directly, env-set run-id " +
       "stamped by bp3, clean commit, tape.log and notes.md " +
       "present in its run folder, no hand-edited state). " + LADDER_TEXT +
       "Every row " +
@@ -399,12 +399,12 @@ export default async function workflow(host) {
       "or pass for lacking this exp's artifact. A deferral that " +
       "names no owning exp is not deferred: emit missing. For " +
       "the adherence row `env-set run-id`, quote " +
-      "the bp3-stamped ledger line for the submit edge (the mvp.1 " +
+      "the bp3-stamped ledger line for the handoff edge (the mvp.1 " +
       "mechanism: BP3_RUN_ID arrives via environment and bp3 stamps " +
-      "it into the verdict and the ledger line): find the submit " +
+      "it into the verdict and the ledger line): find the handoff " +
       "line whose run_id is the build Run that produced this commit " +
-      "(the submit run folder under this exp's runs/) and quote it " +
-      "as {kind: ledger, ref: the exp ledger submit line, quote: " +
+      "(the handoff run folder under this exp's runs/) and quote it " +
+      "as {kind: ledger, ref: the exp ledger handoff line, quote: " +
       "the line verbatim}. Corroborate from the per-Run derivation " +
       "log at `<git-common-dir>/bp3/run-lifecycle-derivations/" +
       "<run-id>.jsonl` (resolve the common dir with " +
@@ -428,7 +428,7 @@ export default async function workflow(host) {
   const matrix = normalizeMatrix(auditVerdict ? auditVerdict.matrix : null);
   const matrixJson = JSON.stringify(matrix);
 
-  // Review || check on the exact bound commit. A gated missing
+  // Grade || verify on the exact bound commit. A gated missing
   // or fail row means the positive verdict is not available to
   // them; deferred rows never gate.
   const gate =
@@ -443,11 +443,11 @@ export default async function workflow(host) {
     "unnamed whole-tape read, or a clean grade whose matrix " +
     "shows a whole-log read it did not need, is not correct: " +
     "cast the negative verdict. ";
-  const reviewPrompt = deskNote +
-    "You are the review child for exp `" + exp + "` of quest `" +
+  const gradePrompt = deskNote +
+    "You are the grade child for exp `" + exp + "` of quest `" +
     quest + "`, currently in state `" + before.state + "` at cycle " +
     String(before.cycle) + ", bound to commit `" + commit + "`. " +
-    reviewLoad + tapePreamble("review", before.cycle) + gate +
+    gradeLoad + tapePreamble("grade", before.cycle) + gate +
     " Review the work at the bound commit against the exp's " +
     "own Acceptance cases in its EXPERIMENT.md (read it first): " +
     "every gated case needs observed evidence (a case deferred " +
@@ -455,37 +455,37 @@ export default async function workflow(host) {
     "design question in the exp means it was not done properly. Judge " +
     "only; do not edit the work. Then call the state " +
     "edge directly yourself, binding the exact commit: " +
-    "`" + envPreset("review", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
-    " review --verdict ship --commit " + commit +
+    "`" + envPreset("grade", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
+    " grade --verdict ship --commit " + commit +
     " --reason \"<short reason>\"` when the work is correct, " +
     "or the same call with `--verdict needs_fix` when it is " +
     "not. Children call `bp3 q u` directly; never only return " +
     "a verdict for the parent to relay. Reply with only a " +
     "JSON object {ok, run_id, commit, verdict} where verdict " +
-    "is the JSON printed by the review call.";
-  const checkPrompt = deskNote +
-    "You are the check child for exp `" + exp + "` of quest `" +
+    "is the JSON printed by the grade call.";
+  const verifyPrompt = deskNote +
+    "You are the verify child for exp `" + exp + "` of quest `" +
     quest + "`, currently in state `" + before.state + "` at cycle " +
     String(before.cycle) + ", bound to commit `" + commit + "`. " +
-    checkLoad + tapePreamble("check", before.cycle) + gate +
+    verifyLoad + tapePreamble("verify", before.cycle) + gate +
     " Run the exp's checks against the bound commit and judge " +
     "only; do not edit the work. Then call the state edge " +
     "directly yourself, binding the exact commit: " +
-    "`" + envPreset("check", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
-    " check --verdict pass --commit " + commit +
+    "`" + envPreset("verify", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
+    " verify --verdict pass --commit " + commit +
     " --reason \"<short reason>\"` when every check passes, " +
     "or the same call with `--verdict fail` when any check " +
     "fails. Children call `bp3 q u` directly; never only " +
     "return a verdict for the parent to relay. Reply with " +
     "only a JSON object {ok, run_id, commit, verdict} where " +
-    "verdict is the JSON printed by the check call.";
-  if (!(await recordInit("review", before.cycle)) ||
-      !(await recordInit("check", before.cycle))) {
+    "verdict is the JSON printed by the verify call.";
+  if (!(await recordInit("grade", before.cycle)) ||
+      !(await recordInit("verify", before.cycle))) {
     return { exp: exp, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
   }
   const stageResults = await host.parallel([
-    { label: "review " + exp, input: reviewPrompt },
-    { label: "check " + exp, input: checkPrompt },
+    { label: "grade " + exp, input: gradePrompt },
+    { label: "verify " + exp, input: verifyPrompt },
   ]);
   for (let i = 0; i < stageResults.length; i++) {
     const v = parseVerdict(stageResults[i]);
