@@ -1,0 +1,5 @@
+node-check: PASS
+induct-exp tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+c3 author: flappy demo carried into run folder; node --check PASS; ./test/induct.sh all ok
