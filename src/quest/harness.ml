@@ -41,7 +41,12 @@
    binding when the InitRecord names no tape. The muse
    tail scan now skips trailing task entries, so a tape
    ending in a run terminal entry followed by task
-   entries still yields finish evidence. *)
+   entries still yields finish evidence. followup.4
+   resolves a scanned Run by its own edge: when several
+   tapes reference the Run, only the tape carrying the
+   Run's own edge invocation (BP3_RUN_ID bound to its
+   bp3 q ... u <exp> <edge> call) resolves; zero or
+   several such tapes refuse E_AMBIGUOUS. *)
 open Gitx
 open Store
 
@@ -909,6 +914,54 @@ let tape_references_session text session =
   contains_sub text ("\"session_id\":\"" ^ session ^ "\"")
   || contains_sub text ("\"session_id\": \"" ^ session ^ "\"")
 
+(* followup.4: a Run's own edge. The edge is the run-id's
+   second dash segment; the exp comes from the Run's
+   InitRecord. A tape carries the edge only when one entry
+   binds BP3_RUN_ID=<run> to a bp3 q ... u <exp> <edge>
+   invocation: sibling sessions bind the same id to
+   record-init or find-tape and never carry it. *)
+let edge_of_run_id run_id =
+  match String.split_on_char '-' run_id with
+  | _ :: edge :: _ -> edge
+  | _ -> ""
+
+let tokens_of_line line =
+  let is_tok c =
+    (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+    || (c >= '0' && c <= '9')
+    || c = '-' || c = '_' || c = '.' || c = '/' || c = '=' in
+  let n = String.length line in
+  let rec go i acc =
+    if i >= n then List.rev acc
+    else if not (is_tok line.[i]) then go (i + 1) acc
+    else
+      let rec take j =
+        if j < n && is_tok line.[j] then take (j + 1) else j in
+      let stop = take i in
+      go stop (String.sub line i (stop - i) :: acc) in
+  go 0 []
+
+let tape_carries_own_edge text run_id exp =
+  let edge = edge_of_run_id run_id in
+  if edge = "" || run_id = "" then false
+  else
+    let bound = "BP3_RUN_ID=" ^ run_id in
+    List.exists (fun line ->
+      let toks = Array.of_list (tokens_of_line line) in
+      let n = Array.length toks in
+      let has_bound = Array.exists (fun t -> t = bound) toks in
+      let has_bp3_before i =
+        let rec go j = j < i && (contains_sub toks.(j) "bp3" || go (j + 1)) in
+        go 0 in
+      let rec has_inv i =
+        if i + 2 >= n then false
+        else if toks.(i) = "u" && toks.(i + 2) = edge
+                && (match exp with Some e -> toks.(i + 1) = e | None -> true)
+                && has_bp3_before i then true
+        else has_inv (i + 1) in
+      has_bound && has_inv 0)
+      (String.split_on_char '\n' text)
+
 let session_id_of_tape path =
   let text = read_file_or path "" in
   let lines = String.split_on_char '\n' text in
@@ -1039,6 +1092,23 @@ let ambiguous what candidates =
   err "E_AMBIGUOUS" (`Assoc [(what, `List (List.map json_str candidates))])
     ("Ambiguous " ^ what ^ "; refusing to pick: " ^ String.concat ", " candidates) 1
 
+(* followup.4 shared scan resolution: zero or one candidate
+   passes through; several candidates narrow to the one
+   tape carrying the Run's own edge, else E_AMBIGUOUS
+   naming every candidate. A tape named by an InitRecord
+   or a binding row never reaches this scan. *)
+let narrow_candidates candidates run_id exp =
+  let paths = dedup (List.map (fun (p, _, _) -> p) candidates) in
+  match paths with
+  | [] | [_] -> paths
+  | _ ->
+      let own = dedup (List.filter_map (fun (p, _, text) ->
+        if tape_carries_own_edge text run_id exp then Some p else None)
+        candidates) in
+      (match own with
+       | [p] -> [p]
+       | _ -> ambiguous "tape" paths)
+
 let do_find_tape args =
   let fl = parse_ft_flags args in
   if (fl.ft_before_set || fl.ft_after_set) && fl.ft_entry = None then
@@ -1112,7 +1182,12 @@ let do_find_tape args =
                let text = read_file_or p "" in
                if tape_matches text p
                then Some (p, h, text) else None)) harnesses in
-        let paths = dedup (List.map (fun (p, _, _) -> p) candidates) in
+        let scan_run = match fl.ft_run with
+          | Some r -> r
+          | None -> (match record with Some rec_ -> rec_.run_id | None -> "") in
+        let scan_exp = match record with
+          | Some rec_ -> rec_.exp | None -> None in
+        let paths = narrow_candidates candidates scan_run scan_exp in
         (match paths with
          | [] ->
              let facts = match fl.ft_run with
@@ -1283,7 +1358,12 @@ let resolve_watch fl =
              let text = read_file_or p "" in
              if tape_matches text p
              then Some (p, h, text) else None)) harnesses in
-      let paths = dedup (List.map (fun (p, _, _) -> p) candidates) in
+      let scan_run = match fl.wt_run with
+        | Some r -> r
+        | None -> (match record with Some rec_ -> rec_.run_id | None -> "") in
+      let scan_exp = match record with
+        | Some rec_ -> rec_.exp | None -> None in
+      let paths = narrow_candidates candidates scan_run scan_exp in
       (match paths with
        | [] ->
            (match record with
@@ -1842,7 +1922,7 @@ Example: bp3 harness init-check --engine muse-code\n"
 let help_find_tape = "bp3 harness find-tape - InitRecord-first tape lookup:\n\
   bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]\n\
   bp3 harness find-tape --session-id <id>\n\
-  Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate.\n\
+  Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate. A tape named by an InitRecord or a binding row wins over any scan; when a scan finds several referencing tapes, only the tape carrying the Run's own edge invocation (BP3_RUN_ID bound to its bp3 q ... u <exp> <edge> call, edge from the run-id, exp from the InitRecord) resolves, and zero or several such tapes are E_AMBIGUOUS.\n\
   --entry returns the one digest-verified entry (sha256 over its exact line, with byte range), widened by --before-entries/--after-entries (non-negative integers, default 0).\n\
   Emits {ok, run_id, harness, session_id, wal, pid} or, with --entry, plus {entry, entries}.\n\
 Example: bp3 harness find-tape --run-id 20261115T000000Z-submit-pi-model-c1\n"
@@ -1852,7 +1932,7 @@ let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
   bp3 harness watch --session-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
   Engine is derived from the Run InitRecord, never stated. Finds the tape like find-tape, then blocks in code: streams NDJSON lifecycle_change rows and ends with one verdict {ok, run_id, harness, session_id, wal, pid, outcome, settled, lifecycle}.\n\
   Finish evidence is per harness, read off the tape tail: muse-code scans whole entries from the end, skipping task entries, and the first non-task entry decides — a session.end entry closes the tape, and a runtime terminal entry is a child tape's exit entry (child tapes carry no close marker and end with task entries after it); pi never closes, so only its last whole entry counts (a session_closed entry or a final assistant entry that stopped is its clean end). Exit plus finish evidence (or settle plus finish evidence) with no live pid is settled; a live pid is never finished. A torn final tape entry finishes nothing and warns W_TORN_TAIL. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. Finish evidence or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
-  Identity flags follow find-tape: both, neither, or disagreeing flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS. Durations are bare positive integers; 0, negatives, and suffixed values are E_USAGE.\n\
+  Identity flags follow find-tape: both, neither, or disagreeing flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS. Tape resolution is shared with find-tape, including the own-edge rule for scanned tapes. Durations are bare positive integers; 0, negatives, and suffixed values are E_USAGE.\n\
   Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
 Example: bp3 harness watch --run-id 20261115T000000Z-submit-pi-model-c1 --silence-seconds 600\n"
 

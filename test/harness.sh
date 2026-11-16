@@ -591,6 +591,38 @@ out=$(h watch --run-id R-f3-bound --timeout-seconds 5) || fail "followup.3 watch
 echo "$out" | tail -1 | jq -e '.outcome == "settled" and .settled == true and .lifecycle == "finished"' >/dev/null || fail "followup.3 watch bound verdict: $out"
 kill $F3LIVE 2>/dev/null || true
 
+# --- bind resolution (followup.4): own-edge narrows the scan ---
+F4RUN="20260101T000000Z-submit-pi-test-model-c1"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4RUN\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\"}" > "$store/$F4RUN.jsonl"
+printf '%s\n' "{\"type\":\"message\",\"id\":\"i1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 harness record-init --run-id $F4RUN\"}}" > fixtures/pi-store/f4-init.jsonl
+printf '%s\n' "{\"type\":\"message\",\"id\":\"v1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 harness find-tape --run-id $F4RUN\"}}" > fixtures/pi-store/f4-resolve.jsonl
+printf '%s\n' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"quoted run_id $F4RUN in conductor prose\"}}" "{\"run_id\":\"$F4RUN\",\"note\":\"conductor quotes the run\"}" > fixtures/pi-store/f4-conductor.jsonl
+printf '%s\n' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 q toy u e1 submit --commit abc --reason work\"}}" > fixtures/pi-store/f4-author.jsonl
+out=$(h find-tape --run-id "$F4RUN") || fail "followup.4 find-tape exit: $out"
+echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/f4-author.jsonl" '.ok == true and .wal == $w' >/dev/null || fail "followup.4 own-edge resolves author: $out"
+set +e; out=$(h watch --run-id "$F4RUN" --timeout-seconds 1); set -e
+echo "$out" | tail -1 | jq -e --arg w "$work/repo/fixtures/pi-store/f4-author.jsonl" '.wal == $w and .outcome == "timeout"' >/dev/null || fail "followup.4 watch shares own-edge: $out"
+
+# no own-edge tape among several references: typed refusal
+F4NONE="20260101T000000Z-submit-pi-test-model-c2"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4NONE\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\"}" > "$store/$F4NONE.jsonl"
+printf '%s\n' "{\"type\":\"message\",\"id\":\"i1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4NONE bp3 harness record-init --run-id $F4NONE\"}}" > fixtures/pi-store/f4-none-init.jsonl
+printf '%s\n' "{\"type\":\"message\",\"id\":\"v1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4NONE bp3 harness find-tape --run-id $F4NONE\"}}" > fixtures/pi-store/f4-none-resolve.jsonl
+if out=$(h find-tape --run-id "$F4NONE" 2>&1); then fail "followup.4 no-own-edge accepted"; fi
+echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 no-own-edge code: $out"
+echo "$out" | grep -q "f4-none-init" || fail "followup.4 no-own-edge names init: $out"
+echo "$out" | grep -q "f4-none-resolve" || fail "followup.4 no-own-edge names resolve: $out"
+
+# two own-edge tapes: typed refusal, never a guess
+F4TWO="20260101T000000Z-submit-pi-test-model-c3"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4TWO\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\"}" > "$store/$F4TWO.jsonl"
+printf '%s\n' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 submit --commit abc --reason work\"}}" > fixtures/pi-store/f4-two-a.jsonl
+printf '%s\n' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 submit --commit def --reason work\"}}" > fixtures/pi-store/f4-two-b.jsonl
+if out=$(h find-tape --run-id "$F4TWO" 2>&1); then fail "followup.4 two-own-edge accepted"; fi
+echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 two-own-edge code: $out"
+if out=$(h watch --run-id "$F4TWO" --timeout-seconds 1 2>&1); then fail "followup.4 watch two-own-edge accepted"; fi
+echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 watch two-own-edge code: $out"
+
 # --- backtest (backtest.1): replay folds facts, findings never gate ---
 out=$(h backtest -h) || fail "backtest -h exit"
 echo "$out" | grep -q "backtest" || fail "backtest help: $out"

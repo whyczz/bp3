@@ -1,0 +1,51 @@
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check skills/induct/workflows/induct-exp.js
+node --check skills/induct/workflows/induct-grade.js
+node --check skills/induct/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (114 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 49279 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 49394 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 49773 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 48813 Terminated: 15          sleep 60
+./test/harness.sh: line 514: 51471 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 51695 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
