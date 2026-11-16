@@ -151,9 +151,11 @@ export default async function workflow(host) {
   // before the child exists. Without it the fold can never
   // move the Run past init.
   async function recordInit(edge, cycle) {
+    // $PWD expands in the init child's shell at the desk, so
+    // the stored pointer is absolute and stat-able from any
+    // cwd the supervisor later runs in.
     const tapePath =
-      (desk ? desk + "/" : "") +
-      runFolder(edge, cycle, harness + "-" + model) + "/tape.log";
+      "$PWD/" + runFolder(edge, cycle, harness + "-" + model) + "/tape.log";
     const cmd =
       envPreset(edge, cycle) + "./bin/bp3 harness record-init" +
       " --run-id " + runIdOf(edge, cycle) +
