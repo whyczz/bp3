@@ -61,11 +61,23 @@ function gitCommonDir(cwd: string): string {
   return path.isAbsolute(out) ? out : path.resolve(cwd, out);
 }
 
-// The repo root is the main checkout that owns the common
-// dir, never the caller's cwd: spawning from a nested
-// subdir binds the same quest as from the root.
+function gitTopLevel(cwd: string): string {
+  let out: string;
+  try {
+    out = execFileSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
+  } catch {
+    throw new TypedRefusal("E_NOT_FOUND", "not inside a git repository; no repo root to bind", { cwd });
+  }
+  return path.isAbsolute(out) ? out : path.resolve(cwd, out);
+}
+
+// The repo root is the worktree the caller sits in, never
+// the caller's cwd and never the main checkout behind the
+// common dir: the worktree's bin/bp3 and desks are the ones
+// the dispatcher serves. Shared quest state still resolves
+// via the common dir (derivationsDir, pi-sessions).
 export function resolveRepoRoot(cwd: string): string {
-  return path.dirname(gitCommonDir(cwd));
+  return gitTopLevel(cwd);
 }
 
 export function derivationsDir(cwd: string): string {

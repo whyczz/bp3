@@ -115,7 +115,7 @@ test("spawn path: record-init names the live pid, bind-tape pins the tape, list_
   const fakePi = writeFakePi(repo);
   const nested = path.join(repo, "a", "b");
   fs.mkdirSync(nested, { recursive: true });
-  assert.equal(resolveRepoRoot(nested), repo);
+  assert.equal(resolveRepoRoot(nested), fs.realpathSync(repo));
 
   const dispatcher = new Dispatcher({ cwd: nested, bp3Bin, piBin: fakePi });
   const result = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "submit", prompt: "say hi", model: "fake-model" });
@@ -139,6 +139,43 @@ test("spawn path: record-init names the live pid, bind-tape pins the tape, list_
   assert.equal(runs.length, 1);
   assert.equal(runs[0].run_id, result.run_id);
   assert.equal(runs[0].lifecycle, "finished");
+});
+
+test("worktree root: dispatcher serves the worktree it was spawned in, state stays shared", async () => {
+  const repo = makeRepo();
+  execFileSync("git", ["-C", repo, "commit", "-q", "--allow-empty", "-m", "init"]);
+  const worktree = `${repo}-wt`;
+  execFileSync("git", ["-C", repo, "worktree", "add", "-q", worktree]);
+  const wt = fs.realpathSync(worktree);
+  const nested = path.join(wt, "a", "b");
+  fs.mkdirSync(nested, { recursive: true });
+
+  // The worktree is the root from its top and from a nested
+  // subdir; the main checkout still resolves to itself.
+  assert.equal(resolveRepoRoot(wt), wt);
+  assert.equal(resolveRepoRoot(nested), wt);
+  assert.equal(resolveRepoRoot(repo), fs.realpathSync(repo));
+
+  // No BP3_PI_BP3_BIN pin: the binary resolves under the
+  // worktree, so record-init reaches the worktree's bp3.
+  const unpinned = new Dispatcher({ cwd: nested, piBin: "/nonexistent/pi" });
+  assert.equal(unpinned.root, wt);
+  assert.equal(unpinned.bp3Bin, path.join(wt, "bin", "bp3"));
+
+  // A spawn from the worktree finishes, and its derivation
+  // log lands in the shared common-dir store, not the worktree.
+  const fakePi = writeFakePi(repo);
+  const dispatcher = new Dispatcher({ cwd: nested, bp3Bin, piBin: fakePi });
+  const result = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "submit", prompt: "hi", model: "fake-model" });
+  assert.equal(result.ok, true);
+  assert.equal(derivationsDir(nested), derivationsDir(fs.realpathSync(repo)));
+  assert.ok(fs.existsSync(path.join(derivationsDir(repo), `${result.run_id}.jsonl`)));
+  const runs = dispatcher.listRuns("toy");
+  assert.equal(runs.find((r) => r.run_id === result.run_id)?.lifecycle, "finished");
+
+  // Outside any repository the refusal stays typed.
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), "bp3-pi-nogit-"));
+  assert.throws(() => resolveRepoRoot(bare), (e) => e.code === "E_NOT_FOUND");
 });
 
 test("roles route model/thinking into the child env: override > role > conductor", async () => {
