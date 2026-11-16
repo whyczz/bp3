@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Flappy Bird — Three.js</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #80d5ed; font-family: system-ui, sans-serif; touch-action: none; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #hud { position: fixed; top: 24px; left: 0; width: 100%; text-align: center; color: white; font-size: 48px; font-weight: 900; text-shadow: 0 3px 5px #244958; pointer-events: none; }
+  #message { position: fixed; bottom: 12%; width: 100%; padding: 16px; text-align: center; color: #143b46; font-size: 20px; font-weight: 700; pointer-events: none; }
+</style>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}
+</script>
+</head>
+<body>
+<div id="hud" aria-live="polite">0</div>
+<div id="message">Click or press Space to flap</div>
+<script type="module">
+import * as THREE from 'three';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#80d5ed');
+const camera = new THREE.OrthographicCamera(-6, 6, 8, -8, 0.1, 100);
+camera.position.set(0, 0, 20);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x527342, 2.2));
+const sunlight = new THREE.DirectionalLight(0xffffff, 2.5);
+sunlight.position.set(-3, 7, 10);
+scene.add(sunlight);
+
+const hud = document.querySelector('#hud');
+const message = document.querySelector('#message');
+const radius = 0.36;
+const bird = new THREE.Group();
+bird.position.x = -2;
+bird.add(new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 16), new THREE.MeshStandardMaterial({ color: '#ffe12b', roughness: 0.55 })));
+const beak = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.38, 12), new THREE.MeshStandardMaterial({ color: '#ff8c21' }));
+beak.rotation.z = -Math.PI / 2;
+beak.position.set(0.39, -0.02, 0);
+bird.add(beak);
+const eye = new THREE.Mesh(new THREE.SphereGeometry(0.065, 12, 8), new THREE.MeshBasicMaterial({ color: '#17222c' }));
+eye.position.set(0.14, 0.12, 0.31);
+bird.add(eye);
+scene.add(bird);
+
+const bounds = 8;
+const gap = 3.5;
+const width = 1.3;
+const spacing = 4.6;
+const speed = 3.1;
+const pipeMaterial = new THREE.MeshStandardMaterial({ color: '#36b94b', roughness: 0.6 });
+const geometry = new THREE.BoxGeometry(1, 1, 1);
+const pipes = [];
+let velocity = 0;
+let score = 0;
+let started = false;
+let over = false;
+let viewWidth = 12;
+
+function shapePipe(pipe) {
+  pipe.center = (Math.random() - 0.5) * 7;
+  pipe.passed = false;
+  const lowerTop = pipe.center - gap / 2;
+  const upperBottom = pipe.center + gap / 2;
+  pipe.bottom.scale.set(width, lowerTop + bounds, 1);
+  pipe.bottom.position.set(pipe.x, (-bounds + lowerTop) / 2, 0);
+  pipe.top.scale.set(width, bounds - upperBottom, 1);
+  pipe.top.position.set(pipe.x, (bounds + upperBottom) / 2, 0);
+}
+for (let i = 0; i < 5; i++) {
+  const pipe = { x: 0, center: 0, passed: false, top: new THREE.Mesh(geometry, pipeMaterial), bottom: new THREE.Mesh(geometry, pipeMaterial) };
+  scene.add(pipe.top, pipe.bottom);
+  pipes.push(pipe);
+}
+function reset() {
+  velocity = 0;
+  score = 0;
+  started = false;
+  over = false;
+  bird.position.y = 0;
+  bird.rotation.z = 0;
+  hud.textContent = '0';
+  message.textContent = 'Click or press Space to flap';
+  pipes.forEach((pipe, i) => { pipe.x = Math.max(5, viewWidth / 2 + 1) + i * spacing; shapePipe(pipe); });
+}
+function flap() {
+  if (over) reset();
+  started = true;
+  velocity = 6.2;
+  message.textContent = '';
+}
+function endGame() {
+  over = true;
+  message.textContent = 'Game over! Click or press Space to restart';
+}
+window.addEventListener('pointerdown', flap);
+window.addEventListener('keydown', event => {
+  if (event.code === 'Space') {
+    event.preventDefault();
+    if (!event.repeat) flap();
+  }
+});
+function resize() {
+  // Keep the playfield comfortably visible even on narrow phones.
+  const aspect = innerWidth / innerHeight;
+  const halfHeight = Math.max(bounds, 6 / aspect);
+  viewWidth = halfHeight * aspect * 2;
+  camera.left = -viewWidth / 2;
+  camera.right = viewWidth / 2;
+  camera.top = halfHeight;
+  camera.bottom = -halfHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+}
+window.addEventListener('resize', resize);
+resize();
+// Visible rails mark the gameplay bounds on tall screens.
+const railMaterial = new THREE.MeshStandardMaterial({ color: '#92ce54' });
+for (const y of [-8.15, 8.15]) {
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(200, 0.3, 1.4), railMaterial);
+  rail.position.y = y;
+  scene.add(rail);
+}
+reset();
+let previous = performance.now();
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min((now - previous) / 1000, 0.033);
+  previous = now;
+  if (started && !over) {
+    velocity -= 18 * dt;
+    bird.position.y += velocity * dt;
+    bird.rotation.z = THREE.MathUtils.clamp(velocity * 0.055, -0.65, 0.4);
+    if (bird.position.y - radius <= -bounds || bird.position.y + radius >= bounds) endGame();
+    for (const pipe of pipes) {
+      if (over) break;
+      pipe.x -= speed * dt;
+      pipe.top.position.x = pipe.bottom.position.x = pipe.x;
+      // Circle/rectangle collision, including the pipe's corners.
+      for (const mesh of [pipe.top, pipe.bottom]) {
+        const nearestX = THREE.MathUtils.clamp(bird.position.x, pipe.x - width / 2, pipe.x + width / 2);
+        const nearestY = THREE.MathUtils.clamp(bird.position.y, mesh.position.y - mesh.scale.y / 2, mesh.position.y + mesh.scale.y / 2);
+        if ((bird.position.x - nearestX) ** 2 + (bird.position.y - nearestY) ** 2 <= radius ** 2) endGame();
+      }
+      if (!over && !pipe.passed && pipe.x + width / 2 < bird.position.x - radius) {
+        pipe.passed = true;
+        hud.textContent = String(++score);
+      }
+    }
+    for (const pipe of pipes) {
+      if (pipe.x < -viewWidth / 2 - width) {
+        pipe.x = Math.max(...pipes.map(p => p.x)) + spacing;
+        shapePipe(pipe);
+      }
+    }
+  }
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>

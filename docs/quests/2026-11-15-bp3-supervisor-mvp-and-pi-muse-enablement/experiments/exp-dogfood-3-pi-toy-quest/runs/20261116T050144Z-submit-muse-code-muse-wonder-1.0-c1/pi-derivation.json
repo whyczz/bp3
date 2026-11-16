@@ -1,0 +1,31 @@
+{
+ "pi_run_id": "20261116T050354Z-demo-pi-gpt-6.1-sol-c1",
+ "supervisor_row": {
+  "run_id": "20261116T050354Z-demo-pi-gpt-6.1-sol-c1",
+  "lifecycle": "finished",
+  "harness": "pi"
+ },
+ "derived_state": {
+  "kind": "derived_state",
+  "run_id": "20261116T050354Z-demo-pi-gpt-6.1-sol-c1",
+  "harness": "pi",
+  "session_id": null,
+  "pid": 55778,
+  "tape_path": "/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3-.bp3-worktrees-2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement--/2026-11-16T05-03-54-667Z_01a1e2bd-892a-7602-b1c3-183df4ee3513.jsonl",
+  "quest": "2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement",
+  "exp": "exp-dogfood-3-pi-toy-quest",
+  "lifecycle": "finished",
+  "warnings": [],
+  "pid_alive": false,
+  "fresh": true,
+  "silence_seconds": 600,
+  "jsonl_size": 1009,
+  "jsonl_mtime": 1794805530,
+  "tape_size": 33061,
+  "tape_mtime": 1794805486
+ },
+ "tape_path": "/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3-.bp3-worktrees-2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement--/2026-11-16T05-03-54-667Z_01a1e2bd-892a-7602-b1c3-183df4ee3513.jsonl",
+ "flappy_path": "docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-3-pi-toy-quest/runs/20261116T050354Z-demo-pi-gpt-6.1-sol-c1/flappy.html",
+ "flappy_sha256": "98c41f730b8ec57ec6b78df8fde2075fc6a277f68dfd0ef7818aff11c8d217f1",
+ "flappy_bytes": 6289
+}
