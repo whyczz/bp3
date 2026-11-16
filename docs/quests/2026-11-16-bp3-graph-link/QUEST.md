@@ -94,6 +94,15 @@ Exp display names are `<milestone>.<number> - <slug>`.
 Folders and bp3 exp IDs use the dotless spelling
 `exp-<milestone>-<number>-<slug>`.
 
+### Milestone: config — the local store
+
+### config.1 - bp3-config — [record](experiments/exp-config-1-bp3-config/EXPERIMENT.md)
+The machine-local hard store, named: `bp3 config`
+tree under the git common dir (contexts, desks,
+local thresholds, claims, by-session index,
+derivations). Written only by bp3 verbs, viewed
+via `bp3 config`, never committed, zero setup.
+
 ### Milestone: mvp — link, context, schedule, diagram
 
 ### mvp.1 - link-claim — [record](experiments/exp-mvp-1-link-claim/EXPERIMENT.md)
