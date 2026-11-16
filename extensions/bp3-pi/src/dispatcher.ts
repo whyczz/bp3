@@ -1,11 +1,14 @@
 // bp3-pi dispatcher: spawn + handoff only (dogfood.2
-// component B). It validates input, mints the run-id,
-// spawns one pi child, and hands spawn/exit facts to the
+// component B, completed by followup.6). It validates
+// input, loads the role file, mints the run-id, spawns
+// one pi child, and hands spawn/exit facts to the
 // supervisor through `bp3 harness record-init` (live pid,
 // before the child's work) and `bp3 harness bind-tape`
-// (after exit). It owns no watchdog, no lifecycle fold,
-// and no persistent writer: every derivation row is
-// written by bp3, never by this process. await_runs is a
+// (after exit). Role files route model/thinking into the
+// child env (override > role > conductor). It owns no
+// watchdog, no lifecycle fold, and no persistent writer:
+// every derivation row is written by bp3, never by this
+// process, and it never signals a pid. await_runs is a
 // thin relay over `bp3 harness watch` (the sole killer);
 // list_runs relays the supervisor's derived cache/verdict;
 // release_desk relays `bp3 harness desk release`.
@@ -13,13 +16,16 @@
 import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { mintRunId, validateInput, type SpawnInput } from "./contract.ts";
+import { loadRole, resolveEffective, UnknownRole } from "./roles.ts";
 
 export interface DispatcherOptions {
   cwd: string;
   bp3Bin?: string;
   piBin?: string;
   env?: NodeJS.ProcessEnv;
+  rolesDir?: string;
 }
 
 export interface SpawnResult {
@@ -28,7 +34,12 @@ export interface SpawnResult {
   pid: number;
   tape_path: string;
   exit_code: number | null;
+  model: string;
+  thinking: string | null;
+  role: string | null;
 }
+
+const defaultRolesDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "roles");
 
 export class TypedRefusal extends Error {
   code: string;
@@ -67,6 +78,7 @@ export class Dispatcher {
   readonly bp3Bin: string;
   readonly piBin: string;
   readonly env: NodeJS.ProcessEnv;
+  readonly rolesDir: string;
 
   constructor(opts: DispatcherOptions) {
     this.cwd = opts.cwd;
@@ -74,6 +86,7 @@ export class Dispatcher {
     this.bp3Bin = opts.bp3Bin ?? process.env.BP3_PI_BP3_BIN ?? path.join(this.root, "bin", "bp3");
     this.piBin = opts.piBin ?? process.env.BP3_PI_BIN ?? "pi";
     this.env = opts.env ?? process.env;
+    this.rolesDir = opts.rolesDir ?? process.env.BP3_PI_ROLES_DIR ?? defaultRolesDir;
   }
 
   private bp3Json(args: string[]): Record<string, unknown> {
@@ -110,15 +123,32 @@ export class Dispatcher {
     const req = validateInput(input);
     this.requireBp3();
     const cycle = req.cycle ?? 1;
-    const model = req.model ?? this.env.BP3_MODEL ?? "gpt-6.1-sol";
-    const thinking = req.thinking ?? this.env.BP3_THINKING;
+    // Roles route model/thinking: override beats role,
+    // role beats the conductor's env. The effective values
+    // are what the child env and the InitRecord carry, so
+    // routing is observed, never silently inherited.
+    let role;
+    if (req.role !== undefined) {
+      try {
+        role = loadRole(this.rolesDir, req.role);
+      } catch (err) {
+        if (err instanceof UnknownRole) {
+          throw new TypedRefusal("E_NOT_FOUND", `no role file for role: ${req.role}`, { role: req.role });
+        }
+        throw err;
+      }
+    }
+    const effective = resolveEffective(req, role, this.env);
+    const model = effective.model;
+    const thinking = effective.thinking;
     const runId = mintRunId(req.edge, model, cycle);
     const sessionDir = path.join(gitCommonDir(this.cwd), "bp3", "pi-sessions", runId);
     fs.mkdirSync(sessionDir, { recursive: true });
 
     const args = ["-p", "--mode", "json", "--session-dir", sessionDir];
-    if (req.model) args.push("--model", req.model);
+    args.push("--model", model);
     if (thinking) args.push("--thinking", thinking);
+    if (effective.tools && effective.tools.length > 0) args.push("--tools", effective.tools.join(","));
     args.push(req.prompt);
 
     const childEnv: NodeJS.ProcessEnv = {
@@ -130,6 +160,7 @@ export class Dispatcher {
       BP3_MODEL: model,
     };
     if (thinking) childEnv.BP3_THINKING = thinking;
+    else delete childEnv.BP3_THINKING;
     delete childEnv.BP3_DECIDER;
 
     const child = spawn(this.piBin, args, { cwd: this.root, env: childEnv, stdio: ["ignore", "pipe", "pipe"] });
@@ -146,8 +177,12 @@ export class Dispatcher {
 
     // The InitRecord names the live pid before the child's
     // work is observed; bp3 is the only writer of the row.
-    const init = this.bp3Json(["harness", "record-init", "--run-id", runId, "--harness", "pi",
-      "--quest", req.quest, "--exp", req.exp, "--pid", String(pid), "--model", model]);
+    // Effective model/thinking ride the row so role routing
+    // is gradeable from the record, not from env folklore.
+    const initArgs = ["harness", "record-init", "--run-id", runId, "--harness", "pi",
+      "--quest", req.quest, "--exp", req.exp, "--pid", String(pid), "--model", model];
+    if (thinking) initArgs.push("--thinking", thinking);
+    const init = this.bp3Json(initArgs);
     if (init.ok !== true) {
       throw new TypedRefusal("E_RECORD_INIT", `record-init refused for ${runId}`, { verdict: init });
     }
@@ -162,7 +197,7 @@ export class Dispatcher {
     if (bound.ok !== true) {
       throw new TypedRefusal("E_TAPE_BIND", `bind-tape refused for ${runId}`, { verdict: bound });
     }
-    return { ok: true, run_id: runId, pid, tape_path: tapePath, exit_code: exitCode };
+    return { ok: true, run_id: runId, pid, tape_path: tapePath, exit_code: exitCode, model, thinking: thinking ?? null, role: req.role ?? null };
   }
 
   awaitRuns(runIds: string[], opts: { timeoutSeconds?: number; silenceSeconds?: number } = {}): Record<string, unknown>[] {

@@ -1,0 +1,29 @@
+== dune build ==
+BUILD_OK
+== node --test extensions/bp3-pi/test/ ==
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.12625ms)
+✔ spawn path: record-init names the live pid, bind-tape pins the tape, list_runs folds finished (191.234917ms)
+✔ roles route model/thinking into the child env: override > role > conductor (335.618708ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (127.79275ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (2029.544459ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (3034.398833ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (24970.410209ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (231.111291ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.507834ms)
+✔ dispatcher writes nothing itself under run-lifecycle-derivations (122.374708ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 31138.3215
+== git status ==
+ M extensions/bp3-pi/README.md
+ M extensions/bp3-pi/src/contract.ts
+ M extensions/bp3-pi/src/dispatcher.ts
+ M extensions/bp3-pi/test/bp3-pi.test.mjs
+ M src/quest/harness.ml
+?? extensions/bp3-pi/roles/
+?? extensions/bp3-pi/src/roles.ts

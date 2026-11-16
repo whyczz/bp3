@@ -1638,13 +1638,14 @@ type ri_flags = {
   mutable ri_session : string option; mutable ri_pid : int option;
   mutable ri_tape : string option; mutable ri_quest : string option;
   mutable ri_exp : string option; mutable ri_desk : string option;
-  mutable ri_model : string option;
+  mutable ri_model : string option; mutable ri_thinking : string option;
 }
 
 let parse_ri_flags args =
   let fl = { ri_run = None; ri_harness = None; ri_session = None;
              ri_pid = None; ri_tape = None; ri_quest = None;
-             ri_exp = None; ri_desk = None; ri_model = None } in
+             ri_exp = None; ri_desk = None; ri_model = None;
+             ri_thinking = None } in
   let rec loop = function
     | [] -> fl
     | "--run-id" :: v :: rest ->
@@ -1674,8 +1675,11 @@ let parse_ri_flags args =
     | "--model" :: v :: rest ->
         if fl.ri_model <> None then usage "duplicate flag --model";
         fl.ri_model <- Some v; loop rest
+    | "--thinking" :: v :: rest ->
+        if fl.ri_thinking <> None then usage "duplicate flag --thinking";
+        fl.ri_thinking <- Some v; loop rest
     | ["--run-id"] | ["--harness"] | ["--session-id"] | ["--pid"]
-    | ["--tape-path"] | ["--quest"] | ["--exp"] | ["--desk"] | ["--model"] ->
+    | ["--tape-path"] | ["--quest"] | ["--exp"] | ["--desk"] | ["--model"] | ["--thinking"] ->
         usage "flag needs a value"
     | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
         (match String.index_opt f '=' with
@@ -1715,6 +1719,7 @@ let do_record_init args =
          (match fl.ri_exp with Some s -> Some ("exp", json_str s) | None -> None);
          (match fl.ri_desk with Some s -> Some ("desk", json_str s) | None -> None);
          (match fl.ri_model with Some s -> Some ("model", json_str s) | None -> None);
+         (match fl.ri_thinking with Some s -> Some ("thinking", json_str s) | None -> None);
        ] in
        let row = `Assoc ([
          ("kind", json_str "init_record");
@@ -2063,7 +2068,7 @@ let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]   InitRecord-first run-id -> tape; --session-id <id> is a reverse lookup\n\
   bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]   blocking watch: sole TERM/KILL owner\n\
   bp3 harness desk <verb> ...                      machine-local desks: derive, create, inspect, remove, prepare, check, exit, release, list\n\
-  bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>]   launcher writes the InitRecord before the child starts (create-only)\n\
+  bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>] [--thinking <t>]   launcher writes the InitRecord before the child starts (create-only)\n\
   bp3 harness bind-tape --run-id <id> --tape-path <p>   launcher binds a finished child's session tape after it returns (pointer-only tape_binding row)\n\
   bp3 harness backtest [--engine muse-code|pi] [--corpus <dir>]   replay the fold over stored tapes; findings, not a gate\n\
 Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init, t=bind-tape, b=backtest. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
@@ -2113,7 +2118,7 @@ let help_bind_tape = "bp3 harness bind-tape - bind a finished child's session ta
 Example: bp3 harness bind-tape --run-id 20261115T000000Z-submit-muse-code-model-c1 --tape-path ~/.local/share/muse/sessions/2026/11/15/<session>/session.jsonl\n"
 
 let help_record_init = "bp3 harness record-init - write one Run's InitRecord (the launcher's verb; the child never writes its own proof):\n\
-  bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>]\n\
+  bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>] [--thinking <t>]\n\
   Appends the first derivation row (kind init_record) to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl before the child starts, so find-tape/watch/supervisor resolve the Run from birth. Create-only: an existing log for the run-id is E_EXISTS; a bad run-id, engine, or pid is E_USAGE. Emits {ok, run_id, harness, session_id, pid, tape_path, quest, exp, path}.\n\
 Example: bp3 harness record-init --run-id 20261115T000000Z-submit-muse-code-model-c1 --harness muse-code --quest toy --exp exp-1\n"
 

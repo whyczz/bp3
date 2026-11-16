@@ -59,6 +59,9 @@ export function validateInput(input: unknown): SpawnInput {
       throw new RefusedInput(field);
     }
   }
+  if (raw.role !== undefined && (typeof raw.role !== "string" || raw.role.trim() === "")) {
+    throw new RefusedInput("role");
+  }
   return raw as unknown as SpawnInput;
 }
 
