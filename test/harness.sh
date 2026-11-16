@@ -530,6 +530,8 @@ printf '%s\n' 'hello foreign tape' > fixtures/bt/foreign.jsonl
 out=$(h backtest --corpus fixtures/bt) || fail "backtest exit: $out"
 echo "$out" | jq -e '.ok == true and .tapes_replayed == 4 and .identifiable == 2' >/dev/null || fail "backtest counts: $out"
 echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-1") | .has_submit == true and .finish_evidence == true)' >/dev/null || fail "backtest good trace: $out"
+echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-1") | .commits == ["0123456789abcdef0123456789abcdef01234567"])' >/dev/null || fail "backtest commits extraction: $out"
+echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-2") | .commits == [])' >/dev/null || fail "backtest refused commits empty: $out"
 echo "$out" | jq -e '(.findings[] | select(.run_id == "R-bt-2"))' >/dev/null || fail "backtest refusal finding: $out"
 echo "$out" | jq -e '(.findings[] | select(.evidence | test("torn")))' >/dev/null || fail "backtest torn finding: $out"
 echo "$out" | jq -e '(.findings[] | select(.evidence | test("foreign")))' >/dev/null || fail "backtest foreign finding: $out"

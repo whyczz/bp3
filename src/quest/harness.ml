@@ -1522,19 +1522,22 @@ let extract_codes text =
   List.rev !codes
 
 let extract_shas text =
+  let is_hex c = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') in
+  let n = String.length text in
   let shas = ref [] in
-  (try
-     let re = Str.regexp "[0-9a-f]\\{40\\}" in
-     let rec go from =
-       if from < String.length text && List.length !shas < 20 then
-         match (try Some (Str.search_forward re text from) with _ -> None) with
-         | Some i ->
-             let v = Str.matched_string text in
-             if not (List.mem v !shas) then shas := v :: !shas;
-             go (i + 1)
-         | None -> () in
-     go 0
-   with _ -> ());
+  let rec go i =
+    if i + 40 <= n && List.length !shas < 20 then
+      let bounded_before = i = 0 || not (is_hex text.[i - 1]) in
+      let bounded_after = i + 40 = n || not (is_hex text.[i + 40]) in
+      if bounded_before && bounded_after then
+        let rec all_hex k = k = 40 || (is_hex text.[i + k] && all_hex (k + 1)) in
+        if all_hex 0 then begin
+          let v = String.sub text i 40 in
+          if not (List.mem v !shas) then shas := v :: !shas;
+          go (i + 40)
+        end else go (i + 1)
+      else go (i + 1) in
+  go 0;
   List.rev !shas
 
 type bt_flags = { mutable bt_corpus : string option }
