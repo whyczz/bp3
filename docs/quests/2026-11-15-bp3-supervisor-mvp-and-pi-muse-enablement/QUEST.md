@@ -338,6 +338,21 @@ RC3: per-adapter finish evidence (close marker,
 exit entry, pid+grace) proved on real corpora;
 feeds backtest.1/backtest.2.
 
+### followup.5 - pi-extension — [record](experiments/exp-followup-5-pi-extension/EXPERIMENT.md)
+Implement dogfood.2's decided pi MVP, spawn path:
+fail-open `bp3-pi` extension with four conductor
+tools, dispatcher spawning pi children under the
+supervisor (record-init, bind-tape, fold). No
+witness writer, events store, TS fold, or second
+watchdog.
+
+### followup.6 - pi-dispatcher-complete — [record](experiments/exp-followup-6-pi-dispatcher-complete/EXPERIMENT.md)
+Complete the dispatcher: `await_runs` thin over
+`watch` (sole killer), `release_desk` dirty-refusal,
+role files routing effective `BP3_MODEL` /
+`BP3_THINKING`. Hung/silent/closed-not-exited cases
+proved on the fake-pi suite.
+
 ### Milestone: backtest — findings, not gates
 
 ### backtest.1 - muse — [record](experiments/exp-backtest-1-muse/EXPERIMENT.md)
@@ -371,11 +386,22 @@ First port/re-verify the pi binding from dogfood.2,
 then drive the same flappy toy quest on pi under
 active supervision.
 
+### dogfood.4 - pi-extension-drive — [record](experiments/exp-dogfood-4-pi-extension-drive/EXPERIMENT.md)
+Dogfood the implemented pi engine: a pi conductor
+with `bp3-pi` loaded drives the flappy toy through
+its own tools (spawn/await/list), supervisor
+deriving the author Run. No hand-played launcher.
+
 ### Milestone: landing
 
 ### landing.1 - landing-wrapup — [record](experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md)
 Quest-level wrap: scorecard, findings disposition,
 and the landing walkthrough actually run.
+
+### landing.2 - landing-wrapup-2 — [record](experiments/exp-landing-2-landing-wrapup-2/EXPERIMENT.md)
+Close the pi-extension arc: scorecard delta for
+followup.5/.6 + dogfood.4, new findings
+dispositioned, walkthrough actually run.
 
 ## Scorecard
 
