@@ -237,7 +237,14 @@ per the Exps section above)
 ## Scorecard
 ## Risks and red chair
 ## Open questions    (ranked, each with an owner)
+## Exp diagram
+<closing ASCII diagram: every exp as a node, dep arrows,
+cohort layers — the railway in one picture, at the end>
 ```
+
+The Quest file ends with the Exp diagram: after reading
+every exp's prose, the reader gets the whole railway —
+nodes, dependencies, cohorts — in one ASCII picture.
 
 ## Lifecycle
 
