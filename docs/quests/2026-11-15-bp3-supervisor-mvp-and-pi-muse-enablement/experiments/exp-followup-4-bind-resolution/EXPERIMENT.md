@@ -45,11 +45,16 @@ candidates ──► engine-fsm-edge filter ──► 1 tape ──► bind ─�
 ## Pseudocode
 
 ```python
-def resolve(run):
+def resolve(run):  # establish the pointer, once
     cands = tapes_referencing(run.id)
     own = [t for t in cands if carries_own_engine_fsm_edge(t, run)]
-    if len(own) != 1: refuse E_AMBIGUOUS
-    return own[0]
+    viable = [t for t in own if session_start(t) >= run.init_ts]
+    if not viable or not unique_earliest(viable): refuse E_AMBIGUOUS
+    return earliest(viable)
+
+def bind(run, tape):  # 1 tape <> 1 run-id, pinned in local state
+    if bound(run.id) or owner_of(tape): refuse typed
+    append_binding_row(run.id, tape)  # fold reads only this, forever
 ```
 
 | Field | Value |
@@ -65,6 +70,8 @@ def resolve(run):
 |---|---|
 | sibling tapes reference the Run | init/resolve/conductor tapes mentioning the run-id do not resolve; the tape carrying the Run's own engine-fsm-edge invocation does |
 | still not unique | two tapes carrying the Run's own engine-fsm-edge invocation (or none) → `E_AMBIGUOUS`, typed, never a guessed pick |
+| established by start order | among own-engine-fsm-edge carriers, the earliest session started at-or-after the Run's InitRecord is the Run's tape; a tie or none → `E_AMBIGUOUS` |
+| one-to-one, pinned | 1 tape <> 1 run-id, kept as local state (binding rows): once a run-id is bound, that pointer is the only one the fold reads; a tape already bound to another run-id, or a second different tape for the same run-id, refuses typed — never a silent rebind |
 | live bind | a fresh induct-exp submit Run binds post-author (no refusal in the workflow result) and the supervisor derives `finished` for it |
 | resolution is shared | `find-tape` and `watch` apply the same rule; a tape named by an InitRecord or a binding row still wins over any scan |
 | env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
