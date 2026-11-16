@@ -145,19 +145,28 @@ export default async function workflow(host) {
 
   // The named InitRecord writer (mvp.8): this launcher, before
   // the child spawns. The child never writes its own proof; a
-  // refused write means the child never starts.
+  // refused write means the child never starts. The record must
+  // carry the tape pointer the supervisor folds from: the run
+  // folder's tape.log, a path this launcher already knows
+  // before the child exists. Without it the fold can never
+  // move the Run past init.
   async function recordInit(edge, cycle) {
+    const tapePath =
+      (desk ? desk + "/" : "") +
+      runFolder(edge, cycle, harness + "-" + model) + "/tape.log";
     const cmd =
       envPreset(edge, cycle) + "./bin/bp3 harness record-init" +
       " --run-id " + runIdOf(edge, cycle) +
       " --harness " + harness + " --quest " + quest +
       " --exp " + exp + " --model " + model +
+      " --tape-path " + tapePath +
       (desk ? " --desk " + desk : "");
     const result = await host.agent({
       label: "init " + exp,
       input:
+        deskNote +
         "Run exactly `" + cmd + "` from the quest worktree if " +
-        "one is named below, else the repository root, and return " +
+        "one is named above, else the repository root, and return " +
         "only its stdout JSON verdict verbatim as your entire " +
         "reply, with no prose and no code fences. If the command " +
         "fails, return its stdout JSON verdict verbatim instead. " +

@@ -66,6 +66,8 @@ const submitted = { state: "submitted", cycle: 1, commit: "abc1234", legal_edges
     "writer calls record-init for the author run-id");
   assert(inputs.init.includes("--harness muse-code") && inputs.init.includes("--quest toy") && inputs.init.includes("--exp fx"),
     "writer records harness, quest, and exp");
+  assert(inputs.init.includes("--tape-path docs/quests/toy/experiments/fx/runs/" + TS + "-submit-muse-code-test-model-c1/tape.log"),
+    "writer records the run-folder tape the supervisor folds from");
   const input = inputs.author;
   const want = "BP3_RUN_ID=" + TS + "-submit-muse-code-test-model-c1";
   assert(input.includes(want), "author command carries " + want);
