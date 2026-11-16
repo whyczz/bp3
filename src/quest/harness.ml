@@ -33,7 +33,15 @@
    with no close marker at all; pi never closes, so a
    final assistant entry that stopped is its clean end
    and process exit is its exit entry. Only the last
-   whole tape entry can carry the evidence. *)
+   whole tape entry can carry the evidence. followup.3
+   binds a workflow Run to its session tape after the
+   child finishes: record-init names no tape, the
+   launcher's bind-tape appends one pointer-only
+   tape_binding row, and the fold honors the latest
+   binding when the InitRecord names no tape. The muse
+   tail scan now skips trailing task entries, so a tape
+   ending in a run terminal entry followed by task
+   entries still yields finish evidence. *)
 open Gitx
 open Store
 
@@ -183,45 +191,69 @@ let nested_str j outer key =
     | _ -> ""
   with _ -> ""
 
-(* Per-harness finish evidence (followup.2), read off the
-   last whole tape entry only: a marker named mid-tape is
-   content, not an ending. muse-code: a session.end entry
-   closes the tape; a runtime terminal entry is a child
-   tape's exit entry (its tapes carry no close marker).
-   pi: no tape ever closes; a session_closed entry or a
-   final assistant entry that stopped is the clean end,
-   and the exit itself is the pid's. Returns (finish
-   evidence, exit entry, torn tail): a torn final entry —
-   unterminated or unparseable — is evidence of nothing. *)
+(* Per-harness finish evidence (followup.2; tail scan
+   followup.3), read off the tape tail: a marker named
+   mid-tape is content, not an ending. muse-code: whole
+   entries are scanned from the end, skipping task
+   entries (payload kind task); the first non-task entry
+   decides — a session.end entry closes the tape, and a
+   runtime terminal entry is a child tape's exit entry
+   (its tapes carry no close marker, and real child
+   tapes end with task entries after that terminal
+   entry). A terminal buried under non-task entries
+   finishes nothing. pi: no tape ever closes, so only
+   the last whole entry counts; a session_closed entry
+   or a final assistant entry that stopped is the clean
+   end, and the exit itself is the pid's. Returns
+   (finish evidence, exit entry, torn tail): a torn
+   final entry — unterminated or unparseable — is
+   evidence of nothing and finishes no Run. *)
+let muse_task_entry j =
+  nested_str j "payload" "kind" = "task"
+  || get_str j "payload_type" "" = "task"
+  || get_str j "type" "" = "task"
+  || get_str j "kind" "" = "task"
+
+let muse_finish j =
+  let ended = get_str j "payload_type" "" = "session.end" in
+  let terminal = get_str j "payload_type" "" = "runtime.session"
+    && nested_str j "payload" "kind" = "run"
+    && (try match Yojson.Safe.Util.member "payload" j with
+         | `Assoc _ as p ->
+             (match Yojson.Safe.Util.member "event" p with
+              | `Assoc _ as e -> get_str e "kind" "" = "terminal"
+              | _ -> false)
+         | _ -> false
+       with _ -> false) in
+  ended || terminal
+
 let tape_evidence harness text =
   let (lines, torn) = whole_lines text in
-  let tail = List.fold_left (fun acc ln ->
-    if String.trim ln = "" then acc else Some ln) None lines in
-  match tail with
-  | None -> (false, false, torn)
-  | Some ln ->
-      (try
-         let j = Yojson.Safe.from_string ln in
-         if harness = "pi" then
+  if torn then (false, false, true)
+  else
+    let whole = List.filter (fun ln -> String.trim ln <> "") lines in
+    match whole with
+    | [] -> (false, false, false)
+    | _ when harness = "pi" ->
+        let ln = List.hd (List.rev whole) in
+        (try
+           let j = Yojson.Safe.from_string ln in
            let msg = try Yojson.Safe.Util.member "message" j with _ -> `Null in
            let stopped = get_str j "type" "" = "message"
              && get_str msg "role" "" = "assistant"
              && get_str msg "stopReason" "" = "stop" in
-           (get_str j "type" "" = "session_closed" || stopped, false, torn)
-         else
-           let ended = get_str j "payload_type" "" = "session.end" in
-           let terminal = get_str j "payload_type" "" = "runtime.session"
-             && nested_str j "payload" "kind" = "run"
-             && (try match Yojson.Safe.Util.member "payload" j with
-                  | `Assoc _ as p ->
-                      (match Yojson.Safe.Util.member "event" p with
-                       | `Assoc _ as e -> get_str e "kind" "" = "terminal"
-                       | _ -> false)
-                  | _ -> false
-                with _ -> false) in
-           let fin = ended || terminal in
-           (fin, fin, torn)
-       with _ -> (false, false, true))
+           (get_str j "type" "" = "session_closed" || stopped, false, false)
+         with _ -> (false, false, true))
+    | _ ->
+        let rec scan = function
+          | [] -> (false, false, false)
+          | ln :: rest ->
+              (try
+                 let j = Yojson.Safe.from_string ln in
+                 if muse_task_entry j then scan rest
+                 else let fin = muse_finish j in (fin, fin, false)
+               with _ -> (false, false, true)) in
+        scan (List.rev whole)
 
 let pid_alive pid =
   let exists =
@@ -253,6 +285,7 @@ let fold_run_file ~silence_seconds path =
   let (lines, torn) = whole_lines text in
   let tail_warns = if torn then ["W_TORN_TAIL"] else [] in
   let init = ref None in
+  let binding = ref None in
   let obs = ref no_observation in
   lines |> List.iter (fun ln ->
     let ln = String.trim ln in
@@ -270,6 +303,12 @@ let fold_run_file ~silence_seconds path =
               quest = get_opt j "quest";
               exp = get_opt j "exp";
             }
+        | "tape_binding" ->
+            (* pointer only: the latest binding names the
+               tape when the InitRecord names none *)
+            (match get_opt j "tape_path" with
+             | Some tp when tp <> "" -> binding := Some tp
+             | _ -> ())
         | "observation" ->
             let o = !obs in
             obs := {
@@ -289,13 +328,20 @@ let fold_run_file ~silence_seconds path =
       with _ -> ());
   (match !init with
    | None -> (!init, !obs, tail_warns)
-   | Some rec_ ->
+   | Some raw ->
+       (* the folded record carries the effective tape:
+          the InitRecord's own path, else the latest
+          binding's — never a guessed binding *)
+       let rec_ = { raw with tape_path =
+         (match raw.tape_path with
+          | Some _ as t -> t
+          | None -> !binding) } in
        let o = !obs in
        let alive = match rec_.pid with
          | Some p -> Some (pid_alive p) | None -> o.pid_alive in
        let blind = ref false in
        let tape_seen, fresh = match rec_.tape_path with
-         | None -> (o.tape_seen, o.fresh)
+         | None -> blind := true; (o.tape_seen, o.fresh)
          | Some tp ->
              (try
                 let st = Unix.stat tp in
@@ -312,7 +358,7 @@ let fold_run_file ~silence_seconds path =
                  exit_observed = o.exit_observed || exit_e
                   || alive = Some false;
                  finish_evidence = o.finish_evidence || fin } in
-       (!init, o,
+       (Some rec_, o,
         (if !blind then ["W_SUPERVISOR_BLIND"] else [])
         @ (if torn_t then ["W_TORN_TAIL"] else []) @ tail_warns))
 
@@ -480,7 +526,7 @@ let probe_observation ~silence_seconds (rec_ : init_record) prior =
         | None -> prior.fresh)
     | None -> prior.fresh in
   let blind = match rec_.tape_path with
-    | Some tp -> not (Sys.file_exists tp) | None -> false in
+    | Some tp -> not (Sys.file_exists tp) | None -> true in
   let obs = { pid_alive = alive; exit_observed = exit_obs;
               finish_evidence = prior.finish_evidence || fin;
               settle_row = prior.settle_row || settle;
@@ -780,12 +826,17 @@ let all_init_records () =
           let text = read_file_or (Filename.concat dir n) "" in
           let (lines, _torn) = whole_lines text in
           let found = ref [] in
+          let binding = ref None in
           lines |> List.iter (fun ln ->
             let ln = String.trim ln in
             if ln <> "" then
               try
                 let j = Yojson.Safe.from_string ln in
-                if get_str j "kind" "" = "init_record" then
+                if get_str j "kind" "" = "tape_binding" then
+                  (match get_opt j "tape_path" with
+                   | Some tp when tp <> "" -> binding := Some tp
+                   | _ -> ())
+                else if get_str j "kind" "" = "init_record" then
                   found := {
                     run_id = (let r = get_str j "run_id" "" in
                               if r <> "" then r else Filename.remove_extension n);
@@ -797,7 +848,9 @@ let all_init_records () =
                     exp = get_opt j "exp";
                   } :: !found
               with _ -> ());
-          List.rev !found)
+          List.rev !found |> List.map (fun (r : init_record) ->
+            { r with tape_path =
+              (match r.tape_path with Some _ as t -> t | None -> !binding) }))
 
 let tape_roots = function
   | "pi" ->
@@ -1498,6 +1551,83 @@ let do_record_init args =
        ]));
        0)
 
+(* ---------- bind-tape (followup.3: the launcher's bind step) ---------- *)
+(* The induct workflow launcher is the named binder: it runs
+   after the author child returns, when the child's session
+   tape exists and has closed. The author child writes no
+   InitRecord, binding, or observation. A binding row is a
+   pointer only (run-id, tape path, timestamp — never tape
+   content), appended as one write to the Run's derivation
+   log; the latest binding names the tape when the
+   InitRecord names none. A Run with no InitRecord is a
+   typed miss, never a guessed binding. *)
+type bind_flags = {
+  mutable bind_run : string option; mutable bind_tape : string option;
+}
+
+let parse_bind_flags args =
+  let fl = { bind_run = None; bind_tape = None } in
+  let rec loop = function
+    | [] -> fl
+    | "--run-id" :: v :: rest ->
+        if fl.bind_run <> None then usage "duplicate flag --run-id";
+        fl.bind_run <- Some v; loop rest
+    | "--tape-path" :: v :: rest ->
+        if fl.bind_tape <> None then usage "duplicate flag --tape-path";
+        fl.bind_tape <- Some v; loop rest
+    | ["--run-id"] | ["--tape-path"] -> usage "flag needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray) in
+  loop args
+
+let do_bind_tape args =
+  let fl = parse_bind_flags args in
+  let run_id = match fl.bind_run with
+    | Some r when r <> "" -> r
+    | _ -> usage "bind-tape needs --run-id <id>" in
+  if contains_sub run_id "/" || contains_sub run_id ".."
+     || contains_sub run_id " " then
+    usage ("invalid run-id: " ^ run_id);
+  let tape_path = match fl.bind_tape with
+    | Some t when t <> "" -> t
+    | _ -> usage "bind-tape needs --tape-path <path>" in
+  (match derivations_dir () with
+   | None ->
+       err "E_NOT_FOUND" (`Assoc [("run_id", json_str run_id)])
+         "No derivation store (not a git repo?); no binding written." 1
+   | Some dir ->
+       let path = Filename.concat dir (run_id ^ ".jsonl") in
+       let has_init =
+         if not (Sys.file_exists path) then false
+         else
+           let (lines, _torn) =
+             whole_lines (read_file_or path "") in
+           List.exists (fun ln ->
+             try get_str (Yojson.Safe.from_string (String.trim ln))
+                   "kind" "" = "init_record"
+             with _ -> false) lines in
+       if not has_init then
+         err "E_NOT_FOUND" (`Assoc [("run_id", json_str run_id);
+                                    ("path", json_str path)])
+           "No InitRecord for that run-id; refusing to bind." 1;
+       let row = `Assoc [
+         ("kind", json_str "tape_binding");
+         ("run_id", json_str run_id);
+         ("tape_path", json_str tape_path);
+         ("ts", json_str (now_ts ()));
+       ] in
+       append_row path (Yojson.Safe.to_string row);
+       print_endline (Yojson.Safe.to_string (`Assoc [
+         ("ok", `Bool true);
+         ("run_id", json_str run_id);
+         ("tape_path", json_str tape_path);
+         ("path", json_str path);
+       ]));
+       0)
+
 (* ---------- backtest (backtest.1: findings, not a gate) ---------- *)
 let count_sub text sub =
   let n = String.length text and m = String.length sub in
@@ -1692,15 +1822,16 @@ let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]   blocking watch: sole TERM/KILL owner\n\
   bp3 harness desk <verb> ...                      machine-local desks: derive, create, inspect, remove, prepare, check, exit, release, list\n\
   bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>]   launcher writes the InitRecord before the child starts (create-only)\n\
+  bp3 harness bind-tape --run-id <id> --tape-path <p>   launcher binds a finished child's session tape after it returns (pointer-only tape_binding row)\n\
   bp3 harness backtest [--engine muse-code|pi] [--corpus <dir>]   replay the fold over stored tapes; findings, not a gate\n\
-Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init, b=backtest. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
+Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init, t=bind-tape, b=backtest. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
 
 let help_supervisor = "bp3 harness supervisor - passive supervisor loop for one quest:\n\
   bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]\n\
   Streams NDJSON lifecycle_change rows on stdout, ends with one JSON verdict {ok, quest, outcome, settled, rollup, runs, inbox, orphans}.\n\
   Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
   Durations are bare positive integers; 0, negatives, and suffixed values are usage errors.\n\
-  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Since mvp.5 the derivation logs are the sole lifecycle read path; the retired shared maps are never read or written. Writer discipline (followup.1): each row is a single write() on an O_APPEND descriptor and the cache is a uniquely named temp file in the same directory, fsynced and renamed over the old cache, so parallel supervisors never tear a row or the cache; a torn final line is ignored by the fold and reported as W_TORN_TAIL.\n\
+  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Since mvp.5 the derivation logs are the sole lifecycle read path; the retired shared maps are never read or written. Writer discipline (followup.1): each row is a single write() on an O_APPEND descriptor and the cache is a uniquely named temp file in the same directory, fsynced and renamed over the old cache, so parallel supervisors never tear a row or the cache; a torn final line is ignored by the fold and reported as W_TORN_TAIL. Tape binding (followup.3): when the InitRecord names no tape, the latest pointer-only tape_binding row in the same log names it; with no tape at all the probe is blind (W_SUPERVISOR_BLIND) and the lifecycle stays init.\n\
 Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
 
 let help_init_check = "bp3 harness init-check - probe tape sources per harness:\n\
@@ -1720,7 +1851,7 @@ let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
   bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
   bp3 harness watch --session-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
   Engine is derived from the Run InitRecord, never stated. Finds the tape like find-tape, then blocks in code: streams NDJSON lifecycle_change rows and ends with one verdict {ok, run_id, harness, session_id, wal, pid, outcome, settled, lifecycle}.\n\
-  Finish evidence is per harness, read off the last whole tape entry: muse-code closes on a session.end entry, and a runtime terminal entry is a child tape's exit entry (child tapes carry no close marker); pi never closes, so a session_closed entry or a final assistant entry that stopped is its clean end. Exit plus finish evidence (or settle plus finish evidence) with no live pid is settled; a live pid is never finished. A torn final tape entry finishes nothing and warns W_TORN_TAIL. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. Finish evidence or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
+  Finish evidence is per harness, read off the tape tail: muse-code scans whole entries from the end, skipping task entries, and the first non-task entry decides — a session.end entry closes the tape, and a runtime terminal entry is a child tape's exit entry (child tapes carry no close marker and end with task entries after it); pi never closes, so only its last whole entry counts (a session_closed entry or a final assistant entry that stopped is its clean end). Exit plus finish evidence (or settle plus finish evidence) with no live pid is settled; a live pid is never finished. A torn final tape entry finishes nothing and warns W_TORN_TAIL. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. Finish evidence or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
   Identity flags follow find-tape: both, neither, or disagreeing flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS. Durations are bare positive integers; 0, negatives, and suffixed values are E_USAGE.\n\
   Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
 Example: bp3 harness watch --run-id 20261115T000000Z-submit-pi-model-c1 --silence-seconds 600\n"
@@ -1733,6 +1864,11 @@ let help_desk = "bp3 harness desk - machine-local desks, never ledgered (same Wo
   bp3 harness desk release --run <run-id> [--force]   a dirty desk refuses without --force\n\
   bp3 harness desk list [--quest <quest>]\n\
 Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
+
+let help_bind_tape = "bp3 harness bind-tape - bind a finished child's session tape to its Run (the launcher's bind step; the author child writes no InitRecord, binding, or observation):\n\
+  bp3 harness bind-tape --run-id <id> --tape-path <p>\n\
+  Appends one pointer-only tape_binding row (run-id, tape path, timestamp; never tape content) as a single write to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl, after the child returns and its session tape has closed. The fold names the tape from the InitRecord's own tape path, else the latest binding; a missing tape path is never guessed. A run-id with no InitRecord is E_NOT_FOUND; a bad run-id or a missing, duplicate, or =-formed flag is E_USAGE. Emits {ok, run_id, tape_path, path}.\n\
+Example: bp3 harness bind-tape --run-id 20261115T000000Z-submit-muse-code-model-c1 --tape-path ~/.local/share/muse/sessions/2026/11/15/<session>/session.jsonl\n"
 
 let help_record_init = "bp3 harness record-init - write one Run's InitRecord (the launcher's verb; the child never writes its own proof):\n\
   bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>]\n\
@@ -1754,10 +1890,11 @@ let normalize_verb = function
   | "w" | "watch" -> "watch"
   | "d" | "desk" -> "desk"
   | "r" | "record-init" -> "record-init"
+  | "t" | "bind-tape" -> "bind-tape"
   | other -> other
 
 let run = function
-  | [] -> usage "harness needs a verb: supervisor, init-check, find-tape, watch, desk, record-init, or backtest"
+  | [] -> usage "harness needs a verb: supervisor, init-check, find-tape, watch, desk, record-init, bind-tape, or backtest"
   | [h] when is_help h -> print_string help_harness; 0
   | verb :: (h :: _) when is_help h ->
       print_string (match normalize_verb verb with
@@ -1767,6 +1904,7 @@ let run = function
         | "watch" -> help_watch
         | "desk" -> help_desk
         | "record-init" -> help_record_init
+        | "bind-tape" -> help_bind_tape
         | "backtest" -> help_backtest
         | _ -> help_harness); 0
   | verb_raw :: rest ->
@@ -1779,6 +1917,7 @@ let run = function
        | "find-tape" -> do_find_tape rest
        | "watch" -> do_watch rest
        | "record-init" -> do_record_init rest
+       | "bind-tape" -> do_bind_tape rest
        | "backtest" -> do_backtest rest
        | "desk" ->
            (match rest with

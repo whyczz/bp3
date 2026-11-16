@@ -8,7 +8,11 @@
 // this script never writes state. Its one write is proof, not
 // state: as the named InitRecord writer (mvp.8) it records the
 // child's InitRecord via `bp3 harness record-init` before the
-// child spawns; the child never writes its own proof.
+// child spawns; the child never writes its own proof. As the
+// named tape binder (followup.3) it then binds the child's
+// session tape via `bp3 harness bind-tape` after the child
+// returns; the child writes no InitRecord, binding, or
+// observation.
 // Args are supplied by the calling induct skill as {quest, exp,
 // ts, harness, model}; ts is a UTC compact timestamp from the
 // caller, embedded by the child in its run-id because scripts
@@ -145,23 +149,17 @@ export default async function workflow(host) {
 
   // The named InitRecord writer (mvp.8): this launcher, before
   // the child spawns. The child never writes its own proof; a
-  // refused write means the child never starts. The record must
-  // carry the tape pointer the supervisor folds from: the run
-  // folder's tape.log, a path this launcher already knows
-  // before the child exists. Without it the fold can never
-  // move the Run past init.
+  // refused write means the child never starts. The record
+  // names no tape (followup.3): the child's session tape does
+  // not exist yet, so the launcher binds it after the child
+  // returns (bindTape below). The run folder's tape.log stays
+  // the child's own transcript, never finish evidence.
   async function recordInit(edge, cycle) {
-    // $PWD expands in the init child's shell at the desk, so
-    // the stored pointer is absolute and stat-able from any
-    // cwd the supervisor later runs in.
-    const tapePath =
-      "$PWD/" + runFolder(edge, cycle, harness + "-" + model) + "/tape.log";
     const cmd =
       envPreset(edge, cycle) + "./bin/bp3 harness record-init" +
       " --run-id " + runIdOf(edge, cycle) +
       " --harness " + harness + " --quest " + quest +
       " --exp " + exp + " --model " + model +
-      " --tape-path " + tapePath +
       (desk ? " --desk " + desk : "");
     const result = await host.agent({
       label: "init " + exp,
@@ -180,6 +178,69 @@ export default async function workflow(host) {
       refusals.push(
         "record-init refused before the " + edge + " child: " +
         errorText(result)
+      );
+      return false;
+    }
+    return true;
+  }
+
+  // The named tape binder (followup.3): this launcher, after
+  // the child returns, when its session tape exists and has
+  // closed. Resolution is mechanical — `bp3 harness
+  // find-tape` on the run-id — and a resolution that is not
+  // unique refuses typed, never a guess; the bind itself is
+  // one pointer-only tape_binding row written by bind-tape.
+  // The author child writes no binding.
+  async function bindTape(edge, cycle) {
+    const runId = runIdOf(edge, cycle);
+    const resolveCmd =
+      envPreset(edge, cycle) + "./bin/bp3 harness find-tape" +
+      " --run-id " + runId;
+    const resolved = await host.agent({
+      label: "resolve " + exp,
+      input:
+        deskNote +
+        "Run exactly `" + resolveCmd + "` from the quest worktree if " +
+        "one is named above, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const rv = parseVerdict(resolved);
+    const tapePath = rv && rv.ok === true
+      ? (typeof rv.tape_path === "string" && rv.tape_path
+         ? rv.tape_path
+         : (typeof rv.wal === "string" ? rv.wal : ""))
+      : "";
+    if (!tapePath) {
+      refusals.push(
+        "bind-tape resolution refused after the " + edge + " child: " +
+        errorText(resolved)
+      );
+      return false;
+    }
+    const bindCmd =
+      envPreset(edge, cycle) + "./bin/bp3 harness bind-tape" +
+      " --run-id " + runId + " --tape-path " + tapePath;
+    const bound = await host.agent({
+      label: "bind " + exp,
+      input:
+        deskNote +
+        "Run exactly `" + bindCmd + "` from the quest worktree if " +
+        "one is named above, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const bv = parseVerdict(bound);
+    if (!bv || bv.ok !== true) {
+      refusals.push(
+        "bind-tape refused after the " + edge + " child: " +
+        errorText(bound)
       );
       return false;
     }
@@ -247,6 +308,10 @@ export default async function workflow(host) {
   if (authorVerdict && typeof authorVerdict.run_id === "string" && authorVerdict.run_id) {
     runIds.push(authorVerdict.run_id);
   }
+
+  // The child has returned and its session tape has closed:
+  // bind it to the Run before re-reading state.
+  await bindTape("submit", before.cycle);
 
   const after = await readState();
   if (after.state === "submitted") {

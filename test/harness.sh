@@ -517,6 +517,80 @@ out=$(h watch --run-id R-f2-watch-muse --timeout-seconds 5) || fail "followup.2 
 echo "$out" | tail -1 | jq -e '.outcome == "settled" and .settled == true and .lifecycle == "finished"' >/dev/null || fail "followup.2 watch muse verdict: $out"
 wait "$F2WPID" 2>/dev/null || true
 
+# --- tape binding (followup.3): bind-tape verb, fold honor, tail scan ---
+out=$(h bind-tape -h) || fail "bind-tape -h exit"
+echo "$out" | grep -q "bind-tape" || fail "bind-tape help: $out"
+echo "$out" | grep -q "E_NOT_FOUND" || fail "bind-tape help codes: $out"
+out=$(h t -h) || fail "alias t -h exit"
+echo "$out" | grep -q "bind-tape" || fail "alias t help: $out"
+out=$(h -h) || fail "harness -h followup.3 exit"
+echo "$out" | grep -q "bind-tape" || fail "harness help lists bind-tape: $out"
+if out=$(h bind-tape --tape-path fixtures/f3-bound.log 2>&1); then fail "bind-tape without run-id accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "bind-tape no-run code: $out"
+if out=$(h bind-tape --run-id R-f3-bound 2>&1); then fail "bind-tape without tape-path accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "bind-tape no-tape code: $out"
+if out=$(h bind-tape --run-id "a/b" --tape-path fixtures/f3-bound.log 2>&1); then fail "bind-tape slash run-id accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "bind-tape slash code: $out"
+if out=$(h bind-tape --run-id R-f3-bound --run-id R-f3-bound --tape-path fixtures/f3-bound.log 2>&1); then fail "bind-tape duplicate accepted"; fi
+if out=$(h bind-tape --run-id=R-f3-bound --tape-path fixtures/f3-bound.log 2>&1); then fail "bind-tape --flag=value accepted"; fi
+if out=$(h bind-tape --run-id R-nope --tape-path fixtures/f3-bound.log 2>&1); then fail "bind-tape unknown run accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "bind-tape unknown code: $out"
+
+sleep 60 & F3LIVE=$!
+# real Muse closing shape: run terminal, then trailing task entries
+printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked","record":{"command":"BP3_RUN_ID=R-f3-bound work"}}}' '{"payload_type":"runtime.session","payload":{"kind":"run","run_id":"x","event":{"kind":"terminal","terminal":"completed"}}}' '{"payload_type":"runtime.session","payload":{"kind":"task","run_id":"x","task_id":"t1","event":{"kind":"completed","task_id":"t1"}}}' '{"payload_type":"runtime.session","payload":{"kind":"task","run_id":"x","task_id":"t2","event":{"kind":"completed","task_id":"t2"}}}' > fixtures/f3-bound.log
+# close marker buried mid-tape is content, never an ending
+printf '%s\n' '{"payload_type":"session.end","payload":{"kind":"session_end"}}' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' > fixtures/f3-mid.log
+# torn tails: unterminated fragment, and an unparseable whole entry
+printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' > fixtures/f3-torn.log
+printf '%s' '{"payload_type":"session.end","payl' >> fixtures/f3-torn.log
+touch -t 202001010000 fixtures/f3-torn.log
+printf '%s\n' '{"payload_type":"runtime.session","payload":{"kind":"run","run_id":"x","event":{"kind":"terminal","terminal":"completed"}}}' '{"oops' > fixtures/f3-bad.log
+touch -t 202001010000 fixtures/f3-bad.log
+printf '%s\n' '{"kind":"init_record","run_id":"R-f3-bound","harness":"muse-code","quest":"toy"}' > "$store/R-f3-bound.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f3-live\",\"harness\":\"muse-code\",\"quest\":\"toy\",\"pid\":$F3LIVE}" > "$store/R-f3-live.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-f3-mid","harness":"muse-code","quest":"toy","pid":999999}' > "$store/R-f3-mid.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-f3-torn","harness":"muse-code","quest":"toy","pid":999999}' > "$store/R-f3-torn.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-f3-bad","harness":"muse-code","quest":"toy","pid":999999}' > "$store/R-f3-bad.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-f3-rebind","harness":"muse-code","quest":"toy"}' > "$store/R-f3-rebind.jsonl"
+
+# no binding, no tape path: init, and the probe is blind
+set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
+last=$(echo "$out" | tail -1)
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f3-bound") | .lifecycle == "init")' >/dev/null || fail "followup.3 unbound fold: $last"
+echo "$last" | jq -e '(.warnings | index("W_SUPERVISOR_BLIND") != null)' >/dev/null || fail "followup.3 unbound blind warning: $last"
+grep -q '"kind":"observation"' "$store/R-f3-bound.jsonl" || fail "followup.3 blind probe row missing"
+grep -q 'W_SUPERVISOR_BLIND' "$store/R-f3-bound.jsonl" || fail "followup.3 blind probe warning missing"
+
+# the launcher binds each finished child's session tape (pointer only)
+out=$(h bind-tape --run-id R-f3-bound --tape-path "$work/repo/fixtures/f3-bound.log") || fail "bind-tape bound exit: $out"
+echo "$out" | jq -e --arg w "$work/repo/fixtures/f3-bound.log" '.ok == true and .run_id == "R-f3-bound" and .tape_path == $w' >/dev/null || fail "bind-tape bound verdict: $out"
+tail -1 "$store/R-f3-bound.jsonl" | jq -e --arg w "$work/repo/fixtures/f3-bound.log" '.kind == "tape_binding" and .run_id == "R-f3-bound" and .tape_path == $w and (.ts | type == "string") and ((keys | length) == 4)' >/dev/null || fail "followup.3 binding row not pointer-only: $(tail -1 "$store/R-f3-bound.jsonl")"
+h bind-tape --run-id R-f3-live --tape-path "$work/repo/fixtures/f3-bound.log" >/dev/null || fail "bind-tape live exit"
+h bind-tape --run-id R-f3-mid --tape-path "$work/repo/fixtures/f3-mid.log" >/dev/null || fail "bind-tape mid exit"
+h bind-tape --run-id R-f3-torn --tape-path "$work/repo/fixtures/f3-torn.log" >/dev/null || fail "bind-tape torn exit"
+h bind-tape --run-id R-f3-bad --tape-path "$work/repo/fixtures/f3-bad.log" >/dev/null || fail "bind-tape bad exit"
+h bind-tape --run-id R-f3-rebind --tape-path "$work/repo/fixtures/f3-mid.log" >/dev/null || fail "bind-tape rebind first exit"
+out=$(h t --run-id R-f3-rebind --tape-path "$work/repo/fixtures/f3-bound.log") || fail "bind-tape alias exit: $out"
+echo "$out" | jq -e '.ok == true and .run_id == "R-f3-rebind"' >/dev/null || fail "bind-tape alias verdict: $out"
+
+set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
+last=$(echo "$out" | tail -1)
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f3-bound") | .lifecycle == "finished")' >/dev/null || fail "followup.3 bound fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f3-live") | .lifecycle == "active")' >/dev/null || fail "followup.3 live pid never finished: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f3-mid") | .lifecycle == "active")' >/dev/null || fail "followup.3 mid-tape marker fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f3-torn") | .lifecycle == "orphaned")' >/dev/null || fail "followup.3 torn bound fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f3-bad") | .lifecycle == "orphaned")' >/dev/null || fail "followup.3 unparseable bound fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f3-rebind") | .lifecycle == "finished")' >/dev/null || fail "followup.3 latest binding fold: $last"
+echo "$last" | jq -e '(.warnings | index("W_TORN_TAIL") != null)' >/dev/null || fail "followup.3 torn bound warning: $last"
+grep -q '"kind":"observation"' "$store/R-f3-bound.jsonl" || fail "followup.3 bound observation missing"
+grep -q "\"tape_path\":\"$work/repo/fixtures/f3-bound.log\"" "$store/R-f3-bound.jsonl" || fail "followup.3 observation tape pointer missing"
+out=$(h find-tape --run-id R-f3-bound) || fail "followup.3 find-tape bound exit: $out"
+echo "$out" | jq -e --arg w "$work/repo/fixtures/f3-bound.log" '.ok == true and .run_id == "R-f3-bound" and .wal == $w' >/dev/null || fail "followup.3 find-tape bound: $out"
+out=$(h watch --run-id R-f3-bound --timeout-seconds 5) || fail "followup.3 watch bound exit: $out"
+echo "$out" | tail -1 | jq -e '.outcome == "settled" and .settled == true and .lifecycle == "finished"' >/dev/null || fail "followup.3 watch bound verdict: $out"
+kill $F3LIVE 2>/dev/null || true
+
 # --- backtest (backtest.1): replay folds facts, findings never gate ---
 out=$(h backtest -h) || fail "backtest -h exit"
 echo "$out" | grep -q "backtest" || fail "backtest help: $out"
