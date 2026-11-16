@@ -71,6 +71,25 @@ let split_flags args =
 let require_reason fl =
   match fl.reason with Some r when r <> "" -> r | _ -> usage "--reason is required"
 
+(* ---------- config door (config.1) ---------- *)
+let parse_config_flags args =
+  let rec loop source fmt fmt_set = function
+    | [] -> (source, fmt)
+    | "--source" :: rest ->
+        if source then usage "duplicate flag --source";
+        loop true fmt fmt_set rest
+    | "--format" :: v :: rest ->
+        if fmt_set then usage "duplicate flag --format";
+        if v <> "json" && v <> "table" then usage "--format must be json or table";
+        loop source v true rest
+    | ["--format"] -> usage "--format needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray) in
+  loop false "json" false args
+
 let with_warnings id is_write fields =
   match warnings_of id is_write with
   | [] -> `Assoc fields
@@ -351,6 +370,7 @@ let help_q = "bp3 q - quest/exp state. Doors:\n\
   bp3 q <quest> c|r|u|d ...    exp door for one quest\n\
   bp3 q icebox r [term...]     search frozen icebox entries (read-only)\n\
   bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias\n\
+  bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)\n\
   bp3 q hooks                  harness hook emitter (fail-open)\n\
 Run bp3 q <door> -h for that door's verbs, edges, and flags.\n"
 
@@ -389,6 +409,11 @@ let help_worktree = "bp3 worktree - documented alias of bp3 harness desk, machin
   bp3 harness desk list [--quest <quest>]\n\
 Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
 
+let help_config = "bp3 config - view the machine-local bp3 config store (<git-common-dir>/bp3/, never committed):\n\
+  bp3 config [--source] [--format json|table]   thresholds plus contexts folded from runs/<run_id>.json\n\
+  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
+Example: bp3 config --source\n"
+
 let is_help = function "-h" | "--help" -> true | _ -> false
 
 (* Exp 5 guard: an older-MAJOR binary never writes in a newer repo.
@@ -413,6 +438,10 @@ let run argv =
   | "-h" :: _ | "--help" :: _ -> print_string help_q; 0
   | "--version" :: _ -> print_endline bp3_version; 0
   | "harness" :: rest -> Harness.run rest
+  | "config" :: (h :: _) when is_help h -> print_string help_config; 0
+  | "config" :: rest ->
+      let (source, fmt) = parse_config_flags rest in
+      print_verdict ~fmt (Config.view ~source); 0
   | "worktree" :: (h :: _) when is_help h -> print_string help_worktree; 0
   | "icebox" :: (h :: _) when is_help h -> print_string help_icebox; 0
   | "icebox" :: ("r" | "read") :: (h :: _) when is_help h -> print_string help_icebox; 0

@@ -84,7 +84,9 @@ has "$out" json; has "$out" table; has "$out" tree
 out=$(_bp3_candidates q toy-drive "")
 has "$out" r; has "$out" u
 out=$(_bp3_candidates "")
-has "$out" harness; has "$out" worktree
+has "$out" harness; has "$out" worktree; has "$out" config
+out=$(_bp3_candidates config "")
+has "$out" --source; has "$out" --format
 out=$(_bp3_candidates harness "")
 has "$out" desk; has "$out" supervisor; has "$out" find-tape
 out=$(_bp3_candidates harness desk "")

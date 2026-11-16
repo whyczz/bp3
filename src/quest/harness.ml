@@ -1711,6 +1711,7 @@ let do_record_init args =
                                  ("path", json_str path)])
            "An InitRecord already exists for that run-id; refusing to overwrite." 1;
        ensure_dir dir;
+       ignore (Config.ensure_config ());
        let opt_fields = List.filter_map (fun x -> x) [
          (match fl.ri_session with Some s -> Some ("session_id", json_str s) | None -> None);
          (match fl.ri_pid with Some p -> Some ("pid", `Int p) | None -> None);

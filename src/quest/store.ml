@@ -16,7 +16,7 @@ let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
    addressed again (the token would parse as the door or
    verb instead), so creation refuses it; reads stay total. *)
 let reserved_slugs =
-  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo";
+  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo"; "config";
     "supervisor"; "init-check"; "find-tape"; "watch"; "desk"; "backtest"; "b";
     "c"; "create"; "r"; "read"; "u"; "update"; "d"; "delete";
     "s"; "i"; "f"; "w";
