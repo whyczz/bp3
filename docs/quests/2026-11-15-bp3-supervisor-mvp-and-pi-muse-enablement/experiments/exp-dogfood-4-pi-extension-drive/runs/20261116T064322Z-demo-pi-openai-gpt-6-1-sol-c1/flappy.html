@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flappy — Three.js</title>
+<style>
+*{box-sizing:border-box}body{margin:0;overflow:hidden;background:#8bd4ed;font-family:system-ui,sans-serif;touch-action:none}canvas{display:block}#score{position:fixed;top:28px;left:0;width:100%;text-align:center;font-size:64px;font-weight:900;color:white;text-shadow:0 3px 0 #345865;pointer-events:none}#panel{position:fixed;inset:0;display:grid;place-items:center;pointer-events:none}.card{text-align:center;color:#183e4a;background:#fffffff0;padding:28px 36px;border-radius:20px;box-shadow:0 12px 40px #173d4933;max-width:90vw}h1{margin:0 0 10px;font-size:36px}p{margin:8px 0;line-height:1.5}#hint{position:fixed;bottom:16px;width:100%;text-align:center;color:#254e5a;font-size:14px;pointer-events:none}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}
+</script>
+</head>
+<body>
+<div id="score" aria-label="Score" aria-live="polite">0</div>
+<div id="panel"><div class="card"><h1>Flappy!</h1><p>Click, tap, or press <b>Space</b> to flap.</p><p>Slip through the pipes. Don't hit the ground.</p><p><b>Flap to start</b></p></div></div>
+<div id="hint">CLICK / TAP / SPACE · FLAP</div>
+<script type="module">
+import * as THREE from 'three';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#8bd4ed');
+const camera = new THREE.OrthographicCamera(-10, 10, 7.5, -7.5, 0.1, 100);
+camera.position.set(0, 0, 25);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.prepend(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x658548, 2.5));
+const sunlight = new THREE.DirectionalLight(0xffffff, 3);
+sunlight.position.set(-4, 8, 12);
+scene.add(sunlight);
+
+const floorY = -6;
+const ceilingY = 7.5;
+const birdRadius = 0.42;
+const birdX = -3;
+const bird = new THREE.Group();
+const body = new THREE.Mesh(new THREE.SphereGeometry(birdRadius, 24, 16), new THREE.MeshStandardMaterial({color: '#ffcf38', roughness: 0.5}));
+bird.add(body);
+const wing = new THREE.Mesh(new THREE.SphereGeometry(0.24, 16, 12), new THREE.MeshStandardMaterial({color: '#f4a522'}));
+wing.scale.set(1.25, 0.55, 0.65);
+wing.position.set(-0.14, -0.12, 0.35);
+bird.add(wing);
+const eye = new THREE.Mesh(new THREE.SphereGeometry(0.115, 16, 12), new THREE.MeshStandardMaterial({color: 'white'}));
+eye.position.set(0.19, 0.15, 0.32);
+bird.add(eye);
+const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.052, 12, 8), new THREE.MeshStandardMaterial({color: '#172c3b'}));
+pupil.position.set(0.23, 0.15, 0.42);
+bird.add(pupil);
+const beak = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.42, 12), new THREE.MeshStandardMaterial({color: '#ff7338'}));
+beak.rotation.z = -Math.PI / 2;
+beak.position.set(0.48, -0.02, 0.05);
+bird.add(beak);
+bird.position.set(birdX, 0, 0);
+scene.add(bird);
+
+const ground = new THREE.Mesh(new THREE.BoxGeometry(100, 2, 5), new THREE.MeshStandardMaterial({color: '#dfc88d'}));
+ground.position.set(0, floorY - 1, 0);
+scene.add(ground);
+const grass = new THREE.Mesh(new THREE.BoxGeometry(100, 0.18, 5.1), new THREE.MeshStandardMaterial({color: '#78b648'}));
+grass.position.set(0, floorY - 0.09, 0);
+scene.add(grass);
+const clouds = [];
+const cloudMaterial = new THREE.MeshStandardMaterial({color: '#ffffff', roughness: 1});
+for (let i = 0; i < 9; i++) {
+  const cloud = new THREE.Group();
+  for (let j = 0; j < 3; j++) {
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.6 + (j % 2) * 0.25, 12, 8), cloudMaterial);
+    puff.position.x = (j - 1) * 0.65;
+    cloud.add(puff);
+  }
+  cloud.position.set(-18 + i * 4.5, 3.5 + Math.random() * 2.5, -5);
+  scene.add(cloud);
+  clouds.push(cloud);
+}
+
+const scoreElement = document.getElementById('score');
+const panel = document.getElementById('panel');
+const pipeMaterial = new THREE.MeshStandardMaterial({color: '#51b95b', roughness: 0.55});
+const rimMaterial = new THREE.MeshStandardMaterial({color: '#358d47', roughness: 0.55});
+const pipes = [];
+const pipeWidth = 1.55;
+const gap = 3.7;
+let state = 'ready';
+let velocity = 0;
+let score = 0;
+let best = 0;
+let spawnTimer = 0;
+let worldHalfWidth = 10;
+try { best = Number(localStorage.getItem('flappy-best')) || 0; } catch (_) {}
+
+function addPipe() {
+  const center = -1.7 + Math.random() * 4.1;
+  const lower = center - gap / 2;
+  const upper = center + gap / 2;
+  const group = new THREE.Group();
+  function section(bottom, top, rimY) {
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(pipeWidth / 2, pipeWidth / 2, top - bottom, 24), pipeMaterial);
+    tube.position.y = (top + bottom) / 2;
+    group.add(tube);
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(pipeWidth / 2 + 0.11, pipeWidth / 2 + 0.11, 0.3, 24), rimMaterial);
+    rim.position.y = rimY;
+    group.add(rim);
+  }
+  section(floorY, lower, lower - 0.15);
+  section(upper, ceilingY, upper + 0.15);
+  group.position.x = worldHalfWidth + 2;
+  scene.add(group);
+  pipes.push({group, lower, upper, passed: false});
+}
+
+function removePipe(pipe) {
+  scene.remove(pipe.group);
+  for (const mesh of pipe.group.children) mesh.geometry.dispose();
+}
+
+function reset() {
+  pipes.forEach(removePipe);
+  pipes.length = 0;
+  bird.position.y = 0;
+  bird.rotation.z = 0;
+  velocity = 0;
+  score = 0;
+  scoreElement.textContent = '0';
+  spawnTimer = 0.65;
+  state = 'playing';
+  panel.style.display = 'none';
+}
+
+function flap() {
+  if (state !== 'playing') reset();
+  velocity = 6.8;
+}
+
+function die() {
+  state = 'over';
+  best = Math.max(best, score);
+  try { localStorage.setItem('flappy-best', String(best)); } catch (_) {}
+  panel.innerHTML = '<div class="card"><h1>Bonk!</h1><p>Score: <b>' + score + '</b> · Best: <b>' + best + '</b></p><p>Click, tap, or press <b>Space</b> to restart.</p></div>';
+  panel.style.display = 'grid';
+}
+
+window.addEventListener('pointerdown', flap);
+window.addEventListener('keydown', event => {
+  if (event.code === 'Space') {
+    event.preventDefault();
+    if (!event.repeat) flap();
+  }
+});
+function resize() {
+  const aspect = window.innerWidth / window.innerHeight;
+  worldHalfWidth = Math.max(5.5, 7.5 * aspect);
+  camera.left = -worldHalfWidth;
+  camera.right = worldHalfWidth;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function update(dt) {
+  for (const cloud of clouds) {
+    cloud.position.x -= dt * 0.3;
+    if (cloud.position.x < -worldHalfWidth - 3) cloud.position.x = worldHalfWidth + 3;
+  }
+  if (state !== 'playing') return;
+  velocity -= 19 * dt;
+  bird.position.y += velocity * dt;
+  bird.rotation.z = THREE.MathUtils.clamp(velocity * 0.065, -0.9, 0.45);
+  wing.rotation.x = Math.sin(performance.now() * 0.025) * 0.35;
+  if (bird.position.y - birdRadius <= floorY || bird.position.y + birdRadius >= ceilingY) {
+    die();
+    return;
+  }
+  spawnTimer -= dt;
+  if (spawnTimer <= 0) {
+    addPipe();
+    spawnTimer += 1.85;
+  }
+  for (let i = pipes.length - 1; i >= 0; i--) {
+    const pipe = pipes[i];
+    pipe.group.position.x -= 4.2 * dt;
+    const closestX = THREE.MathUtils.clamp(birdX, pipe.group.position.x - pipeWidth / 2 - 0.11, pipe.group.position.x + pipeWidth / 2 + 0.11);
+    const dx = birdX - closestX;
+    const lowerDy = Math.max(0, bird.position.y - pipe.lower);
+    const upperDy = Math.max(0, pipe.upper - bird.position.y);
+    if (dx * dx + Math.min(lowerDy * lowerDy, upperDy * upperDy) <= birdRadius * birdRadius) {
+      die();
+      return;
+    }
+    if (!pipe.passed && pipe.group.position.x + pipeWidth / 2 < birdX - birdRadius) {
+      pipe.passed = true;
+      score++;
+      scoreElement.textContent = String(score);
+    }
+    if (pipe.group.position.x < -worldHalfWidth - 3) {
+      removePipe(pipe);
+      pipes.splice(i, 1);
+    }
+  }
+}
+let last = performance.now();
+function animate(now) {
+  let remaining = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  while (remaining > 0) {
+    const step = Math.min(remaining, 1 / 120);
+    update(step);
+    remaining -= step;
+  }
+  if (state === 'ready') bird.position.y = Math.sin(now * 0.003) * 0.2;
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
