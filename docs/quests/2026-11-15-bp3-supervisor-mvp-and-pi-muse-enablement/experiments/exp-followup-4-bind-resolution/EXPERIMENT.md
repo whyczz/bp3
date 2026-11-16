@@ -17,27 +17,27 @@ in the workflow result). Every workflow child's
 brief carries the run-id string, so sibling sessions
 (init, resolve) and the conductor session all
 "reference" the Run. Only one tape is the Run's
-own: the one carrying the Run's own edge invocation
+own: the one carrying the Run's own engine-fsm-edge invocation
 — `BP3_RUN_ID=<R>` bound to its `bp3 q … u <exp>
 <edge>` call. The init tape binds the id to
 `record-init`, the resolve tape to `find-tape`;
-neither ever invokes the Run's edge. Resolve by
+neither ever invokes the Run's engine-fsm-edge. Resolve by
 that, uniquely, or refuse typed.
 
 ## Demo (design trace)
 
 ```text
 find-tape --run-id R      (4 candidates reference R)
-  -> keep tapes carrying R's own edge invocation
+  -> keep tapes carrying R's own engine-fsm-edge invocation
   -> exactly one: the author's session tape
   -> bind-tape writes the pointer; supervisor derives finished
-two own-edge tapes -> E_AMBIGUOUS (never a guess)
+two engine-fsm-edge tapes -> E_AMBIGUOUS (never a guess)
 ```
 
 ## Diagram
 
 ```text
-candidates ──► own-edge filter ──► 1 tape ──► bind ──► fold
+candidates ──► engine-fsm-edge filter ──► 1 tape ──► bind ──► fold
                     │
                     └─ 0 or ≥2 ──► E_AMBIGUOUS (typed)
 ```
@@ -47,7 +47,7 @@ candidates ──► own-edge filter ──► 1 tape ──► bind ──► f
 ```python
 def resolve(run):
     cands = tapes_referencing(run.id)
-    own = [t for t in cands if carries_own_edge(t, run)]
+    own = [t for t in cands if carries_own_engine_fsm_edge(t, run)]
     if len(own) != 1: refuse E_AMBIGUOUS
     return own[0]
 ```
@@ -56,15 +56,15 @@ def resolve(run):
 |---|---|
 | Intent | make `find-tape`/`watch` resolution (and the launcher bind step) succeed uniquely for live workflow Runs |
 | Lane | standard |
-| Output | own-edge resolution rule in the shared tape resolution; bind succeeds live |
+| Output | own engine-fsm-edge resolution rule in the shared tape resolution; bind succeeds live |
 | Depends on | followup.3 (bind-tape, fold honor); found at dogfood.1 cycle 5 |
 
 ## Acceptance (fails today: bind resolution refuses E_AMBIGUOUS live)
 
 | Case | Expected |
 |---|---|
-| sibling tapes reference the Run | init/resolve/conductor tapes mentioning the run-id do not resolve; the tape carrying the Run's own edge invocation does |
-| still not unique | two tapes carrying the Run's own edge invocation (or none) → `E_AMBIGUOUS`, typed, never a guessed pick |
+| sibling tapes reference the Run | init/resolve/conductor tapes mentioning the run-id do not resolve; the tape carrying the Run's own engine-fsm-edge invocation does |
+| still not unique | two tapes carrying the Run's own engine-fsm-edge invocation (or none) → `E_AMBIGUOUS`, typed, never a guessed pick |
 | live bind | a fresh induct-exp submit Run binds post-author (no refusal in the workflow result) and the supervisor derives `finished` for it |
 | resolution is shared | `find-tape` and `watch` apply the same rule; a tape named by an InitRecord or a binding row still wins over any scan |
 | env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
@@ -87,7 +87,7 @@ Live evidence (dogfood.1 c5): candidates
 record-init), `60600191` (resolve: 7 find-tape, 0
 submit), `605ffb91` (init: 5 record-init, 0
 submit), conductor `session.jsonl` (quotes all).
-The own-edge signal separates them without any
+The own engine-fsm-edge signal separates them without any
 child-reported identity. The edge name is the
 run-id's second segment and the exp comes from the
 Run's InitRecord, so the rule needs no new inputs.
@@ -97,7 +97,7 @@ Run's InitRecord, so the rule needs no new inputs.
 Known cases: Acceptance table; env-set run-id
 stamped by bp3 into the submit verdict and ledger
 line. Property-based: resolution never returns a
-tape that does not carry the Run's own edge
+tape that does not carry the Run's own engine-fsm-edge
 invocation when it had to choose among several;
 when the InitRecord or a binding names the tape,
 no scan result can override it.
