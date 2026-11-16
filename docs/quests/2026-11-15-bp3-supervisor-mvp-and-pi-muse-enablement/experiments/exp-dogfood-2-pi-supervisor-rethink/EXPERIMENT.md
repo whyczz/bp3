@@ -9,7 +9,7 @@ status: decided
 
 ## TL;DR
 
-Decided design (author), pending owner nod. The pi
+Decided design, owner-approved (cycle 2). The pi
 engine is re-founded on the supervisor pattern: the
 dispatcher and the engine contract survive, binding
 rituals and await are replaced by InitRecord +
@@ -39,7 +39,7 @@ supervisor contract ─┘        │
                     pi-engine MVP design (decided)
                               │
                               ▼
-              dogfood.3 demo proved; full drive gated
+           dogfood.3 demo proved; full drive approved
 ```
 
 ## Pseudocode
@@ -49,7 +49,7 @@ design = decide(keep=[dispatcher, contract],
                 replace=[binding, await],
                 drop=[witness, events_store, ts_fold,
                       dispatcher_watchdog],
-                owner=gate_pending)
+                owner=approved_cycle2)
 ```
 
 | Field | Value |
@@ -193,18 +193,22 @@ drive exp (not dogfood.3, which is landed):
 |---|---|---|
 | keep/replace/drop | every canceled-quest component dispositioned with reason | done: table above covers dispatcher, contract, inputs, roles, run-id, tools, desks, conductor, settled, binding, await, event log, witness, watchdogs, lifecycle store, contract schemas, tape copy; defects + F1-F4 consumed |
 | MVP shape | dogfood.3 runnable as written from the design | done at demo scope: dogfood.3 observed `finished` + artifact from record-init/bind-tape/fold alone |
-| owner gate | design approved by owner before dogfood.3 | pending: see Owner gate below; no nod is claimed by this record |
+| owner gate | design approved by owner before dogfood.3 | done: owner approved the design as decided (cycle 2 resume, 2026-11-16); see Owner gate below |
 
 ## Owner gate
 
-This design is decided by the author and submitted
-for the owner's nod. It does not record a nod:
-none has been given to this author. The dogfood.3
-demo proceeded under the owner's demo-as-experiment
-ruling and proves the MVP core, but a full pi drive
-(the deltas above) must not start until the owner
-approves this design in the quest record. Warn-only
-until then, per the quest's recorded default.
+Owner nod recorded (cycle 2, 2026-11-16). The
+owner approved the design as decided: keep the
+dispatcher, engine contract, roles, run-id, and
+desks; replace settled/binding/await with
+InitRecord + bind-tape + `watch` as sole killer;
+drop the witness writer, events store, TS fold,
+second watchdog, and heartbeat. The ledger
+`resume` line for cycle 2 carries this ruling
+verbatim. The dogfood.3 demo had already proceeded
+under the owner's demo-as-experiment ruling; a
+full pi drive (the deltas above) is now approved
+to start from this design.
 
 ## Acceptance test (goal block)
 
@@ -212,7 +216,7 @@ until then, per the quest's recorded default.
   actually approved.
 - **Prove by:** this record + owner nod recorded.
 - **Done when:** disposition table complete (done);
-  nod in the quest record (pending owner).
+  nod recorded in this record (done, cycle 2).
 
 ## Tests
 
