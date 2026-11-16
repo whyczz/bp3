@@ -1596,3 +1596,49 @@ M  skills/induct/workflows/quest-land.js
 M  test/induct-exp.test.mjs
 M  test/induct-grade.test.mjs
 M  test/quest-land.test.mjs
+M  .agents/workflows/induct-exp.js
+M  .agents/workflows/induct-grade.js
+M  .agents/workflows/quest-land.js
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/runs/20261116T003423Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+A  docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T010915Z-submit-muse-code-muse-wonder-1.0-c2/flappy.html
+A  docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T010915Z-submit-muse-code-muse-wonder-1.0-c2/notes.md
+A  docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T010915Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+M  skills/induct/workflows/induct-exp.js
+M  skills/induct/workflows/induct-grade.js
+M  skills/induct/workflows/quest-land.js
+M  test/induct-exp.test.mjs
+M  test/induct-grade.test.mjs
+M  test/quest-land.test.mjs
+ .agents/workflows/induct-exp.js                    |   15 +-
+ .agents/workflows/induct-grade.js                  |   21 +-
+ .agents/workflows/quest-land.js                    |   15 +-
+ .../flappy.html                                    |  101 ++
+ .../notes.md                                       |   38 +
+ .../tape.log                                       | 1598 ++++++++++++++++++++
+ skills/induct/workflows/induct-exp.js              |   15 +-
+ skills/induct/workflows/induct-grade.js            |   21 +-
+ skills/induct/workflows/quest-land.js              |   15 +-
+ test/induct-exp.test.mjs                           |    8 +-
+ test/induct-grade.test.mjs                         |   10 +-
+ test/quest-land.test.mjs                           |    4 +
+ 12 files changed, 1808 insertions(+), 53 deletions(-)
+[quest/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement 001bbaa] feat(dogfood.1): drop first-command prefix ritual from child briefs
+ 12 files changed, 1808 insertions(+), 53 deletions(-)
+ create mode 100644 docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T010915Z-submit-muse-code-muse-wonder-1.0-c2/flappy.html
+ create mode 100644 docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T010915Z-submit-muse-code-muse-wonder-1.0-c2/notes.md
+ create mode 100644 docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T010915Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+001bbaabfc166150577e589769bd8db94ff6afd9
+{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{},"guidance":"Worktree is dirty; clean it and retry."},"run_id":"20261116T010915Z-submit-muse-code-muse-wonder-1.0-c2"}
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/runs/20261116T003423Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T010915Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+001bbaa feat(dogfood.1): drop first-command prefix ritual from child briefs
+80a8f65 feat(dogfood.1): three.js flappy demo in run folder
+156a609 feat(harness): pi backtest replay with usage fold (backtest.2)
