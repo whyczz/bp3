@@ -5,7 +5,14 @@
 // returns what the re-read reports. Any other state belongs to
 // a different step; this file refuses it untouched. All state
 // moves through `bp3 q u`, called directly by the author child;
-// this script never writes state.
+// this script never writes state. Its one write is proof, not
+// state: as the named InitRecord writer (mvp.8) it records the
+// child's InitRecord via `bp3 harness record-init` before the
+// child spawns; the child never writes its own proof. As the
+// named tape binder (followup.3) it then binds the child's
+// session tape via `bp3 harness bind-tape` after the child
+// returns; the child writes no InitRecord, binding, or
+// observation.
 // Args are supplied by the calling induct skill as {quest, exp,
 // ts, harness, model}; ts is a UTC compact timestamp from the
 // caller, embedded by the child in its run-id because scripts
@@ -124,10 +131,10 @@ export default async function workflow(host) {
   }
 
   function envPreset(edge, cycle) {
-    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
-    // as this stage's run folder. Hooks cannot inherit env from a
-    // child, but PreToolUse payloads carry the full command text,
-    // so the first prefixed command binds session -> run.
+    // Env-set identity: BP3_RUN_ID carries the same id as this
+    // stage's run folder. `bp3` reads it from the environment
+    // and stamps it into verdicts and ledger lines, so no
+    // first-command prefix binds the session.
     return (
       "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
       "-c" + String(cycle) + " BP3_QUEST=" + quest + " BP3_EXP=" +
@@ -135,13 +142,119 @@ export default async function workflow(host) {
     );
   }
 
+  function runIdOf(edge, cycle) {
+    return ts + "-" + edge + "-" + harness + "-" + model +
+      "-c" + String(cycle);
+  }
+
+  // The named InitRecord writer (mvp.8): this launcher, before
+  // the child spawns. The child never writes its own proof; a
+  // refused write means the child never starts. The record
+  // names no tape (followup.3): the child's session tape does
+  // not exist yet, so the launcher binds it after the child
+  // returns (bindTape below). The run folder's tape.log stays
+  // the child's own transcript, never finish evidence.
+  async function recordInit(edge, cycle) {
+    const cmd =
+      envPreset(edge, cycle) + "./bin/bp3 harness record-init" +
+      " --run-id " + runIdOf(edge, cycle) +
+      " --harness " + harness + " --quest " + quest +
+      " --exp " + exp + " --model " + model +
+      (desk ? " --desk " + desk : "");
+    const result = await host.agent({
+      label: "init " + exp,
+      input:
+        deskNote +
+        "Run exactly `" + cmd + "` from the quest worktree if " +
+        "one is named above, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const v = parseVerdict(result);
+    if (!v || v.ok !== true) {
+      refusals.push(
+        "record-init refused before the " + edge + " child: " +
+        errorText(result)
+      );
+      return false;
+    }
+    return true;
+  }
+
+  // The named tape binder (followup.3): this launcher, after
+  // the child returns, when its session tape exists and has
+  // closed. Resolution is mechanical — `bp3 harness
+  // find-tape` on the run-id — and a resolution that is not
+  // unique refuses typed, never a guess; the bind itself is
+  // one pointer-only tape_binding row written by bind-tape.
+  // The author child writes no binding.
+  async function bindTape(edge, cycle) {
+    const runId = runIdOf(edge, cycle);
+    const resolveCmd =
+      envPreset(edge, cycle) + "./bin/bp3 harness find-tape" +
+      " --run-id " + runId;
+    const resolved = await host.agent({
+      label: "resolve " + exp,
+      input:
+        deskNote +
+        "Run exactly `" + resolveCmd + "` from the quest worktree if " +
+        "one is named above, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const rv = parseVerdict(resolved);
+    const tapePath = rv && rv.ok === true
+      ? (typeof rv.tape_path === "string" && rv.tape_path
+         ? rv.tape_path
+         : (typeof rv.wal === "string" ? rv.wal : ""))
+      : "";
+    if (!tapePath) {
+      refusals.push(
+        "bind-tape resolution refused after the " + edge + " child: " +
+        errorText(resolved)
+      );
+      return false;
+    }
+    const bindCmd =
+      envPreset(edge, cycle) + "./bin/bp3 harness bind-tape" +
+      " --run-id " + runId + " --tape-path " + tapePath;
+    const bound = await host.agent({
+      label: "bind " + exp,
+      input:
+        deskNote +
+        "Run exactly `" + bindCmd + "` from the quest worktree if " +
+        "one is named above, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const bv = parseVerdict(bound);
+    if (!bv || bv.ok !== true) {
+      refusals.push(
+        "bind-tape refused after the " + edge + " child: " +
+        errorText(bound)
+      );
+      return false;
+    }
+    return true;
+  }
+
   function tapePreamble(edge, cycle) {
     const folder = runFolder(edge, cycle, harness + "-" + model);
     return (
       "Your run folder is `" + folder + "` under `" + expDir +
-      "/runs/`. Prefix your FIRST shell command with `" +
-      envPreset(edge, cycle) + "` (hooks witness this prefix " +
-      "to bind your session to this run). First check whether that concrete run " +
+      "/runs/`. `BP3_RUN_ID`, `BP3_QUEST`, `BP3_EXP`, " +
+      "`BP3_HARNESS`, and `BP3_MODEL` arrive via environment " +
+      "and `bp3` stamps them into its verdicts and ledger " +
+      "lines, so no first-command prefix is needed. First check whether that concrete run " +
       "folder already exists: if it does, stop immediately, do " +
       "not overwrite or reuse it, and return a JSON object " +
       '{"ok":false,"error":{"code":"E_RUN_EXISTS"}} describing ' +
@@ -171,6 +284,10 @@ export default async function workflow(host) {
     return { exp: exp, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
   }
 
+  if (!(await recordInit("submit", before.cycle))) {
+    return { exp: exp, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
+  }
+
   const author = await host.agent({
     label: "author " + exp,
     input:
@@ -191,6 +308,10 @@ export default async function workflow(host) {
   if (authorVerdict && typeof authorVerdict.run_id === "string" && authorVerdict.run_id) {
     runIds.push(authorVerdict.run_id);
   }
+
+  // The child has returned and its session tape has closed:
+  // bind it to the Run before re-reading state.
+  await bindTape("submit", before.cycle);
 
   const after = await readState();
   if (after.state === "submitted") {

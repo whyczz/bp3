@@ -83,6 +83,14 @@ out=$(_bp3_candidates q toy-drive r parser-fix --format "")
 has "$out" json; has "$out" table; has "$out" tree
 out=$(_bp3_candidates q toy-drive "")
 has "$out" r; has "$out" u
+out=$(_bp3_candidates "")
+has "$out" harness; has "$out" worktree
+out=$(_bp3_candidates harness "")
+has "$out" desk; has "$out" supervisor; has "$out" find-tape
+out=$(_bp3_candidates harness desk "")
+for v in derive create inspect remove prepare check exit release list; do has "$out" "$v"; done
+out=$(_bp3_candidates harness d "")
+has "$out" prepare; has "$out" release
 
 # --- zsh traces (same candidate logic) ---
 if command -v zsh >/dev/null 2>&1; then

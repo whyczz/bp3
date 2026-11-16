@@ -1,0 +1,53 @@
+run=docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-2-pi-supervisor-rethink/runs/20261116T052704Z-submit-muse-code-muse-wonder-1.0-c2
+diff --git a/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md b/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+index 0842cd0..5a2a8f5 100644
+--- a/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
++++ b/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+@@ -50,6 +50,7 @@ for s in corpus("pi"):
+ | five incidents replayed | each derived or explained as a finding |
+ | pi WAL quirks | adapter gaps listed with file/line evidence |
+ | findings | proposed fix targets named (dispatcher, adapter, contract) |
++| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
+ 
+ ## Acceptance test (goal block)
+ 
+@@ -61,7 +62,9 @@ for s in corpus("pi"):
+ 
+ ## Tests
+ 
+-findings-machine (as backtest.1). Known cases:
++findings-machine (as backtest.1); env-set run-id
++is stamped by bp3 into the submit verdict and
++ledger line (the mvp.1 mechanism). Known cases:
+ the five known incidents must each surface as a
+ finding; fold totals (usage) match tape sums on
+ sampled runs. Property-based: replay is
+--- dirty tape sample ---
+ .../tape.log                                       |   1 +
+ .../experiments/exp-backtest-2-pi/EXPERIMENT.md    |   5 +-
+ .../tape.log                                       |  29 ++++
+ .../tape.log                                       |  16 ++
+ .../tape.log                                       |   1 +
+ .../tape.log                                       |  22 +++
+ .../tape.log                                       |  22 +++
+ .../tape.log                                       |   6 +
+ .../tape.log                                       |  13 ++
+ .../tape.log                                       |  19 +++
+ .../tape.log                                       | 173 +++++++++++++++++++++
+ 11 files changed, 306 insertions(+), 1 deletion(-)
+clean-check done
+42:              dogfood.3 demo proved; full drive gated
+52:                owner=gate_pending)
+74:     grandchildren, widen tools/env, attest gates
+173:`finished`, artifact `node --check` passes. No
+196:| owner gate | design approved by owner before dogfood.3 | done: owner approved the design as decided (cycle 2 resume, 2026-11-16); see Owner gate below |
+198:## Owner gate
+200:Owner nod recorded (cycle 2, 2026-11-16). The
+217:- **Prove by:** this record + owner nod recorded.
+219:  nod recorded in this record (done, cycle 2).
+edits done: TL;DR, Acceptance, Owner gate, Diagram, Pseudocode
+extracted bytes: 5225
+node_check_exit=0
+ .../EXPERIMENT.md                                  | 30 ++++++++++++----------
+ 1 file changed, 17 insertions(+), 13 deletions(-)
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-2-pi-supervisor-rethink/EXPERIMENT.md

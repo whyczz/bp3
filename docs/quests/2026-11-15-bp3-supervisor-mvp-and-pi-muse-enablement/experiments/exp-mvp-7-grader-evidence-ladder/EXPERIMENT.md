@@ -62,6 +62,7 @@ def grade(quest, exp, commit, run_id):
 | lying fixture: clean diff/tests, pointer contradicts claim | block verdict citing the rung-5 pointer |
 | clean fixture | verdict reached with zero whole-log reads |
 | confused grade (rungs 1-4 undecided, pointers undecided) | whole-log escalation allowed and named in the verdict |
+| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
 
 ## Acceptance test (goal block)
 
@@ -79,7 +80,10 @@ experiment, not a direct edit.
 
 ## Tests
 
-Known cases: Acceptance table fixtures. Property-based:
+Known cases: Acceptance table fixtures; env-set
+run-id is stamped by bp3 into the submit verdict
+and ledger line (the mvp.1 mechanism).
+Property-based:
 for any seeded contradiction placed only at a rung-5
 entry, the grade must not pass (generator: vary which
 entry contradicts). Demos: fixture traces observed.

@@ -47,6 +47,7 @@ wrap = {scorecard(traces), disposition(findings), demo_inputs()}
 | scorecard | every field present or "unmeasured" |
 | findings | 100% dispositioned with homes |
 | demo inputs | walkthrough runnable from the record |
+| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
 
 ## Acceptance test (goal block)
 

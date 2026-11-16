@@ -93,6 +93,27 @@ for item in inventory:
 | child-typed `BP3_RUN_ID`/`BP3_QUEST`/`BP3_EXP` command prefixes in workflow children; hook `extract_preset` binding | InitRecord/WAL association proves witnessed Runs without child compliance | run-id remains launcher/spawn context, not a child proof ritual |
 | Stage B only: hook usage/refusal/lint telemetry branches, `emit`/`append_event`, and hook registration if fully duplicated | backtest.1 parity proves tapes cover usage, refusals, and lint facts | supervisor adapters; otherwise hooks remain footprint writers |
 
+## Deletion manifest (completed by this exp, 2026-11-15)
+
+Shadow parity (pre-deletion evidence): the mvp.4 fixtures in
+`test/harness.sh` folded the shared map and the per-Run
+derivations side by side — a settled legacy binding folded
+`finished`, a legacy per-Run log folded `init`, and where the
+map claimed a duplicate Run settled, the derived fold's
+`active` won with no silent merge. No critical diff blocked
+the read cutover below; lifecycle truth now comes only from
+derivations.
+
+| Candidate | Owner / live callers | Replacement | Disposition |
+|---|---|---|---|
+| supervisor legacy import (`legacy_views`, `get_float_opt`, `legacy_sunset`, shared-map + legacy-event reads in `src/quest/harness.ml`) | supervisor tick (`do_supervisor`) was the only caller | derivation logs + disposable cache are the sole lifecycle read path | **Deleted.** Supervisor verdicts contain no legacy-only Runs; legacy fixture files stay byte-identical (hash + mtime asserted in `test/harness.sh`); negative grep gates pin the retired spellings out of `harness.ml` |
+| grade/test references to `.git/bp3-run-registry.json` (`skills/induct/workflows/induct-grade.js`, `.agents/workflows/induct-grade.js`, `test/induct-grade.test.mjs`) | audit child prompt; one mock-host test | bp3-stamped submit ledger line (mvp.1 mechanism) + per-Run derivation log corroboration; hooks registry witness does not gate (owner ruling) | **Deleted / migrated.** Auditor quotes the stamped ledger line; the test asserts the registry is never named |
+| local shared dicts (`bp3-run-registry.json`, `bp3-run-events.json`) | machine-local witness data in the git common dir, outside every desk | derivation logs under `<git-common-dir>/bp3/run-lifecycle-derivations/` | **Snapshot recorded; disposal is an operator step outside this desk.** sha256 at snapshot: `bp3-run-registry.json` = `4a0f47af8dab21b408acead4ef07c21d5c26d1dfd4da26d0bf542774ba33bcfd`, `bp3-run-events.json` = `15579108105513ee99e69b17b4e8d2069e040595e904dbd47a5cdfff8f7bd1e9`. No `bp3-run-events/` dir exists locally. Supervisor fixtures prove verdicts with the maps absent/ignored; the files themselves are not a git change |
+| hooks registry machinery (`registry_path`/`load_registry`/`save_registry`, session-keyed `find`, stored `settled`/`unsettled`, `emitted` dedupe, usage tallies in `src/quest/hooks.ml`) | `bp3 q hooks` emitter; `test/hooks.sh` | none yet: cross-invocation session binding still needs a store until the supervisor association (mvp.8 InitRecord writer, still `todo`) replaces it | **Kept.** Keeper reason: hooks remain the footprint writers under the Stage B gate below, and their binding store retires with them or with mvp.8 — not before a replacement binding exists |
+| `SessionStart` stale sweep over the shared map | hooks emitter | `orphaned` as a fold result in the supervisor | **Kept with hooks** (same gate); the supervisor already derives `orphaned` on read for derived Runs |
+| child-typed `BP3_RUN_ID`/`BP3_QUEST`/`BP3_EXP` prefixes; hook `extract_preset` binding | workflow children (`induct-exp`/`induct-grade`/`quest-land`); hooks `PreToolUse` | InitRecord/WAL association (mvp.8 owns the writer; still `todo`) | **Kept.** Missing fact: no InitRecord writer exists for muse workflow launches yet, so deleting the prefix ritual now would unwitness real Runs. This exp's own children already run env-set (`BP3_RUN_ID` exported, stamped into the ledger) per the owner ruling |
+| Stage B: hook telemetry (`emit`/`append_event`, usage/refusal/lint branches) + hook registration (`.claude/`, `.muse/`, `bin/bp3`) | hooks emitter; ledger event lines | supervisor adapters over tapes | **Kept.** Stage B gate honored: retirement requires backtest.1 parity evidence that tapes cover usage, refusals, and lint facts. Missing fact named: `exp-backtest-1-muse` is still `todo` — no backtest.1 parity report exists, so no hook branch or registration was removed |
+
 ## Kill list for the target architecture
 
 Persist only two supervisor outputs per Run:
@@ -141,6 +162,7 @@ Kill as write targets, stores, or duplicate engines:
 | local data retirement | snapshot hash recorded before disposal; new Runs still witnessed with the shared maps absent |
 | child burden removed | a workflow child is witnessed without typing the run-id prefix (after mvp.4 association is live) |
 | Stage B gate | hooks retire only with backtest.1 parity evidence; otherwise the manifest records them kept, with the missing fact named |
+| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
 
 ## Acceptance test (goal block)
 
@@ -155,7 +177,9 @@ Kill as write targets, stores, or duplicate engines:
 
 ## Tests
 
-known cases: Acceptance table. unit: conversion and
+known cases: Acceptance table; env-set run-id is
+stamped by bp3 into the submit verdict and ledger
+line (the mvp.1 mechanism). unit: conversion and
 fold parity over fixture maps (empty, one Run,
 parallel Runs, torn final row, duplicate events);
 derived-state cache hit/miss by input fingerprint;

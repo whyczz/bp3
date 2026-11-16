@@ -1,0 +1,343 @@
+=== followup7 author run 20261116T073334Z ===
+cwd: /Users/whycz/m/bp3/.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement
+d47c296 chore(followup.7): frame pi worktree-root fix (owner gate ruling)
+d148268 docs(landing.2): pi-extension scorecard delta, disposition, observed walkthrough
+18ad6c5 feat(dogfood.4): pi extension drive — conductor spawns author child, flappy demo, finished derivation
+--- bin/bp3 head ---
+#!/usr/bin/env bash
+# bp3 project tooling (pre-binary). The OCaml CLI absorbs these subcommands
+# later; the interface stays: bp3 skills install --harness=<name|all>.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+src_dir="$root/skills"
+
+# harness -> skills_dir. Sources are plain Markdown: no templating in bp3.
+# The render is a copy plus a GENERATED notice after the frontmatter.
+harness_target() {
+  case "$1" in
+    pi)     echo ".pi/skills" ;;
+    claude) echo ".claude/skills" ;;
+    codex)  echo ".agents/skills" ;;
+    muse)   echo ".agents/skills" ;;
+    *) return 1 ;;
+  esac
+}
+
+install_one() {
+  local skill="$1" harness="$2" target_dir dest
+  target_dir="$(harness_target "$harness")"
+  dest="$root/$target_dir/$skill"
+  mkdir -p "$dest"
+  awk -v h="$harness" -v s="$skill" '
+    /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
+    { print }' "$src_dir/$skill/SKILL.md" > "$dest/SKILL.md"
+  echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness)"
+}
+
+skills_install() {
+  local harness="all"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --harness=*) harness="${1#--harness=}" ;;
+      --harness) [ $# -ge 2 ] || { echo '--harness needs a value' >&2; exit 2; }; harness="$2"; shift ;;
+      *) echo "unknown arg: $1" >&2; exit 2 ;;
+    esac
+    shift
+  done
+
+  local harnesses
+  if [ "$harness" = "all" ]; then
+    harnesses="pi claude codex muse"
+  else
+    harnesses="$harness"
+  fi
+
+  # Preflight every source and the selected harness before writing any render.
+  "$root/scripts/check-skills" "$src_dir"
+  local h
+  for h in $harnesses; do
+    harness_target "$h" >/dev/null || { echo "unknown harness: $h" >&2; exit 2; }
+  done
+
+  # Pi discovers .agents as well as .pi. Prefer our Pi copies per project,
+  # without deleting Codex/Muse skills or hiding unrelated .agents skills.
+  local settings_plan='' existing='{}' ids
+  case " $harnesses " in
+--- git common/toplevel demo (this worktree) ---
+/Users/whycz/m/bp3/.git
+/Users/whycz/m/bp3/.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement
+--- dispatcher resolveRepoRoot (before) ---
+54:function gitCommonDir(cwd: string): string {
+57:    out = execFileSync("git", ["-C", cwd, "rev-parse", "--git-common-dir"], { encoding: "utf8" }).trim();
+67:export function resolveRepoRoot(cwd: string): string {
+68:  return path.dirname(gitCommonDir(cwd));
+72:  return path.join(gitCommonDir(cwd), "bp3", "run-lifecycle-derivations");
+85:    this.root = resolveRepoRoot(opts.cwd);
+145:    const sessionDir = path.join(gitCommonDir(this.cwd), "bp3", "pi-sessions", runId);
+main        : /var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-DwdAn2
+worktree    : /var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-DwdAn2-wt
+resolve(main)   = /var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-DwdAn2 OK
+resolve(wt)     = /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-DwdAn2 WRONG (bug: main checkout)
+resolve(nested) = /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-DwdAn2 WRONG
+derivations(wt) = /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-DwdAn2/.git/bp3/run-lifecycle-derivations ?
+fatal: not a git repository (or any of the parent directories): .git
+non-git refusal: E_NOT_FOUND
+extensions/bp3-pi/test/bp3-pi.test.mjs:19:const { Dispatcher, derivationsDir, resolveRepoRoot } = await import(path.join(extRoot, "src", "dispatcher.ts"));
+extensions/bp3-pi/test/bp3-pi.test.mjs:118:  assert.equal(resolveRepoRoot(nested), repo);
+extensions/bp3-pi/src/dispatcher.ts:54:function gitCommonDir(cwd: string): string {
+extensions/bp3-pi/src/dispatcher.ts:57:    out = execFileSync("git", ["-C", cwd, "rev-parse", "--git-common-dir"], { encoding: "utf8" }).trim();
+extensions/bp3-pi/src/dispatcher.ts:67:export function resolveRepoRoot(cwd: string): string {
+extensions/bp3-pi/src/dispatcher.ts:68:  return path.dirname(gitCommonDir(cwd));
+extensions/bp3-pi/src/dispatcher.ts:72:  return path.join(gitCommonDir(cwd), "bp3", "run-lifecycle-derivations");
+extensions/bp3-pi/src/dispatcher.ts:85:    this.root = resolveRepoRoot(opts.cwd);
+extensions/bp3-pi/src/dispatcher.ts:145:    const sessionDir = path.join(gitCommonDir(this.cwd), "bp3", "pi-sessions", runId);
+src/quest/worktree.ml:69:  let top, code = git_in abs ["rev-parse"; "--show-toplevel"] in
+src/quest/worktree.ml:154:  let top_root, _ = git_out ["rev-parse"; "--show-toplevel"] in
+src/quest/harness.ml:121:  let out, code = git_out ["rev-parse"; "--git-common-dir"] in
+src/quest/harness.ml:2081:  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Since mvp.5 the derivation logs are the sole lifecycle read path; the retired shared maps are never read or written. Writer discipline (followup.1): each row is a single write() on an O_APPEND descriptor and the cache is a uniquely named temp file in the same directory, fsynced and renamed over the old cache, so parallel supervisors never tear a row or the cache; a torn final line is ignored by the fold and reported as W_TORN_TAIL. Tape binding (followup.3, pinned by followup.4): when the InitRecord names no tape, the first pointer-only tape_binding row in the same log names it, one tape to one Run, never rebound; with no tape at all the probe is blind (W_SUPERVISOR_BLIND) and the lifecycle stays init.\n\
+src/quest/harness.ml:2117:  Appends one pointer-only tape_binding row (run-id, tape path, timestamp; never tape content) as a single write to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl, after the child returns and its session tape has closed. The binding is one-to-one and pinned: the fold names the tape from the InitRecord's own tape path, else the first binding, and that pointer is the only one it reads. Re-binding the same tape is a no-op; a second, different tape for the run-id, or a tape already bound to another run-id, is E_EXISTS, never a silent rebind; a missing tape path is never guessed. A run-id with no InitRecord is E_NOT_FOUND; a bad run-id or a missing, duplicate, or =-formed flag is E_USAGE. Emits {ok, run_id, tape_path, path}.\n\
+src/quest/harness.ml:2122:  Appends the first derivation row (kind init_record) to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl before the child starts, so find-tape/watch/supervisor resolve the Run from birth. Create-only: an existing log for the run-id is E_EXISTS; a bad run-id, engine, or pid is E_USAGE. Emits {ok, run_id, harness, session_id, pid, tape_path, quest, exp, path}.\n\
+test/harness.sh:348:common=$(git rev-parse --git-common-dir)
+=== repro after fix ===
+main        : /var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-u43qZJ
+worktree    : /var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-u43qZJ-wt
+resolve(main)   = /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-u43qZJ WRONG
+resolve(wt)     = /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-u43qZJ-wt WRONG (bug: main checkout)
+resolve(nested) = /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-u43qZJ-wt WRONG
+derivations(wt) = /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-u43qZJ/.git/bp3/run-lifecycle-derivations ?
+fatal: not a git repository (or any of the parent directories): .git
+non-git refusal: E_NOT_FOUND
+=== build bp3 binary ===
+=== repro after fix (realpath-compared) ===
+main        : /var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-uZrdXb
+worktree    : /var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-uZrdXb-wt
+resolve(main)   = /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-uZrdXb OK
+resolve(wt)     = /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-uZrdXb-wt OK
+resolve(nested) = /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-uZrdXb-wt OK
+derivations(wt) = /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/f7-main-uZrdXb/.git/bp3/run-lifecycle-derivations ?
+fatal: not a git repository (or any of the parent directories): .git
+non-git refusal: E_NOT_FOUND
+BUILD OK
+✔ extension registers exactly four tools and loads fail-open (27.450625ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.126541ms)
+✖ spawn path: record-init names the live pid, bind-tape pins the tape, list_runs folds finished (20.180125ms)
+✖ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (443.830375ms)
+✔ roles route model/thinking into the child env: override > role > conductor (333.392291ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (128.617584ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1351.43675ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (2965.520417ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (25037.796458ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (232.091417ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.467375ms)
+✔ dispatcher writes nothing itself under run-lifecycle-derivations (119.71825ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 10
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 30729.104417
+
+✖ failing tests:
+
+test at extensions/bp3-pi/test/bp3-pi.test.mjs:113:1
+✖ spawn path: record-init names the live pid, bind-tape pins the tape, list_runs folds finished (20.180125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '/private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-test-VkiQTA'
+  - '/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-test-VkiQTA'
+  
+      at TestContext.<anonymous> (file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/extensions/bp3-pi/test/bp3-pi.test.mjs:118:10)
+      at Test.runInAsyncScope (node:async_hooks:213:14)
+      at Test.run (node:internal/test_runner/test:1095:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:777:18)
+      at Test.postRun (node:internal/test_runner/test:1224:19)
+      at Test.run (node:internal/test_runner/test:1152:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:777:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '/private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-test-VkiQTA',
+    expected: '/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-test-VkiQTA',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at extensions/bp3-pi/test/bp3-pi.test.mjs:144:1
+✖ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (443.830375ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '/private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-test-JI0dNl/.git/bp3/run-lifecycle-derivations'
+  - '/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-test-JI0dNl/.git/bp3/run-lifecycle-derivations'
+  
+      at TestContext.<anonymous> (file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/extensions/bp3-pi/test/bp3-pi.test.mjs:171:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1102:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:777:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '/private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-test-JI0dNl/.git/bp3/run-lifecycle-derivations',
+    expected: '/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-test-JI0dNl/.git/bp3/run-lifecycle-derivations',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+✔ extension registers exactly four tools and loads fail-open (26.132542ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.127125ms)
+✔ spawn path: record-init names the live pid, bind-tape pins the tape, list_runs folds finished (147.303625ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (193.432667ms)
+✔ roles route model/thinking into the child env: override > role > conductor (335.25075ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (126.6795ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1734.122916ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (3050.128041ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (24904.416292ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (220.753791ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.65625ms)
+✔ dispatcher writes nothing itself under run-lifecycle-derivations (128.313042ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 30936.6105
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check skills/induct/workflows/induct-exp.js
+node --check skills/induct/workflows/induct-grade.js
+node --check skills/induct/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (114 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277:  3019 Terminated: 15          sleep 30
+./test/harness.sh: line 292:  3188 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314:  3560 Terminated: 15          sleep 30
+./test/harness.sh: line 409:  2525 Terminated: 15          sleep 60
+./test/harness.sh: line 514:  5240 Terminated: 15          sleep 60
+./test/harness.sh: line 610:  5465 Terminated: 15          sleep 60
+harness.sh: all checks passed
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (28.880583ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.131583ms)
+✔ spawn path: record-init names the live pid, bind-tape pins the tape, list_runs folds finished (190.259208ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (190.907167ms)
+✔ roles route model/thinking into the child env: override > role > conductor (339.847708ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (137.814292ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1765.234083ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (2999.381708ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (24979.767166ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (223.541166ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.368958ms)
+✔ dispatcher writes nothing itself under run-lifecycle-derivations (172.698708ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 31094.392833
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+3:# later; the interface stays: bp3 skills install --harness=<name|all>.
+9:# harness -> skills_dir. Sources are plain Markdown: no templating in bp3.
+11:harness_target() {
+22:  local skill="$1" harness="$2" target_dir dest
+23:  target_dir="$(harness_target "$harness")"
+26:  awk -v h="$harness" -v s="$skill" '
+27:    /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
+29:  echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness)"
+33:  local harness="all"
+36:      --harness=*) harness="${1#--harness=}" ;;
+37:      --harness) [ $# -ge 2 ] || { echo '--harness needs a value' >&2; exit 2; }; harness="$2"; shift ;;
+43:  local harnesses
+44:  if [ "$harness" = "all" ]; then
+45:    harnesses="pi claude codex muse"
+47:    harnesses="$harness"
+50:  # Preflight every source and the selected harness before writing any render.
+53:  for h in $harnesses; do
+54:    harness_target "$h" >/dev/null || { echo "unknown harness: $h" >&2; exit 2; }
+60:  case " $harnesses " in
+76:  # dir every harness discovers. Absent source means nothing to copy.
+--- init-check via worktree bin/bp3 (no pin) ---
+{"ok":true,"checks":[{"harness":"pi","tape_source":"/Users/whycz/.pi/sessions","present":false}],"warnings":["W_SUPERVISOR_BLIND"]}
+exit=0
+root   = /Users/whycz/m/bp3/.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement
+bp3Bin = /Users/whycz/m/bp3/.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/bin/bp3 (BP3_PI_BP3_BIN unset: true )
+spawn  = {"ok":true,"run_id":"20261116T074039Z-submit-pi-fake-model-c1","pid":12476,"tape_path":"/Users/whycz/m/bp3/.git/bp3/pi-sessions/20261116T074039Z-submit-pi-fake-model-c1/tape.jsonl","exit_code":0,"model":"fake-model","thinking":null,"role":null}
+derivationsDir = /Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations
+log exists in shared store: true
+lifecycle = finished
+RUN_ID=20261116T074039Z-submit-pi-fake-model-c1
+DERIV_DIR=/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations
+20261116T074039Z-submit-pi-fake-model-c1.jsonl
+20261116T074039Z-submit-pi-fake-model-c1
+cleanup done
+derivation files gone
+ M extensions/bp3-pi/src/dispatcher.ts
+ M extensions/bp3-pi/test/bp3-pi.test.mjs
+_build/
+bp3.install
+.bp3/
+dist/
+---
+---
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-followup-7-pi-worktree-root/runs/20261116T073334Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+--- prior runs tracked? ---
+docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-followup-6-pi-dispatcher-complete/runs/20261116T062123Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-followup-6-pi-dispatcher-complete/runs/20261116T062123Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ extensions/bp3-pi/src/dispatcher.ts    | 20 +++++++++++++----
+ extensions/bp3-pi/test/bp3-pi.test.mjs | 39 +++++++++++++++++++++++++++++++++-
+ 2 files changed, 54 insertions(+), 5 deletions(-)
+A  docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-followup-7-pi-worktree-root/runs/20261116T073334Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+A  docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-followup-7-pi-worktree-root/runs/20261116T073334Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+M  extensions/bp3-pi/src/dispatcher.ts
+M  extensions/bp3-pi/test/bp3-pi.test.mjs
+[quest/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement 18ebf4b] feat(followup.7): dispatcher resolves the worktree it was spawned in
+ 4 files changed, 407 insertions(+), 5 deletions(-)
+ create mode 100644 docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-followup-7-pi-worktree-root/runs/20261116T073334Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+ create mode 100644 docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-followup-7-pi-worktree-root/runs/20261116T073334Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+18ebf4b59225f8eabcfe5eceb8b53aad8c198a50
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-followup-7-pi-worktree-root/runs/20261116T073334Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{},"guidance":"Worktree is dirty; clean it and retry."},"run_id":"20261116T073334Z-submit-muse-code-muse-wonder-1.0-c1"}
+=== submit verdict (appended post-submit; tree was clean at submit) ===
+{"ok":true,"quest":"2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement","exp":"exp-followup-7-pi-worktree-root","state":"submitted","cycle":1,"commit":"57ff21110a8acef43684328e57fc183bef236c91","legal_edges":["review","check","block","delete"],"run_id":"20261116T073334Z-submit-muse-code-muse-wonder-1.0-c1"}

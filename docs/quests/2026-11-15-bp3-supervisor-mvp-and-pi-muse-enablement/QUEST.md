@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: landed
 home_repo: bp3
 date: 2026-11-15
 ---
@@ -114,9 +114,23 @@ InitRecord, no finish evidence, pid alive where a
 pid exists, and freshness within the named budget,
 where `freshness = max(tape mtime, latest
 derivation-observation timestamp)`. `finished` requires exit
-observed and tape closed, or a settle row and
-tape closed; a row alone never finishes a live
-child. `orphaned` = stale and pid dead/absent.
+observed (or a settle row) plus the harness's finish
+evidence, and no live pid: a live pid is never
+`finished`, whatever the tape tail says, and a row
+alone never finishes a live child. Finish evidence
+is per harness, proved on the real corpora
+(followup.2), and only the last whole tape entry can
+carry it:
+
+| Harness | Finish evidence (last whole entry) | Exit entry |
+|---|---|---|
+| `muse-code` | `session.end` entry (close marker) | runtime `terminal` entry — a child tape ends here, with no close marker |
+| `pi` | `session_closed` entry, or a final assistant entry with stopReason `stop` | process exit (pid dead); pi tapes never close |
+
+A torn final tape entry (unterminated or
+unparseable) is evidence of nothing: it finishes no
+Run and is reported as `W_TORN_TAIL`.
+`orphaned` = stale and pid dead/absent.
 Derivation uses files plus live pid probes, never
 an in-memory live set, so a restarted reader does
 not orphan every active child.
@@ -234,6 +248,28 @@ produce a concrete fix list for `bp3 q u` and the
 adapters. After a design rethink, the active
 supervisor drives the same toy quest on pi.
 
+### Landing IIUC (2026-11-16, owner-promoted)
+
+23/23 exps `exp_fin`. Before: children narrated
+their own completion and a shared registry witnessed
+them. After: children produce work, the supervisor
+folds tape + pid into derived lifecycle
+(`init / active / finished / orphaned`), `bp3 q`
+owns exp state, and the grader climbs the five-rung
+evidence ladder on the bound commit. One supervisor
+control plane, two enabled harnesses: muse
+(passive fold, mvp.1–mvp.8) and pi (active
+spawn/watch, followup.5–followup.7 `bp3-pi`
+extension + dispatcher, dogfood.4 extension-driven
+drive). Observed closers: dogfood.1 c6 muse Run
+derived `finished`; dogfood.4 pi conductor drove
+`spawn_run → await_runs → list_runs` with the child
+derived `finished`; backtests: 2015 muse tapes
+(729 findings) and 38 pi tapes (43 findings), all
+dispositioned in landing.1/landing.2. Deliberately
+open: pi tape-source probe path (D7), U4/U5/U8/RC5,
+nested induct drive (owner out of scope).
+
 ## Scope
 
 | In | Out |
@@ -324,6 +360,27 @@ RC3: per-adapter finish evidence (close marker,
 exit entry, pid+grace) proved on real corpora;
 feeds backtest.1/backtest.2.
 
+### followup.5 - pi-extension — [record](experiments/exp-followup-5-pi-extension/EXPERIMENT.md)
+Implement dogfood.2's decided pi MVP, spawn path:
+fail-open `bp3-pi` extension with four conductor
+tools, dispatcher spawning pi children under the
+supervisor (record-init, bind-tape, fold). No
+witness writer, events store, TS fold, or second
+watchdog.
+
+### followup.6 - pi-dispatcher-complete — [record](experiments/exp-followup-6-pi-dispatcher-complete/EXPERIMENT.md)
+Complete the dispatcher: `await_runs` thin over
+`watch` (sole killer), `release_desk` dirty-refusal,
+role files routing effective `BP3_MODEL` /
+`BP3_THINKING`. Hung/silent/closed-not-exited cases
+proved on the fake-pi suite.
+
+### followup.7 - pi-worktree-root — [record](experiments/exp-followup-7-pi-worktree-root/EXPERIMENT.md)
+dogfood.4 papercut, owner-ruled at the quest_fin
+gate: dispatcher root resolution lands on the main
+checkout inside worktrees. Resolve the worktree
+toplevel for binary + cwd; state stays common-dir.
+
 ### Milestone: backtest — findings, not gates
 
 ### backtest.1 - muse — [record](experiments/exp-backtest-1-muse/EXPERIMENT.md)
@@ -357,11 +414,22 @@ First port/re-verify the pi binding from dogfood.2,
 then drive the same flappy toy quest on pi under
 active supervision.
 
+### dogfood.4 - pi-extension-drive — [record](experiments/exp-dogfood-4-pi-extension-drive/EXPERIMENT.md)
+Dogfood the implemented pi engine: a pi conductor
+with `bp3-pi` loaded drives the flappy toy through
+its own tools (spawn/await/list), supervisor
+deriving the author Run. No hand-played launcher.
+
 ### Milestone: landing
 
 ### landing.1 - landing-wrapup — [record](experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md)
 Quest-level wrap: scorecard, findings disposition,
 and the landing walkthrough actually run.
+
+### landing.2 - landing-wrapup-2 — [record](experiments/exp-landing-2-landing-wrapup-2/EXPERIMENT.md)
+Close the pi-extension arc: scorecard delta for
+followup.5/.6 + dogfood.4, new findings
+dispositioned, walkthrough actually run.
 
 ## Scorecard
 

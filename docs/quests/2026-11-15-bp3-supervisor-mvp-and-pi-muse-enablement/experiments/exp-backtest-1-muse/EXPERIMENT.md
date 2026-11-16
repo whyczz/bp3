@@ -55,6 +55,7 @@ for s in corpus("muse"):
 | corpus replay completes | trace per identifiable Run |
 | known incidents in corpus | derived == truth, or finding explains the gap |
 | findings list | each finding: run-id, evidence lines, proposed fix target |
+| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
 
 ## Acceptance test (goal block)
 
@@ -68,7 +69,9 @@ for s in corpus("muse"):
 ## Tests
 
 findings-machine: no pass/fail acceptance by
-design (owner rule). Known cases: truncated tape,
+design (owner rule); env-set run-id is stamped by
+bp3 into the submit verdict and ledger line (the
+mvp.1 mechanism). Known cases: truncated tape,
 foreign (non-bp3) tape, torn final line — parser
 never crashes, reports shape. Property-based: for
 any tape prefix, replay yields a prefix-consistent

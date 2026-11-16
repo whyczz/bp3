@@ -277,6 +277,8 @@ let prepare_verdict r existing =
   `Assoc (if existing then fields @ [("existing", `Bool true)] else fields)
 
 let do_prepare quest exp run_id commit path_override =
+  Store.check_creatable quest;
+  Store.check_creatable exp;
   let default_path = derive_path quest exp run_id in
   match load_record run_id with
   | Some r ->
@@ -307,7 +309,7 @@ let do_prepare quest exp run_id commit path_override =
 let quest_run_id quest = "quest-" ^ quest
 
 let do_prepare_quest quest =
-  Store.check_slug quest;
+  Store.check_creatable quest;
   let run_id = quest_run_id quest in
   match load_record run_id with
   | Some r ->

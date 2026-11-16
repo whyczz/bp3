@@ -52,6 +52,7 @@ def launch(run):
 | muse workflow child launch | InitRecord exists before child's first tape entry |
 | launch killed mid-spawn | InitRecord present, lifecycle can go `orphaned`, never invisible |
 | child with no InitRecord (legacy run) | lookup reports typed miss, no guessed binding |
+| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
 
 ## Acceptance test (goal block)
 
@@ -67,6 +68,8 @@ only actor present before the child exists.
 
 ## Tests
 
-Known cases: Acceptance table. Property-based: for
+Known cases: Acceptance table; env-set run-id is
+stamped by bp3 into the submit verdict and ledger
+line (the mvp.1 mechanism). Property-based: for
 any launch order/interleaving, InitRecord timestamp
 <= first tape entry timestamp for that run-id.

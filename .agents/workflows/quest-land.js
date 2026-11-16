@@ -5,7 +5,10 @@
 // returns what the re-read reports. Any other state belongs to
 // a different step; this file refuses it untouched. The land
 // child calls `bp3 q u` directly; this script never writes
-// state.
+// state. Its one write is proof, not state: as the named
+// InitRecord writer (mvp.8) it records the child's InitRecord
+// via `bp3 harness record-init` before the child spawns; the
+// child never writes its own proof.
 // Args are supplied by the calling induct skill as {quest, exp,
 // ts, harness, model}; ts is a UTC compact timestamp from the
 // caller, embedded by the child in its run-id because scripts
@@ -119,10 +122,10 @@ export default async function workflow(host) {
   }
 
   function envPreset(edge, cycle) {
-    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
-    // as this stage's run folder. Hooks cannot inherit env from a
-    // child, but PreToolUse payloads carry the full command text,
-    // so the first prefixed command binds session -> run.
+    // Env-set identity: BP3_RUN_ID carries the same id as this
+    // stage's run folder. `bp3` reads it from the environment
+    // and stamps it into verdicts and ledger lines, so no
+    // first-command prefix binds the session.
     return (
       "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
       "-c" + String(cycle) + " BP3_QUEST=" + quest + " BP3_EXP=" +
@@ -130,13 +133,52 @@ export default async function workflow(host) {
     );
   }
 
+  function runIdOf(edge, cycle) {
+    return ts + "-" + edge + "-" + harness + "-" + model +
+      "-c" + String(cycle);
+  }
+
+  // The named InitRecord writer (mvp.8): this launcher, before
+  // the child spawns. The child never writes its own proof; a
+  // refused write means the child never starts.
+  async function recordInit(edge, cycle) {
+    const cmd =
+      envPreset(edge, cycle) + "./bin/bp3 harness record-init" +
+      " --run-id " + runIdOf(edge, cycle) +
+      " --harness " + harness + " --quest " + quest +
+      " --exp " + exp + " --model " + model +
+      (desk ? " --desk " + desk : "");
+    const result = await host.agent({
+      label: "init " + exp,
+      input:
+        deskNote +
+        "Run exactly `" + cmd + "` from the quest worktree if " +
+        "one is named above, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const v = parseVerdict(result);
+    if (!v || v.ok !== true) {
+      refusals.push(
+        "record-init refused before the " + edge + " child: " +
+        errorText(result)
+      );
+      return false;
+    }
+    return true;
+  }
+
   function tapePreamble(edge, cycle) {
     const folder = runFolder(edge, cycle, harness + "-" + model);
     return (
       "Your run folder is `" + folder + "` under `" + expDir +
-      "/runs/`. Prefix your FIRST shell command with `" +
-      envPreset(edge, cycle) + "` (hooks witness this prefix " +
-      "to bind your session to this run). First check whether that concrete run " +
+      "/runs/`. `BP3_RUN_ID`, `BP3_QUEST`, `BP3_EXP`, " +
+      "`BP3_HARNESS`, and `BP3_MODEL` arrive via environment " +
+      "and `bp3` stamps them into its verdicts and ledger " +
+      "lines, so no first-command prefix is needed. First check whether that concrete run " +
       "folder already exists: if it does, stop immediately, do " +
       "not overwrite or reuse it, and return a JSON object " +
       '{"ok":false,"error":{"code":"E_RUN_EXISTS"}} describing ' +
@@ -163,6 +205,10 @@ export default async function workflow(host) {
     refusals.push(
       "expected approved, got " + before.state + "; another step owns that state"
     );
+    return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+  }
+
+  if (!(await recordInit("land", before.cycle))) {
     return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
   }
 

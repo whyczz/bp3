@@ -3,9 +3,11 @@
 // missing-evidence row blocks approval, an untyped row never
 // carries pass, a deferred row naming its owning exp never
 // blocks (an unnamed or untyped deferral is missing), the
-// audit quotes env-preset evidence from the run registry,
+// audit quotes env-preset evidence from the stamped ledger line,
 // row order never changes the outcome, replay on the same
-// commit returns the same matrix, and grade children are
+// commit returns the same matrix, the ladder fixtures (lying
+// pointer blocks, clean shows zero whole-log reads, confused
+// whole-tape escalation must name itself), and grade children are
 // judge-only (audit spawns no edge, review/check bind the
 // exact commit).
 import workflow from "../skills/induct/workflows/induct-grade.js";
@@ -39,13 +41,24 @@ function deferredRow(name) {
 
 // reads: state replies in order; audit replies with auditRows;
 // review/check reply as cast verdicts. Records stage inputs.
-function mockHost({ reads, auditRows }) {
+function mockHost({ reads, auditRows, initFails }) {
   let readIdx = 0;
   const inputs = {};
   const order = [];
+  const inits = [];
   const host = {
     args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: COMMIT },
     async agent({ label, input }) {
+      if (input.includes("harness record-init")) {
+        order.push("init");
+        inputs.init = input;
+        const m = input.match(/--run-id (\S+)/);
+        inits.push(m ? m[1] : "");
+        if (initFails) {
+          return JSON.stringify({ ok: false, error: { code: "E_EXISTS" } });
+        }
+        return JSON.stringify({ ok: true, run_id: m ? m[1] : "", harness: "muse-code" });
+      }
       if (input.startsWith("Run exactly")) {
         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
       }
@@ -63,7 +76,7 @@ function mockHost({ reads, auditRows }) {
       return out;
     },
   };
-  return { host, inputs, order };
+  return { host, inputs, order, inits };
 }
 
 const submitted = { state: "submitted", cycle: 1, commit: COMMIT, legal_edges: ["review", "check"] };
@@ -71,7 +84,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
 
 // --- grade a submitted exp: outcome + typed matrix, bindings ---
 {
-  const { host, inputs, order } = mockHost({
+  const { host, inputs, order, inits } = mockHost({
     reads: [submitted, approved],
     auditRows: [passRow("acceptance: a"), passRow("adherence: tape present")],
   });
@@ -79,14 +92,22 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   assert(result.outcome === "approved", "all-pass grade approves, got " + result.outcome);
   assert(Array.isArray(result.matrix) && result.matrix.length === 2, "matrix has both rows");
   assert(result.matrix.every((r) => r.verdict === "pass"), "all rows pass");
-  assert(order.join(",") === "audit,review,check", "audit first, then review+check, got " + order.join(","));
+  assert(order.join(",") === "init,audit,init,init,review,check", "writer precedes each grade child, got " + order.join(","));
+  assert(inits.join(",") === [TS + "-audit-muse-code-test-model-c1", TS + "-review-muse-code-test-model-c1", TS + "-check-muse-code-test-model-c1"].join(","),
+    "InitRecords name every grade run-id, got " + inits.join(","));
   for (const edge of ["audit", "review", "check"]) {
     const input = inputs[edge];
     assert(input, edge + " child was spawned");
-    const want = "BP3_RUN_ID=" + TS + "-" + edge + "-muse-code-test-model-c1";
-    assert(input.includes(want), edge + " command carries " + want);
     assert(input.includes("runs/" + TS + "-" + edge + "-muse-code-test-model-c1"),
       edge + " run folder matches BP3_RUN_ID");
+    assert(!input.includes("Prefix your FIRST"),
+      edge + " brief carries no first-command prefix instruction");
+    assert(input.includes("arrive via environment"),
+      edge + " is told the run-id arrives via environment");
+  }
+  for (const edge of ["review", "check"]) {
+    const want = "BP3_RUN_ID=" + TS + "-" + edge + "-muse-code-test-model-c1";
+    assert(inputs[edge].includes(want), edge + " command carries " + want);
   }
   assert(inputs.audit.includes("do not call any `bp3 q u` update edge"),
     "audit child spawns no state edge");
@@ -182,10 +203,11 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   assert(result.outcome === "approved", "deferred row does not block approval, got " + result.outcome);
   assert(inputs.audit.includes("verdict: pass|fail|missing|deferred"),
     "audit may emit deferred rows");
-  assert(inputs.audit.includes(".git/bp3-run-registry.json"),
-    "audit looks for env-preset evidence in the run registry");
-  assert(inputs.audit.includes("run_settled"), "audit quotes run_settled hook events");
-  assert(inputs.audit.includes("usage_recorded"), "audit quotes usage_recorded hook events");
+  assert(!inputs.audit.includes("bp3-run-registry"),
+    "audit never names the retired run registry");
+  assert(inputs.audit.includes("run-lifecycle-derivations"),
+    "audit corroborates from the per-Run derivation log");
+  assert(inputs.audit.includes("stamped"), "audit quotes the stamped ledger line");
   assert(inputs.review.includes("deferred"), "review is told deferred rows never block");
   assert(inputs.check.includes("deferred"), "check is told deferred rows never block");
 }
@@ -255,6 +277,114 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
     const rev = await outcomeOf(seq.slice().reverse().map(rowFor));
     assert(rev === got, "row order keeps outcome for [" + seq.join(",") + "]");
   }
+}
+
+// --- evidence ladder (mvp.7): prompts climb rungs in order ---
+{
+  const { host, inputs } = mockHost({
+    reads: [submitted, approved],
+    auditRows: [passRow("acceptance: a")],
+  });
+  await workflow(host);
+  assert(inputs.audit.includes("rung 1 the quest and exp records"), "audit starts at rung 1 (records)");
+  assert(inputs.audit.includes("rung 2 committed code and git diff"), "audit climbs to rung 2 (diff)");
+  assert(inputs.audit.includes("rung 3 demos and tests, run"), "audit climbs to rung 3 (tests run)");
+  assert(inputs.audit.includes("rung 4 style"), "audit climbs to rung 4 (style)");
+  assert(inputs.audit.includes("bp3 harness find-tape --run-id <run-id> --entry"), "audit resolves pointers via find-tape --entry");
+  assert(inputs.audit.includes("rung 5b the whole tape, escalation only when blocked, confused, or lying"), "whole tape is named escalation only");
+  assert(inputs.audit.includes("zero whole-log reads"), "clean grade shows zero whole-log reads");
+  assert(inputs.audit.includes("rung: 1|2|3|4|5a|5b"), "rows name the rung that decided them");
+  assert(inputs.review.includes("find-tape --run-id"), "review is told the ladder");
+  assert(inputs.check.includes("find-tape --run-id"), "check is told the ladder");
+  assert(inputs.review.includes("unnamed whole-tape read"), "review gates unnamed whole-tape reads");
+  assert(inputs.check.includes("unnamed whole-tape read"), "check gates unnamed whole-tape reads");
+}
+
+function rungRow(name, rung, verdict, quote) {
+  return {
+    case: name,
+    rung: rung,
+    evidence: {
+      kind: "command",
+      ref: "bp3 harness find-tape --run-id R --entry E",
+      quote: quote || "entry E observed verbatim",
+    },
+    verdict: verdict,
+  };
+}
+
+// --- lying fixture: rungs 1-4 clean, rung 5a pointer contradicts ---
+{
+  const rows = [
+    rungRow("acceptance: records", "1", "pass"),
+    rungRow("acceptance: diff clean", "2", "pass"),
+    rungRow("acceptance: tests pass", "3", "pass"),
+    rungRow("acceptance: style", "4", "pass"),
+    rungRow("acceptance: claim holds", "5a", "fail", "entry E contradicts the claim"),
+  ];
+  const { host } = mockHost({ reads: [submitted, approved], auditRows: rows });
+  const result = await workflow(host);
+  assert(result.outcome === "needs_fix", "lying fixture blocks, got " + result.outcome);
+  assert(result.matrix[4].verdict === "fail", "pointer row stays fail");
+  assert(result.matrix[4].rung === "5a", "pointer row keeps rung 5a");
+  assert(result.matrix[4].evidence.ref.includes("find-tape --run-id"), "block cites the rung-5 pointer");
+}
+
+// --- clean fixture: decided at rungs 1-4, zero whole-log reads ---
+{
+  const rows = [
+    rungRow("acceptance: records", "1", "pass"),
+    rungRow("acceptance: diff clean", "2", "pass"),
+    rungRow("acceptance: tests pass", "3", "pass"),
+    rungRow("acceptance: style", "4", "pass"),
+  ];
+  const { host } = mockHost({ reads: [submitted, approved], auditRows: rows });
+  const result = await workflow(host);
+  assert(result.outcome === "approved", "clean fixture approves, got " + result.outcome);
+  assert(result.matrix.every((r) => r.rung !== "5b"), "clean trace shows zero whole-log reads");
+}
+
+// --- confused fixture: named whole-tape escalation is allowed ---
+{
+  const rows = [
+    rungRow("acceptance: records", "1", "pass"),
+    rungRow("acceptance: whole tape decides", "5b", "pass", "confused grade: rungs 1-5a undecided, whole tape read"),
+  ];
+  const { host } = mockHost({ reads: [submitted, approved], auditRows: rows });
+  const result = await workflow(host);
+  assert(result.matrix[1].verdict === "pass", "named escalation keeps its verdict");
+  assert(result.matrix[1].rung === "5b", "escalation row keeps rung 5b");
+  assert(result.outcome === "approved", "named confused escalation can decide, got " + result.outcome);
+}
+
+// --- unnamed whole-tape read never carries a grade ---
+{
+  const rows = [
+    rungRow("acceptance: records", "1", "pass"),
+    rungRow("acceptance: tape looked fine", "5b", "pass", "read the whole tape"),
+  ];
+  const { host } = mockHost({ reads: [submitted, approved], auditRows: rows });
+  const result = await workflow(host);
+  assert(result.matrix[1].verdict === "missing", "unnamed whole-tape pass downgraded to missing");
+  assert(result.outcome === "needs_fix", "unnamed whole-tape read blocks approval, got " + result.outcome);
+}
+
+// --- a rung outside the ladder is no rung ---
+{
+  const bogus = rungRow("acceptance: records", "9", "pass");
+  const { host } = mockHost({ reads: [submitted, approved], auditRows: [bogus] });
+  const result = await workflow(host);
+  assert(result.matrix[0].rung === null, "unknown rung coerced to null");
+  assert(result.matrix[0].verdict === "pass", "row still judged on its typed evidence");
+}
+
+// --- writer refused: no grade child starts (mvp.8) ---
+{
+  const { host, order } = mockHost({ reads: [submitted, approved], auditRows: [passRow("acceptance: a")], initFails: true });
+  const result = await workflow(host);
+  assert(result.outcome === "refused", "writer refusal refuses the grade, got " + result.outcome);
+  assert(order.join(",") === "init", "no grade child spawns after a refused InitRecord, got " + order.join(","));
+  assert(result.refusals.some((r) => r.includes("record-init")), "refusal names record-init");
 }
 
 if (failures > 0) process.exit(1);

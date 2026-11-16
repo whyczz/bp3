@@ -1,0 +1,473 @@
+tape init 2026-11-16T02:03:29Z run=20261116T020249Z-submit-muse-code-muse-wonder-1.0-c4
+total 8
+drwxr-xr-x@  3 whycz  staff   96 Nov 15 21:03 .
+drwxr-xr-x@ 17 whycz  staff  544 Nov 15 21:03 ..
+-rw-r--r--@  1 whycz  staff   88 Nov 15 21:03 tape.log
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-15
+---
+
+# bp3-supervisor-mvp-and-pi-muse-enablement
+
+> AUTO-RED-INK DRAFT — shadow decisions only. The
+> original quest is untouched until the owner adopts
+> this copy in a later red-ink session.
+
+## TL;DR
+
+Children are nondeterministic; their logs are not.
+Every harness writes a tape. This Quest
+builds a common lifecycle-derivation layer that
+finds a Run's tape, folds mechanical facts
+from it (with pid liveness where available), and
+produces proof without asking the child to witness
+itself. Muse keeps its native runtime as the
+completion owner and uses the layer passively.
+Pi, whose children are raw processes, additionally
+gets active supervision: spawn tracking, blocking
+watch, and a watchdog. Children produce work;
+supervision produces proof; the ledger produces
+state; the grader produces the grade.
+
+## ELI5
+
+A child agent says "I'm done" and sometimes lies,
+hangs, or dies quietly. Instead of trusting the
+child, we read the diary its harness kept anyway —
+every command, commit, refusal, and exit — and a
+deterministic reader works out what happened. Like
+database recovery replaying a write-ahead log:
+lifecycle is folded from the trace, never narrated
+by the worker.
+
+## Terms
+
+| Term | Meaning |
+|---|---|
+| `bp3 harness` | the CLI door (owner-settled, round 2): `init-check`, `supervisor`, `find-tape`, `watch`, `desk`. `BP3_HARNESS` stays env-only identity, never a verb |
+| init-check | startup probe verb: per harness, verify the tape source exists, the consumed fields are present and shaped as the adapter expects, and the adapter parses a sample. Emits `W_SUPERVISOR_BLIND` in `warnings[]` per failing harness; never blocks work |
+| engine selection | where a Run exists (`watch`, `find-tape`), the engine is derived from the run-id's InitRecord — never restated. Stated only where no Run exists yet (`supervisor`, `init-check`). Engine words: `muse-code`, `pi`. A stated engine contradicting the InitRecord is a usage error |
+| argv shape | identity is positional, decision inputs are flagged: `bp3 harness supervisor <quest> --engine muse-code`; `watch`/`find-tape` take `--run-id`. Every harness verb has a single-letter alias, door-scoped and tested in both spellings: `i`=init-check, `s`=supervisor, `f`=find-tape, `w`=watch, `d`=desk |
+| durations | the unit lives in the flag name, the value is a bare positive integer: `--silence-seconds`, `--timeout-seconds`, `--grace-seconds`. `0`, negatives, and suffixed values (`30m`) are usage errors |
+| supervisor | the one actor, two modes. Passive (muse-code): probe inputs, find evidence, fold lifecycle — never spawns or kills. Active (pi/raw processes): the control loop that also spawns, watches, and kills. Never does child work. ("sentinel" is dead; do not use it) |
+| monitor | not a component: the pid/process/tape senses the supervisor and watch poll |
+| watchdog | watch's enforcement reflex: silence budget, then SIGTERM -> SIGKILL |
+| tape | bp3's word for a harness's session log: the recorded stream of commands, tool results, usage, and exits the harness runtime writes anyway (write-ahead log is the metaphor; `tape` is the spelling in code, CLI, and docs) |
+| find-tape | lookup verb: run-id -> init record / session-id / tape path; reverse lookup must resolve uniquely or refuse |
+| watch | blocking verb on one Run: exit / tape growth / close, with timeout; sole TERM/KILL owner |
+| run derivation log | the sole persisted supervisor output per Run: `.jsonl` under `<git-common-dir>/bp3/run-lifecycle-derivations/`; supervisor-owned observation and lifecycle rows with source evidence pointers |
+| derived Run state | per-Run `.json` snapshot under `<git-common-dir>/bp3/run-lifecycle-derivations/`; an atomically replaced, deletable cache folded from the derivation log and current sources |
+| InitRecord | first derivation row, written by the launcher/supervisor before the child starts: run-id, harness, session-id if known, pid if live, log path if known, desk, start time, effective model/thinking. Code spelling: OCaml `init_record`; `SpawnRecord` is retired everywhere |
+| lifecycle | derived Run state (`init / active / finished / orphaned`), never a second truth; the `.json` file is only its materialized cache |
+| trace | the fold's output view: ordered mechanical facts for one Run |
+| outcome | why a watch/supervisor call stopped (`settled`, `watchdog_killed`, `timeout`, `human_gate`); distinct from lifecycle |
+| backtest | replaying the fold over stored tapes; a findings machine, not a gate |
+| grader | reviewer: judges artifacts first, parsed events second, raw tapes only when needed |
+| `W_SUPERVISOR_BLIND` | warnings-array value only: tape source missing or reshaped; work proceeds, observability degraded |
+
+Spellings sync with the canceled pi quest's
+QUEST.md contract section and the FSM: edge names,
+`E_*` codes, and run-id shape are adopted.
+`docs/engine-contract/` remains a to-build artifact,
+not an existing authority.
+
+## Design contract added by auto-red-ink
+
+### Owners
+
+| Engine | Completion/control owner | Lifecycle/proof owner | Experiment-state owner |
+|---|---|---|---|
+| muse | workflow runtime's natural completion | supervisor fold over tapes + spawn/pid evidence where available | `bp3 q` ledger/FSM |
+| pi/raw process | supervisor + watch | supervisor fold over tapes + spawn/pid evidence | `bp3 q` ledger/FSM |
+
+Muse subagents therefore do not get a redundant
+process babysitter. The supervisor derives events for
+audit, recovery, and backtesting; it does not
+compete with Muse's runtime. Pi has no such
+runtime, so the supervisor owns spawn/watch/kill.
+
+### Owners / responsibility
+
+| Actor | Responsibility |
+|---|---|
+| experiment agent | work and artifacts |
+| supervisor | proof of what mechanically happened |
+| `bp3 q` ledger | legal experiment state |
+| grader | grade |
+
+### Grader evidence ladder
+
+In order; each rung only when the ones above leave
+the verdict undecided:
+
+1. The quest and exp records (what was asked).
+2. Committed code and git diff at the exact commit.
+3. Demos and tests, run — not read about.
+4. Style (code-writer/code-reviewer discipline).
+5. Tape, via derivation pointers first
+   (`find-tape --entry`); the whole tape only
+   when blocked, confused, or the work looks like it
+   is lying. Escalation is allowed; defaulting to
+   rung 5 is not.
+
+### Lifecycle derivation
+
+`init` = InitRecord only. `active` =
+InitRecord, no finish evidence, pid alive where a
+pid exists, and freshness within the named budget,
+where `freshness = max(tape mtime, latest
+derivation-observation timestamp)`. `finished` requires exit
+observed (or a settle row) plus the harness's finish
+evidence, and no live pid: a live pid is never
+`finished`, whatever the tape tail says, and a row
+alone never finishes a live child. Finish evidence
+is per harness, proved on the real corpora
+(followup.2), and only the last whole tape entry can
+carry it:
+
+| Harness | Finish evidence (last whole entry) | Exit entry |
+|---|---|---|
+| `muse-code` | `session.end` entry (close marker) | runtime `terminal` entry — a child tape ends here, with no close marker |
+| `pi` | `session_closed` entry, or a final assistant entry with stopReason `stop` | process exit (pid dead); pi tapes never close |
+
+A torn final tape entry (unterminated or
+unparseable) is evidence of nothing: it finishes no
+Run and is reported as `W_TORN_TAIL`.
+`orphaned` = stale and pid dead/absent.
+Derivation uses files plus live pid probes, never
+an in-memory live set, so a restarted reader does
+not orphan every active child.
+
+Blindness adds no fifth lifecycle word. A blind
+probe appends an observation row carrying
+`W_SUPERVISOR_BLIND` and empty evidence data (no
+pointer, no content, nothing fabricated), so the
+log shows the gap instead of hiding it; lifecycle
+keeps deriving from pid + InitRecord meanwhile.
+
+### Simplification rule
+
+No component may introduce another persisted
+per-Run store. Normalized run events are an internal
+record type passed between adapters, fold, and
+verdicts — not a file family. mvp.5 owns deleting
+the stores and duplicate writers this replaces.
+
+### Local derived-log layout
+
+All paths resolve from `git rev-parse
+--git-common-dir`, never from a worktree's `.git`
+file. Linked desks therefore share the same local
+store while the store stays outside every worktree
+and out of git history:
+
+```text
+<git-common-dir>/bp3/
+  run-lifecycle-derivations/<run-id>.jsonl  supervisor observations + lifecycle
+  run-lifecycle-derivations/<run-id>.json   current derived state cache
+```
+
+There is no target `run-events` store. Existing
+per-Run event logs from earlier work are read-only
+migration inputs for the supervisor, never new write
+targets.
+
+The derivation row names its source evidence as a
+pointer — tape path, the entry's own id
+(muse `uuid`, pi `id`), byte range, size/mtime/digest,
+pid probe — never raw session content. Consumers
+(grader, conductor, debugging human) read the cited
+entries only; nobody ingests a whole tape.
+Pointers resolve mechanically, never by hand:
+`bp3 harness find-tape --run-id <R> --entry
+<entry-id>` verifies the digest, then returns that
+one entry — widened by `--before-entries <n>` /
+`--after-entries <n>` (non-negative integers,
+default 0) when context is needed. Owned by mvp.2. The `.json`
+snapshot records the same input fingerprints and is
+written by temp-file + atomic rename. Readers use
+it only when those fingerprints still match; graders
+may force a refold. Deleting a `.json` snapshot must
+change nothing except speed.
+
+### CLI verdict contract
+
+Long-running verbs stream NDJSON lifecycle-change
+rows on stdout and end with exactly one normal JSON
+verdict. Human tick prose goes to stderr or a
+table rendering. Final verdicts split the fate of
+the Run (`outcome`, `settled`, `lifecycle`) from
+failure of the call itself (`{ok:false,error:{code,
+facts,guidance}}`). `W_SUPERVISOR_BLIND` is only a
+`warnings[]` value, never an outcome or error.
+
+=== exp dir ===
+EXPERIMENT.md
+runs
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs:
+20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1
+20261116T005947Z-audit-muse-code-muse-wonder-1.0-c1
+20261116T010251Z-audit-muse-code-muse-wonder-1.0-c1
+20261116T010251Z-check-muse-code-muse-wonder-1.0-c1
+20261116T010251Z-review-muse-code-muse-wonder-1.0-c1
+20261116T010915Z-submit-muse-code-muse-wonder-1.0-c2
+20261116T011324Z-audit-muse-code-muse-wonder-1.0-c2
+20261116T011324Z-check-muse-code-muse-wonder-1.0-c2
+20261116T011324Z-review-muse-code-muse-wonder-1.0-c2
+20261116T012226Z-submit-muse-code-muse-wonder-1.0-c3
+20261116T012356Z-audit-muse-code-muse-wonder-1.0-c3
+20261116T012738Z-audit-muse-code-muse-wonder-1.0-c3
+20261116T012738Z-check-muse-code-muse-wonder-1.0-c3
+20261116T012738Z-review-muse-code-muse-wonder-1.0-c3
+20261116T020249Z-submit-muse-code-muse-wonder-1.0-c4
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1:
+flappy.html
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005947Z-audit-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T010251Z-audit-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T010251Z-check-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T010251Z-review-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T010915Z-submit-muse-code-muse-wonder-1.0-c2:
+flappy.html
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T011324Z-audit-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T011324Z-check-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T011324Z-review-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T012226Z-submit-muse-code-muse-wonder-1.0-c3:
+flappy.html
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T012356Z-audit-muse-code-muse-wonder-1.0-c3:
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T012738Z-audit-muse-code-muse-wonder-1.0-c3:
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T012738Z-check-muse-code-muse-wonder-1.0-c3:
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T012738Z-review-muse-code-muse-wonder-1.0-c3:
+notes.md
+tape.log
+
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T020249Z-submit-muse-code-muse-wonder-1.0-c4:
+tape.log
+=== exp.md ===
+cat: .bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/exp.md: No such file or directory
+---
+date: 2026-11-15
+quest: ../QUEST.md
+exp: dogfood.1
+status: proposed
+---
+
+# dogfood.1 - muse-toy-quest: flappy bird under supervision
+
+## TL;DR
+
+Live proof on muse: a toy quest — build a flappy
+bird demo in three.js — driven by subagents while
+`bp3 harness supervisor` watches. The toy exp
+travels todo -> landed with derived lifecycle, no
+LLM polling, no witness rituals in child briefs.
+
+## Demo (design trace)
+
+```text
+supervisor --quest toy-flappy
+  author run: WAL grows, commits, submit -> settled
+  grade runs: parallel, watched -> landed
+scorecard: warnings only if a Run misbehaves
+```
+
+## Diagram
+
+```text
+toy quest ─► supervisor loop ─► subagents (author/grade/land)
+                  │ watch/fold        └─► three.js flappy demo
+                  ▼
+             exp_fin, traces recorded
+```
+
+## Pseudocode
+
+```python
+drive(toy_quest)            # induct, supervisor as mechanism (mvp.4)
+assert exp.state == landed and all_runs_derived()
+```
+
+| Field | Value |
+|---|---|
+| Intent | Phase C live demo: supervisor + muse + real subagent work |
+| Lane | standard |
+| Output | flappy demo artifact from the exp Run; supervisor derivation traces for that Run |
+| Depends on | mvp.1-mvp.6, mvp.8 (InitRecord writer); findings disposition from backtest.1 |
+
+## Acceptance (fails today: supervisor not the mechanism)
+
+| Case | Expected |
+|---|---|
+| demo run (owner edit: demo as an experiment, not a full induct) | the exp's own submit Run produces the flappy demo artifact; the supervisor derives that Run's lifecycle from its tape (`init`/`active`/`finished`) with derivation pointers. No toy quest, no nested induct — nested quests/inducts are out of scope for this quest (owner ruling) |
+| child briefs | zero prefix/witness instructions needed |
+| demo artifact | flappy bird page exists and opens |
+| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
+
+## Acceptance test (goal block)
+
+- **Objective:** the supervisor supervises real
+  work, not fixtures.
+- **Prove by:** the exp Run itself + artifact.
+- **Done when:** the submit Run's lifecycle is
+  derived by the supervisor; artifact in this
+  exp's runs.
+
+## Tests
+
+quest-level functional drive (this exp is the
+test); env-set run-id is stamped by bp3 into the
+submit verdict and ledger line (the mvp.1
+mechanism). Known cases: clean drive to `finished`;
+seeded blind Run (W_SUPERVISOR_BLIND logged, empty
+data, drive proceeds — feeds the U8 veto call);
+seeded hung child in passive mode is reported,
+never killed by bp3. Property-based: no drive step
+requires an LLM poll — tick count is wall-clock
+bounded. Demos: drive observed; flappy page smoke.
+
+## Context
+
+First live gate for the whole design. Findings
+from backtest.1 land first if they touch the drive path.
+
+## Auto-red-ink addendum
+
+Muse's runtime drives; the supervisor only derives.
+Add the owner decision row: seed a blind-log Run,
+then record `veto | warn-only` for supervisor
+warnings at landing. If any backtest.1 finding is marked
+"fixed", a findings-fix step precedes this drive.
+Grader follows the evidence ladder (code, parsed
+events, raw log only on discrepancy). Hardening:
+[TEST-HARDENING.md](../../TEST-HARDENING.md)
+(required Muse integration drive).
+=== ledger tail ===
+cat: .bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/ledger.jsonl: No such file or directory
+=== quest exps ===
+exp-backtest-1-muse
+exp-backtest-2-pi
+exp-dogfood-1-muse-toy-quest
+exp-dogfood-2-pi-supervisor-rethink
+exp-dogfood-3-pi-toy-quest
+exp-followup-1-derivation-concurrency
+exp-followup-2-finish-evidence
+exp-landing-1-landing-wrapup
+exp-mvp-1-supervisor-cli
+exp-mvp-2-find-tape
+exp-mvp-3-watch-run
+exp-mvp-4-supervisor-mechanism
+exp-mvp-5-delete-redundant
+exp-mvp-6-harness-desk-api
+exp-mvp-7-grader-evidence-ladder
+exp-mvp-8-muse-initrecord-writer
+=== find ledger/state ===
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/QUEST.md
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/TEST-HARDENING.md
+.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/DECISION-RECORD.md
+=== git status ===
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/runs/20261116T003423Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+=== git log ===
+d010829 chore(dogfood.1): record the owner's demo-as-experiment scope
+c7437b1 fix(induct): record-init carries the tape pointer, init prompt pins the desk
+9f7f5a7 feat(dogfood.1): three.js flappy demo in c3 run folder
+0b53ace chore(dogfood.1): c2 run tape tail
+001bbaa feat(dogfood.1): drop first-command prefix ritual from child briefs
+=== prior c3 flappy ===
+total 24
+drwxr-xr-x@  5 whycz  staff   160 Nov 15 20:23 .
+drwxr-xr-x@ 17 whycz  staff   544 Nov 15 21:03 ..
+-rw-r--r--@  1 whycz  staff  3734 Nov 15 20:23 flappy.html
+-rw-r--r--@  1 whycz  staff   940 Nov 15 20:23 notes.md
+-rw-r--r--@  1 whycz  staff   173 Nov 15 20:23 tape.log
+# Run notes — exp-dogfood-1-muse-toy-quest c3 (muse)
+
+## What was built
+
+- `flappy.html` in this run folder: the three.js Flappy Bird demo (same `flappy` spelling as c1/c2), so the artifact plus traces live in this exp's `runs/` as the exp asks. Module script extracted and verified with `node --check` (pass).
+- Child-brief fix from c2 persists: `tapePreamble` states `BP3_RUN_ID` and friends arrive via environment and `bp3` stamps them into verdicts and ledger lines; no `Prefix your FIRST` ritual remains. `./test/induct.sh`: all three ok.
+
+## Lessons
+
+- The author child's edge is `submit` (`todo -> submitted`); `full drive` to landed/`exp_fin` is owned by grade and land steps, so this run does not claim it.
+- Verification is static for the demo: no browser was opened, so `page opens` remains for a grader to confirm visually.
+- Pre-existing dirty files from other exps were left untouched; only this run's files were committed.
+=== bp3 help ===
+{"ok":true,"quest":"2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement","exp":"exp-dogfood-1-muse-toy-quest","state":"todo","fin":null,"cycle":4,"commit":"9f7f5a7d8cb3fc652fed0a5e2d691120e2538f00","legal_edges":["submit","block","delete"],"changes":[{"change":"+","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T012226Z-submit-muse-code-muse-wonder-1.0-c3/flappy.html"},{"change":"+","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T012226Z-submit-muse-code-muse-wonder-1.0-c3/notes.md"},{"change":"+","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T012226Z-submit-muse-code-muse-wonder-1.0-c3/tape.log"}]}
+=== git log c3 commit ===
+d010829 chore(dogfood.1): record the owner's demo-as-experiment scope
+c7437b1 fix(induct): record-init carries the tape pointer, init prompt pins the desk
+9f7f5a7 feat(dogfood.1): three.js flappy demo in c3 run folder
+0b53ace chore(dogfood.1): c2 run tape tail
+001bbaa feat(dogfood.1): drop first-command prefix ritual from child briefs
+80a8f65 feat(dogfood.1): three.js flappy demo in run folder
+156a609 feat(harness): pi backtest replay with usage fold (backtest.2)
+b6d7006 fix(harness): bounded 40-hex scan in extract_shas (backtest.1 c2)
+=== status ===
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/runs/20261116T003423Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+copied flappy.html bytes=    3734
+extracted 3010
+node --check PASS
+total 56
+drwxr-xr-x@  4 whycz  staff    128 Nov 15 21:03 .
+drwxr-xr-x@ 17 whycz  staff    544 Nov 15 21:03 ..
+-rw-r--r--@  1 whycz  staff   3734 Nov 15 21:03 flappy.html
+-rw-r--r--@  1 whycz  staff  24190 Nov 15 21:03 tape.log
+# Run notes — exp-dogfood-1-muse-toy-quest c4 (muse)
+
+## What was built
+
+- `flappy.html` in this run folder: the three.js Flappy Bird demo (same `flappy` spelling as c1–c3), so the artifact plus traces live in this exp's `runs/` as the exp asks. Module script extracted and verified with `node --check` (pass).
+
+## Lessons
+
+- The author child's edge is `submit` (`todo -> submitted`); `full drive` to landed/`exp_fin` is owned by grade and land steps, so this run does not claim it.
+- Verification is static for the demo: no browser was opened, so `page opens` remains for a grader to confirm visually.
+- Pre-existing dirty files from other exps were left untouched; only this run's files were committed.

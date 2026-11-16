@@ -58,6 +58,7 @@ def supervisor(quest, timeout):
 | toy quest, all settle | loop exits `done` without LLM polling |
 | child never settles | timeout exit, orphans named |
 | blocked exp appears | loop exits at human gate with inbox |
+| env-set run-id (owner amendment, cycle 2) | `BP3_RUN_ID` arrives via environment, never a child-typed command prefix: bp3 reads it on `q` invocations and stamps it into the verdict JSON and the ledger line (same env channel as `BP3_HARNESS`/`BP3_MODEL`). Grade evidence for the Run is that stamped ledger line; the hooks registry witness does not gate this exp — InitRecord (mvp.8) and the supervisor fold own proof |
 
 ## Acceptance test (goal block)
 
@@ -75,6 +76,10 @@ exit-class mapping (RC4): each outcome maps to the
 binary's existing exit classes — settled=0,
 watchdog_killed=terminal, timeout=retryable,
 human_gate=needs-human — asserted per outcome.
+env run-id: with `BP3_RUN_ID` set, a `bp3 q`
+verdict and its ledger line carry that run-id;
+unset, the field is absent (never guessed) with
+the existing identity warning.
 naming gate: grep new code/tests for retired
 lifecycle spellings (`SpawnRecord`, `spawned`,
 `running`, lifecycle `settled`) and require the

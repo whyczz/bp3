@@ -44,29 +44,33 @@ assert exp.state == landed and all_runs_derived()
 |---|---|
 | Intent | Phase C live demo: supervisor + muse + real subagent work |
 | Lane | standard |
-| Output | toy quest landed; flappy demo artifact; drive traces |
+| Output | flappy demo artifact from the exp Run; supervisor derivation traces for that Run |
 | Depends on | mvp.1-mvp.6, mvp.8 (InitRecord writer); findings disposition from backtest.1 |
 
 ## Acceptance (fails today: supervisor not the mechanism)
 
 | Case | Expected |
 |---|---|
-| full drive | toy exp `exp_fin`; every Run lifecycle derived |
+| demo run (owner edit: demo as an experiment, not a full induct) | the exp's own submit Run produces the flappy demo artifact; the supervisor derives that Run's lifecycle from its tape (`init`/`active`/`finished`) with derivation pointers. No toy quest, no nested induct — nested quests/inducts are out of scope for this quest (owner ruling) |
 | child briefs | zero prefix/witness instructions needed |
 | demo artifact | flappy bird page exists and opens |
+| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
 
 ## Acceptance test (goal block)
 
 - **Objective:** the supervisor supervises real
   work, not fixtures.
-- **Prove by:** the drive itself + artifact.
-- **Done when:** toy landed; traces + artifact in
-  this exp's runs.
+- **Prove by:** the exp Run itself + artifact.
+- **Done when:** the submit Run's lifecycle is
+  derived by the supervisor; artifact in this
+  exp's runs.
 
 ## Tests
 
 quest-level functional drive (this exp is the
-test). Known cases: clean drive to `finished`;
+test); env-set run-id is stamped by bp3 into the
+submit verdict and ledger line (the mvp.1
+mechanism). Known cases: clean drive to `finished`;
 seeded blind Run (W_SUPERVISOR_BLIND logged, empty
 data, drive proceeds — feeds the U8 veto call);
 seeded hung child in passive mode is reported,

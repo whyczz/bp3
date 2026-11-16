@@ -55,6 +55,7 @@ def step(exp):
 | toy exp via supervisor | travels todo -> landed; lifecycle from fold |
 | child never told any prefix | witnessed anyway (WAL-derived) |
 | parallel Runs | per-Run files, zero shared-dict writes (legacy mtime static) |
+| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
 
 ## Acceptance test (goal block)
 
@@ -66,7 +67,9 @@ def step(exp):
 
 ## Tests
 
-known cases: Acceptance table; `make check` suites.
+known cases: Acceptance table; `make check` suites;
+env-set run-id is stamped by bp3 into the submit
+verdict and ledger line (the mvp.1 mechanism).
 property-based: parallel emits lose zero rows.
 Demos: toy drive observed.
 

@@ -1,10 +1,17 @@
 // induct-grade: judge one submitted exp on its bound commit.
 // Installed to .agents/workflows/induct-grade.js by
-// `bp3 skills install`. Audit child builds the typed evidence
-// matrix (acceptance rows + adherence rows, no edges), then
+// `bp3 skills install`. The grade climbs the evidence ladder
+// (mvp.7): records, diff, tests run, style, then tape via
+// derivation pointers (find-tape --entry); the whole tape is
+// escalation only, blocked/confused/lying and named. Audit
+// child builds the typed evidence matrix (acceptance rows +
+// adherence rows, no edges), then
 // review and check children run in parallel on the exact bound
 // commit and call their verdict edges directly. Grade children
-// never edit the work. Returns {outcome, matrix, run_ids,
+// never edit the work. As the named InitRecord writer (mvp.8)
+// this launcher records each child's InitRecord via
+// `bp3 harness record-init` before that child spawns; no child
+// writes its own proof. Returns {outcome, matrix, run_ids,
 // refusals}; replay on the same commit is safe: the audit is
 // read-only and re-cast verdicts bind the same commit.
 // Args are supplied by the calling induct skill as
@@ -75,6 +82,42 @@ function deferralNamesOwner(text) {
   return /defer/i.test(text) && /\bexp[\s-]*\d+\b/i.test(text);
 }
 
+// The evidence ladder (QUEST.md contract, mvp.7), in order;
+// each rung only when the ones above leave the verdict
+// undecided. Rung 5 splits: 5a resolves derivation pointers
+// one entry at a time, 5b reads the whole tape and is
+// escalation only.
+const LADDER_RUNGS = ["1", "2", "3", "4", "5a", "5b"];
+const LADDER_TEXT =
+  "Climb the evidence ladder in order, each rung only when " +
+  "the ones above leave the verdict undecided: rung 1 the " +
+  "quest and exp records (what was asked); rung 2 committed " +
+  "code and git diff at the exact commit; rung 3 demos and " +
+  "tests, run — not read about; rung 4 style " +
+  "(code-writer/code-reviewer discipline); rung 5a tape via " +
+  "derivation pointers first: resolve each pointer with " +
+  "`bp3 harness find-tape --run-id <run-id> --entry " +
+  "<entry-id>` (digest-verified; --before-entries/" +
+  "--after-entries widen only for context) and cite the " +
+  "pointer in the row; rung 5b the whole tape, escalation " +
+  "only when blocked, confused, or lying, and named in the " +
+  "verdict. A grade decided at rungs 1-4 shows zero " +
+  "whole-log reads in its matrix; defaulting to rung 5 is " +
+  "not a grade. ";
+
+function rungOf(row) {
+  if (!row || row.rung === undefined || row.rung === null) return null;
+  const rung = String(row.rung);
+  return LADDER_RUNGS.indexOf(rung) >= 0 ? rung : null;
+}
+
+// Whole-tape escalation is allowed only when it names its
+// reason, like a deferral names its owner: a rung 5b row
+// naming none of blocked/confused/lying is no evidence.
+function escalationNamesReason(text) {
+  return /\b(blocked|confused|lying)\b/i.test(text);
+}
+
 // A row without typed evidence never carries pass or
 // deferred; a verdict outside pass|fail|missing|deferred is
 // no verdict at all. Row order never changes the outcome
@@ -106,7 +149,16 @@ function normalizeRow(row, i) {
       verdict = "deferred";
     }
   }
-  return { case: name, evidence: evidence, verdict: verdict };
+  const rung = rungOf(row);
+  if (
+    rung === "5b" &&
+    (verdict === "pass" || verdict === "deferred") &&
+    !escalationNamesReason(name + " " + evidence.quote)
+  ) {
+    // An unnamed whole-tape read never carries a grade.
+    verdict = "missing";
+  }
+  return { case: name, evidence: evidence, verdict: verdict, rung: rung };
 }
 
 function normalizeMatrix(raw) {
@@ -120,6 +172,7 @@ function normalizeMatrix(raw) {
           quote: "audit returned no matrix",
         },
         verdict: "missing",
+        rung: null,
       },
     ];
   }
@@ -218,10 +271,10 @@ export default async function workflow(host) {
   }
 
   function envPreset(edge, cycle) {
-    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
-    // as this stage's run folder. Hooks cannot inherit env from a
-    // child, but PreToolUse payloads carry the full command text,
-    // so the first prefixed command binds session -> run.
+    // Env-set identity: BP3_RUN_ID carries the same id as this
+    // stage's run folder. `bp3` reads it from the environment
+    // and stamps it into verdicts and ledger lines, so no
+    // first-command prefix binds the session.
     return (
       "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
       "-c" + String(cycle) + " BP3_QUEST=" + quest + " BP3_EXP=" +
@@ -229,13 +282,52 @@ export default async function workflow(host) {
     );
   }
 
+  function runIdOf(edge, cycle) {
+    return ts + "-" + edge + "-" + harness + "-" + model +
+      "-c" + String(cycle);
+  }
+
+  // The named InitRecord writer (mvp.8): this launcher, before
+  // each child spawns. The child never writes its own proof; a
+  // refused write means that child never starts.
+  async function recordInit(edge, cycle) {
+    const cmd =
+      envPreset(edge, cycle) + "./bin/bp3 harness record-init" +
+      " --run-id " + runIdOf(edge, cycle) +
+      " --harness " + harness + " --quest " + quest +
+      " --exp " + exp + " --model " + model +
+      (desk ? " --desk " + desk : "");
+    const result = await host.agent({
+      label: "init " + exp,
+      input:
+        deskNote +
+        "Run exactly `" + cmd + "` from the quest worktree if " +
+        "one is named above, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const v = parseVerdict(result);
+    if (!v || v.ok !== true) {
+      refusals.push(
+        "record-init refused before the " + edge + " child: " +
+        errorText(result)
+      );
+      return false;
+    }
+    return true;
+  }
+
   function tapePreamble(edge, cycle) {
     const folder = runFolder(edge, cycle, harness + "-" + model);
     return (
       "Your run folder is `" + folder + "` under `" + expDir +
-      "/runs/`. Prefix your FIRST shell command with `" +
-      envPreset(edge, cycle) + "` (hooks witness this prefix " +
-      "to bind your session to this run). First check whether that concrete run " +
+      "/runs/`. `BP3_RUN_ID`, `BP3_QUEST`, `BP3_EXP`, " +
+      "`BP3_HARNESS`, and `BP3_MODEL` arrive via environment " +
+      "and `bp3` stamps them into its verdicts and ledger " +
+      "lines, so no first-command prefix is needed. First check whether that concrete run " +
       "folder already exists: if it does, stop immediately, do " +
       "not overwrite or reuse it, and return a JSON object " +
       '{"ok":false,"error":{"code":"E_RUN_EXISTS"}} describing ' +
@@ -269,6 +361,10 @@ export default async function workflow(host) {
     return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
   }
 
+  if (!(await recordInit("audit", before.cycle))) {
+    return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+  }
+
   // Audit: typed evidence matrix, read-only, no state edges.
   const audit = await host.agent({
     label: "audit " + exp,
@@ -279,11 +375,18 @@ export default async function workflow(host) {
       " Read the exp's EXPERIMENT.md first. Build the evidence " +
       "matrix: one row per Acceptance case (acceptance rows), plus " +
       "adherence rows for the build Run that produced this commit " +
-      "(submit edge called by the child directly, env preset on " +
-      "the first command, clean commit, tape.log and notes.md " +
-      "present in its run folder, no hand-edited state). Every row " +
-      "is {case, evidence: {kind: file|command|ledger|grep, ref, " +
-      "quote}, verdict: pass|fail|missing|deferred}: quote observed " +
+      "(submit edge called by the child directly, env-set run-id " +
+      "stamped by bp3, clean commit, tape.log and notes.md " +
+      "present in its run folder, no hand-edited state). " + LADDER_TEXT +
+      "Every row " +
+      "is {case, rung: 1|2|3|4|5a|5b, evidence: {kind: file|command|ledger|grep, ref, " +
+      "quote}, verdict: pass|fail|missing|deferred}: name the rung " +
+      "that decided the row; a rung 5a row cites its pointer as " +
+      "{kind: command, ref: the find-tape --entry call, quote: " +
+      "the resolved entry verbatim}; a rung 5b row names its " +
+      "escalation (blocked, confused, or lying) in its case or " +
+      "quote, and an unnamed whole-tape read is downgraded to " +
+      "missing. Quote observed " +
       "evidence verbatim; a gated case with no artifact is verdict " +
       "missing, never pass, and free-string evidence is not a row. " +
       "Deferred is a disposition, not a failure: when an " +
@@ -295,17 +398,19 @@ export default async function workflow(host) {
       "deferral line verbatim}); never mark such a case missing " +
       "or pass for lacking this exp's artifact. A deferral that " +
       "names no owning exp is not deferred: emit missing. For " +
-      "the adherence row `env preset on the first command`, quote " +
-      "hook evidence from the run registry at " +
-      "`.git/bp3-run-registry.json` (resolve the git dir with " +
-      "`git rev-parse --absolute-git-dir` when `.git` is a file): " +
-      "find the entry whose run_id is the build Run that produced " +
-      "this commit (the submit run folder under this exp's runs/) " +
-      "and quote its run_settled and usage_recorded events (its " +
-      "emitted list and settled flag) as {kind: ledger, ref: the " +
-      "registry entry for that run id, quote: the entry verbatim}. " +
-      "Hooks write the registry in the git dir, never under " +
-      "`.bp3/`; do not look for hook evidence there and never " +
+      "the adherence row `env-set run-id`, quote " +
+      "the bp3-stamped ledger line for the submit edge (the mvp.1 " +
+      "mechanism: BP3_RUN_ID arrives via environment and bp3 stamps " +
+      "it into the verdict and the ledger line): find the submit " +
+      "line whose run_id is the build Run that produced this commit " +
+      "(the submit run folder under this exp's runs/) and quote it " +
+      "as {kind: ledger, ref: the exp ledger submit line, quote: " +
+      "the line verbatim}. Corroborate from the per-Run derivation " +
+      "log at `<git-common-dir>/bp3/run-lifecycle-derivations/" +
+      "<run-id>.jsonl` (resolve the common dir with " +
+      "`git rev-parse --git-common-dir`) when it exists. The hooks " +
+      "registry witness does not gate this row; outside a named " +
+      "rung 5b escalation, never read the whole tape or " +
       "parse tape.log into facts. Judge only; do " +
       "not edit any file and do not call any `bp3 q u` update edge. " +
       "Write the matrix verbatim as JSON in your run folder's " +
@@ -331,7 +436,13 @@ export default async function workflow(host) {
     "Rows with verdict deferred are not gated by this exp (each " +
     "names the exp that owns it) and never block: ignore them. " +
     "Any gated row with verdict fail or missing means the work " +
-    "is not correct: cast the negative verdict. ";
+    "is not correct: cast the negative verdict. " + LADDER_TEXT +
+    "A rung 5a fail row blocks citing its pointer: cast the " +
+    "negative verdict. A rung 5b row is evidence only when it " +
+    "names its escalation (blocked, confused, or lying); an " +
+    "unnamed whole-tape read, or a clean grade whose matrix " +
+    "shows a whole-log read it did not need, is not correct: " +
+    "cast the negative verdict. ";
   const reviewPrompt = deskNote +
     "You are the review child for exp `" + exp + "` of quest `" +
     quest + "`, currently in state `" + before.state + "` at cycle " +
@@ -368,6 +479,10 @@ export default async function workflow(host) {
     "return a verdict for the parent to relay. Reply with " +
     "only a JSON object {ok, run_id, commit, verdict} where " +
     "verdict is the JSON printed by the check call.";
+  if (!(await recordInit("review", before.cycle)) ||
+      !(await recordInit("check", before.cycle))) {
+    return { exp: exp, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
+  }
   const stageResults = await host.parallel([
     { label: "review " + exp, input: reviewPrompt },
     { label: "check " + exp, input: checkPrompt },

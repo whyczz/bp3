@@ -1,0 +1,926 @@
+drwxr-xr-x@ 2 whycz  staff  64 Nov 15 19:35 docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/runs/20261116T003423Z-submit-muse-code-muse-wonder-1.0-c1
+run folder created
+=== git status ===
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+=== git log -5 ===
+b6d7006 fix(harness): bounded 40-hex scan in extract_shas (backtest.1 c2)
+d7f0463 bp3: exp-backtest-1-muse
+135b15c fix(harness): derive pi exit in fold_run_file from dead pid (followup.2 c2)
+dac90d4 feat(harness): per-harness finish evidence, tail-scoped (followup.2)
+7c32251 docs(derivation-concurrency): env-set run-id acceptance row (followup.1)
+=== bp3 q r ===
+{"ok":true,"quest":"2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement","state":"proposed","exps":[{"exp":"exp-backtest-1-muse","state":"landed","fin":"exp_fin","cycle":2,"commit":"b6d70067d646f006ea27a6b5b656080a93d4137f","legal_edges":[],"changes":[{"change":"+","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/backtest.json"},{"change":"+","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/findings.md"},{"change":"+","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/notes.md"},{"change":"+","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/tape.log"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"test/harness.sh"}]},{"exp":"exp-backtest-2-pi","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null},{"exp":"exp-dogfood-1-muse-toy-quest","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null},{"exp":"exp-dogfood-2-pi-supervisor-rethink","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null},{"exp":"exp-dogfood-3-pi-toy-quest","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null},{"exp":"exp-followup-1-derivation-concurrency","state":"landed","fin":"exp_fin","cycle":1,"commit":"8ea4500056d28a59b8b92dee97fcd91ea2381942","legal_edges":[],"changes":[{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"test/harness.sh"}]},{"exp":"exp-followup-2-finish-evidence","state":"landed","fin":"exp_fin","cycle":2,"commit":"135b15c6723a6b9ae4c4005b874aca16ba5983d9","legal_edges":[],"changes":[{"change":"u","path":"src/quest/harness.ml"}]},{"exp":"exp-landing-1-landing-wrapup","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null},{"exp":"exp-mvp-1-supervisor-cli","state":"landed","fin":"exp_fin","cycle":2,"commit":"4fc0cc4de375d13393f85be87e358aebfbeb47c3","legal_edges":[],"changes":[{"change":"u","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-mvp-1-supervisor-cli/EXPERIMENT.md"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"u","path":"test/q.sh"}]},{"exp":"exp-mvp-2-find-tape","state":"landed","fin":"exp_fin","cycle":2,"commit":"d4d8aff1305f52ae44b91161ab6f6b30290d3cb0","legal_edges":[],"changes":[{"change":"u","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-mvp-2-find-tape/EXPERIMENT.md"}]},{"exp":"exp-mvp-3-watch-run","state":"landed","fin":"exp_fin","cycle":1,"commit":"bff373ff1288a5a8250762cd0c25393738bf3092","legal_edges":[],"changes":[{"change":"u","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-mvp-3-watch-run/EXPERIMENT.md"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"test/harness.sh"}]},{"exp":"exp-mvp-4-supervisor-mechanism","state":"landed","fin":"exp_fin","cycle":1,"commit":"fc45070012e83880eea526dee0bb6cf51aa7c288","legal_edges":[],"changes":[{"change":"u","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-mvp-4-supervisor-mechanism/EXPERIMENT.md"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"test/harness.sh"}]},{"exp":"exp-mvp-5-delete-redundant","state":"landed","fin":"exp_fin","cycle":1,"commit":"3b8cb47e67ae74a47f351adc0a70922a0cf057e3","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-mvp-5-delete-redundant/EXPERIMENT.md"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/induct-grade.test.mjs"}]},{"exp":"exp-mvp-6-harness-desk-api","state":"landed","fin":"exp_fin","cycle":1,"commit":"b5897cda3e1892d59317915b1293ac87cfa35417","legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct-quest-no-human/SKILL.md"},{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"u","path":".claude/skills/induct-quest-no-human/SKILL.md"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/induct-quest-no-human/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":"bin/bp3"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-mvp-6-harness-desk-api/EXPERIMENT.md"},{"change":"u","path":"skills/induct-quest-no-human/SKILL.md"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"u","path":"src/quest/worktree.ml"},{"change":"u","path":"test/completion.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/skills.sh"},{"change":"u","path":"test/worktree.sh"}]},{"exp":"exp-mvp-7-grader-evidence-ladder","state":"landed","fin":"exp_fin","cycle":1,"commit":"cc1b6866197f8e1d101a07dad88afc5cff537e4d","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-mvp-8-muse-initrecord-writer/EXPERIMENT.md"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"test/induct-grade.test.mjs"}]},{"exp":"exp-mvp-8-muse-initrecord-writer","state":"landed","fin":"exp_fin","cycle":1,"commit":"a770bd616ed31d9644345a38c55675845a90df85","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":".agents/workflows/quest-land.js"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"skills/induct/workflows/quest-land.js"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/quest-land.test.mjs"}]}],"rollup":"active","fin":null,"inbox":[]}
+=== diff EXPERIMENT.md ===
+diff --git a/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md b/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+index 0842cd0..5a2a8f5 100644
+--- a/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
++++ b/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+@@ -50,6 +50,7 @@ for s in corpus("pi"):
+ | five incidents replayed | each derived or explained as a finding |
+ | pi WAL quirks | adapter gaps listed with file/line evidence |
+ | findings | proposed fix targets named (dispatcher, adapter, contract) |
++| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
+ 
+ ## Acceptance test (goal block)
+ 
+@@ -61,7 +62,9 @@ for s in corpus("pi"):
+ 
+ ## Tests
+ 
+-findings-machine (as backtest.1). Known cases:
++findings-machine (as backtest.1); env-set run-id
++is stamped by bp3 into the submit verdict and
++ledger line (the mvp.1 mechanism). Known cases:
+ the five known incidents must each surface as a
+ finding; fold totals (usage) match tape sums on
+ sampled runs. Property-based: replay is
+=== diff tape.log stat ===
+ .../20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/tape.log    | 1 +
+ .../experiments/exp-backtest-2-pi/EXPERIMENT.md                      | 5 ++++-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+=== backtest1 runs ===
+20261115T233925Z-submit-muse-code-muse-wonder-1.0-c1
+20261115T234839Z-audit-muse-code-muse-wonder-1.0-c1
+20261115T234839Z-check-muse-code-muse-wonder-1.0-c1
+20261115T234839Z-review-muse-code-muse-wonder-1.0-c1
+20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2
+20261116T002125Z-audit-muse-code-muse-wonder-1.0-c2
+20261116T002504Z-audit-muse-code-muse-wonder-1.0-c2
+20261116T002504Z-check-muse-code-muse-wonder-1.0-c2
+20261116T002504Z-review-muse-code-muse-wonder-1.0-c2
+20261116T003201Z-land-muse-code-muse-wonder-1.0-c2
+=== backtest1 c2 files ===
+backtest.json
+findings.md
+notes.md
+tape.log
+=== TEST-HARDENING pi ===
+9:  -> contract (same trace, Muse + Pi adapters)
+23:- Backtests report denominators and incident counts;
+32:| lifecycle fold | init-only; fresh active; stale+alive; stale+dead; finished; settle-row with live pid; no InitRecord; torn final line |
+33:| restart derivation | fold with an empty in-memory set still reads a live child `active` from pid + freshness |
+37:| single killer | supervisor starts watch but never signals a pid itself; watch alone escalates TERM -> KILL |
+40:| blindness | missing log, unreadable log, renamed consumed field -> `warnings:["W_SUPERVISOR_BLIND"]`, pid fallback still works |
+42:## Muse implementation (mvp.2, mvp.4, backtest.1, dogfood.1)
+59:## Pi implementation (mvp.2, mvp.3, backtest.2, dogfood.2, dogfood.3)
+65:| derivation ownership | Pi extension writes no persistent proof rows; launcher/supervisor writes InitRecord and supervisor owns all derivation appends |
+72:Required Pi fixtures extend the existing fake-pi
+82:| Scenario | Muse expected | Pi expected |
+99:| derivation log | lifecycle transitions append once per evidence change; rows carry source path + offset/range + fingerprint + pid probe, never raw session content |
+113:node --test extensions/bp3-pi/test/            # pi unit/integration
+114:replay --engine muse|pi --corpus <dir>         # denominator + incidents
+# Acceptance and unit-test hardening
+
+This pass turns every design claim into the smallest
+test that can kill it. A claim with no named test is
+a hope, not an acceptance row.
+
+```text
+unit (pure fold/parser/verdict)
+  -> contract (same trace, Muse + Pi adapters)
+  -> integration (fake children, files, processes)
+  -> acceptance (real toy drives)
+  -> grader evidence ladder (code -> events -> raw log)
+```
+
+## Global rules
+
+- Tests are declared with the exp, not improvised by
+  the author Run mid-flight.
+- Every acceptance row names: fixture, command,
+  expected verdict/lifecycle, and the file or process
+  that must (or must not) exist afterward.
+- Golden fixtures are captured before migrations.
+- Backtests report denominators and incident counts;
+  findings do not gate, but parser crashes fail.
+- The child-typed run-id prefix is never required in
+  a passing test after mvp.4.
+
+## Supervisor core (mvp.1-mvp.3)
+
+| Unit under test | Cases that must kill it |
+|---|---|
+| lifecycle fold | init-only; fresh active; stale+alive; stale+dead; finished; settle-row with live pid; no InitRecord; torn final line |
+| restart derivation | fold with an empty in-memory set still reads a live child `active` from pid + freshness |
+| NDJSON stream | unchanged ticks emit nothing; lifecycle changes emit once; exactly one final verdict; human text never on stdout |
+| verdict split | killed Run = `outcome:watchdog_killed`, `lifecycle:orphaned`, `settled:false`; call refusal = `E_*`, never an outcome |
+| guarded act | duplicate run -> `E_RUN_EXISTS`; busy desk -> `E_DESK_BUSY`; stale judge re-read prevents a second spawn |
+| single killer | supervisor starts watch but never signals a pid itself; watch alone escalates TERM -> KILL |
+| settling grace | session closed / settle row present suspends silence kill; overall timeout still applies |
+| inputs | both/neither/disagreeing identity flags; duplicate flag; missing value; unknown flag; `--flag=value`; invalid run-id; zero/negative/non-numeric durations |
+| blindness | missing log, unreadable log, renamed consumed field -> `warnings:["W_SUPERVISOR_BLIND"]`, pid fallback still works |
+
+## Muse implementation (mvp.2, mvp.4, backtest.1, dogfood.1)
+
+| Unit under test | Cases that must kill it |
+|---|---|
+| session discovery | unique hit; missing session; two candidates refuse and name both; session-id resolves to exactly one run-id |
+| run association | association comes from InitRecord first; no child prefix in transcript; ambiguous evidence binds nothing |
+| lifecycle derivation | Muse natural completion -> finished; parent/session disappears + stale log -> orphaned; long quiet tool call is not killed by the passive supervisor |
+| format drift | missing close marker or usage field trips the probe warning the same day |
+| derivation log | parallel Runs write separate derivation files; repeated observations preserve sequence; legacy run-event stores are read-only imports, never write targets |
+| runtime non-interference | supervisor fold never spawns, kills, delays, or rewrites a Muse workflow child |
+| grader ladder | matrix cites commit artifacts first; event trace second; raw tape only in discrepancy/audit fixtures |
+
+Required Muse integration drive: one real toy quest
+with author + parallel grade Runs; derive every
+lifecycle after the workflow returns; kill and rerun
+the reader mid-drive and derive the same result.
+
+## Pi implementation (mvp.2, mvp.3, backtest.2, dogfood.2, dogfood.3)
+
+| Unit under test | Cases that must kill it |
+|---|---|
+| extension face | conductor face registers exactly four thin tools; child face registers witness hooks only; face does not flip merely because `BP3_RUN_ID` leaked |
+| env contract | spawn env contains effective `BP3_MODEL` and `BP3_THINKING`; child cannot widen tools/env or pass `BP3_DECIDER` (`E_REFUSED_INPUT` names the key) |
+| derivation ownership | Pi extension writes no persistent proof rows; launcher/supervisor writes InitRecord and supervisor owns all derivation appends |
+| session parser | header only; usage rows; close by `session_closed`; close by assistant stop reason; truncated tail; foreign JSONL |
+| await/watch | clean exit; killed child; slow drip; closed-but-not-exited; missing session file; two session candidates refuse |
+| watchdog | silence escalates TERM then KILL; no process remains; killed child never returns `settled:true` |
+| dispatcher guards | duplicate run, busy desk, dirty desk release, unknown run, malformed child output |
+| lifecycle fold | conductor restart does not orphan live children; usage totals equal session-file sums |
+
+Required Pi fixtures extend the existing fake-pi
+set: clean, hung, slow-drip, closed-not-exited,
+crash-before-session, malformed-output, and a child
+that attempts to write its own settle row (ignored
+as proof).
+
+## Cross-engine contract tests
+
+One scenario table executed through both adapters:
+
+| Scenario | Muse expected | Pi expected |
+|---|---|---|
+| clean completion | finished | finished |
+| disappearance/death | orphaned | orphaned |
+| long silence | derived stale; no Bp3 kill | watchdog kill -> orphaned |
+| blind log | warning + fallback | warning + fallback |
+| duplicate spawn attempt | refused by name | refused by name |
+| child self-reports success only | not finished without evidence | not finished without evidence |
+
+Equivalent traces must derive identical lifecycle
+words even though control owner differs.
+
+## Local derived-log storage (mvp.5)
+
+| Unit under test | Cases that must kill it |
+|---|---|
+| common-dir resolution | main checkout and linked desk resolve the same `<git-common-dir>/bp3/` store; a worktree `.git` file is never treated as a directory |
+| derivation log | lifecycle transitions append once per evidence change; rows carry source path + offset/range + fingerprint + pid probe, never raw session content |
+| derived state cache | fingerprint match reads `.json`; changed session size/mtime/digest forces refold; deleted `.json` rebuilds identically |
+| atomic snapshot | concurrent readers never see torn JSON; temp+rename only |
+| cross-desk read | a Run spawned in a desk reads `active`/`finished` identically from the main checkout |
+| legacy conversion | shared dict and legacy run-events -> derivation logs is idempotent; no settled Run invented; legacy snapshot hash recorded before disposal |
+
+## Acceptance proof commands (shape)
+
+Each exp names its real commands at implementation
+time; the design fixes their shape now:
+
+```text
+make check
+bp3 harness <verb> ... --run-id <fixture-run>   # JSON verdict asserted
+node --test extensions/bp3-pi/test/            # pi unit/integration
+replay --engine muse|pi --corpus <dir>         # denominator + incidents
+toy drives (dogfood.1, dogfood.3)                         # observed, not synthetic
+```
+
+No exp may cite a synthetic payload as the sole
+proof for a live claim. Synthetic fixtures prove
+units; observed drives prove the mechanism.
+=== backtest1 findings ===
+# backtest.1 (muse) — findings report (c2)
+
+Findings machine, not a gate: nothing here must pass; everything must be legible.
+
+- corpus: `/Users/whycz/.local/share/muse/sessions`
+- tapes replayed: 2015
+- identifiable Runs (BP3_RUN_ID binding): 1866
+- findings: 729
+- traces with commits extracted: 925
+
+## Findings by evidence
+
+- identifiable Run with no finish evidence: 269
+- foreign tape: no BP3_RUN_ID binding: 149
+- E_DIR refusal with no submit: 18
+- E_DIRTY_TREE refusal with no submit: 13
+- E_USAGE refusal with no submit: 12
+- E_HUMAN_REQUIRED refusal with no submit: 10
+- E_STALE_WORLD refusal with no submit: 9
+- E_WORLD refusal with no submit: 9
+- E_NOT_FOUND refusal with no submit: 9
+- E_EXISTS refusal with no submit: 8
+- E_COMMIT_MISMATCH refusal with no submit: 7
+- E_BIN refusal with no submit: 6
+- E_ILLEGAL_EDGE refusal with no submit: 4
+- E_INVALID_PLAN refusal with no submit: 4
+- E_BUILD refusal with no submit: 4
+- E_NO_AUTO_UPDATE refusal with no submit: 4
+- E_API_KEY refusal with no submit: 3
+- E_ACCOUNT_ID refusal with no submit: 3
+- E_JV8 refusal with no submit: 3
+- E_IDENTITY refusal with no submit: 3
+- E_RUN_EXISTS refusal with no submit: 3
+- E_VERSION_AHEAD refusal with no submit: 3
+- E_W0XV2W refusal with no submit: 2
+- E_J3H refusal with no submit: 2
+- E_PLUGIN_ROOT refusal with no submit: 2
+- E_VIEWER_URL refusal with no submit: 2
+- E_D3WGUM refusal with no submit: 2
+- E_D8Q refusal with no submit: 2
+- E_OPENAI_API_KEY refusal with no submit: 2
+- E_OPENAI_BASE_URL refusal with no submit: 2
+- E_URL refusal with no submit: 2
+- E_OPENAI_RESOURCE_NAME refusal with no submit: 2
+- E_NAME refusal with no submit: 2
+- E_OPENAI_DEPLOYMENT_NAME_MAP refusal with no submit: 2
+- E_MAP refusal with no submit: 2
+- E_OPENAI_API_VERSION refusal with no submit: 2
+- E_OPENAI refusal with no submit: 2
+- E_JSM refusal with no submit: 2
+- E_QM2Q refusal with no submit: 1
+- E_QZ_AM refusal with no submit: 1
+- E_W2_U refusal with no submit: 1
+- E_P46Y refusal with no submit: 1
+- E_HE0 refusal with no submit: 1
+- E_A6L refusal with no submit: 1
+- E_CODE_SIMPLE refusal with no submit: 1
+- E_SIMPLE refusal with no submit: 1
+- E_J7C refusal with no submit: 1
+- E_PBRAH refusal with no submit: 1
+- E_EMN refusal with no submit: 1
+- E_FZO refusal with no submit: 1
+- E_OXN refusal with no submit: 1
+- E_LZ0 refusal with no submit: 1
+- E_FD6 refusal with no submit: 1
+- E_GYKST refusal with no submit: 1
+- E_XF0YR__SK refusal with no submit: 1
+- E_BY8Z6DKH refusal with no submit: 1
+- E_XMFHWU refusal with no submit: 1
+- E_JFJD_B refusal with no submit: 1
+- E_Y4PQY refusal with no submit: 1
+- E_JVFA96X64HO9 refusal with no submit: 1
+- E_MISSING refusal with no submit: 1
+- E_XCC refusal with no submit: 1
+- E_XX_ refusal with no submit: 1
+- E_U9P refusal with no submit: 1
+- E_SZG0X refusal with no submit: 1
+- E_NG8WC5Q refusal with no submit: 1
+- E_MJ3QSZ refusal with no submit: 1
+- E_TELEMETRY refusal with no submit: 1
+- E_CODE_DISABLE_NONESSENTIAL_TRAFFIC refusal with no submit: 1
+- E_DISABLE_NONESSENTIAL_TRAFFIC refusal with no submit: 1
+- E_NONESSENTIAL_TRAFFIC refusal with no submit: 1
+- E_XI5C66O refusal with no submit: 1
+- E_TNXA refusal with no submit: 1
+- E_GML3 refusal with no submit: 1
+- E_K0TR refusal with no submit: 1
+- E_BXX refusal with no submit: 1
+- E_Q1FM refusal with no submit: 1
+- E_TFW9 refusal with no submit: 1
+- E_AT1C refusal with no submit: 1
+- E_FL6U6PS refusal with no submit: 1
+- E_W2K refusal with no submit: 1
+- E_LKD7Y refusal with no submit: 1
+- E_S8L refusal with no submit: 1
+- E_VLY refusal with no submit: 1
+- E_WTT4 refusal with no submit: 1
+- E_YVM refusal with no submit: 1
+- E_S6N refusal with no submit: 1
+- E_ER7GMR1 refusal with no submit: 1
+- E_CCE refusal with no submit: 1
+- E_Q21 refusal with no submit: 1
+- E_SRW refusal with no submit: 1
+- E_FU74K refusal with no submit: 1
+- E_RJWZ refusal with no submit: 1
+- E_MJ3YG refusal with no submit: 1
+- E_C7LI refusal with no submit: 1
+- E_AW5UR refusal with no submit: 1
+- E_KTC refusal with no submit: 1
+- E_PPCG refusal with no submit: 1
+- E_W6K refusal with no submit: 1
+- E_BI9YF refusal with no submit: 1
+- E_CHT refusal with no submit: 1
+- E_CEW refusal with no submit: 1
+- E_FU83 refusal with no submit: 1
+- E_RT1 refusal with no submit: 1
+- E_ERIYP refusal with no submit: 1
+- E_H4YG refusal with no submit: 1
+- E_EK2 refusal with no submit: 1
+- E_H0C refusal with no submit: 1
+- E_OSXD3BH refusal with no submit: 1
+- E_B4DL refusal with no submit: 1
+- E_GAT6 refusal with no submit: 1
+- E_PM65 refusal with no submit: 1
+- E_C_M9VN refusal with no submit: 1
+- E_E4H_9 refusal with no submit: 1
+- E_JPC refusal with no submit: 1
+- E_DK_ refusal with no submit: 1
+- E_DG9JF refusal with no submit: 1
+- E_H9KJS refusal with no submit: 1
+- E_XU6 refusal with no submit: 1
+- E_R9CQ refusal with no submit: 1
+- E_YAWQ2 refusal with no submit: 1
+- E_UZ660 refusal with no submit: 1
+- E_QJEF refusal with no submit: 1
+- E_FPH9YQ refusal with no submit: 1
+- E_P_D refusal with no submit: 1
+- E_OFFSET_BITS refusal with no submit: 1
+- E_XI3I refusal with no submit: 1
+- E_FLV refusal with no submit: 1
+- E_KLUY refusal with no submit: 1
+- E_XYIEQ refusal with no submit: 1
+- E_HLM refusal with no submit: 1
+- E_KP_ refusal with no submit: 1
+- E_WRONG_BRANCH refusal with no submit: 1
+- E_POXHH refusal with no submit: 1
+- E_YP54 refusal with no submit: 1
+- E_ZWVW refusal with no submit: 1
+- E_XI2I refusal with no submit: 1
+- E_MZ2AQ refusal with no submit: 1
+- E_EFFMJLD refusal with no submit: 1
+- E_G24W refusal with no submit: 1
+- E_SELF_REVIEW refusal with no submit: 1
+- E_QEW refusal with no submit: 1
+- E_JL30 refusal with no submit: 1
+- E_WFRSNEPO refusal with no submit: 1
+- E_SF0 refusal with no submit: 1
+- E_F9FB refusal with no submit: 1
+- E_TWA refusal with no submit: 1
+- E_D1Y refusal with no submit: 1
+- E_T5U refusal with no submit: 1
+- E_UQO_B9_E1TH2 refusal with no submit: 1
+- E_KP0BK refusal with no submit: 1
+- E_JG3 refusal with no submit: 1
+- E_PXQ refusal with no submit: 1
+- E_VCH66H refusal with no submit: 1
+- E_BK6RW refusal with no submit: 1
+- E_VAT0 refusal with no submit: 1
+- E_J5_ refusal with no submit: 1
+- E_YLK refusal with no submit: 1
+- E_Q2Q refusal with no submit: 1
+- E_CZW_U refusal with no submit: 1
+- E_LPI5X refusal with no submit: 1
+- E_AZH refusal with no submit: 1
+- E_DLQVE refusal with no submit: 1
+- E_U_M5 refusal with no submit: 1
+- E_S74XL refusal with no submit: 1
+- E_UYN refusal with no submit: 1
+- E_FIOX refusal with no submit: 1
+- E_C8BQ refusal with no submit: 1
+- E_LPKJCE refusal with no submit: 1
+- E_AXM refusal with no submit: 1
+- E_EP4H5 refusal with no submit: 1
+- E_WEFGM8 refusal with no submit: 1
+- E_AED refusal with no submit: 1
+- E_A6ARXUV refusal with no submit: 1
+- E_FJDIM refusal with no submit: 1
+- E_BM8 refusal with no submit: 1
+- E_YUK refusal with no submit: 1
+- E_IHGGI refusal with no submit: 1
+- E_R_1F3WUX refusal with no submit: 1
+- E_QH2F refusal with no submit: 1
+- E_KAYEOL refusal with no submit: 1
+- E_IXNTF refusal with no submit: 1
+
+## Findings by proposed fix target
+
+- adapter: 418
+- bp3 q u / hooks: 311
+
+## Sample findings (first 25)
+
+- run `?` — foreign tape: no BP3_RUN_ID binding → adapter (/Users/whycz/.local/share/muse/sessions/2026/10/19/01a15252-f150-7d50-b21b-08af118e58a0/session.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_DIR refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_QM2Q refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_QZ_AM refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_W2_U refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_W0XV2W refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_P46Y refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_HE0 refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_A6L refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_CODE_SIMPLE refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_SIMPLE refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_J7C refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_PBRAH refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace8-7d14-7981-b3f6-51ce673d1cdc` — E_EMN refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/0b81690a-8f9f-41eb-a9ca-ceb16f0a226f.jsonl)
+- run `01a1ace1-5a7d-7bc0-8bf6-fbc5b99a9e91` — E_DIR refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/101b5e0f-6252-46ba-8d30-ebfd4c0123c8.jsonl)
+- run `01a1ace1-5a7d-7bc0-8bf6-fbc5b99a9e91` — E_FZO refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/101b5e0f-6252-46ba-8d30-ebfd4c0123c8.jsonl)
+- run `01a1ace1-80a2-7bc1-aa2c-af34ca44e62f` — E_DIR refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/15eb077b-67e3-4ceb-b358-db5289612d18.jsonl)
+- run `01a1acdf-7590-7b91-8893-3a1db2b52e2c` — E_J3H refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/1869ff00-57a1-4e16-81bd-447c39b0daf3.jsonl)
+- run `01a1ace1-80c3-72b2-9c11-58624e1282f9` — E_DIR refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/193990cf-3f26-4816-ac39-34ce1ab84909.jsonl)
+- run `01a1acb5-7d52-71e2-8e93-e0b711470816` — E_PLUGIN_ROOT refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/23a93d80-6161-4976-bcf2-0dd7f132b74d.jsonl)
+- run `01a1acb5-7d52-71e2-8e93-e0b711470816` — E_DIR refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/23a93d80-6161-4976-bcf2-0dd7f132b74d.jsonl)
+- run `01a1acb5-7d52-71e2-8e93-e0b711470816` — E_VIEWER_URL refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/23a93d80-6161-4976-bcf2-0dd7f132b74d.jsonl)
+- run `01a1acb5-7d52-71e2-8e93-e0b711470816` — E_OXN refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/23a93d80-6161-4976-bcf2-0dd7f132b74d.jsonl)
+- run `01a1ace1-80c4-7181-8d8d-1bbc040da5ff` — E_DIR refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/27a6acb9-3d49-42bd-9351-429c2e00971b.jsonl)
+- run `01a1ad3f-c62a-79d1-96d2-9cc7b7865450` — E_LZ0 refusal with no submit → bp3 q u / hooks (/Users/whycz/.local/share/muse/sessions/2026/11/04/01a1a900-e6d2-7bf3-83b7-4e10ff3bcfbc/approval-review/2a0c856e-8b08-4cb7-9d2a-b02df0bcb3d9.jsonl)
+
+Full machine-readable replay: `backtest.json` in this run folder (traces + findings).
+Lifecycle claims without an independent InitRecord are ungradeable by design and are not counted as findings beyond the no-finish-evidence note above.
+c2 fix: `extract_shas` now scans for bounded 40-hex strings manually (OCaml `Str` has no `{n}` repetition); `test/harness.sh` asserts the `commits` field on the good/refused fixtures.
+=== backtest1 json head ===
+{"ok":true,"engine":"muse-code","corpus":"/Users/whycz/.local/share/muse/sessions","tapes_replayed":2015,"identifiable":1866,"traces":[{"tape":"/Users/whycz/.local/share/muse/sessions/2026/10/19/01a15252-f150-7d50-b21b-08af118e58a0/session.jsonl","run_ids":[],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":false,"finish_evidence":true,"exit_observed":true,"torn_tail":false},{"tape":"/Users/whycz/.local/share/muse/sessions/2026/10/19/01a154ac-6d80-7263-914c-6c5b03fe04d4/session.jsonl","run_ids":["01a154ac-6f54-7ce2-8f79-ff2e3e69fa3a","01a154ad-c5d0-7d13-b65a-7d1ed46696bb"],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":true,"finish_evidence":true,"exit_observed":true,"torn_tail":false},{"tape":"/Users/whycz/.local/share/muse/sessions/2026/10/19/01a154ac-6d80-7263-914c-6c5b03fe04d4/subagent/01a154ac-7093-79a2-b993-1edd6ac9f76b/session.jsonl","run_ids":["01a154ac-7093-79a2-b993-1edd6ac9f76b"],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":true,"finish_evidence":true,"exit_observed":true,"torn_tail":false},{"tape":"/Users/whycz/.local/share/muse/sessions/2026/10/19/01a154ac-6d80-7263-914c-6c5b03fe04d4/subagent/01a154ac-70c1-7b11-99de-a762fb536517/session.jsonl","run_ids":["01a154ac-70c1-7b11-99de-a762fb536517"],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":true,"finish_evidence":true,"exit_observed":true,"torn_tail":false},{"tape":"/Users/whycz/.local/share/muse/sessions/2026/10/19/01a154ac-6d80-7263-914c-6c5b03fe04d4/subagent/01a154ad-c6af-7c12-8092-f4be0833bab1/session.jsonl","run_ids":["01a154ad-c6af-7c12-8092-f4be0833bab1"],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":true,"finish_evidence":true,"exit_observed":true,"torn_tail":false},{"tape":"/Users/whycz/.local/share/muse/sessions/2026/10/19/01a154ac-6d80-7263-914c-6c5b03fe04d4/subagent/01a154ad-c6e4-74d2-b516-1952ecd6a1fb/session.jsonl","run_ids":["01a154ad-c6e4-74d2-b516-1952ecd6a1fb"],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":true,"finish_evidence":true,"exit_observed":true,"torn_tail":false},{"tape":"/Users/whycz/.local/share/muse/sessions/2026/10/19/01a154b1-e240-7ef0-8d5b-a2729f26744e/session.jsonl","run_ids":["01a154b1-ea02-7ab1-963b-0dd50188bd17","01a154b2-52bc-7b72-9c92-08ae2efd441c"],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":true,"finish_evidence":true,"exit_observed":true,"torn_tail":false},{"tape":"/Users/whycz/.local/share/muse/sessions/2026/10/19/01a154b1-e240-7ef0-8d5b-a2729f26744e/subagent/01a154b2-12fd-7f30-bde8-870491d5afb3/session.jsonl","run_ids":["01a154b2-12fd-7f30-bde8-870491d5afb3"],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":true,"finish_evidence":true,"exit_observed":true,"torn_tail":false},{"tape":"/Users/whycz/.local/share/muse/sessions/2026/10/19/01a154b1-e240-7ef0-8d5b-a2729f26744e/subagent/01a154b2-1328-7190-8c77-c5fbf7c9058f/session.jsonl","run_ids":["01a154b2-1328-7190-8c77-c5fbf7c9058f"],"bp3_calls":0,"refusals":["E_UXV39V"],"commits":[],"has_submit":true,"finish_evidence":true,"exit_observed":true,"torn_tail":false},{"tape":"/Users/whycz/.local/share/muse/sessions/2026/10/19/01a154b1-e240-7ef0-8d5b-a2729f26744e/subagent/01a154b2-5f17-7642-b88d-79a0341c9ef2/session.jsonl","run_ids":["01a154b2-5f17-7642-b88d-79a0341c9ef2"],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":true,"finish_evidence":true,"exit_observed":true,"torn_tail":false},{"tape":"/Users/whycz/.local/share/muse/sessions/2026/10/19/01a154b1-e240-7ef0-8d5b-a2729f26744e/subagent/01a154b2-5f3f-7aa2-8a13-0c898d670de7/session.jsonl","run_ids":["01a154b2-5f3f-7aa2-8a13-0c898d670de7"],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":true,"finish_evidence":true,"exit_observed":true,"torn_tail":false},{"tape":"/Users/whycz/.local/share/muse/sessions/2026/10/19/01a154b8-4c70-7863-bfb8-5e6a88069a79/session.jsonl","run_ids":["01a154b8-5258-7e23-b1ed-d59e1ad1cf83"],"bp3_calls":0,"refusals":["E_CODE_BRIDGE_SESSION_ID","E_BRIDGE_SESSION_ID","E_SESSION_ID","E_CODE_CHILD_SESSION","E_CHILD_SESSION","E_TOOL_USE_ID","
+=== backtest1 notes ===
+# Notes — exp-backtest-1-muse c2
+
+- Fixed the c1 needs_fix defect: `extract_shas` in `src/quest/harness.ml` used OCaml `Str.regexp "[0-9a-f]\{40\}"`; `Str` has no `{n}` repetition, so it never matched and all 2001 c1 traces had empty `commits`. Replaced with a manual bounded scan: exactly 40 lowercase hex chars, not preceded/followed by a hex char, deduped, capped at 20.
+- Added the missing fixture assertion in `test/harness.sh`: the good backtest tape must yield `commits == ["0123456789abcdef0123456789abcdef01234567"]` and the refused tape `commits == []`. An unasserted extracted field can stay silently empty while counts stay green.
+- Re-ran the corpus replay: 2015 tapes, 1866 identifiable, 729 findings, 925 traces now carry commits (was 0). See `findings.md` / `backtest.json` in this run.
+- Verified: `make check` passes (all suites, including the new commits assertions).
+- Lesson: in OCaml, reach for a hand scan over `Str` repetition syntax; and assert every extracted trace field at least once.
+=== harness.ml size ===
+    1719 src/quest/harness.ml
+     530 src/quest/main.ml
+     555 test/harness.sh
+    2804 total
+=== grep backtest/pi ===
+3:   verdict/exit contract, the lifecycle fold, and the
+40:(* ---------- lifecycle fold (pure) ---------- *)
+118:(* Parallel supervisors fold the same Run, so the store
+128:   in turn fold only newline-terminated rows; a final
+130:   reported as W_TORN_TAIL, never folded as fact. *)
+198:  let tail = List.fold_left (fun acc ln ->
+250:   racing an append) is skipped and reported, never folded. *)
+251:let fold_run_file ~silence_seconds path =
+282:                   same fact tape_closed; they still fold *)
+305:       (* the tape tail itself is folded live, so a Run
+326:type run_fold = {
+414:let fold_all ~quest ~silence_seconds =
+433:              let (init, obs, warns) = fold_run_file ~silence_seconds path in
+464:   tape signals folded onto the prior observation. Rows carry
+493:   Runs write separate files; parallel supervisors folding
+495:let append_observation dir (rf : run_fold) ~silence_seconds =
+503:        | None -> let (_, o, _) = fold_run_file ~silence_seconds rf.rf_jsonl in o in
+509:        let warns = List.fold_left
+549:          usage "--engine must be muse-code or pi";
+585:  List.fold_left (fun acc x -> if List.mem x acc then acc else acc @ [x]) [] xs
+594:  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+596:     any folded InitRecord is a usage error *)
+597:  let folds0 = fold_all ~quest ~silence_seconds:fl.silence_seconds in
+598:  let runs0 = List.map (fun f -> f.rf_view) folds0 in
+610:    let folds = fold_all ~quest ~silence_seconds:fl.silence_seconds in
+611:    let runs = List.map (fun f -> f.rf_view) folds in
+636:             ~silence_seconds:fl.silence_seconds) folds
+684:          usage "--engine must be muse-code or pi";
+819:  List.fold_left (fun acc n ->
+863:    List.fold_left (fun acc ln ->
+1294:    (* derivation fold for this Run: sticky mechanical facts *)
+1299:           let (_, dobs, dwarns) = fold_run_file ~silence_seconds:fl.wt_silence path in
+1501:(* ---------- backtest (backtest.1: findings, not a gate) ---------- *)
+1543:type bt_flags = { mutable bt_corpus : string option }
+1546:  let fl = { bt_corpus = None } in
+1549:    | "--corpus" :: v :: rest ->
+1550:        if fl.bt_corpus <> None then usage "duplicate flag --corpus";
+1551:        fl.bt_corpus <- Some v; loop rest
+1552:    | ["--corpus"] -> usage "flag needs a value"
+1560:let do_backtest args =
+1562:  let corpus = match fl.bt_corpus with
+1565:  if not (try Sys.is_directory corpus with _ -> false) then
+1566:    err "E_NOT_FOUND" (`Assoc [("corpus", json_str corpus)])
+1567:      ("Corpus directory does not exist: " ^ corpus) 1;
+1568:  let tapes = List.sort String.compare (collect_tapes corpus []) in
+1607:  let identifiable = List.fold_left (fun acc t ->
+1613:    ("corpus", json_str corpus);
+1614:    ("tapes_replayed", `Int (List.length tapes));
+1621:  bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]   passive loop: tell -> watch -> judge -> finalize\n\
+1622:  bp3 harness init-check [--engine muse-code|pi]   probe tape sources; blindness is W_SUPERVISOR_BLIND, never blocking\n\
+1627:  bp3 harness backtest [--corpus <dir>]   replay the muse fold over stored tapes; findings, not a gate\n\
+1628:Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init, b=backtest. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
+1631:  bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]\n\
+1635:  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Since mvp.5 the derivation logs are the sole lifecycle read path; the retired shared maps are never read or written. Writer discipline (followup.1): each row is a single write() on an O_APPEND descriptor and the cache is a uniquely named temp file in the same directory, fsynced and renamed over the old cache, so parallel supervisors never tear a row or the cache; a torn final line is ignored by the fold and reported as W_TORN_TAIL.\n\
+1639:  bp3 harness init-check [--engine muse-code|pi]\n\
+1671:  Appends the first derivation row (kind init_record) to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl before the child starts, so find-tape/watch/supervisor resolve the Run from birth. Create-only: an existing log for the run-id is E_EXISTS; a bad run-id, engine, or pid is E_USAGE. Emits {ok, run_id, harness, session_id, pid, tape_path, quest, exp, path}.\n\
+1676:let help_backtest = "bp3 harness backtest - replay the muse fold over stored tapes (findings, not a gate):\n\
+1677:  bp3 harness backtest [--corpus <dir>]\n\
+1678:  Reads every .jsonl tape under the corpus (default: the muse tape source), folds mechanical facts per tape (BP3_RUN_ID bindings, bp3 invocations, E_* refusals, commit shas, finish/exit evidence, torn tails) and emits one verdict {ok, engine, corpus, tapes_replayed, identifiable, traces, findings}. Each finding names its tape, run-id, evidence lines, and proposed fix target (bp3 q u, hooks, or adapter). A parser crash fails the call; findings themselves never gate. Truncated, foreign, and torn tapes are reported in findings, never fatal.\n\
+1679:Example: bp3 harness backtest --corpus ~/.local/share/muse/sessions\n"
+1682:  | "b" | "backtest" -> "backtest"
+1692:  | [] -> usage "harness needs a verb: supervisor, init-check, find-tape, watch, desk, record-init, or backtest"
+1702:        | "backtest" -> help_backtest
+1714:       | "backtest" -> do_backtest rest
+=== grep main backtest ===
+353:  bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias\n\
+354:  bp3 q hooks                  harness hook emitter (fail-open)\n\
+386:let help_worktree = "bp3 worktree - documented alias of bp3 harness desk, machine-local desks, never ledgered:\n\
+388:  bp3 harness desk prepare <quest> <exp> --run <run-id> [--commit <sha>] [--path <dir>]\n\
+389:  bp3 harness desk list [--quest <quest>]\n\
+390:Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
+415:  | "harness" :: rest -> Harness.run rest
+424:      (* documented alias of harness desk (mvp.6): same store,
+425:         same verdicts; new callers use bp3 harness desk *)
+86:   (call failures are 1 domain / 2 usage), so timeout (3)
+97:   is per-harness and tail-scoped: tape_evidence below. *)
+191:   pi: no tape ever closes; a session_closed entry or a
+196:let tape_evidence harness text =
+209:             && get_str msg "stopReason" "" = "stop" in
+210:           (get_str j "type" "" = "session_closed" || stopped, false, torn)
+309:         | Some tp -> tape_evidence rec_.harness (read_file_or tp "")
+471:    | Some _ -> tape_evidence rec_.harness tape_text | None -> (false, false, false) in
+533:    usage (flag ^ " needs a bare positive integer, got: " ^ v)
+547:        if acc.engine <> None then usage "duplicate flag --engine";
+549:          usage "--engine must be muse-code or pi";
+556:        if acc.grace_seconds <> None then usage "duplicate flag --grace-seconds";
+559:        usage "flag needs a value"
+562:         | Some _ -> usage ("unknown flag form: " ^ f)
+563:         | None -> usage ("unknown flag: " ^ f))
+564:    | stray :: _ -> usage ("stray positional: " ^ stray) in
+591:  if pos <> [] then usage "stray positional in supervisor";
+596:     any folded InitRecord is a usage error *)
+602:         usage "--engine contradicts a Run InitRecord"
+679:  if pos <> [] then usage "stray positional in init-check";
+684:          usage "--engine must be muse-code or pi";
+686:    | ["--engine"] -> usage "flag needs a value"
+687:    | f :: _ -> usage ("unknown flag: " ^ f) in
+802:let tape_roots = function
+817:let rec collect_tapes dir acc =
+821:    if try Sys.is_directory p with _ -> false then collect_tapes p acc
+892:let extract_run_ids text =
+925:    usage (flag ^ " needs a non-negative integer, got: " ^ v)
+934:        if fl.ft_run <> None then usage "duplicate flag --run-id";
+937:        if fl.ft_session <> None then usage "duplicate flag --session-id";
+940:        if fl.ft_entry <> None then usage "duplicate flag --entry";
+943:        if fl.ft_before_set then usage "duplicate flag --before-entries";
+946:        if fl.ft_after_set then usage "duplicate flag --after-entries";
+949:        usage "flag needs a value"
+952:         | Some _ -> usage ("unknown flag form: " ^ f)
+953:         | None -> usage ("unknown flag: " ^ f))
+954:    | stray :: _ -> usage ("stray positional: " ^ stray) in
+992:    usage "--before-entries/--after-entries need --entry";
+994:   | None, None -> usage "find-tape needs --run-id or --session-id"
+995:   | Some "", _ | _, Some "" -> usage "identity flags need a non-empty value"
+1009:         usage "--run-id and --session-id disagree";
+1012:           usage "--run-id and --session-id disagree") by_run
+1057:          List.concat_map (fun root_ -> collect_tapes root_ []) (tape_roots h)
+1077:                        match extract_run_ids text with
+1079:                        | _ :: _ :: _ -> ambiguous "session-id" (extract_run_ids text)
+1131:        if fl.wt_run <> None then usage "duplicate flag --run-id";
+1134:        if fl.wt_session <> None then usage "duplicate flag --session-id";
+1137:        if fl.wt_silence_set then usage "duplicate flag --silence-seconds";
+1141:        if fl.wt_timeout_set then usage "duplicate flag --timeout-seconds";
+1145:        if fl.wt_grace_set then usage "duplicate flag --grace-seconds";
+1150:        usage "flag needs a value"
+1153:         | Some _ -> usage ("unknown flag form: " ^ f)
+1154:         | None -> usage ("unknown flag: " ^ f))
+1155:    | stray :: _ -> usage ("stray positional: " ^ stray) in
+1166:   | None, None -> usage "watch needs --run-id or --session-id"
+1167:   | Some "", _ | _, Some "" -> usage "identity flags need a non-empty value"
+1171:       usage ("invalid run-id: " ^ r)
+1185:         usage "--run-id and --session-id disagree";
+1188:           usage "--run-id and --session-id disagree") by_run
+1228:        List.concat_map (fun root_ -> collect_tapes root_ []) (tape_roots h)
+1252:                      match extract_run_ids text with
+1254:                      | _ :: _ :: _ -> ambiguous "session-id" (extract_run_ids text)
+1320:            let (fin, exit_e, tr) = tape_evidence harness text in
+1409:        if fl.ri_run <> None then usage "duplicate flag --run-id";
+1412:        if fl.ri_harness <> None then usage "duplicate flag --harness";
+1415:        if fl.ri_session <> None then usage "duplicate flag --session-id";
+1418:        if fl.ri_pid <> None then usage "duplicate flag --pid";
+1421:        if fl.ri_tape <> None then usage "duplicate flag --tape-path";
+1424:        if fl.ri_quest <> None then usage "duplicate flag --quest";
+1427:        if fl.ri_exp <> None then usage "duplicate flag --exp";
+1430:        if fl.ri_desk <> None then usage "duplicate flag --desk";
+1433:        if fl.ri_model <> None then usage "duplicate flag --model";
+1437:        usage "flag needs a value"
+1440:         | Some _ -> usage ("unknown flag form: " ^ f)
+1441:         | None -> usage ("unknown flag: " ^ f))
+1442:    | stray :: _ -> usage ("stray positional: " ^ stray) in
+1449:    | _ -> usage "record-init needs --run-id <id>" in
+1452:    usage ("invalid run-id: " ^ run_id);
+1455:    | Some h -> usage ("--harness must be muse-code or pi, got: " ^ h)
+1456:    | None -> usage "record-init needs --harness muse-code|pi" in
+=== pi tape dirs ===
+ls: /Users/whycz/.pi/sessions: No such file or directory
+/Users/whycz/.local/share/muse/sessions
+/Users/whycz/.pi/agent/sessions
+--private-tmp-bp3-fresh--
+--private-tmp-claude-501--Users-whycz-m-bp2-27a4a855-f80c-4c9d-9418-494aba4d6026-scratchpad-envprobe--
+--private-tmp-claude-501--Users-whycz-m-bp2-27a4a855-f80c-4c9d-9418-494aba4d6026-scratchpad-hookcap-repo--
+--private-tmp-claude-501--Users-whycz-m-bp2-27a4a855-f80c-4c9d-9418-494aba4d6026-scratchpad-smoke--
+--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp2-hookcap.Cjtz9z-repo--
+--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp2-hookcap.leusZk-repo--
+--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp2-hooks.6TF5FK-pi--
+--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp2-trust.lKPB2s-pi--
+--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp3-pi-89XJfK--
+--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp3-pi-tcOgUb--
+--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-tmp.luzdpXXvB0--
+--Users-whycz-m--
+--Users-whycz-m-backpack--
+--Users-whycz-m-backpack-.worktrees-actor-cost-budget-policy--
+--Users-whycz-m-bp2--
+--Users-whycz-m-bp3--
+--Users-whycz-m-bp3-control--
+--Users-whycz-m-bp3-docs--
+--Users-whycz-m-bp3-yap-skills--
+--Users-whycz-m-escapement-2--
+--Users-whycz-m-v--
+=== find pi jsonl count ===
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp2--/2026-11-05T18-51-18-688Z_01a1ad0d-171e-7516-9518-4c85c67963f8.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m--/2026-11-05T18-29-27-538Z_01a1acf9-1571-758a-95cc-71798a80fa33.jsonl
+/Users/whycz/.pi/agent/sessions/--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp3-pi-89XJfK--/2026-11-15T07-30-18-459Z_01a1de1d-34d9-7368-a84d-b9827b0476de.jsonl
+/Users/whycz/.pi/agent/sessions/--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp2-trust.lKPB2s-pi--/2026-10-20T13-33-24-959Z_01a15984-4c5d-73dc-8f3d-5db4234b16b4.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3-yap-skills--/2026-11-06T04-54-10-650Z_01a1af35-07d8-7632-b147-4961e7899cd8.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3-yap-skills--/2026-11-06T02-57-30-585Z_01a1aeca-37d7-753e-90f6-0c27161f7017.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3-yap-skills--/2026-11-06T00-07-03-971Z_01a1ae2e-2c1d-74e5-8646-959b1c57548f.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3-yap-skills--/2026-11-06T02-25-17-864Z_01a1aeac-ba27-7627-bfef-2caf3875ad15.jsonl
+/Users/whycz/.pi/agent/sessions/--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp2-hookcap.Cjtz9z-repo--/2026-10-20T03-44-21-063Z_01a15768-fe46-7037-a63c-b6e05c2e4b5a.jsonl
+/Users/whycz/.pi/agent/sessions/--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp2-hookcap.Cjtz9z-repo--/2026-10-20T03-44-05-250Z_01a15768-c080-72fd-8198-4da04108f0a4.jsonl
+/Users/whycz/.pi/agent/sessions/--private-tmp-claude-501--Users-whycz-m-bp2-27a4a855-f80c-4c9d-9418-494aba4d6026-scratchpad-envprobe--/2026-10-19T15-13-30-016Z_01a154b9-91a0-7169-9ab3-4c57c945d93a.jsonl
+/Users/whycz/.pi/agent/sessions/--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp3-pi-tcOgUb--/2026-11-15T07-53-47-269Z_01a1de32-b404-75a4-9fcf-002454558e79.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3-control--/2026-11-05T20-37-54-012Z_01a1ad6e-acdb-7330-8c75-64fedd1b4f2f.jsonl
+/Users/whycz/.pi/agent/sessions/--private-tmp-bp3-fresh--/2026-11-06T00-14-01-639Z_01a1ae34-8ba5-71f6-a303-4add2d901c08.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-backpack--/2026-05-06T15-46-43-913Z_019dfdf8-5649-70c9-9969-e21ae7bed0dc.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-backpack--/2026-04-09T02-17-46-069Z_f4307d3c-ad72-4f65-b092-3086c522774f.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-backpack--/2026-05-06T15-38-45-193Z_019dfdf1-0848-73dc-8b31-daf51dd13bd5.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-backpack--/2026-04-09T02-10-27-711Z_380ab70e-3afc-4fa8-b818-321d3f125d48.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-backpack--/2026-04-15T00-55-43-002Z_bae9d009-58f6-47dd-a27c-3dd18ce24fe7.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-backpack--/2026-05-06T15-46-08-136Z_019dfdf7-ca88-76cc-8ee1-1549b3742788.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-backpack--/2026-04-09T02-14-50-177Z_cf7371d4-3de7-4092-873a-7a03b51fedbb.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-backpack--/2026-04-15T00-57-21-924Z_019d8ea4-8d04-70e8-87d7-61ad410680de.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-backpack--/2026-05-08T01-17-58-588Z_019e0529-afbb-713d-b90c-5d9154563e2f.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3-docs--/2026-11-05T20-31-42-585Z_01a1ad69-01f9-7108-bd51-316e08eb57b3.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3-docs--/2026-11-05T19-49-18-306Z_01a1ad42-2f62-7149-8f3a-7f3d481dfdfc.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3-docs--/2026-11-05T19-55-41-453Z_01a1ad48-080c-7006-ba6d-b48edfd7b881.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3-docs--/2026-11-05T19-21-40-547Z_01a1ad28-e3c2-7168-9a1c-72aeed9eb5bd.jsonl
+/Users/whycz/.pi/agent/sessions/--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp2-hooks.6TF5FK-pi--/2026-10-20T12-54-12-363Z_01a15960-668a-7608-a02c-0848e6df6f06.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-v--/2026-08-06T21-44-26-486Z_019fd908-e475-704b-90d3-72be5401ec1e.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-v--/2026-08-15T20-14-56-395Z_01a00710-2f8b-72c7-9bc3-f5dbb2837ec6.jsonl
+/Users/whycz/.pi/agent/sessions/--private-tmp-claude-501--Users-whycz-m-bp2-27a4a855-f80c-4c9d-9418-494aba4d6026-scratchpad-hookcap-repo--/2026-10-20T03-34-38-985Z_01a15760-1c88-7013-a40d-3cf0e06fa76d.jsonl
+/Users/whycz/.pi/agent/sessions/--private-tmp-claude-501--Users-whycz-m-bp2-27a4a855-f80c-4c9d-9418-494aba4d6026-scratchpad-hookcap-repo--/2026-10-20T03-37-49-970Z_01a15763-0688-74e4-a5a1-6d4f461a9a46.jsonl
+/Users/whycz/.pi/agent/sessions/--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-tmp.luzdpXXvB0--/2026-11-15T07-29-45-993Z_01a1de1c-b609-740e-af90-c091742a4d7e.jsonl
+/Users/whycz/.pi/agent/sessions/--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp2-hookcap.leusZk-repo--/2026-10-20T03-41-44-888Z_01a15766-9c38-7510-859b-e5961a767902.jsonl
+/Users/whycz/.pi/agent/sessions/--private-var-folders-sh-r22bzrss2pv_qh335d1tf04h0000gn-T-bp2-hookcap.leusZk-repo--/2026-10-20T03-41-29-204Z_01a15766-5ef2-7100-b2aa-7853386406bb.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3--/2026-11-06T00-29-02-283Z_01a1ae42-49cb-7085-8cc6-24844d374f25.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3--/2026-11-06T05-52-35-248Z_01a1af6a-81ae-7761-ac25-613beff5c9d2.jsonl
+/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3--/2026-11-15T04-13-03-640Z_01a1dd68-9f17-77aa-a6ff-52be16c4ebc7.jsonl
+=== count ===
+      38
+=== BP3_PI_TAPE_DIR ===
+
+=== harness.sh backtest section ===
+520:# --- backtest (backtest.1): replay folds facts, findings never gate ---
+521:out=$(h backtest -h) || fail "backtest -h exit"
+522:echo "$out" | grep -q "backtest" || fail "backtest help: $out"
+524:echo "$out" | grep -q "backtest" || fail "alias b help: $out"
+530:out=$(h backtest --corpus fixtures/bt) || fail "backtest exit: $out"
+531:echo "$out" | jq -e '.ok == true and .tapes_replayed == 4 and .identifiable == 2' >/dev/null || fail "backtest counts: $out"
+532:echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-1") | .has_submit == true and .finish_evidence == true)' >/dev/null || fail "backtest good trace: $out"
+533:echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-1") | .commits == ["0123456789abcdef0123456789abcdef01234567"])' >/dev/null || fail "backtest commits extraction: $out"
+534:echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-2") | .commits == [])' >/dev/null || fail "backtest refused commits empty: $out"
+535:echo "$out" | jq -e '(.findings[] | select(.run_id == "R-bt-2"))' >/dev/null || fail "backtest refusal finding: $out"
+536:echo "$out" | jq -e '(.findings[] | select(.evidence | test("torn")))' >/dev/null || fail "backtest torn finding: $out"
+537:echo "$out" | jq -e '(.findings[] | select(.evidence | test("foreign")))' >/dev/null || fail "backtest foreign finding: $out"
+538:if out=$(h backtest --corpus no-such-dir 2>&1); then fail "backtest missing corpus accepted"; fi
+539:echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "backtest missing code: $out"
+540:if out=$(h backtest --bogus 1 2>&1); then fail "backtest unknown flag accepted"; fi
+541:echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "backtest usage code: $out"
+542:if out=$(h backtest stray 2>&1); then fail "backtest stray accepted"; fi
+=== fixtures bt ===
+ls: test/fixtures/bt/: No such file or directory
+--- test/fixtures/bt/* ---
+head: test/fixtures/bt/*: No such file or directory
+
+=== canceled pi quest corpus search ===
+2026-11-07-bp3-engine-pi.md
+2026-11-07-bp3-pi-qol.md
+2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement
+2026-11-15-pi-engine-conductor
+experiments
+ICEBOX.md
+QUEST.md
+
+set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
+last=$(echo "$out" | tail -1)
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f2-muse-exit") | .lifecycle == "finished")' >/dev/null || fail "followup.2 muse exit-entry fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f2-muse-end") | .lifecycle == "finished")' >/dev/null || fail "followup.2 muse close-marker fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f2-muse-live") | .lifecycle == "active")' >/dev/null || fail "followup.2 live pid wins: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f2-pi-exit") | .lifecycle == "finished")' >/dev/null || fail "followup.2 pi process-exit fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f2-pi-crash") | .lifecycle == "orphaned")' >/dev/null || fail "followup.2 pi crash fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f2-torn") | .lifecycle == "orphaned")' >/dev/null || fail "followup.2 torn fold: $last"
+echo "$last" | jq -e '(.warnings | index("W_TORN_TAIL") != null)' >/dev/null || fail "followup.2 torn warning: $last"
+kill $F2LIVE 2>/dev/null || true
+
+# watch settles a muse child tape on its exit entry, no close marker
+printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' '{"payload_type":"runtime.session","payload":{"kind":"run","run_id":"y","event":{"kind":"terminal","terminal":"completed"}}}' > fixtures/watch/f2-muse.log
+sleep 1 & F2WPID=$!
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-watch-muse\",\"harness\":\"muse-code\",\"pid\":$F2WPID,\"tape_path\":\"$work/repo/fixtures/watch/f2-muse.log\",\"quest\":\"toy\"}" > "$store/R-f2-watch-muse.jsonl"
+out=$(h watch --run-id R-f2-watch-muse --timeout-seconds 5) || fail "followup.2 watch muse exit: $out"
+echo "$out" | tail -1 | jq -e '.outcome == "settled" and .settled == true and .lifecycle == "finished"' >/dev/null || fail "followup.2 watch muse verdict: $out"
+wait "$F2WPID" 2>/dev/null || true
+
+# --- backtest (backtest.1): replay folds facts, findings never gate ---
+out=$(h backtest -h) || fail "backtest -h exit"
+echo "$out" | grep -q "backtest" || fail "backtest help: $out"
+out=$(h b -h) || fail "alias b -h exit"
+echo "$out" | grep -q "backtest" || fail "alias b help: $out"
+mkdir -p fixtures/bt
+printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' 'BP3_RUN_ID=R-bt-1 bp3 q toy u e1 submit --commit 0123456789abcdef0123456789abcdef01234567' '{"payload_type":"session.end","payload":{}}' > fixtures/bt/good.jsonl
+printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' 'BP3_RUN_ID=R-bt-2 error E_BINDING_REFUSED' > fixtures/bt/refused.jsonl
+printf '%s' '{"payload_type":"session.end","payl' > fixtures/bt/torn.jsonl
+printf '%s\n' 'hello foreign tape' > fixtures/bt/foreign.jsonl
+out=$(h backtest --corpus fixtures/bt) || fail "backtest exit: $out"
+echo "$out" | jq -e '.ok == true and .tapes_replayed == 4 and .identifiable == 2' >/dev/null || fail "backtest counts: $out"
+echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-1") | .has_submit == true and .finish_evidence == true)' >/dev/null || fail "backtest good trace: $out"
+echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-1") | .commits == ["0123456789abcdef0123456789abcdef01234567"])' >/dev/null || fail "backtest commits extraction: $out"
+echo "$out" | jq -e '(.traces[] | select(.run_ids[0] == "R-bt-2") | .commits == [])' >/dev/null || fail "backtest refused commits empty: $out"
+echo "$out" | jq -e '(.findings[] | select(.run_id == "R-bt-2"))' >/dev/null || fail "backtest refusal finding: $out"
+echo "$out" | jq -e '(.findings[] | select(.evidence | test("torn")))' >/dev/null || fail "backtest torn finding: $out"
+echo "$out" | jq -e '(.findings[] | select(.evidence | test("foreign")))' >/dev/null || fail "backtest foreign finding: $out"
+if out=$(h backtest --corpus no-such-dir 2>&1); then fail "backtest missing corpus accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "backtest missing code: $out"
+if out=$(h backtest --bogus 1 2>&1); then fail "backtest unknown flag accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "backtest usage code: $out"
+if out=$(h backtest stray 2>&1); then fail "backtest stray accepted"; fi
+
+# --- naming gate: retired spellings stay out of the new code ---
+retired="Spawn""Record|spawn""ed|run""ning"
+if grep -E "$retired" "$root/src/quest/harness.ml" >/dev/null; then fail "retired lifecycle spelling in harness.ml"; fi
+if grep -q "bp3-run-registry" "$root/src/quest/harness.ml"; then fail "mvp.5 retired registry spelling in harness.ml"; fi
+if grep -q "bp3-run-events" "$root/src/quest/harness.ml"; then fail "mvp.5 retired events spelling in harness.ml"; fi
+if grep -q "legacy_views" "$root/src/quest/harness.ml"; then fail "mvp.5 legacy import still in harness.ml"; fi
+grep -q "init_record" "$root/src/quest/harness.ml" || fail "init_record missing"
+for w in '"init"' '"active"' '"finished"' '"orphaned"'; do
+  grep -q "$w" "$root/src/quest/harness.ml" || fail "lifecycle word missing: $w"
+done
+
+echo "harness.sh: all checks passed"
+=== find fixtures ===
+test
+test/harness.sh:152:# --- lifecycle fold over derivation fixtures ---
+test/harness.sh:154:mkdir -p "$store" fixtures
+test/harness.sh:155:echo tape > fixtures/fresh.log
+test/harness.sh:156:touch -t 202001010000 fixtures/stale.log
+test/harness.sh:159:printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-active\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/fresh.log\"}" > "$store/R-active.jsonl"
+test/harness.sh:160:printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-orphan\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/stale.log\"}" > "$store/R-orphan.jsonl"
+test/harness.sh:162:printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-settle-live\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/fresh.log\"}" '{"kind":"observation","settle_row":true,"tape_closed":false}' > "$store/R-settle-live.jsonl"
+test/harness.sh:163:printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-blind\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/missing.log\"}" > "$store/R-blind.jsonl"
+test/harness.sh:182:mkdir -p fixtures/pi-store fixtures/muse-store/S-muse
+test/harness.sh:183:printf '%s\n' '{"type":"session","version":3,"id":"S-pi","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}' '{"type":"message","id":"e1","message":{"role":"user","content":"BP3_RUN_ID=R-pi-run work"}}' '{"type":"message","id":"e2","message":{"role":"assistant","content":"done"}}' '{"type":"message","id":"e3","message":{"role":"assistant","content":"bye"}}' > fixtures/pi-store/pi1.jsonl
+test/harness.sh:184:printf '%s\n' '{"session_id":"S-muse","id":"m1","content":"BP3_RUN_ID=R-muse-run work"}' > fixtures/muse-store/S-muse/session.jsonl
+test/harness.sh:185:printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-find\",\"harness\":\"pi\",\"session_id\":\"S-pi\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/pi-store/pi1.jsonl\",\"quest\":\"toy\"}" > "$store/R-find.jsonl"
+test/harness.sh:186:printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-bad\",\"harness\":\"pi\",\"tape_path\":\"$work/repo/fixtures/pi-store/pi1.jsonl\",\"quest\":\"toy\"}" > "$store/R-bad.jsonl"
+test/harness.sh:187:export BP3_PI_TAPE_DIR="$work/repo/fixtures/pi-store" BP3_MUSE_TAPE_DIR="$work/repo/fixtures/muse-store"
+test/harness.sh:195:echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/pi1.jsonl" '.ok == true and .run_id == "R-find" and .harness == "pi" and .session_id == "S-pi" and .wal == $w' >/dev/null || fail "find-tape InitRecord hit: $out"
+test/harness.sh:205:printf '%s\n' '{"type":"message","id":"mx","message":{"role":"user","content":"R-mention-only was discussed here"}}' > fixtures/pi-store/mention.jsonl
+test/harness.sh:208:rm fixtures/pi-store/mention.jsonl
+test/harness.sh:225:cp fixtures/pi-store/pi1.jsonl fixtures/pi-store/pi2.jsonl
+test/harness.sh:230:rm fixtures/pi-store/pi2.jsonl
+test/harness.sh:235:want=$(sed -n '3p' fixtures/pi-store/pi1.jsonl | tr -d '\n' | shasum -a 256 | cut -d' ' -f1)
+=== pi quest state ===
+{"ok":true,"quest":"2026-11-15-pi-engine-conductor","state":"deleted","exps":[{"exp":"exp-1-rename-run-event-log","state":"landed","fin":"exp_fin","cycle":2,"commit":"5e6ad780f3d01965fadf5bd6ae4647acfe89d8fb","legal_edges":[],"changes":[{"change":"+","path":"docs/quests/2026-11-15-pi-engine-conductor/experiments/exp-1-rename-run-event-log/runs/20261115T052039Z-submit-muse-code-muse-wonder-1.0-c2/notes.md"},{"change":"+","path":"docs/quests/2026-11-15-pi-engine-conductor/experiments/exp-1-rename-run-event-log/runs/20261115T052039Z-submit-muse-code-muse-wonder-1.0-c2/tape.log"}]},{"exp":"exp-2-shared-conventions-pi-runner","state":"landed","fin":"exp_fin","cycle":3,"commit":"f230e882ee13507c8a95846a9a857a700ada14be","legal_edges":[],"changes":[{"change":"u","path":"docs/quests/2026-11-15-pi-engine-conductor/experiments/exp-2-shared-conventions-pi-runner/EXPERIMENT.md"},{"change":"u","path":"src/quest/hooks.ml"},{"change":"u","path":"test/hooks.sh"}]},{"exp":"exp-2a-run-id-startup-binding","state":"blocked","fin":null,"cycle":2,"commit":"42939b1d5ee04c2625c5792ecce3a5e20378c997","legal_edges":["resume","delete"],"changes":[{"change":"+","path":"docs/quests/2026-11-15-pi-engine-conductor/experiments/exp-2a-run-id-startup-binding/runs/20261115T074644Z-submit-muse-code-muse-wonder-1.0-c2/notes.md"},{"change":"+","path":"docs/quests/2026-11-15-pi-engine-conductor/experiments/exp-2a-run-id-startup-binding/runs/20261115T074644Z-submit-muse-code-muse-wonder-1.0-c2/tape.log"},{"change":"u","path":"src/quest/hooks.ml"},{"change":"u","path":"test/hooks.sh"}]},{"exp":"exp-2b-pi-await-watchdog","state":"todo","fin":null,"cycle":2,"commit":"f72c52ef8cb5fd30f5b358c081369146b1f7b017","legal_edges":["submit","block","delete"],"changes":[{"change":"u","path":"docs/quests/2026-11-15-pi-engine-conductor/experiments/exp-2b-pi-await-watchdog/EXPERIMENT.md"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/src/spawn.ts"},{"change":"u","path":"extensions/bp3-pi/test/dispatcher.test.mjs"},{"change":"u","path":"extensions/bp3-pi/test/fake-pi.mjs"}]},{"exp":"exp-3-pi-conductor","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null},{"exp":"exp-4-pi-event-log","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null},{"exp":"exp-5-pi-context","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null},{"exp":"exp-6-pi-skills","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null},{"exp":"exp-7-pi-engine-demo","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null},{"exp":"exp-8-muse-event-log-per-run","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["submit","block","delete"],"changes":null}],"rollup":"deleted","fin":null,"inbox":[{"quest":"2026-11-15-pi-engine-conduc
+=== pi sample tape ===
+==> /Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3--/2026-11-06T00-29-02-283Z_01a1ae42-49cb-7085-8cc6-24844d374f25.jsonl <==
+{"type":"session","version":3,"id":"01a1ae42-49cb-7085-8cc6-24844d374f25","timestamp":"2026-11-06T00:29:02.283Z","cwd":"/Users/whycz/m/bp3"}
+{"type":"model_change","id":"5288144c","parentId":null,"timestamp":"2026-11-06T00:29:02.360Z","provider":"openai","modelId":"gpt-6.1-sol"}
+{"type":"thinking_level_change","id":"4428e703","parentId":"5288144c","timestamp":"2026-11-06T00:29:02.360Z","thinkingLevel":"medium"}
+{"type":"model_change","id":"113b1f40","parentId":"4428e703","timestamp":"2026-11-06T00:29:07.103Z","provider":"openai","modelId":"gpt-6-astra"}
+{"type":"thinking_level_change","id":"0c20f838","parentId":"113b1f40","timestamp":"2026-11-06T00:29:16.860Z","thinkingLevel":"xhigh"}
+
+==> /Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3--/2026-11-06T05-52-35-248Z_01a1af6a-81ae-7761-ac25-613beff5c9d2.jsonl <==
+{"type":"session","version":3,"id":"01a1af6a-81ae-7761-ac25-613beff5c9d2","timestamp":"2026-11-06T05:52:35.248Z","cwd":"/Users/whycz/m/bp3"}
+{"type":"model_change","id":"c5592c11","parentId":null,"timestamp":"2026-11-06T05:52:35.322Z","provider":"openai","modelId":"gpt-6.1-sol"}
+{"type":"thinking_level_change","id":"5f56b548","parentId":"c5592c11","timestamp":"2026-11-06T05:52:35.323Z","thinkingLevel":"medium"}
+{"type":"thinking_level_change","id":"ba686712","parentId":"5f56b548","timestamp":"2026-11-06T05:52:37.750Z","thinkingLevel":"high"}
+{"type":"thinking_level_change","id":"04808037","parentId":"ba686712","timestamp":"2026-11-06T05:52:38.478Z","thinkingLevel":"xhigh"}
+
+==> /Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3--/2026-11-15T04-13-03-640Z_01a1dd68-9f17-77aa-a6ff-52be16c4ebc7.jsonl <==
+{"type":"session","version":3,"id":"01a1dd68-9f17-77aa-a6ff-52be16c4ebc7","timestamp":"2026-11-15T04:13:03.640Z","cwd":"/Users/whycz/m/bp3"}
+{"type":"model_change","id":"ee324e8b","parentId":null,"timestamp":"2026-11-15T04:13:03.701Z","provider":"openai","modelId":"gpt-6-astra"}
+{"type":"thinking_level_change","id":"b0012bdc","parentId":"ee324e8b","timestamp":"2026-11-15T04:13:03.701Z","thinkingLevel":"high"}
+{"type":"message","id":"0bcc9d48","parentId":"b0012bdc","timestamp":"2026-11-15T04:13:03.707Z","message":{"role":"system","content":"","sections":{"preamble":"You are a coding assistant running inside pi, a coding agent harness. Help users inspect files, run commands, and modify code.","tools":"<tools>\n- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n\nAdditional tools may be available.\n</tools>","rules":"<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>","docs":"<docs>\nPi documentation (read only when the user asks about the harness itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /opt/homebrew/Cellar/pi-coding-agent/1.5.0/libexec/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /opt/homebrew/Cellar/pi-coding-agent/1.5.0/libexec/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /opt/homebrew/Cellar/pi-coding-agent/1.5.0/libexec/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- Before implementing harness changes, read the relevant docs and examples in full, following related cross-references.\n</docs>","project_context":"<project_context>\nProject-specific instructions and guidelines:\n\n<project_instructions path=\"/Users/whycz/.pi/agent/AGENTS.md\">\n<!-- bp3-yap:voice:begin -->\n## Yap communication voice\n\nDefault communication voice: apply the full guide below to replies unless the user requests another tone.\n\n# Anon writer\n\nApply this guide when the user explicitly invokes anon-writer or asks for\nYap's anon house voice, or when installed as the default communication voice\nin native agent instructions. Produce the requested reply or rewrite in that\nvoice; this is not a coding, research, or execution workflow. The installer\nembeds this full guide, without YAML frontmatter, in its managed instruction\nblock.\n\nWrite in the style of a 4chan anon with appropriate humor. Be concise. Use\nStrunk and White, *The Elements of Style*, but with anon-style greentext.\n\n## Formatting and structure\n\n- In tone, think coaching. Don't ramble. Use links when useful. Be explicit\n  with side quests and sidebars.\n- For short Q&A, be funny and informative.\n- For longer research, write a military-style OODA report:\n  - **Observe**: the meta read.\n  - **Orient**: key questions, ideas, dimensions, thoughts, people of interest;\n    a Socratic FAQ.\n  - **Decide**: recommendations, the path forward.\n  - **Act**: bite-sized steps for the user to implement.\n- When talking design, use types, ASCII diagrams, and Python or OCaml\n  pseudocode when they clarify the explanation.\n\n## Tone\n\nCommunicate in the irreverent style of anonymous internet forums: sarcastic\nhumor, rapid-fire information, deliberately sharp phrasing. Carry technical\nfacts and detail while staying funny and informative. Internet slang,\ngreentext, and unexpected culture references are tools, not a quota.\n\nPrioritize raw information over ceremony. Keep the core content factually\naccurate and educational. Give clear, sharp information without burying it\nin memes or padding a short answer into a report.\n\n```text\n>be me\n>ask agent why build is red\n>agent: \"the lockfile was edited by hand, anon\"\n>it's always the lockfile\n```\n\n## Boundaries\n\n- Explicit tone requests and required output formats win. Keep IIUC plain;\n  don't decorate JSON, code, commit formats, or quoted text with greentext.\n- Style does not authorize tools, state changes, or task execution. Debugging,\n  research, and automation requests still belong to their own workflows.\n- Never invent facts, sources, or verification. Summarize successful checks\n  in one line; expand on actionable failures or when the user asks.\n- Aim humor at the situation, not personal abuse. Skip jokes when they would\n  obscure the answer or be inappropriate to the subject.\n\nThis block is managed by yap install.\n<!-- bp3-yap:voice:end -->\n\n</project_instructions>\n\n<project_instructions path=\"/Users/whycz/m/bp3/AGENTS.md\">\n# bp3 — agent instructions\n\nbp3 is a quest state engine. Work moves as clean git commits;\na small OCaml binary (`bp3 invoke`) is the only writer of quest\nstate. Read this before touching anything under `docs/quests/`.\n\n## The one rule\n\nNever hand-edit generated quest state. `state.yaml` and\n`ledger.jsonl` in a quest folder are written only by\n`bp3 invoke`. Never parse them by hand to decide anything either:\nrun `bp3 invoke <quest>` and read its JSON verdict.\n\n## Layout\n\n```text\ndocs/quests/<quest>/     one folder per quest, flat, never moved\n  QUEST.md               authored: goal, scope, exps, status field\n  fsm.yaml               authored: the plan (from plans/ at init)\n  state.yaml             GENERATED: stage, commit, cycle (a cache)\n  ledger.jsonl           GENERATED: every move, append-only (truth)\n  runs/<id>/             tape.log (verbatim), notes.md (lessons)\nplans/<type>.yaml        quest_type plans (default: one review round)\ninvoke/main.ml           the state engine (OCaml, yojson + unix)\ndocs/dossiers/           research records; they inform, never decide\nexperiments/ inside each quest folder: one record per exp\n```\n\nStatus is a frontmatter field in `QUEST.md`\n(`proposed | active | landed | canceled`), never a folder.\nA quest's path must survive its whole life: exp records and\nother repos point at it.\n\n## Commands\n\n```sh\n./bin/bp3 init   # one-time repo setup: renders skills for all harnesses\n./bin/bp3 quest create <name> --type default --engine single\n./bin/bp3 invoke <quest>            # JSON: stage, commit, legal moves\n./bin/bp3 invoke <quest> submit --commit <sha> --reason \"...\"\n./bin/bp3 invoke <quest> review --verdict ship|fix_first --reason \"...\"\n./bin/bp3 invoke <quest> land --reason \"...\"\n./bin/bp3 quest list                 # active quests; --all includes landed/canceled\n./bin/bp3 quest show <quest>          # one quest, JSON\ndune build invoke/main.exe          # (make check does this)\nmake check                          # lint, skills, invoke fixture tests\n```\n\nTwo independent dimensions: `quest_type` is the plan (stages and\ngates, YAML in `plans/`), `engine` is who executes (single,\nmaster-subagents, panes, workflows). A reviewer who refactors\ntakes a fix edge and produces a new commit; verdicts always bind\nto the exact commit reviewed.\n\n## Working agreements\n\n- Teach before building: when a quest or design is new, teach the\n  concepts back to the human (concept, before, change, after,\n  bites, transfer cues) and get the nod before implementation.\n- One review round by default (`max_cycles: 1`): a second\n  `fix_first` escalates to the human instead of looping.\n- Ledger is truth; `state.yaml` is its cache. Refused moves are\n  ledgered too. Only clean commits move — dirty worktrees are\n  never state.\n- Tape is evidence, never parsed into facts. Ledger lines are\n  emitted deliberately at the moment a fact happens.\n- Integration branch is `master`. Quest work lives on\n  `quest/<slug>` branches until the human promotes it. Commits\n  use the bp3 format (TL;DR, For humans, For LLMs) via `/commit`.\n- Verify with `make check` and say plainly what was not run.\n  Never claim a gate passed that was dropped or skipped.\n\n</project_instructions>\n</project_context>","skills":"<skills>\nThe following skills provide specialized instructions for specific tasks.\nUse the read tool to load a skill's file when the task matches its description.\nResolve relative paths against the skill's directory (parent of SKILL.md). Use absolute paths in tool calls.\n\n<available_skills>\n  <skill>\n    <name>add-bp3-skill</name>\n    <description>Add a bp3 project skill under skills/ and install it per project with bp3 skills install, through overlap, statelessness, and trigger checks.</description>\n    <location>/Users/whycz/m/bp3/.pi/skills/add-bp3-skill/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>add-yap-skill</name>\n    <description>Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests.</description>\n    <location>/Users/whycz/m/bp3/.pi/skills/add-yap-skill/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>icebox</name>\n    <description>Freeze a not-yet-ready idea as a future-quest sketch in docs/icebox with today&apos;s context, the smallest workable shape, blockers, and a promotion trigger.</description>\n    <location>/Users/whycz/m/bp3/.pi/skills/icebox/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>induct</name>\n    <description>Conduct one bp3 quest from the main session — read state with bp3 q r, dispatch the one step that state calls for, re-read, until the quest is terminal or a human decision is owed.</description>\n    <location>/Users/whycz/m/bp3/.pi/skills/induct/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>induct-quest</name>\n    <description>Alias for induct — conduct one bp3 quest from the main session with exactly the induct procedure; this body is a pointer, never a fork.</description>\n    <location>/Users/whycz/m/bp3/.pi/skills/induct-quest/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>induct-quest-no-human</name>\n    <description>Run several bp3 quests with no human present using the induct conductor — fleet preflight, park blocked work in the inbox, and end with the check-in report; never attests, never pages, never promotes.</description>\n    <location>/Users/whycz/m/bp3/.pi/skills/induct-quest-no-human/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>naming</name>\n    <description>Choose concrete, short names in bp3&apos;s existing vocabulary for quests, exps, skills, plans, engines, and CLI verbs.</description>\n    <location>/Users/whycz/m/bp3/.pi/skills/naming/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>quest</name>\n    <description>Turn a known intent into a bp3 Quest file at docs/quests/&lt;date&gt;-&lt;slug&gt;.md with exps, acceptance checks, and human touchpoints.</description>\n    <location>/Users/whycz/m/bp3/.pi/skills/quest/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>red-ink-quest-landing-demo</name>\n    <description>Produce the Landing IIUC for a bp3 Quest being promoted — diligence gate first (every exp checked against its own acceptance; unsettled or improperly-done exps route to red-ink, not landing), then decision record, settled picture, demo traces, files touched, verification, and deliberately-open items.</description>\n    <location>/Users/whycz/m/bp3/.pi/skills/red-ink-quest-landing-demo/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>using-bp3</name>\n    <description>Operate bp3 correctly in this repo: quest folders, bp3 invoke edges, ledger discipline, and verification, for any Controller or Worker session.</description>\n    <location>/Users/whycz/m/bp3/.pi/skills/using-bp3/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>add-skill</name>\n    <description>Author one new yap skill through its gates: clarify, search prior art, optional log mining, red chair, and adversarial trigger tests before writing.</description>\n    <location>/Users/whycz/.pi/agent/skills/add-skill/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>ask</name>\n    <description>Interview the user until a request is clear enough to build, recommending an answer for every question asked.</description>\n    <location>/Users/whycz/.pi/agent/skills/ask/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>auto-red-ink</name>\n    <description>Headless flavor of red-ink for when the owner is absent: walk an existing design output-first, then inputs, then internals (data, state, functions, names, concepts), shadow-boxing each round&apos;s Decide step against expert lenses; produce the edited design copy, a decision record of what was settled and how, and the questions that could not be settled without the owner. Use when a human asks for a design to be worked out without them present. Not for interactive review (red-ink), one-shot attack (red-chair), or authoring from a blank problem (design).</description>\n    <location>/Users/whycz/.pi/agent/skills/auto-red-ink/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>commit</name>\n    <description>Draft a git commit message in the bp3 format: TL;DR, a human section (ELI5, problem, solution), and a structured section for LLMs.</description>\n    <location>/Users/whycz/.pi/agent/skills/commit/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>debug</name>\n    <description>Debug systematically: reproduce, isolate, and prove a root cause before proposing any fix.</description>\n    <location>/Users/whycz/.pi/agent/skills/debug/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>design</name>\n    <description>Turn a known problem into a proposed design: TL;DR, ELI5, context, architecture, data models, functions, storage, and proposed milestones.</description>\n    <location>/Users/whycz/.pi/agent/skills/design/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>dossier</name>\n    <description>Build a deep-dive dossier on a problem space: map, forces, options, diagrams, and ranked open questions, without deciding.</description>\n    <location>/Users/whycz/.pi/agent/skills/dossier/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>expert-cli</name>\n    <description>CLI design lens for red-ink and auto-red-ink walks, or standalone when a human asks for CLI design rules: public output (calls, verdicts, error codes, exit behavior), system inputs (args, flags, env, config files), and internals (data shapes, state, functions and edges, variable names, concepts). Use when a design under review is a command-line interface. Not for building a CLI (implementation), naming alone (naming in bp3), or GUI/API design.</description>\n    <location>/Users/whycz/.pi/agent/skills/expert-cli/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>iiuc</name>\n    <description>Turn a raw voice transcript or messy dictated text into a clean statement of intent, played back as IIUC for confirmation before anything is executed.</description>\n    <location>/Users/whycz/.pi/agent/skills/iiuc/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>red-chair</name>\n    <description>Run a read-only adversarial review of a plan, design, change, or repo slice and return evidence-backed findings with next steps.</description>\n    <location>/Users/whycz/.pi/agent/skills/red-chair/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>red-chair-design</name>\n    <description>Run a four-pass read-only review of an existing design artifact (quest, exp, design doc, report): coherence, implementation confidence, ecosystem fit against a named referent, and a language cut list. Not for diffs (use red-chair), authoring (use design), or wording fixes.</description>\n    <location>/Users/whycz/.pi/agent/skills/red-chair-design/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>red-ink</name>\n    <description>Present an existing design back to its owner in rounds until they say they are happy: copy the design first (original untouched), walk output first, then system inputs, then internals (data, state, functions, names, concepts); every round is Observe (teach) -&gt; Orient (what matters) -&gt; Decide (one detailed question, the owner&apos;s call) -&gt; Act (one settled edit to the copy), closing with an IIUC playback and, at the end, a decision record plus proposed experiments. Use for Socratic design review of an existing artifact. Not for one-shot adversarial review (red-chair), authoring a new design (design), or interviewing an unclear request (ask, grill).</description>\n    <location>/Users/whycz/.pi/agent/skills/red-ink/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>search</name>\n    <description>Search the repo, git history, web, and available session archive for an answer and report it with sources.</description>\n    <location>/Users/whycz/.pi/agent/skills/search/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>swipe</name>\n    <description>Learn from an external repo by reading it against a named target and generating a build-versus-borrow adoption report with citations.</description>\n    <location>/Users/whycz/.pi/agent/skills/swipe/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>teach</name>\n    <description>Explain a concept, system, or diff from first principles, grounded in this repo, so the user builds intuition they can reuse.</description>\n    <location>/Users/whycz/.pi/agent/skills/teach/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>tldr</name>\n    <description>Produce a read-only primer over a diff or change: shape, features, dogfood cases, and where a reviewer should look hardest.</description>\n    <location>/Users/whycz/.pi/agent/skills/tldr/SKILL.md</location>\n  </skill>\n  <skill>\n    <name>verify</name>\n    <description>Verify a claim or a finished change by running the real checks now and reporting exact outputs before anyone says done.</description>\n    <location>/Users/whycz/.pi/agent/skills/verify/SKILL.md</location>\n  </skill>\n</available_skills>\n</skills>","cwd":"<cwd>\n/Users/whycz/m/bp3\n</cwd>"},"timestamp":1794715983706,"toolsAdded":[{"name":"read","description":"Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.","parameters":{"type":"object","required":["path"],"properties":{"path":{"type":"string","description":"Path to the file to read (relative or absolute)"},"offset":{"type":"number","description":"Line number to start reading from (1-indexed)"},"limit":{"type":"number","description":"Maximum number of lines to read"}}},"constrainedSampling":{"type":"json_schema","strict":"prefer"}},{"name":"bash","description":"Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.","parameters":{"type":"object","required":["command"],"properties":{"command":{"type":"string","description":"Shell command to execute"},"timeout":{"type":"number","description":"Timeout in seconds (optional, no default timeout)"}}},"constrainedSampling":{"type":"json_schema","strict":"prefer"}}]}}
+{"type":"message","id":"c2f07dcc","parentId":"0bcc9d48","timestamp":"2026-11-15T04:13:03.707Z","message":{"role":"user","content":[{"type":"text","text":"Run exactly: ./bin/bp3 q r 2026-11-15-toy-fleet-a — then reply with one line: the exp name, its state, and its fin value."}],"timestamp":1794715983705}}
+{"type":"message","id":"4d7ee0bd","parentId":"181f8e2c","timestamp":"2026-11-06T00:31:29.360Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"call_hAMZrdPQZ2X1mzHPV566KZrZ|fc_04121ab6f8aaca7b016aed1fdf9a0087d1aab25d6385adc511","name":"bash","arguments":{"command":"pwd; git status --short; rg --files -g 'AGENTS.md' -g '*quest*' -g 'package.json' -g 'README*' -g 'pyproject.toml' -g 'Cargo.toml' -g 'go.mod'; ls -la; ls -la docs/quests","timeout":10}}],"api":"openai-responses","provider":"openai","model":"gpt-6-astra","usage":{"input":2277,"output":87,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":2364,"cost":{"input":0.022770000000000002,"output":0.004350000000000001,"cacheRead":0,"cacheWrite":0,"total":0.027120000000000002,"totalFromProvider":false}},"stopReason":"toolUse","timestamp":1793925085595,"responseId":"resp_04121ab6f8aaca7b016aed1fde35bc87d199324f6c4e59c741","rawStopReason":"completed","durationMs":3765,"thinkingLevel":"xhigh"}}
+{"type":"message","id":"901174b7","parentId":"b74135f3","timestamp":"2026-11-06T00:31:36.839Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"call_HNtODqnSRlasGtV11Mar1AOu|fc_04121ab6f8aaca7b016aed1fe89b7487d18e1bbb5d23426bf7","name":"read","arguments":{"path":"/Users/whycz/.pi/agent/skills/red-chair/SKILL.md","offset":null,"limit":null}},{"type":"toolCall","id":"call_xLD8hOtLTWkAgQ6bEpIM26rY|fc_04121ab6f8aaca7b016aed1fe89b8487d196ccdc3e8ead0800","name":"read","arguments":{"path":"/Users/whycz/.pi/agent/skills/verify/SKILL.md","offset":null,"limit":null}},{"type":"toolCall","id":"call_t9MyiFz2bvt6x14CiKxV9Efi|fc_04121ab6f8aaca7b016aed1fe89b8c87d1a89464edf6405777","name":"read","arguments":{"path":"/Users/whycz/m/bp3/docs/quests/2026-11-05-bp3-mvp.md","offset":null,"limit":null}},{"type":"toolCall","id":"call_VHEm2PUgdLejeYLfkbFG2mEj|fc_04121ab6f8aaca7b016aed1fe89b9487d194dbdf82c3e00343","name":"read","arguments":{"path":"/Users/whycz/m/bp3/readme.md","offset":null,"limit":null}},{"type":"toolCall","id":"call_IQvg7sQRXA1ezWwL6SZPqdbE|fc_04121ab6f8aaca7b016aed1fe89b9c87d1a05cbd70f268e3f7","name":"bash","arguments":{"command":"find .. -name AGENTS.md -print; find . -maxdepth 4 -type f -not -path './.git/*' -print; git log -5 --oneline","timeout":10}}],"api":"openai-responses","provider":"openai","model":"gpt-6-astra","usage":{"input":2837,"output":227,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":3064,"cost":{"input":0.028370000000000003,"output":0.01135,"cacheRead":0,"cacheWrite":0,"total":0.039720000000000005,"totalFromProvider":false}},"stopReason":"toolUse","timestamp":1793925089419,"responseId":"resp_04121ab6f8aaca7b016aed1fe2167487d1a4c22dee5d301426","rawStopReason":"completed","durationMs":7419,"thinkingLevel":"xhigh"}}
+{"type":"message","id":"3a9a97c6","parentId":"fc903880","timestamp":"2026-11-06T00:31:52.407Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"call_8uUPwTH7a3NqgiBrD9B2D5PB|fc_04121ab6f8aaca7b016aed1ff59f2087d188032fd06a1b2324","name":"bash","arguments":{"command":"for p in /AGENTS.md /Users/AGENTS.md /Users/whycz/AGENTS.md /Users/whycz/m/AGENTS.md; do if test -f \"$p\"; then printf '%s\\n' \"$p\"; fi; done; find . -maxdepth 5 -type f -not -path './.git/*' -print; git log -5 --oneline; command -v ocaml dune opam sqlite3 pi zellij tmux bun node; env | sort | grep '^PI_'","timeout":10}}],"api":"openai-responses","provider":"openai","model":"gpt-6-astra","usage":{"input":3074,"output":134,"cacheRead":2944,"cacheWrite":0,"reasoning":0,"totalTokens":6152,"cost":{"input":0.030740000000000003,"output":0.0067,"cacheRead":0.002944,"cacheWrite":0,"total":0.040384,"totalFromProvider":false}},"stopReason":"toolUse","timestamp":1793925106847,"responseId":"resp_04121ab6f8aaca7b016aed1ff3d6cc87d1b7338f809aabe821","rawStopReason":"completed","durationMs":5560,"thinkingLevel":"xhigh"}}
+---
+---
+1695:  bp3 harness backtest [--corpus <dir>]   replay the muse fold over stored tapes; findings, not a gate\n\
+1745:  bp3 harness backtest [--corpus <dir>]\n\
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check skills/induct/workflows/induct-exp.js
+node --check skills/induct/workflows/induct-grade.js
+node --check skills/induct/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (114 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 72990 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 73102 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 73484 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 72520 Terminated: 15          sleep 60
+./test/harness.sh: line 514: 75175 Terminated: 15          sleep 60
+FAIL: backtest pi counts: {"ok":true,"engine":"pi","corpus":"fixtures/bt-pi","tapes_replayed":6,"identifiable":4,"traces":[{"tape":"fixtures/bt-pi/closed.jsonl","run_ids":[],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":false,"finish_evidence":true,"exit_observed":false,"torn_tail":false,"session_id":"S-bt-pi-5","has_header":true,"entries":2,"usage_input":0,"usage_output":0,"usage_total":0,"usage_missing":0},{"tape":"fixtures/bt-pi/foreign.jsonl","run_ids":[],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":false,"finish_evidence":false,"exit_observed":false,"torn_tail":true,"session_id":"","has_header":false,"entries":1,"usage_input":0,"usage_output":0,"usage_total":0,"usage_missing":0},{"tape":"fixtures/bt-pi/good.jsonl","run_ids":["R-bt-pi-1"],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":false,"finish_evidence":true,"exit_observed":false,"torn_tail":false,"session_id":"S-bt-pi-1","has_header":true,"entries":3,"usage_input":100,"usage_output":10,"usage_total":110,"usage_missing":0},{"tape":"fixtures/bt-pi/header.jsonl","run_ids":[],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":false,"finish_evidence":false,"exit_observed":false,"torn_tail":false,"session_id":"S-bt-pi-3","has_header":true,"entries":1,"usage_input":0,"usage_output":0,"usage_total":0,"usage_missing":0},{"tape":"fixtures/bt-pi/refused.jsonl","run_ids":["R-bt-pi-2"],"bp3_calls":0,"refusals":["E_BINDING_REFUSED"],"commits":[],"has_submit":false,"finish_evidence":false,"exit_observed":false,"torn_tail":false,"session_id":"S-bt-pi-2","has_header":true,"entries":3,"usage_input":0,"usage_output":0,"usage_total":0,"usage_missing":1},{"tape":"fixtures/bt-pi/torn.jsonl","run_ids":[],"bp3_calls":0,"refusals":[],"commits":[],"has_submit":false,"finish_evidence":false,"exit_observed":false,"torn_tail":true,"session_id":"","has_header":false,"entries":0,"usage_input":0,"usage_output":0,"usage_total":0,"usage_missing":0}],"findings":[{"tape":"fixtures/bt-pi/foreign.jsonl","run_id":"","evidence":"torn final tape entry","fix_target":"adapter"},{"tape":"fixtures/bt-pi/foreign.jsonl","run_id":"","evidence":"foreign tape: no pi session header","fix_target":"adapter"},{"tape":"fixtures/bt-pi/header.jsonl","run_id":"","evidence":"header-only pi tape: no message entries","fix_target":"adapter"},{"tape":"fixtures/bt-pi/refused.jsonl","run_id":"R-bt-pi-2","evidence":"assistant entry with no usage","fix_target":"adapter"},{"tape":"fixtures/bt-pi/refused.jsonl","run_id":"R-bt-pi-2","evidence":"E_BINDING_REFUSED refusal with no submit","fix_target":"dispatcher"},{"tape":"fixtures/bt-pi/torn.jsonl","run_id":"","evidence":"torn final tape entry","fix_target":"adapter"},{"tape":"fixtures/bt-pi/torn.jsonl","run_id":"","evidence":"foreign tape: no pi session header","fix_target":"adapter"}]}
+make: *** [check] Error 1
+make-check-exit:0
+exit:0
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+replay-exit:0
+deterministic: identical
+{
+  "tapes_replayed": 38,
+  "identifiable": 38,
+  "findings": 43,
+  "traces_with_finish": 33,
+  "usage_total_sum": 60591499
+}
+=== sample usage validation (independent jq sums) ===
+-- /Users/whycz/.pi/agent/sessions/--Users-whycz-m--/2026-11-05T18-29-27-538Z_01a1acf9-1571-758a-95cc-71798a80fa33.jsonl
+-n fold: 
+8757 338 15239
+-n jq:   
+"8757 338 15239"
+-- /Users/whycz/.pi/agent/sessions/--Users-whycz-m-backpack--/2026-04-15T00-57-21-924Z_019d8ea4-8d04-70e8-87d7-61ad410680de.jsonl
+-n fold: 
+10027 1296 18484
+-n jq:   
+"10027 1296 18484"
+-- /Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp2--/2026-11-05T18-51-18-688Z_01a1ad0d-171e-7516-9518-4c85c67963f8.jsonl
+-n fold: 
+0 0 0
+-n jq:   
+"0 0 0"
+=== incident patterns ===
+c3-settled finish=33 c1-unwitnessed nofinish-norefusal=3 refusals=12 header-only=0 foreign=0 submit=9
+E_ACCOUNT_ID refusal with no submit: 1
+E_API_KEY refusal with no submit: 1
+E_APPLICATION_CREDENTIALS refusal with no submit: 1
+E_BRIDGE_SESSION_ID refusal with no submit: 1
+E_CHILD_SESSION refusal with no submit: 1
+E_CLOUD_API_KEY refusal with no submit: 1
+E_CLOUD_LOCATION refusal with no submit: 1
+E_CLOUD_PROJECT refusal with no submit: 1
+E_CODE_BRIDGE_SESSION_ID refusal with no submit: 1
+E_CODE_CHILD_SESSION refusal with no submit: 1
+E_CODE_SESSION_ATTENDED refusal with no submit: 1
+E_COMMAND refusal with no submit: 2
+E_E944 refusal with no submit: 1
+E_F5UDN refusal with no submit: 1
+E_GATEWAY_ID refusal with no submit: 1
+E_GSKLN refusal with no submit: 1
+E_MAP refusal with no submit: 1
+E_NAME refusal with no submit: 1
+E_OPENAI_API_KEY refusal with no submit: 1
+E_OPENAI_API_VERSION refusal with no submit: 1
+E_OPENAI_BASE_URL refusal with no submit: 1
+E_OPENAI_DEPLOYMENT_NAME_MAP refusal with no submit: 1
+E_OPENAI_RESOURCE_NAME refusal with no submit: 1
+E_PDW5 refusal with no submit: 1
+E_PGPY refusal with no submit: 1
+E_ROOT refusal with no submit: 3
+E_SECS refusal with no submit: 1
+E_SEP refusal with no submit: 1
+E_SESSION_ATTENDED refusal with no submit: 1
+E_SESSION_ID refusal with no submit: 1
+E_SURFACES refusal with no submit: 1
+E_TT_ refusal with no submit: 1
+E_TYPES refusal with no submit: 1
+E_URL refusal with no submit: 1
+E_W74A refusal with no submit: 1
+E_X1A refusal with no submit: 1
+E_XY_ refusal with no submit: 1
+pi session with no finish evidence: 3
+adapter: 3
+dispatcher: 40
+The following paths are ignored by one of your .gitignore files:
+docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/runs
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
+[quest/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement 54134bf] feat(harness): pi backtest replay with usage fold (backtest.2)
+ 2 files changed, 109 insertions(+), 20 deletions(-)
+54134bfb29f1aacce55f84194d9ae235e7ad427c

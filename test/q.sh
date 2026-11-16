@@ -61,6 +61,23 @@ git show bp3/exp/demo/id-exp:docs/quests/demo/experiments/id-exp/ledger.jsonl | 
 if out=$(BP3_HARNESS=bogus BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q demo r parser-fix 2>&1); then fail "invalid harness accepted"; fi
 echo "$out" | jq -e '.error.code == "E_IDENTITY"' >/dev/null || fail "identity code: $out"
 
+# --- run-id: BP3_RUN_ID from env stamps verdict + ledger; unset is absent ---
+out=$(BP3_RUN_ID=run-42 BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q c runq)
+echo "$out" | jq -e '.ok == true and .run_id == "run-42"' >/dev/null || fail "run-id quest verdict: $out"
+out=$(BP3_RUN_ID=run-42 BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq c rid-exp)
+echo "$out" | jq -e '.ok == true and .run_id == "run-42"' >/dev/null || fail "run-id exp verdict: $out"
+git show bp3/exp/runq/rid-exp:docs/quests/runq/experiments/rid-exp/ledger.jsonl | tail -1 | jq -e '.run_id == "run-42" and .harness == "muse-code"' >/dev/null || fail "run-id ledger set"
+out=$(BP3_RUN_ID=run-42 BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq r rid-exp)
+echo "$out" | jq -e '.ok == true and .run_id == "run-42"' >/dev/null || fail "run-id read verdict: $out"
+out=$(env -u BP3_RUN_ID BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq c rid-unset)
+echo "$out" | jq -e '.ok == true and (has("run_id") | not)' >/dev/null || fail "run-id unset verdict: $out"
+git show bp3/exp/runq/rid-unset:docs/quests/runq/experiments/rid-unset/ledger.jsonl | tail -1 | jq -e 'has("run_id") | not' >/dev/null || fail "run-id ledger unset"
+out=$(env -u BP3_RUN_ID BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq r rid-unset)
+echo "$out" | jq -e '.ok == true and (has("run_id") | not)' >/dev/null || fail "run-id unset read verdict: $out"
+out=$(env -u BP3_HARNESS -u BP3_MODEL -u BP3_RUN_ID BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq c rid-unknown)
+echo "$out" | jq -e '.ok == true and (has("run_id") | not) and (.warnings | index("W_IDENTITY_UNKNOWN") != null)' >/dev/null || fail "run-id unset identity warning: $out"
+git show bp3/exp/runq/rid-unknown:docs/quests/runq/experiments/rid-unknown/ledger.jsonl | tail -1 | jq -e '(has("run_id") | not) and .harness == "unknown"' >/dev/null || fail "run-id unset unknown ledger"
+
 # --- happy path submit/review/check/land (alias spellings mixed) ---
 echo work > b.txt; git add b.txt; git commit -qm work
 B=$(git rev-parse HEAD)

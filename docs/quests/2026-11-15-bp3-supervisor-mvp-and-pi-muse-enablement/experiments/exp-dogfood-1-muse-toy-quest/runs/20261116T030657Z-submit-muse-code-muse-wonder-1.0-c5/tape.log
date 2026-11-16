@@ -1,0 +1,14 @@
+created docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T030657Z-submit-muse-code-muse-wonder-1.0-c5
+extracted bytes: 3010
+node-check exit:0
+19
+node-check-direct exit:0
+total 16
+-rw-r--r--@ 1 whycz  staff  3734 Nov 15 22:07 flappy.html
+-rw-r--r--@ 1 whycz  staff   240 Nov 15 22:07 tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/runs/20261116T003423Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T020249Z-submit-muse-code-muse-wonder-1.0-c4/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-followup-3-tape-binding/runs/20261116T023114Z-submit-muse-code-muse-wonder-1.0-c1/tape.log

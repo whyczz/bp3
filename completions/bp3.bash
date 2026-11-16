@@ -104,11 +104,15 @@ _bp3_candidates() {
 
   if [ "$has_q" -eq 0 ]; then
     if [ "${#a[@]}" -eq 0 ]; then
-      printf '%s\n' q quest init skills worktree | _bp3_filter "$cur"
+      printf '%s\n' q quest init skills harness worktree | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'skills' ]; then
       printf '%s\n' install | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'harness' ]; then
+      printf '%s\n' supervisor init-check find-tape watch desk s i f w d | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'harness' ] && { [ "${a[1]}" = 'desk' ] || [ "${a[1]}" = 'd' ]; }; then
+      printf '%s\n' derive create inspect remove prepare check exit release list | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'worktree' ]; then
-      printf '%s\n' derive create inspect remove | _bp3_filter "$cur"
+      printf '%s\n' derive create inspect remove prepare check exit release list | _bp3_filter "$cur"
     fi
     return 0
   fi
