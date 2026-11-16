@@ -52,6 +52,7 @@ done
 jq -e '.thresholds.setup_slow_s == 180 and .thresholds.depth_cap == 3 and (has("contexts") | not)' \
   "$store/config.json" >/dev/null || fail "default config.json shape: $(cat "$store/config.json")"
 [ -z "$(git status --porcelain)" ] || fail "config tree dirtied git status: $(git status --porcelain)"
+[ -z "$(git ls-files "$store")" ] || fail "config tree is tracked: $(git ls-files "$store")"
 
 # --- view: defaults, empty contexts, derivations folded in ---
 out=$(c)
@@ -93,7 +94,8 @@ out=$(c)
 echo "$out" | jq -e '(.contexts | length) == 2' >/dev/null || fail "torn run config folded: $out"
 rm "$store/runs/z-torn.json"
 
-# --- thresholds are local and honored by the view ---
+# --- thresholds are local and honored by the view (enforcement
+# in edge verdicts lands with mvp.1/mvp.3, per the door doc) ---
 jq '.thresholds.setup_slow_s = 42' "$store/config.json" > "$store/config.json.tmp"
 mv "$store/config.json.tmp" "$store/config.json"
 out=$(c)
@@ -130,5 +132,15 @@ out=$(q c demo)
 echo "$out" | jq -e '.ok == true and (has("warnings") | not)' >/dev/null || fail "legacy create changed: $out"
 if out=$(q c config 2>&1); then fail "quest named config accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved config slug code: $out"
+
+# --- mkdir failure is attributed at its site, not swallowed ---
+rm -rf "$store/runs"
+chmod 500 "$store"
+if out=$(c 2>&1); then chmod 700 "$store"; fail "view over unwritable store accepted"; fi
+chmod 700 "$store"
+echo "$out" | grep -q "EACCES" || fail "mkdir failure not attributed: $out"
+out=$(c)
+echo "$out" | jq -e '.ok == true and (.contexts | length) == 0' >/dev/null \
+  || fail "view after store repair: $out"
 
 echo "config tests: ok"

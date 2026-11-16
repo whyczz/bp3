@@ -2,14 +2,18 @@
    <git-common-dir>/bp3/ holding config.json (machine
    settings only: local thresholds and gates), the per-run
    configs runs/<run_id>.json (one canonical record per
-   Run, created at link mint), links/, the derived
-   by-session index, desks/, and the supervisor's
+   Run; the shape is defined here, its writer is link mint
+   in mvp.1 — no verb writes run configs yet), links/, the
+   derived by-session index, desks/, and the supervisor's
    run-lifecycle-derivations. Written only by bp3 verbs,
    never hand-edited, never committed; every worktree of
    the repo resolves the same tree through the git common
    dir, while contexts stay per-session. bp3 config views
    the store; contexts are folded from runs/, never stored
-   in config.json. *)
+   in config.json. Thresholds are stored and viewed here;
+   verdicts beyond the view consume them when their verbs
+   land (depth cap at link mint in mvp.1, W_SETUP_SLOW in
+   mvp.3). *)
 open Gitx
 
 (* ---------- layout ---------- *)
@@ -33,12 +37,15 @@ let desks_dir dir = Filename.concat dir "desks"
 let derivations_dir_of dir = Filename.concat dir "run-lifecycle-derivations"
 let config_file dir = Filename.concat dir "config.json"
 
+(* Only an already-existing directory is benign; any other
+   mkdir failure is the caller's diagnosis, raised here at
+   the site that caused it (worktree.ml's ensure_dir rule). *)
 let ensure_dir dir =
   let parent = Filename.dirname dir in
   (try Unix.mkdir parent 0o755
-   with Unix.Unix_error (Unix.EEXIST, _, _) -> () | _ -> ());
+   with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
   (try Unix.mkdir dir 0o755
-   with Unix.Unix_error (Unix.EEXIST, _, _) -> () | _ -> ())
+   with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
 
 (* Single-write temp file in the same directory, fsynced,
    then renamed over the target (followup.1 discipline):
@@ -99,14 +106,6 @@ let load_thresholds dir =
       { setup_slow_s = jint scope "setup_slow_s" default_thresholds.setup_slow_s;
         depth_cap = jint scope "depth_cap" default_thresholds.depth_cap }
     with _ -> default_thresholds
-
-(* Effective thresholds for any caller: the store's values
-   when a store exists, defaults otherwise (fails open to
-   today's behavior; no committed file ever requires one). *)
-let thresholds () =
-  match config_dir () with
-  | Some dir -> load_thresholds dir
-  | None -> default_thresholds
 
 (* Zero setup: the first bp3 write on a fresh repo creates
    the whole tree with defaults; an existing config.json is
