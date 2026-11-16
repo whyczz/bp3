@@ -1,0 +1,90 @@
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: dogfood.2
+status: proposed
+---
+
+# dogfood.2 - parallel-drive: one cohort, two flappy variants
+
+## TL;DR
+
+Prove BFS scheduling end to end: two independent
+flappy-variant nodes in one cohort build and grade
+in parallel (separate ad hoc desks, separate
+claims), then land through the serial queue. The
+scorecard reports wall minutes and tokens per
+node and for the cohort — the North Star made
+visible. Variants live in separate run folders so
+the land queue is boring by construction.
+
+## Demo (design trace)
+
+```text
+cohort [flappy-day, flappy-night] (no deps between them)
+  t0: both claimed, both building in parallel desks
+  t1: both graded in parallel (read-only)
+  t2: land flappy-day; t3: land flappy-night (serial, re-checked)
+report: cohort wall < sum(node walls); both landed
+```
+
+## Diagram
+
+```text
+        ┌─ flappy-day ──► approved ─┐
+cohort ─┤                            ├─► land queue ─► both landed
+        └─ flappy-night ─► approved ─┘
+one blocked variant would starve only its dependents (none here)
+```
+
+## Pseudocode
+
+```python
+desks = [adhoc_desk(), adhoc_desk()]
+parallel([drive(n, desk) for n, desk in zip(cohort, desks)])
+for n in approved_in_order: land(n)   # serial, mergeability re-checked
+```
+
+| Field | Value |
+|---|---|
+| Intent | parallel wall-clock savings, measured; isolation without pools |
+| Lane | standard |
+| Output | two landed variant nodes; cohort timing/token scorecard |
+| Depends on | mvp.3, dogfood.1 |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| true parallelism | both author Runs' tapes overlap in wall time (timestamps), different desks, different claims |
+| isolation | no cross-node file or context bleed (each desk's diff contains only its variant; contexts resolve per claim) |
+| serial land | land edges execute one at a time; second land re-checks against the new tip and succeeds |
+| scorecard honest | cohort wall, per-node wall/tokens reported from system timing (mvp.3); cohort wall < serial sum or the shortfall is named with cause |
+| quality floor unchanged | full grade matrix per node, `make check` green; no rung skipped for speed |
+| env-set run-id (standing ruling) | per-claim stamps as in mvp.2 |
+
+## Acceptance test (goal block)
+
+- **Objective:** two nodes land in materially
+  less wall time than the serial railway would
+  take, at full quality.
+- **Prove by:** overlapping tape timestamps,
+  land-queue ledger order, timing scorecard.
+- **Done when:** both variants landed, cohort
+  wall and tokens reported from the system,
+  observed.
+
+## Tests
+
+The drive is the test. Conflict case seeded in a
+fixture (not the live drive): two nodes touching
+one file must serialize at land with a named
+conflict, never a silent overwrite.
+
+## Context
+
+The supervisor quest's 23 nodes ran strictly
+serially; most followups were independent. This
+is the recovery of those hours, with receipts.
+Desks are ad hoc per the 2026-11-16 ruling; setup
+timing watches the 3-minute gate.
