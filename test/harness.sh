@@ -541,6 +541,27 @@ if out=$(h backtest --bogus 1 2>&1); then fail "backtest unknown flag accepted";
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "backtest usage code: $out"
 if out=$(h backtest stray 2>&1); then fail "backtest stray accepted"; fi
 
+# --- backtest pi (backtest.2): pi fold, usage sums, deterministic replay ---
+mkdir -p fixtures/bt-pi
+printf '%s\n' '{"type":"session","version":3,"id":"S-bt-pi-1","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}' '{"type":"message","id":"e1","message":{"role":"user","content":"BP3_RUN_ID=R-bt-pi-1 work"}}' '{"type":"message","id":"e2","message":{"role":"assistant","content":"done","usage":{"input":100,"output":10,"totalTokens":110},"stopReason":"stop"}}' > fixtures/bt-pi/good.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-bt-pi-2","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}' '{"type":"message","id":"e1","message":{"role":"user","content":"BP3_RUN_ID=R-bt-pi-2 work"}}' '{"type":"message","id":"e2","message":{"role":"assistant","content":"error E_BINDING_REFUSED"}}' > fixtures/bt-pi/refused.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-bt-pi-3","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}' > fixtures/bt-pi/header.jsonl
+printf '%s' '{"type":"session","id":"S-bt-pi-4","times' > fixtures/bt-pi/torn.jsonl
+printf '%s\n' 'hello foreign tape' > fixtures/bt-pi/foreign.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-bt-pi-5","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}' '{"type":"session_closed","id":"c1"}' > fixtures/bt-pi/closed.jsonl
+out=$(h backtest --engine pi --corpus fixtures/bt-pi) || fail "backtest pi exit: $out"
+echo "$out" | jq -e '.ok == true and .engine == "pi" and .tapes_replayed == 6 and .identifiable == 4' >/dev/null || fail "backtest pi counts: $out"
+echo "$out" | jq -e '(.traces[] | select(.session_id == "S-bt-pi-1") | .finish_evidence == true and .usage_input == 100 and .usage_output == 10 and .usage_total == 110)' >/dev/null || fail "backtest pi good trace: $out"
+echo "$out" | jq -e '(.traces[] | select(.session_id == "S-bt-pi-5") | .finish_evidence == true)' >/dev/null || fail "backtest pi closed trace: $out"
+echo "$out" | jq -e '(.findings[] | select(.evidence | test("E_BINDING_REFUSED")) | .fix_target == "dispatcher")' >/dev/null || fail "backtest pi refusal finding: $out"
+echo "$out" | jq -e '(.findings[] | select(.evidence | test("header-only")))' >/dev/null || fail "backtest pi header finding: $out"
+echo "$out" | jq -e '(.findings[] | select(.evidence | test("torn")))' >/dev/null || fail "backtest pi torn finding: $out"
+echo "$out" | jq -e '(.findings[] | select(.evidence | test("foreign")))' >/dev/null || fail "backtest pi foreign finding: $out"
+out2=$(h backtest --engine pi --corpus fixtures/bt-pi) || fail "backtest pi rerun exit: $out2"
+[ "$out" = "$out2" ] || fail "backtest pi replay not deterministic"
+if out=$(h backtest --engine bogus 2>&1); then fail "backtest bad engine accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "backtest bad engine code: $out"
+
 # --- naming gate: retired spellings stay out of the new code ---
 retired="Spawn""Record|spawn""ed|run""ning"
 if grep -E "$retired" "$root/src/quest/harness.ml" >/dev/null; then fail "retired lifecycle spelling in harness.ml"; fi

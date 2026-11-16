@@ -1540,16 +1540,52 @@ let extract_shas text =
   go 0;
   List.rev !shas
 
-type bt_flags = { mutable bt_corpus : string option }
+type bt_flags = { mutable bt_corpus : string option;
+                  mutable bt_engine : string option }
+
+(* Pi usage lives on each assistant message entry; the fold
+   sums it mechanically so a replay can check tape sums. *)
+let pi_usage text =
+  let (lines, _) = whole_lines text in
+  List.fold_left (fun (inp, outp, tot, missing) ln ->
+    try
+      let j = Yojson.Safe.from_string (String.trim ln) in
+      if get_str j "type" "" <> "message" then (inp, outp, tot, missing)
+      else
+        let msg = try Yojson.Safe.Util.member "message" j with _ -> `Null in
+        if get_str msg "role" "" <> "assistant" then (inp, outp, tot, missing)
+        else
+          (match (try Some (Yojson.Safe.Util.member "usage" msg) with _ -> None) with
+           | Some (`Assoc _ as u) ->
+               (inp + (match get_int_opt u "input" with Some n -> n | None -> 0),
+                outp + (match get_int_opt u "output" with Some n -> n | None -> 0),
+                tot + (match get_int_opt u "totalTokens" with Some n -> n | None -> 0),
+                missing)
+           | _ -> (inp, outp, tot, missing + 1))
+    with _ -> (inp, outp, tot, missing)) (0, 0, 0, 0) lines
+
+let pi_shape text =
+  let (lines, _) = whole_lines text in
+  let whole = List.filter (fun ln -> String.trim ln <> "") lines in
+  let has_header = List.exists (fun ln ->
+    try get_str (Yojson.Safe.from_string (String.trim ln)) "type" "" = "session"
+    with _ -> false) whole in
+  (has_header, List.length whole)
 
 let parse_bt_flags args =
-  let fl = { bt_corpus = None } in
+  let fl = { bt_corpus = None; bt_engine = None } in
   let rec loop = function
     | [] -> fl
     | "--corpus" :: v :: rest ->
         if fl.bt_corpus <> None then usage "duplicate flag --corpus";
         fl.bt_corpus <- Some v; loop rest
+    | "--engine" :: v :: rest ->
+        if fl.bt_engine <> None then usage "duplicate flag --engine";
+        if v <> "muse-code" && v <> "pi" then
+          usage "--engine must be muse-code or pi";
+        fl.bt_engine <- Some v; loop rest
     | ["--corpus"] -> usage "flag needs a value"
+    | ["--engine"] -> usage "flag needs a value"
     | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
         (match String.index_opt f '=' with
          | Some _ -> usage ("unknown flag form: " ^ f)
@@ -1559,9 +1595,10 @@ let parse_bt_flags args =
 
 let do_backtest args =
   let fl = parse_bt_flags args in
+  let engine = match fl.bt_engine with Some e -> e | None -> "muse-code" in
   let corpus = match fl.bt_corpus with
     | Some d when d <> "" -> d
-    | _ -> (match tape_roots "muse-code" with d :: _ -> d | [] -> ".") in
+    | _ -> (match tape_roots engine with d :: _ -> d | [] -> ".") in
   if not (try Sys.is_directory corpus with _ -> false) then
     err "E_NOT_FOUND" (`Assoc [("corpus", json_str corpus)])
       ("Corpus directory does not exist: " ^ corpus) 1;
@@ -1574,30 +1611,57 @@ let do_backtest args =
       let run_ids = extract_run_ids text in
       let refusals = extract_codes text in
       let commits = extract_shas text in
-      let (fin, exit_e, torn_t) = tape_evidence "muse-code" text in
+      let (fin, exit_e, torn_t) = tape_evidence engine text in
       let torn = torn || torn_t in
       let bp3_calls = count_sub text "bp3 q " + count_sub text "bp3 harness" in
       let has_submit = contains_sub text " submit" || contains_sub text "\"submit\"" in
       let run_id = match run_ids with r :: _ -> r | [] -> "" in
-      traces := `Assoc [
+      let (has_header, entries) = if engine = "pi" then pi_shape text
+        else (false, 0) in
+      let (u_in, u_out, u_tot, u_missing) = if engine = "pi"
+        then pi_usage text else (0, 0, 0, 0) in
+      let session_id = if engine = "pi"
+        then (match session_id_of_tape path with Some s -> s | None -> "")
+        else "" in
+      let base = [
         ("tape", json_str path); ("run_ids", `List (List.map json_str run_ids));
         ("bp3_calls", `Int bp3_calls);
         ("refusals", `List (List.map json_str refusals));
         ("commits", `List (List.map json_str commits));
         ("has_submit", `Bool has_submit);
         ("finish_evidence", `Bool fin); ("exit_observed", `Bool exit_e);
-        ("torn_tail", `Bool torn)] :: !traces;
+        ("torn_tail", `Bool torn)] in
+      let extra = if engine = "pi" then [
+        ("session_id", json_str session_id);
+        ("has_header", `Bool has_header); ("entries", `Int entries);
+        ("usage_input", `Int u_in); ("usage_output", `Int u_out);
+        ("usage_total", `Int u_tot); ("usage_missing", `Int u_missing)]
+        else [] in
+      traces := `Assoc (base @ extra) :: !traces;
       let add_finding evidence target =
         findings := `Assoc [
           ("tape", json_str path); ("run_id", json_str run_id);
           ("evidence", json_str evidence); ("fix_target", json_str target)] :: !findings in
       if torn then add_finding "torn final tape entry" "adapter";
-      if run_ids = [] then add_finding "foreign tape: no BP3_RUN_ID binding" "adapter";
-      List.iter (fun code ->
-        if not has_submit then
-          add_finding (code ^ " refusal with no submit") "bp3 q u / hooks") refusals;
-      if run_ids <> [] && not fin && not exit_e && refusals = [] then
-        add_finding "identifiable Run with no finish evidence" "adapter"
+      if engine = "pi" then begin
+        if not has_header then add_finding "foreign tape: no pi session header" "adapter";
+        if has_header && entries <= 1 then
+          add_finding "header-only pi tape: no message entries" "adapter";
+        if u_missing > 0 then
+          add_finding "assistant entry with no usage" "adapter";
+        List.iter (fun code ->
+          if not has_submit then
+            add_finding (code ^ " refusal with no submit") "dispatcher") refusals;
+        if has_header && entries > 1 && not fin && refusals = [] then
+          add_finding "pi session with no finish evidence" "adapter"
+      end else begin
+        if run_ids = [] then add_finding "foreign tape: no BP3_RUN_ID binding" "adapter";
+        List.iter (fun code ->
+          if not has_submit then
+            add_finding (code ^ " refusal with no submit") "bp3 q u / hooks") refusals;
+        if run_ids <> [] && not fin && not exit_e && refusals = [] then
+          add_finding "identifiable Run with no finish evidence" "adapter"
+      end
     with _ ->
       findings := `Assoc [
         ("tape", json_str path); ("run_id", json_str "");
@@ -1606,10 +1670,14 @@ let do_backtest args =
   let traces = List.rev !traces and findings = List.rev !findings in
   let identifiable = List.fold_left (fun acc t ->
     match t with `Assoc fs ->
-      (match List.assoc_opt "run_ids" fs with
-       | Some (`List (_ :: _)) -> acc + 1 | _ -> acc) | _ -> acc) 0 traces in
+      if engine = "pi" then
+        (match List.assoc_opt "has_header" fs with
+         | Some (`Bool true) -> acc + 1 | _ -> acc)
+      else
+        (match List.assoc_opt "run_ids" fs with
+         | Some (`List (_ :: _)) -> acc + 1 | _ -> acc) | _ -> acc) 0 traces in
   print_endline (Yojson.Safe.to_string (`Assoc [
-    ("ok", `Bool true); ("engine", json_str "muse-code");
+    ("ok", `Bool true); ("engine", json_str engine);
     ("corpus", json_str corpus);
     ("tapes_replayed", `Int (List.length tapes));
     ("identifiable", `Int identifiable);
@@ -1624,7 +1692,7 @@ let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]   blocking watch: sole TERM/KILL owner\n\
   bp3 harness desk <verb> ...                      machine-local desks: derive, create, inspect, remove, prepare, check, exit, release, list\n\
   bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>]   launcher writes the InitRecord before the child starts (create-only)\n\
-  bp3 harness backtest [--corpus <dir>]   replay the muse fold over stored tapes; findings, not a gate\n\
+  bp3 harness backtest [--engine muse-code|pi] [--corpus <dir>]   replay the fold over stored tapes; findings, not a gate\n\
 Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init, b=backtest. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
 
 let help_supervisor = "bp3 harness supervisor - passive supervisor loop for one quest:\n\
@@ -1673,10 +1741,10 @@ Example: bp3 harness record-init --run-id 20261115T000000Z-submit-muse-code-mode
 
 let is_help = function "-h" | "--help" -> true | _ -> false
 
-let help_backtest = "bp3 harness backtest - replay the muse fold over stored tapes (findings, not a gate):\n\
-  bp3 harness backtest [--corpus <dir>]\n\
-  Reads every .jsonl tape under the corpus (default: the muse tape source), folds mechanical facts per tape (BP3_RUN_ID bindings, bp3 invocations, E_* refusals, commit shas, finish/exit evidence, torn tails) and emits one verdict {ok, engine, corpus, tapes_replayed, identifiable, traces, findings}. Each finding names its tape, run-id, evidence lines, and proposed fix target (bp3 q u, hooks, or adapter). A parser crash fails the call; findings themselves never gate. Truncated, foreign, and torn tapes are reported in findings, never fatal.\n\
-Example: bp3 harness backtest --corpus ~/.local/share/muse/sessions\n"
+let help_backtest = "bp3 harness backtest - replay the fold over stored tapes (findings, not a gate):\n\
+  bp3 harness backtest [--engine muse-code|pi] [--corpus <dir>]\n\
+  Reads every .jsonl tape under the corpus (default: the engine's tape source), folds mechanical facts per tape (BP3_RUN_ID bindings, bp3 invocations, E_* refusals, commit shas, finish/exit evidence, torn tails; pi tapes also yield session-id, entry counts, and summed usage) and emits one verdict {ok, engine, corpus, tapes_replayed, identifiable, traces, findings}. Each finding names its tape, run-id, evidence lines, and proposed fix target (dispatcher, adapter, contract; muse findings keep bp3 q u / hooks). A parser crash fails the call; findings themselves never gate. Truncated, foreign, and torn tapes are reported in findings, never fatal. Replay is deterministic: same corpus, same verdict.\n\
+Example: bp3 harness backtest --engine pi --corpus ~/.pi/agent/sessions\n"
 
 let normalize_verb = function
   | "b" | "backtest" -> "backtest"
