@@ -339,3 +339,5 @@ M  extensions/bp3-pi/test/bp3-pi.test.mjs
 18ebf4b59225f8eabcfe5eceb8b53aad8c198a50
  M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-followup-7-pi-worktree-root/runs/20261116T073334Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
 {"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{},"guidance":"Worktree is dirty; clean it and retry."},"run_id":"20261116T073334Z-submit-muse-code-muse-wonder-1.0-c1"}
+=== submit verdict (appended post-submit; tree was clean at submit) ===
+{"ok":true,"quest":"2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement","exp":"exp-followup-7-pi-worktree-root","state":"submitted","cycle":1,"commit":"57ff21110a8acef43684328e57fc183bef236c91","legal_edges":["review","check","block","delete"],"run_id":"20261116T073334Z-submit-muse-code-muse-wonder-1.0-c1"}

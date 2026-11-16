@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: landed
 home_repo: bp3
 date: 2026-11-15
 ---
@@ -247,6 +247,28 @@ polling. Backtests over muse and pi corpora
 produce a concrete fix list for `bp3 q u` and the
 adapters. After a design rethink, the active
 supervisor drives the same toy quest on pi.
+
+### Landing IIUC (2026-11-16, owner-promoted)
+
+23/23 exps `exp_fin`. Before: children narrated
+their own completion and a shared registry witnessed
+them. After: children produce work, the supervisor
+folds tape + pid into derived lifecycle
+(`init / active / finished / orphaned`), `bp3 q`
+owns exp state, and the grader climbs the five-rung
+evidence ladder on the bound commit. One supervisor
+control plane, two enabled harnesses: muse
+(passive fold, mvp.1–mvp.8) and pi (active
+spawn/watch, followup.5–followup.7 `bp3-pi`
+extension + dispatcher, dogfood.4 extension-driven
+drive). Observed closers: dogfood.1 c6 muse Run
+derived `finished`; dogfood.4 pi conductor drove
+`spawn_run → await_runs → list_runs` with the child
+derived `finished`; backtests: 2015 muse tapes
+(729 findings) and 38 pi tapes (43 findings), all
+dispositioned in landing.1/landing.2. Deliberately
+open: pi tape-source probe path (D7), U4/U5/U8/RC5,
+nested induct drive (owner out of scope).
 
 ## Scope
 
