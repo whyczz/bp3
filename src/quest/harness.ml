@@ -37,16 +37,21 @@
    binds a workflow Run to its session tape after the
    child finishes: record-init names no tape, the
    launcher's bind-tape appends one pointer-only
-   tape_binding row, and the fold honors the latest
-   binding when the InitRecord names no tape. The muse
+   tape_binding row, and the fold honors the binding
+   when the InitRecord names no tape. The muse
    tail scan now skips trailing task entries, so a tape
    ending in a run terminal entry followed by task
    entries still yields finish evidence. followup.4
-   resolves a scanned Run by its own edge: when several
-   tapes reference the Run, only the tape carrying the
-   Run's own edge invocation (BP3_RUN_ID bound to its
-   bp3 q ... u <exp> <edge> call) resolves; zero or
-   several such tapes refuse E_AMBIGUOUS. *)
+   resolves a scanned Run by its own engine-fsm-edge:
+   when several tapes reference the Run, only tapes
+   carrying the Run's own engine-fsm-edge invocation
+   (BP3_RUN_ID bound to its bp3 q ... u <exp>
+   <engine-fsm-edge> call) can resolve, and among them
+   the earliest session started at-or-after the Run's
+   InitRecord wins; a tie or none refuse E_AMBIGUOUS.
+   The binding is one-to-one and pinned: the first
+   tape_binding row is the only pointer the fold reads,
+   and bind-tape refuses a second, different tape. *)
 open Gitx
 open Store
 
@@ -59,6 +64,7 @@ type init_record = {
   tape_path : string option;
   quest : string option;
   exp : string option;
+  init_ts : string option;
 }
 
 type observation = {
@@ -307,12 +313,14 @@ let fold_run_file ~silence_seconds path =
               tape_path = get_opt j "tape_path";
               quest = get_opt j "quest";
               exp = get_opt j "exp";
+              init_ts = get_opt j "ts";
             }
         | "tape_binding" ->
-            (* pointer only: the latest binding names the
-               tape when the InitRecord names none *)
-            (match get_opt j "tape_path" with
-             | Some tp when tp <> "" -> binding := Some tp
+            (* pointer only, pinned (followup.4): the first
+               binding names the tape when the InitRecord
+               names none; later rows never rebind it *)
+            (match !binding, get_opt j "tape_path" with
+             | None, Some tp when tp <> "" -> binding := Some tp
              | _ -> ())
         | "observation" ->
             let o = !obs in
@@ -335,8 +343,8 @@ let fold_run_file ~silence_seconds path =
    | None -> (!init, !obs, tail_warns)
    | Some raw ->
        (* the folded record carries the effective tape:
-          the InitRecord's own path, else the latest
-          binding's — never a guessed binding *)
+          the InitRecord's own path, else the pinned
+          (first) binding's — never a guessed binding *)
        let rec_ = { raw with tape_path =
          (match raw.tape_path with
           | Some _ as t -> t
@@ -454,6 +462,7 @@ let read_cache dir run_id silence_seconds =
                 run_id; harness = get_str j "harness" "";
                 session_id = get_opt j "session_id"; pid;
                 tape_path; quest = get_opt j "quest"; exp = get_opt j "exp";
+                init_ts = None;
               } in
               let lifecycle = get_opt j "lifecycle" in
               let warns = try match Yojson.Safe.Util.member "warnings" j with
@@ -838,8 +847,8 @@ let all_init_records () =
               try
                 let j = Yojson.Safe.from_string ln in
                 if get_str j "kind" "" = "tape_binding" then
-                  (match get_opt j "tape_path" with
-                   | Some tp when tp <> "" -> binding := Some tp
+                  (match !binding, get_opt j "tape_path" with
+                   | None, Some tp when tp <> "" -> binding := Some tp
                    | _ -> ())
                 else if get_str j "kind" "" = "init_record" then
                   found := {
@@ -851,6 +860,7 @@ let all_init_records () =
                     tape_path = get_opt j "tape_path";
                     quest = get_opt j "quest";
                     exp = get_opt j "exp";
+                    init_ts = get_opt j "ts";
                   } :: !found
               with _ -> ());
           List.rev !found |> List.map (fun (r : init_record) ->
@@ -914,16 +924,91 @@ let tape_references_session text session =
   contains_sub text ("\"session_id\":\"" ^ session ^ "\"")
   || contains_sub text ("\"session_id\": \"" ^ session ^ "\"")
 
-(* followup.4: a Run's own edge. The edge is the run-id's
-   second dash segment; the exp comes from the Run's
-   InitRecord. A tape carries the edge only when one entry
-   binds BP3_RUN_ID=<run> to a bp3 q ... u <exp> <edge>
-   invocation: sibling sessions bind the same id to
-   record-init or find-tape and never carry it. *)
-let edge_of_run_id run_id =
+(* followup.4: a Run's own engine-fsm-edge. The
+   engine-fsm-edge is the run-id's second dash segment;
+   the exp comes from the Run's InitRecord. A tape
+   carries the engine-fsm-edge only when one entry binds
+   BP3_RUN_ID=<run> to a bp3 q ... u <exp>
+   <engine-fsm-edge> invocation: sibling sessions bind
+   the same id to record-init or find-tape and never
+   carry it. The bp3 q u <edge> grammar and the ledger
+   edge field keep their spellings; only this concept
+   is named engine-fsm-edge. *)
+let engine_fsm_edge_of_run_id run_id =
   match String.split_on_char '-' run_id with
   | _ :: edge :: _ -> edge
   | _ -> ""
+
+(* Seconds since the epoch for the one timestamp shape
+   bp3 writes (now_ts) and pi writes (session header):
+   YYYY-MM-DDTHH:MM:SSZ. Anything else is no timestamp. *)
+let epoch_of_iso s =
+  let digit i = Char.code s.[i] - Char.code '0' in
+  let num i n =
+    let rec go k acc =
+      if k = n then acc else go (k + 1) (acc * 10 + digit (i + k)) in
+    go 0 0 in
+  try
+    if String.length s <> 20 || s.[4] <> '-' || s.[7] <> '-'
+       || s.[10] <> 'T' || s.[13] <> ':' || s.[16] <> ':'
+       || s.[19] <> 'Z' then None
+    else
+      let y = num 0 4 and mo = num 5 2 and d = num 8 2 in
+      let hh = num 11 2 and mi = num 14 2 and ss = num 17 2 in
+      if mo < 1 || mo > 12 || d < 1 || d > 31 || hh > 23
+         || mi > 59 || ss > 60 then None
+      else
+        (* days from civil (Howard Hinnant's algorithm) *)
+        let y = if mo <= 2 then y - 1 else y in
+        let era = (if y >= 0 then y else y - 399) / 400 in
+        let yoe = y - era * 400 in
+        let mp = (mo + 9) mod 12 in
+        let doy = (153 * mp + 2) / 5 + d - 1 in
+        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy in
+        let days = era * 146097 + doe - 719468 in
+        Some (float_of_int
+                (((days * 24 + hh) * 60 + mi) * 60 + ss))
+  with _ -> None
+
+(* A session's start is its first entry's own timestamp:
+   pi's session header carries an ISO timestamp, muse
+   entries carry a microsecond recorded_at (the first
+   retained frame wraps that entry as record_json). No
+   readable timestamp means the start is unknown. *)
+let session_start_of_tape text =
+  let of_json j =
+    match member_str_opt j "timestamp" with
+    | Some ts -> epoch_of_iso ts
+    | None ->
+        (match (try Yojson.Safe.Util.member "recorded_at" j
+                with _ -> `Null) with
+         | `Int n -> Some (float_of_int n /. 1_000_000.)
+         | `Intlit s ->
+             (try Some (Int64.to_float (Int64.of_string s)
+                         /. 1_000_000.)
+              with _ -> None)
+         | _ -> None) in
+  let rec go = function
+    | [] -> None
+    | ln :: rest ->
+        let hit =
+          try
+            let j = Yojson.Safe.from_string (String.trim ln) in
+            (match of_json j with
+             | Some _ as v -> v
+             | None ->
+                 (try match Yojson.Safe.Util.member "children" j with
+                    | `List (first :: _) ->
+                        (match member_str_opt first "record_json" with
+                         | Some raw ->
+                             (try of_json (Yojson.Safe.from_string raw)
+                              with _ -> None)
+                         | None -> None)
+                    | _ -> None
+                  with _ -> None))
+          with _ -> None in
+        (match hit with Some _ as v -> v | None -> go rest) in
+  go (String.split_on_char '\n' text)
 
 let tokens_of_line line =
   let is_tok c =
@@ -941,8 +1026,8 @@ let tokens_of_line line =
       go stop (String.sub line i (stop - i) :: acc) in
   go 0 []
 
-let tape_carries_own_edge text run_id exp =
-  let edge = edge_of_run_id run_id in
+let tape_carries_own_engine_fsm_edge text run_id exp =
+  let edge = engine_fsm_edge_of_run_id run_id in
   if edge = "" || run_id = "" then false
   else
     let bound = "BP3_RUN_ID=" ^ run_id in
@@ -1093,21 +1178,41 @@ let ambiguous what candidates =
     ("Ambiguous " ^ what ^ "; refusing to pick: " ^ String.concat ", " candidates) 1
 
 (* followup.4 shared scan resolution: zero or one candidate
-   passes through; several candidates narrow to the one
-   tape carrying the Run's own edge, else E_AMBIGUOUS
-   naming every candidate. A tape named by an InitRecord
-   or a binding row never reaches this scan. *)
-let narrow_candidates candidates run_id exp =
+   passes through; several candidates narrow by the Run's
+   own engine-fsm-edge, established by start order: among
+   the tapes carrying it, the earliest session started
+   at-or-after the Run's InitRecord is the Run's tape.
+   A quoting tape (the conductor's, say) carries the
+   invocation textually but started before the InitRecord,
+   so it never establishes. A tie, no viable tape, or no
+   engine-fsm-edge tape at all is E_AMBIGUOUS naming every
+   candidate. A tape named by an InitRecord or a binding
+   row never reaches this scan. *)
+let narrow_candidates candidates run_id exp init_ts =
   let paths = dedup (List.map (fun (p, _, _) -> p) candidates) in
   match paths with
   | [] | [_] -> paths
   | _ ->
-      let own = dedup (List.filter_map (fun (p, _, text) ->
-        if tape_carries_own_edge text run_id exp then Some p else None)
-        candidates) in
-      (match own with
-       | [p] -> [p]
-       | _ -> ambiguous "tape" paths)
+      let init_epoch = match init_ts with
+        | Some ts -> epoch_of_iso ts | None -> None in
+      let viable = List.filter_map (fun (p, _, text) ->
+        if not (tape_carries_own_engine_fsm_edge text run_id exp)
+        then None
+        else match session_start_of_tape text with
+          | Some start when (match init_epoch with
+              | Some t -> start >= t | None -> true) ->
+              Some (p, start)
+          | _ -> None) candidates in
+      let viable = dedup viable in
+      (match viable with
+       | [] -> ambiguous "tape" paths
+       | _ ->
+           let earliest =
+             List.fold_left (fun acc (_, s) -> min acc s)
+               (snd (List.hd viable)) viable in
+           (match List.filter (fun (_, s) -> s = earliest) viable with
+            | [(p, _)] -> [p]
+            | _ -> ambiguous "tape" paths))
 
 let do_find_tape args =
   let fl = parse_ft_flags args in
@@ -1187,7 +1292,9 @@ let do_find_tape args =
           | None -> (match record with Some rec_ -> rec_.run_id | None -> "") in
         let scan_exp = match record with
           | Some rec_ -> rec_.exp | None -> None in
-        let paths = narrow_candidates candidates scan_run scan_exp in
+        let scan_init_ts = match record with
+          | Some rec_ -> rec_.init_ts | None -> None in
+        let paths = narrow_candidates candidates scan_run scan_exp scan_init_ts in
         (match paths with
          | [] ->
              let facts = match fl.ft_run with
@@ -1363,7 +1470,9 @@ let resolve_watch fl =
         | None -> (match record with Some rec_ -> rec_.run_id | None -> "") in
       let scan_exp = match record with
         | Some rec_ -> rec_.exp | None -> None in
-      let paths = narrow_candidates candidates scan_run scan_exp in
+      let scan_init_ts = match record with
+        | Some rec_ -> rec_.init_ts | None -> None in
+      let paths = narrow_candidates candidates scan_run scan_exp scan_init_ts in
       (match paths with
        | [] ->
            (match record with
@@ -1638,9 +1747,13 @@ let do_record_init args =
    InitRecord, binding, or observation. A binding row is a
    pointer only (run-id, tape path, timestamp — never tape
    content), appended as one write to the Run's derivation
-   log; the latest binding names the tape when the
-   InitRecord names none. A Run with no InitRecord is a
-   typed miss, never a guessed binding. *)
+   log; the first binding names the tape when the
+   InitRecord names none, pinned (followup.4): one tape
+   names one Run and one Run names one tape, so a second,
+   different tape for the Run — or the Run's tape for
+   another Run — refuses E_EXISTS, never a silent rebind.
+   A Run with no InitRecord is a typed miss, never a
+   guessed binding. *)
 type bind_flags = {
   mutable bind_run : string option; mutable bind_tape : string option;
 }
@@ -1680,26 +1793,75 @@ let do_bind_tape args =
          "No derivation store (not a git repo?); no binding written." 1
    | Some dir ->
        let path = Filename.concat dir (run_id ^ ".jsonl") in
-       let has_init =
-         if not (Sys.file_exists path) then false
-         else
-           let (lines, _torn) =
-             whole_lines (read_file_or path "") in
-           List.exists (fun ln ->
-             try get_str (Yojson.Safe.from_string (String.trim ln))
-                   "kind" "" = "init_record"
-             with _ -> false) lines in
+       let rows_of p =
+         let (lines, _torn) = whole_lines (read_file_or p "") in
+         List.filter_map (fun ln ->
+           try Some (Yojson.Safe.from_string (String.trim ln))
+           with _ -> None) lines in
+       let own_rows = if Sys.file_exists path then rows_of path else [] in
+       let has_init = List.exists (fun j ->
+         get_str j "kind" "" = "init_record") own_rows in
        if not has_init then
          err "E_NOT_FOUND" (`Assoc [("run_id", json_str run_id);
                                     ("path", json_str path)])
            "No InitRecord for that run-id; refusing to bind." 1;
-       let row = `Assoc [
-         ("kind", json_str "tape_binding");
-         ("run_id", json_str run_id);
-         ("tape_path", json_str tape_path);
-         ("ts", json_str (now_ts ()));
-       ] in
-       append_row path (Yojson.Safe.to_string row);
+       (* pinned (followup.4): the Run's tape is the one its
+          InitRecord names, else its first binding row *)
+       let named = ref None in
+       let bound = ref None in
+       own_rows |> List.iter (fun j ->
+         match get_str j "kind" "" with
+         | "init_record" ->
+             (match !named, get_opt j "tape_path" with
+              | None, Some tp when tp <> "" -> named := Some tp
+              | _ -> ())
+         | "tape_binding" ->
+             (match !bound, get_opt j "tape_path" with
+              | None, Some tp when tp <> "" -> bound := Some tp
+              | _ -> ())
+         | _ -> ());
+       let pinned = match !named with
+         | Some _ as t -> t | None -> !bound in
+       (match pinned with
+        | Some tp when tp = tape_path -> ()
+        | Some tp ->
+            err "E_EXISTS" (`Assoc [("run_id", json_str run_id);
+              ("tape_path", json_str tape_path);
+              ("bound_tape", json_str tp); ("path", json_str path)])
+              ("Run already bound to a different tape; refusing to rebind: "
+               ^ tp) 1
+        | None ->
+            (* one tape names one Run: a tape the InitRecord
+               or a binding row already names for another Run
+               refuses here, never a shared pointer *)
+            let owner = ref None in
+            let names = try Array.to_list (Sys.readdir dir)
+              with _ -> [] in
+            List.iter (fun n ->
+              if !owner = None && n <> run_id ^ ".jsonl"
+                 && Filename.check_suffix n ".jsonl" then
+                rows_of (Filename.concat dir n) |> List.iter (fun j ->
+                  if !owner = None
+                     && (get_str j "kind" "" = "init_record"
+                         || get_str j "kind" "" = "tape_binding")
+                     && get_opt j "tape_path" = Some tape_path then
+                    owner := Some (Filename.remove_extension n))) names;
+            (match !owner with
+             | Some other ->
+                 err "E_EXISTS" (`Assoc [("run_id", json_str run_id);
+                   ("tape_path", json_str tape_path);
+                   ("owner_run_id", json_str other);
+                   ("path", json_str path)])
+                   ("Tape already bound to another run-id; refusing to bind: "
+                    ^ other) 1
+             | None ->
+                 let row = `Assoc [
+                   ("kind", json_str "tape_binding");
+                   ("run_id", json_str run_id);
+                   ("tape_path", json_str tape_path);
+                   ("ts", json_str (now_ts ()));
+                 ] in
+                 append_row path (Yojson.Safe.to_string row)));
        print_endline (Yojson.Safe.to_string (`Assoc [
          ("ok", `Bool true);
          ("run_id", json_str run_id);
@@ -1911,7 +2073,7 @@ let help_supervisor = "bp3 harness supervisor - passive supervisor loop for one 
   Streams NDJSON lifecycle_change rows on stdout, ends with one JSON verdict {ok, quest, outcome, settled, rollup, runs, inbox, orphans}.\n\
   Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
   Durations are bare positive integers; 0, negatives, and suffixed values are usage errors.\n\
-  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Since mvp.5 the derivation logs are the sole lifecycle read path; the retired shared maps are never read or written. Writer discipline (followup.1): each row is a single write() on an O_APPEND descriptor and the cache is a uniquely named temp file in the same directory, fsynced and renamed over the old cache, so parallel supervisors never tear a row or the cache; a torn final line is ignored by the fold and reported as W_TORN_TAIL. Tape binding (followup.3): when the InitRecord names no tape, the latest pointer-only tape_binding row in the same log names it; with no tape at all the probe is blind (W_SUPERVISOR_BLIND) and the lifecycle stays init.\n\
+  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Since mvp.5 the derivation logs are the sole lifecycle read path; the retired shared maps are never read or written. Writer discipline (followup.1): each row is a single write() on an O_APPEND descriptor and the cache is a uniquely named temp file in the same directory, fsynced and renamed over the old cache, so parallel supervisors never tear a row or the cache; a torn final line is ignored by the fold and reported as W_TORN_TAIL. Tape binding (followup.3, pinned by followup.4): when the InitRecord names no tape, the first pointer-only tape_binding row in the same log names it, one tape to one Run, never rebound; with no tape at all the probe is blind (W_SUPERVISOR_BLIND) and the lifecycle stays init.\n\
 Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
 
 let help_init_check = "bp3 harness init-check - probe tape sources per harness:\n\
@@ -1922,7 +2084,7 @@ Example: bp3 harness init-check --engine muse-code\n"
 let help_find_tape = "bp3 harness find-tape - InitRecord-first tape lookup:\n\
   bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]\n\
   bp3 harness find-tape --session-id <id>\n\
-  Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate. A tape named by an InitRecord or a binding row wins over any scan; when a scan finds several referencing tapes, only the tape carrying the Run's own edge invocation (BP3_RUN_ID bound to its bp3 q ... u <exp> <edge> call, edge from the run-id, exp from the InitRecord) resolves, and zero or several such tapes are E_AMBIGUOUS.\n\
+  Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate. A tape named by an InitRecord or a binding row wins over any scan; when a scan finds several referencing tapes, only tapes carrying the Run's own engine-fsm-edge invocation (BP3_RUN_ID bound to its bp3 q ... u <exp> <engine-fsm-edge> call, engine-fsm-edge from the run-id, exp from the InitRecord) can resolve, and among them the earliest session started at-or-after the Run's InitRecord wins; a tie or none is E_AMBIGUOUS.\n\
   --entry returns the one digest-verified entry (sha256 over its exact line, with byte range), widened by --before-entries/--after-entries (non-negative integers, default 0).\n\
   Emits {ok, run_id, harness, session_id, wal, pid} or, with --entry, plus {entry, entries}.\n\
 Example: bp3 harness find-tape --run-id 20261115T000000Z-submit-pi-model-c1\n"
@@ -1932,7 +2094,7 @@ let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
   bp3 harness watch --session-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
   Engine is derived from the Run InitRecord, never stated. Finds the tape like find-tape, then blocks in code: streams NDJSON lifecycle_change rows and ends with one verdict {ok, run_id, harness, session_id, wal, pid, outcome, settled, lifecycle}.\n\
   Finish evidence is per harness, read off the tape tail: muse-code scans whole entries from the end, skipping task entries, and the first non-task entry decides — a session.end entry closes the tape, and a runtime terminal entry is a child tape's exit entry (child tapes carry no close marker and end with task entries after it); pi never closes, so only its last whole entry counts (a session_closed entry or a final assistant entry that stopped is its clean end). Exit plus finish evidence (or settle plus finish evidence) with no live pid is settled; a live pid is never finished. A torn final tape entry finishes nothing and warns W_TORN_TAIL. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. Finish evidence or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
-  Identity flags follow find-tape: both, neither, or disagreeing flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS. Tape resolution is shared with find-tape, including the own-edge rule for scanned tapes. Durations are bare positive integers; 0, negatives, and suffixed values are E_USAGE.\n\
+  Identity flags follow find-tape: both, neither, or disagreeing flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS. Tape resolution is shared with find-tape, including the own engine-fsm-edge start-order rule for scanned tapes. Durations are bare positive integers; 0, negatives, and suffixed values are E_USAGE.\n\
   Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
 Example: bp3 harness watch --run-id 20261115T000000Z-submit-pi-model-c1 --silence-seconds 600\n"
 
@@ -1947,7 +2109,7 @@ Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
 
 let help_bind_tape = "bp3 harness bind-tape - bind a finished child's session tape to its Run (the launcher's bind step; the author child writes no InitRecord, binding, or observation):\n\
   bp3 harness bind-tape --run-id <id> --tape-path <p>\n\
-  Appends one pointer-only tape_binding row (run-id, tape path, timestamp; never tape content) as a single write to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl, after the child returns and its session tape has closed. The fold names the tape from the InitRecord's own tape path, else the latest binding; a missing tape path is never guessed. A run-id with no InitRecord is E_NOT_FOUND; a bad run-id or a missing, duplicate, or =-formed flag is E_USAGE. Emits {ok, run_id, tape_path, path}.\n\
+  Appends one pointer-only tape_binding row (run-id, tape path, timestamp; never tape content) as a single write to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl, after the child returns and its session tape has closed. The binding is one-to-one and pinned: the fold names the tape from the InitRecord's own tape path, else the first binding, and that pointer is the only one it reads. Re-binding the same tape is a no-op; a second, different tape for the run-id, or a tape already bound to another run-id, is E_EXISTS, never a silent rebind; a missing tape path is never guessed. A run-id with no InitRecord is E_NOT_FOUND; a bad run-id or a missing, duplicate, or =-formed flag is E_USAGE. Emits {ok, run_id, tape_path, path}.\n\
 Example: bp3 harness bind-tape --run-id 20261115T000000Z-submit-muse-code-model-c1 --tape-path ~/.local/share/muse/sessions/2026/11/15/<session>/session.jsonl\n"
 
 let help_record_init = "bp3 harness record-init - write one Run's InitRecord (the launcher's verb; the child never writes its own proof):\n\

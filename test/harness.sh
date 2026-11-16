@@ -553,6 +553,10 @@ printf '%s\n' '{"kind":"init_record","run_id":"R-f3-mid","harness":"muse-code","
 printf '%s\n' '{"kind":"init_record","run_id":"R-f3-torn","harness":"muse-code","quest":"toy","pid":999999}' > "$store/R-f3-torn.jsonl"
 printf '%s\n' '{"kind":"init_record","run_id":"R-f3-bad","harness":"muse-code","quest":"toy","pid":999999}' > "$store/R-f3-bad.jsonl"
 printf '%s\n' '{"kind":"init_record","run_id":"R-f3-rebind","harness":"muse-code","quest":"toy"}' > "$store/R-f3-rebind.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-f3-other","harness":"muse-code","quest":"toy"}' > "$store/R-f3-other.jsonl"
+cp fixtures/f3-bound.log fixtures/f3-live.log
+cp fixtures/f3-mid.log fixtures/f3-rebind-a.log
+cp fixtures/f3-bound.log fixtures/f3-rebind-b.log
 
 # no binding, no tape path: init, and the probe is blind
 set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
@@ -566,13 +570,23 @@ grep -q 'W_SUPERVISOR_BLIND' "$store/R-f3-bound.jsonl" || fail "followup.3 blind
 out=$(h bind-tape --run-id R-f3-bound --tape-path "$work/repo/fixtures/f3-bound.log") || fail "bind-tape bound exit: $out"
 echo "$out" | jq -e --arg w "$work/repo/fixtures/f3-bound.log" '.ok == true and .run_id == "R-f3-bound" and .tape_path == $w' >/dev/null || fail "bind-tape bound verdict: $out"
 tail -1 "$store/R-f3-bound.jsonl" | jq -e --arg w "$work/repo/fixtures/f3-bound.log" '.kind == "tape_binding" and .run_id == "R-f3-bound" and .tape_path == $w and (.ts | type == "string") and ((keys | length) == 4)' >/dev/null || fail "followup.3 binding row not pointer-only: $(tail -1 "$store/R-f3-bound.jsonl")"
-h bind-tape --run-id R-f3-live --tape-path "$work/repo/fixtures/f3-bound.log" >/dev/null || fail "bind-tape live exit"
+h bind-tape --run-id R-f3-live --tape-path "$work/repo/fixtures/f3-live.log" >/dev/null || fail "bind-tape live exit"
 h bind-tape --run-id R-f3-mid --tape-path "$work/repo/fixtures/f3-mid.log" >/dev/null || fail "bind-tape mid exit"
 h bind-tape --run-id R-f3-torn --tape-path "$work/repo/fixtures/f3-torn.log" >/dev/null || fail "bind-tape torn exit"
 h bind-tape --run-id R-f3-bad --tape-path "$work/repo/fixtures/f3-bad.log" >/dev/null || fail "bind-tape bad exit"
-h bind-tape --run-id R-f3-rebind --tape-path "$work/repo/fixtures/f3-mid.log" >/dev/null || fail "bind-tape rebind first exit"
-out=$(h t --run-id R-f3-rebind --tape-path "$work/repo/fixtures/f3-bound.log") || fail "bind-tape alias exit: $out"
+h bind-tape --run-id R-f3-rebind --tape-path "$work/repo/fixtures/f3-rebind-a.log" >/dev/null || fail "bind-tape rebind first exit"
+out=$(h t --run-id R-f3-rebind --tape-path "$work/repo/fixtures/f3-rebind-a.log") || fail "bind-tape alias exit: $out"
 echo "$out" | jq -e '.ok == true and .run_id == "R-f3-rebind"' >/dev/null || fail "bind-tape alias verdict: $out"
+
+# pinned (followup.4): same tape again is a no-op, a second
+# different tape refuses, and a bound tape names no second Run
+out=$(h bind-tape --run-id R-f3-bound --tape-path "$work/repo/fixtures/f3-bound.log") || fail "bind-tape same-tape exit: $out"
+echo "$out" | jq -e '.ok == true and .run_id == "R-f3-bound"' >/dev/null || fail "bind-tape same-tape verdict: $out"
+[ "$(grep -c '"kind":"tape_binding"' "$store/R-f3-bound.jsonl")" = 1 ] || fail "bind-tape same-tape wrote a second row"
+if out=$(h bind-tape --run-id R-f3-rebind --tape-path "$work/repo/fixtures/f3-rebind-b.log" 2>&1); then fail "bind-tape second tape accepted"; fi
+echo "$out" | jq -e '.error.code == "E_EXISTS"' >/dev/null || fail "bind-tape second tape code: $out"
+if out=$(h bind-tape --run-id R-f3-other --tape-path "$work/repo/fixtures/f3-bound.log" 2>&1); then fail "bind-tape bound tape accepted for another run"; fi
+echo "$out" | jq -e '.error.code == "E_EXISTS"' >/dev/null || fail "bind-tape bound tape code: $out"
 
 set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
 last=$(echo "$out" | tail -1)
@@ -581,7 +595,7 @@ echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f3-live") | .lifecycle == 
 echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f3-mid") | .lifecycle == "active")' >/dev/null || fail "followup.3 mid-tape marker fold: $last"
 echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f3-torn") | .lifecycle == "orphaned")' >/dev/null || fail "followup.3 torn bound fold: $last"
 echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f3-bad") | .lifecycle == "orphaned")' >/dev/null || fail "followup.3 unparseable bound fold: $last"
-echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f3-rebind") | .lifecycle == "finished")' >/dev/null || fail "followup.3 latest binding fold: $last"
+echo "$last" | jq -e '(.runs[] | select(.run_id == "R-f3-rebind") | .lifecycle == "active")' >/dev/null || fail "followup.4 pinned first binding fold: $last"
 echo "$last" | jq -e '(.warnings | index("W_TORN_TAIL") != null)' >/dev/null || fail "followup.3 torn bound warning: $last"
 grep -q '"kind":"observation"' "$store/R-f3-bound.jsonl" || fail "followup.3 bound observation missing"
 grep -q "\"tape_path\":\"$work/repo/fixtures/f3-bound.log\"" "$store/R-f3-bound.jsonl" || fail "followup.3 observation tape pointer missing"
@@ -591,37 +605,63 @@ out=$(h watch --run-id R-f3-bound --timeout-seconds 5) || fail "followup.3 watch
 echo "$out" | tail -1 | jq -e '.outcome == "settled" and .settled == true and .lifecycle == "finished"' >/dev/null || fail "followup.3 watch bound verdict: $out"
 kill $F3LIVE 2>/dev/null || true
 
-# --- bind resolution (followup.4): own-edge narrows the scan ---
-F4RUN="20260101T000000Z-submit-pi-test-model-c1"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4RUN\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\"}" > "$store/$F4RUN.jsonl"
-printf '%s\n' "{\"type\":\"message\",\"id\":\"i1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 harness record-init --run-id $F4RUN\"}}" > fixtures/pi-store/f4-init.jsonl
-printf '%s\n' "{\"type\":\"message\",\"id\":\"v1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 harness find-tape --run-id $F4RUN\"}}" > fixtures/pi-store/f4-resolve.jsonl
-printf '%s\n' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"quoted run_id $F4RUN in conductor prose\"}}" "{\"run_id\":\"$F4RUN\",\"note\":\"conductor quotes the run\"}" > fixtures/pi-store/f4-conductor.jsonl
-printf '%s\n' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 q toy u e1 submit --commit abc --reason work\"}}" > fixtures/pi-store/f4-author.jsonl
-out=$(h find-tape --run-id "$F4RUN") || fail "followup.4 find-tape exit: $out"
-echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/f4-author.jsonl" '.ok == true and .wal == $w' >/dev/null || fail "followup.4 own-edge resolves author: $out"
-set +e; out=$(h watch --run-id "$F4RUN" --timeout-seconds 1); set -e
-echo "$out" | tail -1 | jq -e --arg w "$work/repo/fixtures/pi-store/f4-author.jsonl" '.wal == $w and .outcome == "timeout"' >/dev/null || fail "followup.4 watch shares own-edge: $out"
+# --- bind resolution (followup.4): own engine-fsm-edge, start order ---
+out=$(h find-tape -h) || fail "find-tape -h followup.4 exit"
+echo "$out" | grep -q "engine-fsm-edge" || fail "find-tape help engine-fsm-edge: $out"
+out=$(h bind-tape -h) || fail "bind-tape -h followup.4 exit"
+echo "$out" | grep -q "pinned" || fail "bind-tape help pinned: $out"
+echo "$out" | grep -q "E_EXISTS" || fail "bind-tape help E_EXISTS: $out"
 
-# no own-edge tape among several references: typed refusal
+# the live sibling shape: init and resolve tapes bind the id to
+# their own verbs, the conductor quotes the author's invocation
+# but started before the InitRecord, the author carries it after
+F4RUN="20260101T000000Z-submit-pi-test-model-c1"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4RUN\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4RUN.jsonl"
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-init","timestamp":"2026-01-01T00:00:10Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"i1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 harness record-init --run-id $F4RUN\"}}" > fixtures/pi-store/f4-init.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-resolve","timestamp":"2026-01-01T00:00:20Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"v1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 harness find-tape --run-id $F4RUN\"}}" > fixtures/pi-store/f4-resolve.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-conductor","timestamp":"2025-12-31T23:59:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"brief: BP3_RUN_ID=$F4RUN bp3 q toy u e1 submit --commit abc --reason work\"}}" "{\"run_id\":\"$F4RUN\",\"note\":\"conductor quotes the run\"}" > fixtures/pi-store/f4-conductor.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-author","timestamp":"2026-01-01T00:01:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 q toy u e1 submit --commit abc --reason work\"}}" > fixtures/pi-store/f4-author.jsonl
+out=$(h find-tape --run-id "$F4RUN") || fail "followup.4 find-tape exit: $out"
+echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/f4-author.jsonl" '.ok == true and .wal == $w' >/dev/null || fail "followup.4 own engine-fsm-edge resolves author: $out"
+set +e; out=$(h watch --run-id "$F4RUN" --timeout-seconds 1); set -e
+echo "$out" | tail -1 | jq -e --arg w "$work/repo/fixtures/pi-store/f4-author.jsonl" '.wal == $w and .outcome == "timeout"' >/dev/null || fail "followup.4 watch shares engine-fsm-edge: $out"
+
+# no own engine-fsm-edge tape among several references: typed refusal
 F4NONE="20260101T000000Z-submit-pi-test-model-c2"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4NONE\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\"}" > "$store/$F4NONE.jsonl"
-printf '%s\n' "{\"type\":\"message\",\"id\":\"i1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4NONE bp3 harness record-init --run-id $F4NONE\"}}" > fixtures/pi-store/f4-none-init.jsonl
-printf '%s\n' "{\"type\":\"message\",\"id\":\"v1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4NONE bp3 harness find-tape --run-id $F4NONE\"}}" > fixtures/pi-store/f4-none-resolve.jsonl
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4NONE\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4NONE.jsonl"
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-none-init","timestamp":"2026-01-01T00:00:10Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"i1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4NONE bp3 harness record-init --run-id $F4NONE\"}}" > fixtures/pi-store/f4-none-init.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-none-resolve","timestamp":"2026-01-01T00:00:20Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"v1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4NONE bp3 harness find-tape --run-id $F4NONE\"}}" > fixtures/pi-store/f4-none-resolve.jsonl
 if out=$(h find-tape --run-id "$F4NONE" 2>&1); then fail "followup.4 no-own-edge accepted"; fi
 echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 no-own-edge code: $out"
 echo "$out" | grep -q "f4-none-init" || fail "followup.4 no-own-edge names init: $out"
 echo "$out" | grep -q "f4-none-resolve" || fail "followup.4 no-own-edge names resolve: $out"
 
-# two own-edge tapes: typed refusal, never a guess
+# two own engine-fsm-edge tapes started at the same time: tie refuses
 F4TWO="20260101T000000Z-submit-pi-test-model-c3"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4TWO\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\"}" > "$store/$F4TWO.jsonl"
-printf '%s\n' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 submit --commit abc --reason work\"}}" > fixtures/pi-store/f4-two-a.jsonl
-printf '%s\n' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 submit --commit def --reason work\"}}" > fixtures/pi-store/f4-two-b.jsonl
-if out=$(h find-tape --run-id "$F4TWO" 2>&1); then fail "followup.4 two-own-edge accepted"; fi
-echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 two-own-edge code: $out"
-if out=$(h watch --run-id "$F4TWO" --timeout-seconds 1 2>&1); then fail "followup.4 watch two-own-edge accepted"; fi
-echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 watch two-own-edge code: $out"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4TWO\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4TWO.jsonl"
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-two-a","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 submit --commit abc --reason work\"}}" > fixtures/pi-store/f4-two-a.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-two-b","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 submit --commit def --reason work\"}}" > fixtures/pi-store/f4-two-b.jsonl
+if out=$(h find-tape --run-id "$F4TWO" 2>&1); then fail "followup.4 tied own-edge accepted"; fi
+echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 tied own-edge code: $out"
+if out=$(h watch --run-id "$F4TWO" --timeout-seconds 1 2>&1); then fail "followup.4 watch tied own-edge accepted"; fi
+echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 watch tied own-edge code: $out"
+
+# two viable own engine-fsm-edge tapes: the earliest session wins
+F4EARLY="20260101T000000Z-submit-pi-test-model-c4"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4EARLY\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4EARLY.jsonl"
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-a","timestamp":"2026-01-01T00:03:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4EARLY bp3 q toy u e1 submit --commit abc --reason work\"}}" > fixtures/pi-store/f4-early-a.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-b","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4EARLY bp3 q toy u e1 submit --commit def --reason work\"}}" > fixtures/pi-store/f4-early-b.jsonl
+out=$(h find-tape --run-id "$F4EARLY") || fail "followup.4 earliest exit: $out"
+echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/f4-early-b.jsonl" '.ok == true and .wal == $w' >/dev/null || fail "followup.4 earliest session wins: $out"
+
+# the only own engine-fsm-edge tape started before the InitRecord
+F4OLD="20260101T000000Z-submit-pi-test-model-c5"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4OLD\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4OLD.jsonl"
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-old-quote","timestamp":"2025-12-31T23:59:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"brief: BP3_RUN_ID=$F4OLD bp3 q toy u e1 submit --commit abc --reason work\"}}" > fixtures/pi-store/f4-old-quote.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-old-resolve","timestamp":"2026-01-01T00:00:20Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"v1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4OLD bp3 harness find-tape --run-id $F4OLD\"}}" > fixtures/pi-store/f4-old-resolve.jsonl
+if out=$(h find-tape --run-id "$F4OLD" 2>&1); then fail "followup.4 pre-init own-edge accepted"; fi
+echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 pre-init own-edge code: $out"
+echo "$out" | grep -q "f4-old-quote" || fail "followup.4 pre-init names quoting tape: $out"
 
 # --- backtest (backtest.1): replay folds facts, findings never gate ---
 out=$(h backtest -h) || fail "backtest -h exit"
