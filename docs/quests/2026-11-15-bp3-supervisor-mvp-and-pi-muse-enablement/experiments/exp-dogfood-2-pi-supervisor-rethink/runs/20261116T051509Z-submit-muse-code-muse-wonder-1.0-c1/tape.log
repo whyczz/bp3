@@ -1,0 +1,80 @@
+created docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-2-pi-supervisor-rethink/runs/20261116T051509Z-submit-muse-code-muse-wonder-1.0-c1
+total 8
+drwxr-xr-x@ 3 whycz  staff   96 Nov 16 00:16 .
+drwxr-xr-x@ 3 whycz  staff   96 Nov 16 00:16 ..
+-rw-r--r--@ 1 whycz  staff  179 Nov 16 00:16 tape.log
+== harness pi surface ==
+9:   The supervisor never signals a pid and never finalizes
+16:   field on the InitRecord) plus a disposable .json cache
+20:   the InitRecord has a named writer: record-init, called
+33:   with no close marker at all; pi never closes, so a
+38:   child finishes: record-init names no tape, the
+39:   launcher's bind-tape appends one pointer-only
+41:   when the InitRecord names no tape. The muse
+51:   InitRecord wins; a tie or none refuse E_AMBIGUOUS.
+52:   The binding is one-to-one and pinned: the first
+54:   and bind-tape refuses a second, different tape. *)
+59:type init_record = {
+63:  pid : int option;
+71:  pid_alive : bool option;
+80:  pid_alive = None; exit_observed = false; finish_evidence = false;
+85:   finished / orphaned. A live pid is never finished,
+89:   InitRecord, no claim). *)
+94:      if obs.pid_alive <> Some true
+97:      else if not obs.tape_seen && obs.pid_alive = None
+99:      else if not obs.fresh && obs.pid_alive <> Some true then Some "orphaned"
+162:(* Create-only sibling of append_row for the InitRecord:
+176:    (Unix.getpid ()) !cache_tmp_counter in
+208:   entries are scanned from the end, skipping task
+215:   finishes nothing. pi: no tape ever closes, so only
+218:   end, and the exit itself is the pid's. Returns
+248:    | _ when harness = "pi" ->
+269:let pid_alive pid =
+271:    try Unix.kill pid 0; true
+278:    let (out, code) = run_capture ["ps"; "-o"; "stat="; "-p"; string_of_int pid] in
+307:        | "init_record" ->
+312:              pid = get_int_opt j "pid";
+319:            (* pointer only, pinned (followup.4): the first
+320:               binding names the tape when the InitRecord
+328:              pid_alive = (match Yojson.Safe.Util.member "pid_alive" j with
+329:                | `Bool b -> Some b | _ -> o.pid_alive);
+346:          the InitRecord's own path, else the pinned
+353:       let alive = match rec_.pid with
+354:         | Some p -> Some (pid_alive p) | None -> o.pid_alive in
+365:          derives finished from files + pid alone, with no
+370:       let o = { o with pid_alive = alive; tape_seen; fresh;
+387:  rf_rec : init_record;
+395:   log size/mtime, tape size/mtime, live pid probe, freshness
+404:let write_cache dir (rec_ : init_record) run_id lifecycle warns obs silence_seconds =
+417:      ("pid", (match rec_.pid with Some p -> `Int p | None -> `Null));
+423:      ("pid_alive", (match obs.pid_alive with Some b -> `Bool b | None -> `Null));
+449:          let pid = get_int_opt j "pid" in
+450:          let alive = match pid with Some p -> Some (pid_alive p) | None -> None in
+451:          let cached_alive = try match Yojson.Safe.Util.member "pid_alive" j with
+461:              let rec_ : init_record = {
+463:                session_id = get_opt j "session_id"; pid;
+523:(* One mechanical probe of a Run: live pid, tape stat, and
+525:   pointers only (tape path, pid probe), never tape content. *)
+526:let probe_observation ~silence_seconds (rec_ : init_record) prior =
+527:  let alive = match rec_.pid with Some p -> Some (pid_alive p) | None -> prior.pid_alive in
+533:    || (match rec_.pid with Some p -> not (pid_alive p) | None -> false) in
+544:  let obs = { pid_alive = alive; exit_observed = exit_obs;
+577:          ("pid_alive", (match obs.pid_alive with Some b -> `Bool b | None -> `Null));
+583:          ("pid", (match rf.rf_rec.pid with Some p -> `Int p | None -> `Null));
+608:        if v <> "muse-code" && v <> "pi" then
+609:          usage "--engine must be muse-code or pi";
+656:     any folded InitRecord is a usage error *)
+== bp3-pi exists? ==
+ls: extensions/: No such file or directory
+ls: .pi/extensions/: No such file or directory
+ .../EXPERIMENT.md                                  | 244 +++++++++++++++------
+ 1 file changed, 181 insertions(+), 63 deletions(-)
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-2-pi-supervisor-rethink/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-2-pi-supervisor-rethink/EXPERIMENT.md
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-2-pi-supervisor-rethink/runs/20261116T051509Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-2-pi-supervisor-rethink/runs/20261116T051509Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+total 24
+drwxr-xr-x@ 4 whycz  staff   128 Nov 16 00:16 .
+drwxr-xr-x@ 3 whycz  staff    96 Nov 16 00:16 ..
+-rw-r--r--@ 1 whycz  staff  1686 Nov 16 00:16 notes.md
+-rw-r--r--@ 1 whycz  staff  4895 Nov 16 00:16 tape.log
