@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flappy Bird — three.js toy</title>
+<style>
+  body { margin: 0; overflow: hidden; background: #87ceeb; font-family: sans-serif; }
+  #hud { position: fixed; top: 12px; left: 12px; color: #fff; text-shadow: 0 1px 3px #0008; z-index: 1; }
+  #hud b { font-size: 28px; display: block; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="hud"><span>Score</span><b id="score">0</b><span id="msg">Click or press Space to flap</span></div>
+<script type="module">
+import * as THREE from 'three';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, 0, 10);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(3, 5, 4);
+scene.add(sun);
+
+const bird = new THREE.Mesh(
+  new THREE.SphereGeometry(0.35, 24, 18),
+  new THREE.MeshStandardMaterial({ color: 0xffd93d })
+);
+bird.position.set(-2.5, 0, 0);
+scene.add(bird);
+
+const pipeMat = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
+const pipes = [];
+function spawnPipe(x) {
+  const gapY = (Math.random() * 4 - 2);
+  const gap = 2.6, h = 8;
+  const top = new THREE.Mesh(new THREE.BoxGeometry(0.9, h, 0.9), pipeMat);
+  top.position.set(x, gapY + gap / 2 + h / 2, 0);
+  const bot = new THREE.Mesh(new THREE.BoxGeometry(0.9, h, 0.9), pipeMat);
+  bot.position.set(x, gapY - gap / 2 - h / 2, 0);
+  scene.add(top, bot);
+  pipes.push({ top, bot, gapY, scored: false });
+}
+for (let i = 0; i < 4; i++) spawnPipe(4 + i * 5);
+
+let vy = 0, score = 0, alive = true, started = false;
+const scoreEl = document.getElementById('score');
+const msgEl = document.getElementById('msg');
+function flap() {
+  if (!alive) { location.reload(); return; }
+  started = true; vy = 5.2; msgEl.textContent = '';
+}
+addEventListener('pointerdown', flap);
+addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); flap(); } });
+
+const clock = new THREE.Clock();
+function tick() {
+  requestAnimationFrame(tick);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (started && alive) {
+    vy -= 13 * dt;
+    bird.position.y += vy * dt;
+    bird.rotation.z = THREE.MathUtils.clamp(vy * 0.08, -0.9, 0.5);
+    for (const p of pipes) {
+      p.top.position.x -= 3 * dt; p.bot.position.x -= 3 * dt;
+      if (p.top.position.x < -7) {
+        const nx = Math.max(...pipes.map(q => q.top.position.x)) + 5;
+        p.top.position.x = p.bot.position.x = nx;
+        p.gapY = Math.random() * 4 - 2; p.scored = false;
+        const gap = 2.6, h = 8;
+        p.top.position.y = p.gapY + gap / 2 + h / 2;
+        p.bot.position.y = p.gapY - gap / 2 - h / 2;
+      }
+      if (!p.scored && p.top.position.x < bird.position.x) {
+        p.scored = true; score++; scoreEl.textContent = String(score);
+      }
+      const dx = Math.abs(p.top.position.x - bird.position.x);
+      if (dx < 0.8 && Math.abs(bird.position.y - p.gapY) > 1.1) alive = false;
+    }
+    if (Math.abs(bird.position.y) > 5.2) alive = false;
+    if (!alive) msgEl.textContent = 'Game over — click to restart';
+  }
+  renderer.render(scene, camera);
+}
+tick();
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
