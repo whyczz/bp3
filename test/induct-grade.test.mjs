@@ -98,10 +98,16 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   for (const edge of ["audit", "review", "check"]) {
     const input = inputs[edge];
     assert(input, edge + " child was spawned");
-    const want = "BP3_RUN_ID=" + TS + "-" + edge + "-muse-code-test-model-c1";
-    assert(input.includes(want), edge + " command carries " + want);
     assert(input.includes("runs/" + TS + "-" + edge + "-muse-code-test-model-c1"),
       edge + " run folder matches BP3_RUN_ID");
+    assert(!input.includes("Prefix your FIRST"),
+      edge + " brief carries no first-command prefix instruction");
+    assert(input.includes("arrive via environment"),
+      edge + " is told the run-id arrives via environment");
+  }
+  for (const edge of ["review", "check"]) {
+    const want = "BP3_RUN_ID=" + TS + "-" + edge + "-muse-code-test-model-c1";
+    assert(inputs[edge].includes(want), edge + " command carries " + want);
   }
   assert(inputs.audit.includes("do not call any `bp3 q u` update edge"),
     "audit child spawns no state edge");

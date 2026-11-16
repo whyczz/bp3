@@ -5,7 +5,7 @@
 // only the author child spawns on a todo exp, the file
 // carries no other stage's edge commands, a submitted exp is
 // refused with zero stage children (state untouched), and the
-// per-stage witnessed binding still holds for the author.
+// env-set run-id still holds for the author.
 import { readFileSync } from "node:fs";
 import workflow from "../skills/induct/workflows/induct-exp.js";
 
@@ -73,8 +73,10 @@ const submitted = { state: "submitted", cycle: 1, commit: "abc1234", legal_edges
     "author prefix carries quest/exp");
   assert(input.includes("runs/" + TS + "-submit-muse-code-test-model-c1"),
     "submit run folder matches BP3_RUN_ID");
-  assert(input.includes("Prefix your FIRST shell command"),
-    "author is told the first command binds the session");
+  assert(!input.includes("Prefix your FIRST"),
+    "author brief carries no first-command prefix instruction");
+  assert(input.includes("arrive via environment"),
+    "author is told the run-id arrives via environment");
   assert(input.includes("u fx submit --commit"), "author calls the submit edge");
   assert(result.run_ids.join(",") === "r-author", "run_ids collect the author, got " + result.run_ids.join(","));
 }

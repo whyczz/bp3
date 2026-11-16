@@ -271,10 +271,10 @@ export default async function workflow(host) {
   }
 
   function envPreset(edge, cycle) {
-    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
-    // as this stage's run folder. Hooks cannot inherit env from a
-    // child, but PreToolUse payloads carry the full command text,
-    // so the first prefixed command binds session -> run.
+    // Env-set identity: BP3_RUN_ID carries the same id as this
+    // stage's run folder. `bp3` reads it from the environment
+    // and stamps it into verdicts and ledger lines, so no
+    // first-command prefix binds the session.
     return (
       "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
       "-c" + String(cycle) + " BP3_QUEST=" + quest + " BP3_EXP=" +
@@ -323,9 +323,10 @@ export default async function workflow(host) {
     const folder = runFolder(edge, cycle, harness + "-" + model);
     return (
       "Your run folder is `" + folder + "` under `" + expDir +
-      "/runs/`. Prefix your FIRST shell command with `" +
-      envPreset(edge, cycle) + "` (hooks witness this prefix " +
-      "to bind your session to this run). First check whether that concrete run " +
+      "/runs/`. `BP3_RUN_ID`, `BP3_QUEST`, `BP3_EXP`, " +
+      "`BP3_HARNESS`, and `BP3_MODEL` arrive via environment " +
+      "and `bp3` stamps them into its verdicts and ledger " +
+      "lines, so no first-command prefix is needed. First check whether that concrete run " +
       "folder already exists: if it does, stop immediately, do " +
       "not overwrite or reuse it, and return a JSON object " +
       '{"ok":false,"error":{"code":"E_RUN_EXISTS"}} describing ' +
@@ -373,8 +374,8 @@ export default async function workflow(host) {
       " Read the exp's EXPERIMENT.md first. Build the evidence " +
       "matrix: one row per Acceptance case (acceptance rows), plus " +
       "adherence rows for the build Run that produced this commit " +
-      "(submit edge called by the child directly, env preset on " +
-      "the first command, clean commit, tape.log and notes.md " +
+      "(submit edge called by the child directly, env-set run-id " +
+      "stamped by bp3, clean commit, tape.log and notes.md " +
       "present in its run folder, no hand-edited state). " + LADDER_TEXT +
       "Every row " +
       "is {case, rung: 1|2|3|4|5a|5b, evidence: {kind: file|command|ledger|grep, ref, " +
@@ -396,7 +397,7 @@ export default async function workflow(host) {
       "deferral line verbatim}); never mark such a case missing " +
       "or pass for lacking this exp's artifact. A deferral that " +
       "names no owning exp is not deferred: emit missing. For " +
-      "the adherence row `env preset on the first command`, quote " +
+      "the adherence row `env-set run-id`, quote " +
       "the bp3-stamped ledger line for the submit edge (the mvp.1 " +
       "mechanism: BP3_RUN_ID arrives via environment and bp3 stamps " +
       "it into the verdict and the ledger line): find the submit " +

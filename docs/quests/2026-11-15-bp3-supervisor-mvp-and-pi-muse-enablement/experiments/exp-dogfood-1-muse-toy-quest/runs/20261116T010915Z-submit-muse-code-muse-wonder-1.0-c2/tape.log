@@ -1,0 +1,1598 @@
+EXPERIMENT.md
+runs
+cat: docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/exp.md: No such file or directory
+---
+date: 2026-11-15
+quest: ../QUEST.md
+exp: dogfood.1
+status: proposed
+---
+
+# dogfood.1 - muse-toy-quest: flappy bird under supervision
+
+## TL;DR
+
+Live proof on muse: a toy quest — build a flappy
+bird demo in three.js — driven by subagents while
+`bp3 harness supervisor` watches. The toy exp
+travels todo -> landed with derived lifecycle, no
+LLM polling, no witness rituals in child briefs.
+
+## Demo (design trace)
+
+```text
+supervisor --quest toy-flappy
+  author run: WAL grows, commits, submit -> settled
+  grade runs: parallel, watched -> landed
+scorecard: warnings only if a Run misbehaves
+```
+
+## Diagram
+
+```text
+toy quest ─► supervisor loop ─► subagents (author/grade/land)
+                  │ watch/fold        └─► three.js flappy demo
+                  ▼
+             exp_fin, traces recorded
+```
+
+## Pseudocode
+
+```python
+drive(toy_quest)            # induct, supervisor as mechanism (mvp.4)
+assert exp.state == landed and all_runs_derived()
+```
+
+| Field | Value |
+|---|---|
+| Intent | Phase C live demo: supervisor + muse + real subagent work |
+| Lane | standard |
+| Output | toy quest landed; flappy demo artifact; drive traces |
+| Depends on | mvp.1-mvp.6, mvp.8 (InitRecord writer); findings disposition from backtest.1 |
+
+## Acceptance (fails today: supervisor not the mechanism)
+
+| Case | Expected |
+|---|---|
+| full drive | toy exp `exp_fin`; every Run lifecycle derived |
+| child briefs | zero prefix/witness instructions needed |
+| demo artifact | flappy bird page exists and opens |
+| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
+
+## Acceptance test (goal block)
+
+- **Objective:** the supervisor supervises real
+  work, not fixtures.
+- **Prove by:** the drive itself + artifact.
+- **Done when:** toy landed; traces + artifact in
+  this exp's runs.
+
+## Tests
+
+quest-level functional drive (this exp is the
+test); env-set run-id is stamped by bp3 into the
+submit verdict and ledger line (the mvp.1
+mechanism). Known cases: clean drive to `finished`;
+seeded blind Run (W_SUPERVISOR_BLIND logged, empty
+data, drive proceeds — feeds the U8 veto call);
+seeded hung child in passive mode is reported,
+never killed by bp3. Property-based: no drive step
+requires an LLM poll — tick count is wall-clock
+bounded. Demos: drive observed; flappy page smoke.
+
+## Context
+
+First live gate for the whole design. Findings
+from backtest.1 land first if they touch the drive path.
+
+## Auto-red-ink addendum
+
+Muse's runtime drives; the supervisor only derives.
+Add the owner decision row: seed a blind-log Run,
+then record `veto | warn-only` for supervisor
+warnings at landing. If any backtest.1 finding is marked
+"fixed", a findings-fix step precedes this drive.
+Grader follows the evidence ladder (code, parsed
+events, raw log only on discrepancy). Hardening:
+[TEST-HARDENING.md](../../TEST-HARDENING.md)
+(required Muse integration drive).
+DECISION-RECORD.md
+experiments
+QUEST.md
+TEST-HARDENING.md
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-15
+---
+
+# bp3-supervisor-mvp-and-pi-muse-enablement
+
+> AUTO-RED-INK DRAFT — shadow decisions only. The
+> original quest is untouched until the owner adopts
+> this copy in a later red-ink session.
+
+## TL;DR
+
+Children are nondeterministic; their logs are not.
+Every harness writes a tape. This Quest
+builds a common lifecycle-derivation layer that
+finds a Run's tape, folds mechanical facts
+from it (with pid liveness where available), and
+produces proof without asking the child to witness
+itself. Muse keeps its native runtime as the
+completion owner and uses the layer passively.
+Pi, whose children are raw processes, additionally
+gets active supervision: spawn tracking, blocking
+watch, and a watchdog. Children produce work;
+supervision produces proof; the ledger produces
+state; the grader produces the grade.
+
+## ELI5
+
+A child agent says "I'm done" and sometimes lies,
+hangs, or dies quietly. Instead of trusting the
+child, we read the diary its harness kept anyway —
+every command, commit, refusal, and exit — and a
+deterministic reader works out what happened. Like
+database recovery replaying a write-ahead log:
+lifecycle is folded from the trace, never narrated
+by the worker.
+
+## Terms
+
+| Term | Meaning |
+|---|---|
+| `bp3 harness` | the CLI door (owner-settled, round 2): `init-check`, `supervisor`, `find-tape`, `watch`, `desk`. `BP3_HARNESS` stays env-only identity, never a verb |
+| init-check | startup probe verb: per harness, verify the tape source exists, the consumed fields are present and shaped as the adapter expects, and the adapter parses a sample. Emits `W_SUPERVISOR_BLIND` in `warnings[]` per failing harness; never blocks work |
+| engine selection | where a Run exists (`watch`, `find-tape`), the engine is derived from the run-id's InitRecord — never restated. Stated only where no Run exists yet (`supervisor`, `init-check`). Engine words: `muse-code`, `pi`. A stated engine contradicting the InitRecord is a usage error |
+| argv shape | identity is positional, decision inputs are flagged: `bp3 harness supervisor <quest> --engine muse-code`; `watch`/`find-tape` take `--run-id`. Every harness verb has a single-letter alias, door-scoped and tested in both spellings: `i`=init-check, `s`=supervisor, `f`=find-tape, `w`=watch, `d`=desk |
+| durations | the unit lives in the flag name, the value is a bare positive integer: `--silence-seconds`, `--timeout-seconds`, `--grace-seconds`. `0`, negatives, and suffixed values (`30m`) are usage errors |
+| supervisor | the one actor, two modes. Passive (muse-code): probe inputs, find evidence, fold lifecycle — never spawns or kills. Active (pi/raw processes): the control loop that also spawns, watches, and kills. Never does child work. ("sentinel" is dead; do not use it) |
+| monitor | not a component: the pid/process/tape senses the supervisor and watch poll |
+| watchdog | watch's enforcement reflex: silence budget, then SIGTERM -> SIGKILL |
+| tape | bp3's word for a harness's session log: the recorded stream of commands, tool results, usage, and exits the harness runtime writes anyway (write-ahead log is the metaphor; `tape` is the spelling in code, CLI, and docs) |
+| find-tape | lookup verb: run-id -> init record / session-id / tape path; reverse lookup must resolve uniquely or refuse |
+| watch | blocking verb on one Run: exit / tape growth / close, with timeout; sole TERM/KILL owner |
+| run derivation log | the sole persisted supervisor output per Run: `.jsonl` under `<git-common-dir>/bp3/run-lifecycle-derivations/`; supervisor-owned observation and lifecycle rows with source evidence pointers |
+| derived Run state | per-Run `.json` snapshot under `<git-common-dir>/bp3/run-lifecycle-derivations/`; an atomically replaced, deletable cache folded from the derivation log and current sources |
+| InitRecord | first derivation row, written by the launcher/supervisor before the child starts: run-id, harness, session-id if known, pid if live, log path if known, desk, start time, effective model/thinking. Code spelling: OCaml `init_record`; `SpawnRecord` is retired everywhere |
+| lifecycle | derived Run state (`init / active / finished / orphaned`), never a second truth; the `.json` file is only its materialized cache |
+| trace | the fold's output view: ordered mechanical facts for one Run |
+| outcome | why a watch/supervisor call stopped (`settled`, `watchdog_killed`, `timeout`, `human_gate`); distinct from lifecycle |
+| backtest | replaying the fold over stored tapes; a findings machine, not a gate |
+| grader | reviewer: judges artifacts first, parsed events second, raw tapes only when needed |
+| `W_SUPERVISOR_BLIND` | warnings-array value only: tape source missing or reshaped; work proceeds, observability degraded |
+
+Spellings sync with the canceled pi quest's
+QUEST.md contract section and the FSM: edge names,
+`E_*` codes, and run-id shape are adopted.
+`docs/engine-contract/` remains a to-build artifact,
+not an existing authority.
+
+## Design contract added by auto-red-ink
+
+### Owners
+
+| Engine | Completion/control owner | Lifecycle/proof owner | Experiment-state owner |
+|---|---|---|---|
+| muse | workflow runtime's natural completion | supervisor fold over tapes + spawn/pid evidence where available | `bp3 q` ledger/FSM |
+| pi/raw process | supervisor + watch | supervisor fold over tapes + spawn/pid evidence | `bp3 q` ledger/FSM |
+
+Muse subagents therefore do not get a redundant
+process babysitter. The supervisor derives events for
+audit, recovery, and backtesting; it does not
+compete with Muse's runtime. Pi has no such
+runtime, so the supervisor owns spawn/watch/kill.
+
+### Owners / responsibility
+
+| Actor | Responsibility |
+|---|---|
+| experiment agent | work and artifacts |
+| supervisor | proof of what mechanically happened |
+| `bp3 q` ledger | legal experiment state |
+| grader | grade |
+
+### Grader evidence ladder
+
+In order; each rung only when the ones above leave
+the verdict undecided:
+
+1. The quest and exp records (what was asked).
+2. Committed code and git diff at the exact commit.
+3. Demos and tests, run — not read about.
+4. Style (code-writer/code-reviewer discipline).
+5. Tape, via derivation pointers first
+   (`find-tape --entry`); the whole tape only
+   when blocked, confused, or the work looks like it
+   is lying. Escalation is allowed; defaulting to
+   rung 5 is not.
+
+### Lifecycle derivation
+
+`init` = InitRecord only. `active` =
+InitRecord, no finish evidence, pid alive where a
+pid exists, and freshness within the named budget,
+where `freshness = max(tape mtime, latest
+derivation-observation timestamp)`. `finished` requires exit
+observed (or a settle row) plus the harness's finish
+evidence, and no live pid: a live pid is never
+`finished`, whatever the tape tail says, and a row
+alone never finishes a live child. Finish evidence
+is per harness, proved on the real corpora
+(followup.2), and only the last whole tape entry can
+carry it:
+
+| Harness | Finish evidence (last whole entry) | Exit entry |
+|---|---|---|
+| `muse-code` | `session.end` entry (close marker) | runtime `terminal` entry — a child tape ends here, with no close marker |
+| `pi` | `session_closed` entry, or a final assistant entry with stopReason `stop` | process exit (pid dead); pi tapes never close |
+
+A torn final tape entry (unterminated or
+unparseable) is evidence of nothing: it finishes no
+Run and is reported as `W_TORN_TAIL`.
+`orphaned` = stale and pid dead/absent.
+Derivation uses files plus live pid probes, never
+an in-memory live set, so a restarted reader does
+not orphan every active child.
+
+Blindness adds no fifth lifecycle word. A blind
+probe appends an observation row carrying
+`W_SUPERVISOR_BLIND` and empty evidence data (no
+pointer, no content, nothing fabricated), so the
+log shows the gap instead of hiding it; lifecycle
+keeps deriving from pid + InitRecord meanwhile.
+
+### Simplification rule
+
+No component may introduce another persisted
+per-Run store. Normalized run events are an internal
+record type passed between adapters, fold, and
+verdicts — not a file family. mvp.5 owns deleting
+the stores and duplicate writers this replaces.
+
+### Local derived-log layout
+
+All paths resolve from `git rev-parse
+--git-common-dir`, never from a worktree's `.git`
+file. Linked desks therefore share the same local
+store while the store stays outside every worktree
+and out of git history:
+
+```text
+<git-common-dir>/bp3/
+  run-lifecycle-derivations/<run-id>.jsonl  supervisor observations + lifecycle
+  run-lifecycle-derivations/<run-id>.json   current derived state cache
+```
+
+There is no target `run-events` store. Existing
+per-Run event logs from earlier work are read-only
+migration inputs for the supervisor, never new write
+targets.
+
+The derivation row names its source evidence as a
+pointer — tape path, the entry's own id
+(muse `uuid`, pi `id`), byte range, size/mtime/digest,
+pid probe — never raw session content. Consumers
+(grader, conductor, debugging human) read the cited
+entries only; nobody ingests a whole tape.
+Pointers resolve mechanically, never by hand:
+`bp3 harness find-tape --run-id <R> --entry
+<entry-id>` verifies the digest, then returns that
+one entry — widened by `--before-entries <n>` /
+`--after-entries <n>` (non-negative integers,
+default 0) when context is needed. Owned by mvp.2. The `.json`
+snapshot records the same input fingerprints and is
+written by temp-file + atomic rename. Readers use
+it only when those fingerprints still match; graders
+may force a refold. Deleting a `.json` snapshot must
+change nothing except speed.
+
+### CLI verdict contract
+
+Long-running verbs stream NDJSON lifecycle-change
+rows on stdout and end with exactly one normal JSON
+verdict. Human tick prose goes to stderr or a
+table rendering. Final verdicts split the fate of
+the Run (`outcome`, `settled`, `lifecycle`) from
+failure of the call itself (`{ok:false,error:{code,
+facts,guidance}}`). `W_SUPERVISOR_BLIND` is only a
+`warnings[]` value, never an outcome or error.
+
+Exit classes carry the driver's next move: `settled`
+exits 0 (natural finish); `watchdog_killed` exits
+terminal; `timeout` exits retryable (call again, the
+Run may still settle); `human_gate` exits
+needs-human (page the owner, never auto-retry).
+Exact integers adopt the binary's existing exit
+classes; mvp.1 maps outcomes onto them.
+
+## Demos
+
+**Demo 1 — active supervision for a raw-process
+engine (design trace).** Muse uses the same fold
+passively; it does not need this loop to wake it.
+
+```text
+<harness-door> supervisor --quest <toy>
+  tick 041: run A active (tape grew 2s ago)
+  tick 118: run A finished; run B silent 601s -> TERM/KILL
+  tick 119: B orphaned; railway advances; exit 0
+```
+
+**Demo 2 — backtest (design trace).** Replaying the
+2026-11-15 pi-quest corpus, the fold surfaces:
+exp-2 c2's author submitted then fossilized; two
+2b authors refused with `E_BINDING_REFUSED` and
+stopped honestly. Findings list -> fix proposals
+for `bp3 q u`, bindings, adapters. Nothing must
+pass; everything must be legible.
+
+## Goal and why
+
+Four blocked grades in one day, one seam: Runs
+unwitnessed or unsettleable though the work was
+fine. Witness machinery grew per-engine tricks
+because each harness was asked to *emit* facts at
+event time. The inversion: harnesses already
+*record* everything in their tapes; bp3 should find,
+watch, and fold recordings — not solicit testimony.
+
+## Success picture
+
+Muse's runtime drives a toy quest (flappy bird,
+three.js, subagents) while the supervisor derives
+lifecycle and events from its tapes — no
+redundant Muse supervisor loop and no LLM
+polling. Backtests over muse and pi corpora
+produce a concrete fix list for `bp3 q u` and the
+adapters. After a design rethink, the active
+supervisor drives the same toy quest on pi.
+
+## Scope
+
+| In | Out |
+|---|---|
+| `bp3 harness`: init-check, supervisor, find-tape, watch, desk | parsing tape content for meaning beyond enumerated mechanical facts |
+| tape lookup/fold for muse + pi | permanent daemon (supervisor/supervisor invocations are rerunnable) |
+| backtests as findings (fixes to `bp3 q u`, adapters) | SQLite/Redis as truth (rebuildable index later, out of scope) |
+| supervisor as bp3's lifecycle/evidence mechanism for muse; active supervisor for pi | a second Muse process supervisor competing with Muse's workflow runtime |
+| `bp3 worktree` -> harness-door `desk` API migration | new FSM states (lifecycle stays derived) |
+
+## Human touchpoints
+
+- Framing approval (this file) — owner.
+- Backtest findings review (backtest.*): owner picks
+  which findings become `bp3 q u` fixes.
+- dogfood.2 pi rethink: owner gate before pi work.
+- `quest_fin` promotion — owner, after demo.
+
+## Exps
+
+Exp display names are `<milestone>.<number> - <slug>`.
+Folders and bp3 exp IDs use the dotless spelling
+`exp-<milestone>-<number>-<slug>` because slugs
+cannot contain dots.
+
+### Milestone: mvp — initial setup
+
+### mvp.1 - supervisor-cli — [record](experiments/exp-mvp-1-supervisor-cli/EXPERIMENT.md)
+CLI door/verdict skeleton first, then the active
+loop for raw-process engines. Tick phases are
+`tell -> watch -> judge (fresh bp3 q r) -> finalize`;
+watch is the sole killer. Live loop proof is
+deferred until mvp.2-mvp.3 supply lookup/watch.
+
+### mvp.2 - find-tape — [record](experiments/exp-mvp-2-find-tape/EXPERIMENT.md)
+InitRecord-first lookup: run-id -> session-id /
+tape path per engine. Session-id is a reverse
+lookup input only, never the primary key.
+
+### mvp.3 - watch-run — [record](experiments/exp-mvp-3-watch-run/EXPERIMENT.md)
+Blocking done-signal over the found tape +
+pid, with silence watchdog and timeout. Muse's
+passive fold uses the same derivation without
+taking control from its runtime.
+
+### mvp.4 - supervisor-mechanism — [record](experiments/exp-mvp-4-supervisor-mechanism/EXPERIMENT.md)
+bp3 adopts the supervisor as its lifecycle/evidence
+mechanism for muse. Split out as substep mvp.4b:
+run-lifecycle-derivations become the only persisted supervisor
+output; shared dicts and per-Run event-log writes
+are retired on both write and read paths.
+
+### mvp.5 - delete-redundant — [record](experiments/exp-mvp-5-delete-redundant/EXPERIMENT.md)
+Cleanup pass after the replacement works: inventory
+the old witness machinery, prove shadow parity,
+cut writers and readers over, then delete the shared
+session map, child-prefix ritual, and other plumbing
+the supervisor made redundant. Local shared maps are
+converted to derivation logs before disposal.
+
+### mvp.6 - harness-desk-api — [record](experiments/exp-mvp-6-harness-desk-api/EXPERIMENT.md)
+API alignment: all nine existing worktree verbs are
+mapped to the chosen desk door; golden verdict
+fixtures are captured before migration.
+
+### mvp.7 - grader-evidence-ladder — [record](experiments/exp-mvp-7-grader-evidence-ladder/EXPERIMENT.md)
+The five-rung ladder becomes machinery: grader
+instructions and `induct-grade` consume records,
+diff, run demos/tests, style, then tape
+pointers via `find-tape --entry`; whole-log
+reads only on escalation.
+
+### mvp.8 - muse-initrecord-writer — [record](experiments/exp-mvp-8-muse-initrecord-writer/EXPERIMENT.md)
+RC1, promoted into MVP by owner: the induct
+launcher workflows write InitRecord at the run-id
+mint, before the child starts; passive supervisor
+never does.
+
+### Milestone: followup — red-chair concerns
+
+### followup.1 - derivation-concurrency — [record](experiments/exp-followup-1-derivation-concurrency/EXPERIMENT.md)
+RC2: append/rename discipline for
+`run-lifecycle-derivations/` under concurrent
+supervisors, proved with race fixtures.
+
+### followup.2 - finish-evidence — [record](experiments/exp-followup-2-finish-evidence/EXPERIMENT.md)
+RC3: per-adapter finish evidence (close marker,
+exit entry, pid+grace) proved on real corpora;
+feeds backtest.1/backtest.2.
+
+### Milestone: backtest — findings, not gates
+
+### backtest.1 - muse — [record](experiments/exp-backtest-1-muse/EXPERIMENT.md)
+Replay the fold over the muse session corpus:
+find bp3 invocations, commits, refusals; produce
+the fix list. Findings do not gate, but corpus
+denominator and incident match counts are reported;
+parser crashes fail the exp.
+
+### backtest.2 - pi — [record](experiments/exp-backtest-2-pi/EXPERIMENT.md)
+Same replay over pi session files from the
+canceled pi quest. Each finding must be consumed
+by dogfood.2's keep/replace/drop table.
+
+### Milestone: dogfood — use it ourselves
+
+### dogfood.1 - muse-toy-quest — [record](experiments/exp-dogfood-1-muse-toy-quest/EXPERIMENT.md)
+A toy quest (flappy bird in three.js) driven by
+Muse subagents natively, with the supervisor deriving
+lifecycle in parallel. Includes the owner gate
+decision seeded by a blind-log Run.
+
+### dogfood.2 - pi-supervisor-rethink — [record](experiments/exp-dogfood-2-pi-supervisor-rethink/EXPERIMENT.md)
+Rethink the pi engine design under the supervisor
+pattern: extension, dispatcher, and supervisor duties
+are separated; the dispatcher keeps no second
+watchdog. Owner-gated design exp.
+
+### dogfood.3 - pi-toy-quest — [record](experiments/exp-dogfood-3-pi-toy-quest/EXPERIMENT.md)
+First port/re-verify the pi binding from dogfood.2,
+then drive the same flappy toy quest on pi under
+active supervision.
+
+### Milestone: landing
+
+### landing.1 - landing-wrapup — [record](experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md)
+Quest-level wrap: scorecard, findings disposition,
+and the landing walkthrough actually run.
+
+## Scorecard
+
+Fields: supervisor drives observed, backtest
+findings count + disposition, `W_SUPERVISOR_BLIND`
+firings, wall time, context tokens, human-active
+minutes — or "unmeasured", never zero.
+
+## Risks and red chair
+
+Strongest attack, recorded at framing: *"This is
+the plugin layer wearing a quest's clothes — exps
+land fine unwitnessed."* Auto-red-ink answer: the
+veto question is not silently pre-settled. dogfood.1
+must seed a blind Run and record the owner's
+`veto | warn-only` decision; until then the design
+uses warn-only as the least-committal draft.
+
+Second attack: *"Tape formats drift; you'll
+fold lies."* Probe checks the exact fields consumed;
+drift fires `W_SUPERVISOR_BLIND` instead of silence.
+Backtests (backtest.1-2) measure real drift on real
+corpora before the live demo depends on it.
+
+## Open questions
+
+The full owner list, options, and consequences are
+in [DECISION-RECORD.md](DECISION-RECORD.md).
+Headlines: final door name and engine grammar;
+duration grammar; model/thinking inputs; env
+precedence; aliases and reserved names; whether
+supervisor warnings veto landing; tape and
+desk survivor spellings; exit class for timeout and
+human gate; desk alias versus hard cut; and the pi
+face/pulse/adapter-placement choices.
+80a8f65 feat(dogfood.1): three.js flappy demo in run folder
+156a609 feat(harness): pi backtest replay with usage fold (backtest.2)
+b6d7006 fix(harness): bounded 40-hex scan in extract_shas (backtest.1 c2)
+d7f0463 bp3: exp-backtest-1-muse
+135b15c fix(harness): derive pi exit in fold_run_file from dead pid (followup.2 c2)
+dac90d4 feat(harness): per-harness finish evidence, tail-scoped (followup.2)
+7c32251 docs(derivation-concurrency): env-set run-id acceptance row (followup.1)
+8ea4500 feat(harness): derivation writer discipline for parallel supervisors (followup.1)
+a770bd6 feat(harness): record-init writer, launcher records before spawn (mvp.8)
+cc1b686 feat(grader): wire evidence ladder into induct-grade (mvp.7)
+b5897cd feat(harness): desk API under harness door, worktree kept as documented alias (mvp.6)
+56ddc50 docs(grader-evidence-ladder): env-set run-id acceptance row (mvp.7)
+3b8cb47 feat(harness): delete redundant witness read paths (mvp.5)
+fc45070 feat(harness): supervisor mechanism - per-Run derivation writer (mvp.4)
+bff373f feat(harness): watch blocking done-signal with silence watchdog (mvp.3)
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/runs/20261116T003423Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+commit 80a8f65726a82604b745f1ec76fa7170803c000d
+Author: whycz <whyczz@gmail.com>
+Date:   Sun Nov 15 19:59:02 2026 -0500
+
+    feat(dogfood.1): three.js flappy demo in run folder
+
+ .../flappy.html                                    | 101 ++++
+ .../notes.md                                       |  23 +
+ .../tape.log                                       | 606 +++++++++++++++++++++
+ 3 files changed, 730 insertions(+)
+20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1
+20261116T005947Z-audit-muse-code-muse-wonder-1.0-c1
+20261116T010251Z-audit-muse-code-muse-wonder-1.0-c1
+20261116T010251Z-check-muse-code-muse-wonder-1.0-c1
+20261116T010251Z-review-muse-code-muse-wonder-1.0-c1
+20261116T010915Z-submit-muse-code-muse-wonder-1.0-c2
+diff --git a/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/EXPERIMENT.md b/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/EXPERIMENT.md
+index 1f243dc..8679c6e 100644
+--- a/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/EXPERIMENT.md
++++ b/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/EXPERIMENT.md
+@@ -54,6 +54,7 @@ assert exp.state == landed and all_runs_derived()
+ | full drive | toy exp `exp_fin`; every Run lifecycle derived |
+ | child briefs | zero prefix/witness instructions needed |
+ | demo artifact | flappy bird page exists and opens |
++| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
+ 
+ ## Acceptance test (goal block)
+ 
+@@ -66,7 +67,9 @@ assert exp.state == landed and all_runs_derived()
+ ## Tests
+ 
+ quest-level functional drive (this exp is the
+-test). Known cases: clean drive to `finished`;
++test); env-set run-id is stamped by bp3 into the
++submit verdict and ledger line (the mvp.1
++mechanism). Known cases: clean drive to `finished`;
+ seeded blind Run (W_SUPERVISOR_BLIND logged, empty
+ data, drive proceeds — feeds the U8 veto call);
+ seeded hung child in passive mode is reported,
+flappy.html
+notes.md
+tape.log
+# Run notes — exp-dogfood-1-muse-toy-quest c1 (muse)
+
+## What was built
+
+- `flappy.html` in this run folder: a single-file three.js
+  Flappy Bird demo. It reuses the exp's own word `flappy`
+  for the file name (naming discipline: one concept, one
+  spelling). The bird flaps on click/Space, pipes scroll,
+  score counts passed pipes, collision or leaving the
+  field ends the game, and click restarts.
+
+## Lessons
+
+- The exp asks for the artifact plus traces in the exp's
+  `runs/` folder, so the demo lives beside `tape.log`
+  rather than in a new top-level folder — no new spelling
+  or location had to be invented.
+- Verification here is static plus a syntax check: this
+  run did not open a browser, so "page opens" is checked
+  by HTML/JS structure, not by rendering. Graders should
+  open `flappy.html` to confirm visually.
+- Pre-existing dirty files from other exps were left
+  untouched; only this run's files were committed.
+{"ok":true,"quest":"2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement","exp":"exp-dogfood-1-muse-toy-quest","state":"todo","fin":null,"cycle":2,"commit":"80a8f65726a82604b745f1ec76fa7170803c000d","legal_edges":["submit","block","delete"],"changes":[{"change":"+","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/flappy.html"},{"change":"+","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/notes.md"},{"change":"+","path":"docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/tape.log"}]}
+notes.md
+tape.log
+# Audit notes — exp-dogfood-1-muse-toy-quest (bound 80a8f65726a82604b745f1ec76fa7170803c000d)
+
+## Lessons
+
+- The exp is still `submitted` with `fin: null`; the `exp_fin` full-drive gate has no artifact yet, so it grades `missing`, not `pass`.
+- Child briefs still inject the `Prefix your FIRST shell command` witness ritual (induct-exp.js), so the zero-prefix case fails at rung 2 without opening any tape.
+- The flappy demo passes a Node syntax check but was never opened in a browser (the build run says the same); `opens` remains visually unverified.
+- Env-set run-id is the one clean pass: the exp ledger submit line is bp3-stamped with the build run_id, and the derivation log holds only the matching InitRecord.
+
+## Matrix
+
+```json
+[
+  {"case": "full drive", "rung": 1, "evidence": {"kind": "command", "ref": "./bin/bp3 q 2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement r exp-dogfood-1-muse-toy-quest", "quote": "\"exp\":\"exp-dogfood-1-muse-toy-quest\",\"state\":\"submitted\",\"fin\":null,\"cycle\":1,\"commit\":\"80a8f65726a82604b745f1ec76fa7170803c000d\""}, "verdict": "missing"},
+  {"case": "child briefs", "rung": 2, "evidence": {"kind": "file", "ref": "skills/induct/workflows/induct-exp.js:182", "quote": "\"/runs/`. Prefix your FIRST shell command with `\" +"}, "verdict": "fail"},
+  {"case": "demo artifact", "rung": 3, "evidence": {"kind": "command", "ref": "node --check /tmp/flappy_check.mjs (module script extracted from flappy.html at bound commit)", "quote": "NODE_CHECK_PASS"}, "verdict": "pass"},
+  {"case": "env-set run-id (owner ruling from mvp.1)", "rung": 1, "evidence": {"kind": "ledger", "ref": "exp ledger submit line on branch bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-dogfood-1-muse-toy-quest (ledger.jsonl)", "quote": "{\"ts\":\"2026-11-16T00:59:23Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"80a8f65726a82604b745f1ec76fa7170803c000d\",\"verdict\":null,\"reason\":\"flappy three.js demo in run folder, JS syntax verified\",\"harness\":\"muse-code\",\"model\":\"muse-wonder-1.0\",\"bp3_version\":\"0.2.0\",\"run_id\":\"20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1\"}"}, "verdict": "pass"},
+  {"case": "adherence: submit edge called by the child directly", "rung": 1, "evidence": {"kind": "ledger", "ref": "exp ledger submit line on branch bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-dogfood-1-muse-toy-quest (ledger.jsonl)", "quote": "{\"ts\":\"2026-11-16T00:59:23Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"80a8f65726a82604b745f1ec76fa7170803c000d\",\"verdict\":null,\"reason\":\"flappy three.js demo in run folder, JS syntax verified\",\"harness\":\"muse-code\",\"model\":\"muse-wonder-1.0\",\"bp3_version\":\"0.2.0\",\"run_id\":\"20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1\"}"}, "verdict": "pass"},
+  {"case": "adherence: env preset on the first command", "rung": 1, "evidence": {"kind": "ledger", "ref": "exp ledger submit line on branch bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-dogfood-1-muse-toy-quest (ledger.jsonl)", "quote": "{\"ts\":\"2026-11-16T00:59:23Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"80a8f65726a82604b745f1ec76fa7170803c000d\",\"verdict\":null,\"reason\":\"flappy three.js demo in run folder, JS syntax verified\",\"harness\":\"muse-code\",\"model\":\"muse-wonder-1.0\",\"bp3_version\":\"0.2.0\",\"run_id\":\"20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1\"}"}, "verdict": "pass"},
+  {"case": "adherence: clean commit", "rung": 2, "evidence": {"kind": "command", "ref": "git show --stat 80a8f65726a82604b745f1ec76fa7170803c000d", "quote": "3 files changed, 730 insertions(+)"}, "verdict": "pass"},
+  {"case": "adherence: tape.log and notes.md present in its run folder", "rung": 2, "evidence": {"kind": "command", "ref": "git show --name-only 80a8f65726a82604b745f1ec76fa7170803c000d", "quote": "docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/notes.md"}, "verdict": "pass"},
+  {"case": "adherence: no hand-edited state", "rung": 2, "evidence": {"kind": "command", "ref": "git show 80a8f65726a82604b745f1ec76fa7170803c000d", "quote": "feat(dogfood.1): three.js flappy demo in run folder"}, "verdict": "pass"}
+]
+```
+# Check notes — exp-dogfood-1-muse-toy-quest c1
+
+Fresh verification (verify stance), bound commit 80a8f65726a82604b745f1ec76fa7170803c000d:
+- Rung1 full drive: `bp3 q ... r exp-dogfood-1-muse-toy-quest` returns state=submitted, fin=null, cycle=1 — not exp_fin/landed. Gated row missing/fail.
+- Rung2 child briefs: `skills/induct/workflows/induct-exp.js:182` still emits "Prefix your FIRST shell command with ..." in tapePreamble — expected zero prefix/witness instructions. Gated row fail.
+- Rung3 demo: module script extracted from flappy.html at bound commit passes `node --check` (NODE_CHECK_PASS). Pass, but does not override gated fails.
+- Rung2 adherence: git show --stat shows clean 3-file commit with tape.log+notes.md in submit run folder. Pass.
+
+Lesson: a passing demo artifact cannot land an exp whose drive-state and brief-contract acceptance rows still fail; grade at lowest gated rung.
+Verdict cast: fail.
+
+## Check edge attempt
+
+- Called check --verdict fail at bound commit; bp3 returned E_ILLEGAL_EDGE: state was already blocked (legal resume,delete) at call time. Re-read confirms state=blocked, same commit. No resume/delete called (not instructed). Grade fail stands on fresh rungs 1-2, edge recording blocked externally.
+# Review notes — exp-dogfood-1-muse-toy-quest c1
+
+Verdict: fix_first (needs_fix)
+
+Findings (severity order):
+1. [critical] Full drive not landed — EXPERIMENT.md expects toy exp `exp_fin`, state landed/finished.
+   Evidence (rung 1): `bp3 q r` at bound commit shows "state":"submitted","fin":null,"cycle":1,"commit":"80a8f65726a82604b745f1ec76fa7170803c000d".
+   Fix shape: complete supervisor drive to landed; do not grade as done at submitted.
+2. [major] Child briefs still require prefix/witness — acceptance expects zero prefix/witness instructions.
+   Evidence (rung 2): skills/induct/workflows/induct-exp.js tapePreamble (~line 182-195) emits "Prefix your FIRST shell command with ... (hooks witness this prefix to bind your session...)".
+   Fix shape: remove prefix/witness instructions from generated child briefs; rely on env-set BP3_RUN_ID.
+3. [minor] Demo has no automated test; submit notes admit browser was not opened.
+   Evidence (rung 3): extracted module script passes `node --check` (NODE_CHECK_PASS); rendering/playability unverified by that check alone.
+
+Checked and passing:
+- Demo artifact exists at bound commit (flappy.html, 101 lines); JS syntax verified.
+- Env-set run-id, submit-edge, clean commit (3 files, 730 insertions), tape/notes present — per supplied matrix rung 1-2 passes, not re-litigated via whole tape (no rung 5 read).
+
+Lessons:
+- A submitted demo is not a landed drive; grade exp state/fin, not just artifact presence.
+- Brief-generation code is part of acceptance when the case is "zero prefix/witness instructions".
+# Audit notes — exp-dogfood-1-muse-toy-quest (bound 80a8f65726a82604b745f1ec76fa7170803c000d)
+
+## Lessons
+
+- The exp is still `submitted` with `fin: null`; the `exp_fin` full-drive gate has no artifact yet, so it grades `missing`, not `pass`.
+- Child briefs still inject the `Prefix your FIRST shell command` witness ritual (induct-exp.js), so the zero-prefix case fails at rung 2 without opening any tape.
+- The flappy demo passes a Node syntax check but was never opened in a browser (the build run says the same); `opens` remains visually unverified.
+- Env-set run-id is the one clean pass: the exp ledger submit line is bp3-stamped with the build run_id, and the derivation log holds only the matching InitRecord.
+
+## Matrix
+
+```json
+[
+  {"case": "full drive", "rung": 1, "evidence": {"kind": "command", "ref": "./bin/bp3 q 2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement r exp-dogfood-1-muse-toy-quest", "quote": "\"exp\":\"exp-dogfood-1-muse-toy-quest\",\"state\":\"submitted\",\"fin\":null,\"cycle\":1,\"commit\":\"80a8f65726a82604b745f1ec76fa7170803c000d\""}, "verdict": "missing"},
+  {"case": "child briefs", "rung": 2, "evidence": {"kind": "file", "ref": "skills/induct/workflows/induct-exp.js:182", "quote": "\"/runs/`. Prefix your FIRST shell command with `\" +"}, "verdict": "fail"},
+  {"case": "demo artifact", "rung": 3, "evidence": {"kind": "command", "ref": "node --check /tmp/flappy_check.mjs (module script extracted from flappy.html at bound commit)", "quote": "NODE_CHECK_PASS"}, "verdict": "pass"},
+  {"case": "env-set run-id (owner ruling from mvp.1)", "rung": 1, "evidence": {"kind": "ledger", "ref": "exp ledger submit line on branch bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-dogfood-1-muse-toy-quest (ledger.jsonl)", "quote": "{\"ts\":\"2026-11-16T00:59:23Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"80a8f65726a82604b745f1ec76fa7170803c000d\",\"verdict\":null,\"reason\":\"flappy three.js demo in run folder, JS syntax verified\",\"harness\":\"muse-code\",\"model\":\"muse-wonder-1.0\",\"bp3_version\":\"0.2.0\",\"run_id\":\"20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1\"}"}, "verdict": "pass"},
+  {"case": "adherence: submit edge called by the child directly", "rung": 1, "evidence": {"kind": "ledger", "ref": "exp ledger submit line on branch bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-dogfood-1-muse-toy-quest (ledger.jsonl)", "quote": "{\"ts\":\"2026-11-16T00:59:23Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"80a8f65726a82604b745f1ec76fa7170803c000d\",\"verdict\":null,\"reason\":\"flappy three.js demo in run folder, JS syntax verified\",\"harness\":\"muse-code\",\"model\":\"muse-wonder-1.0\",\"bp3_version\":\"0.2.0\",\"run_id\":\"20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1\"}"}, "verdict": "pass"},
+  {"case": "adherence: env preset on the first command", "rung": 1, "evidence": {"kind": "ledger", "ref": "exp ledger submit line on branch bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-dogfood-1-muse-toy-quest (ledger.jsonl)", "quote": "{\"ts\":\"2026-11-16T00:59:23Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"80a8f65726a82604b745f1ec76fa7170803c000d\",\"verdict\":null,\"reason\":\"flappy three.js demo in run folder, JS syntax verified\",\"harness\":\"muse-code\",\"model\":\"muse-wonder-1.0\",\"bp3_version\":\"0.2.0\",\"run_id\":\"20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1\"}"}, "verdict": "pass"},
+  {"case": "adherence: clean commit", "rung": 2, "evidence": {"kind": "command", "ref": "git show --stat 80a8f65726a82604b745f1ec76fa7170803c000d", "quote": "3 files changed, 730 insertions(+)"}, "verdict": "pass"},
+  {"case": "adherence: tape.log and notes.md present in its run folder", "rung": 2, "evidence": {"kind": "command", "ref": "git show --name-only 80a8f65726a82604b745f1ec76fa7170803c000d", "quote": "docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/notes.md"}, "verdict": "pass"},
+  {"case": "adherence: no hand-edited state", "rung": 2, "evidence": {"kind": "command", "ref": "git show 80a8f65726a82604b745f1ec76fa7170803c000d", "quote": "feat(dogfood.1): three.js flappy demo in run folder"}, "verdict": "pass"}
+]
+```
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flappy Bird — three.js toy</title>
+<style>
+  body { margin: 0; overflow: hidden; background: #87ceeb; font-family: sans-serif; }
+  #hud { position: fixed; top: 12px; left: 12px; color: #fff; text-shadow: 0 1px 3px #0008; z-index: 1; }
+  #hud b { font-size: 28px; display: block; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="hud"><span>Score</span><b id="score">0</b><span id="msg">Click or press Space to flap</span></div>
+<script type="module">
+import * as THREE from 'three';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, 0, 10);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(3, 5, 4);
+scene.add(sun);
+
+const bird = new THREE.Mesh(
+  new THREE.SphereGeometry(0.35, 24, 18),
+  new THREE.MeshStandardMaterial({ color: 0xffd93d })
+);
+bird.position.set(-2.5, 0, 0);
+scene.add(bird);
+
+const pipeMat = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
+const pipes = [];
+function spawnPipe(x) {
+  const gapY = (Math.random() * 4 - 2);
+  const gap = 2.6, h = 8;
+  const top = new THREE.Mesh(new THREE.BoxGeometry(0.9, h, 0.9), pipeMat);
+  top.position.set(x, gapY + gap / 2 + h / 2, 0);
+  const bot = new THREE.Mesh(new THREE.BoxGeometry(0.9, h, 0.9), pipeMat);
+  bot.position.set(x, gapY - gap / 2 - h / 2, 0);
+  scene.add(top, bot);
+  pipes.push({ top, bot, gapY, scored: false });
+}
+for (let i = 0; i < 4; i++) spawnPipe(4 + i * 5);
+
+let vy = 0, score = 0, alive = true, started = false;
+const scoreEl = document.getElementById('score');
+const msgEl = document.getElementById('msg');
+function flap() {
+  if (!alive) { location.reload(); return; }
+  started = true; vy = 5.2; msgEl.textContent = '';
+}
+addEventListener('pointerdown', flap);
+addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); flap(); } });
+
+const clock = new THREE.Clock();
+function tick() {
+  requestAnimationFrame(tick);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (started && alive) {
+    vy -= 13 * dt;
+    bird.position.y += vy * dt;
+    bird.rotation.z = THREE.MathUtils.clamp(vy * 0.08, -0.9, 0.5);
+    for (const p of pipes) {
+      p.top.position.x -= 3 * dt; p.bot.position.x -= 3 * dt;
+      if (p.top.position.x < -7) {
+        const nx = Math.max(...pipes.map(q => q.top.position.x)) + 5;
+        p.top.position.x = p.bot.position.x = nx;
+        p.gapY = Math.random() * 4 - 2; p.scored = false;
+        const gap = 2.6, h = 8;
+        p.top.position.y = p.gapY + gap / 2 + h / 2;
+        p.bot.position.y = p.gapY - gap / 2 - h / 2;
+      }
+      if (!p.scored && p.top.position.x < bird.position.x) {
+        p.scored = true; score++; scoreEl.textContent = String(score);
+      }
+      const dx = Math.abs(p.top.position.x - bird.position.x);
+      if (dx < 0.8 && Math.abs(bird.position.y - p.gapY) > 1.1) alive = false;
+    }
+    if (Math.abs(bird.position.y) > 5.2) alive = false;
+    if (!alive) msgEl.textContent = 'Game over — click to restart';
+  }
+  renderer.render(scene, camera);
+}
+tick();
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
+ .../tape.log                                       |  1 +
+ .../experiments/exp-backtest-2-pi/EXPERIMENT.md    |  5 +++-
+ .../tape.log                                       | 29 ++++++++++++++++++++++
+ .../exp-dogfood-1-muse-toy-quest/EXPERIMENT.md     |  5 +++-
+ .../tape.log                                       | 16 ++++++++++++
+ 5 files changed, 54 insertions(+), 2 deletions(-)
+induct-exp.js
+induct-grade.js
+quest-land.js
+130:    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
+135:      "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
+178:  function tapePreamble(edge, cycle) {
+182:      "/runs/`. Prefix your FIRST shell command with `" +
+183:      envPreset(edge, cycle) + "` (hooks witness this prefix " +
+223:      String(before.cycle) + ". " + authorLoad + tapePreamble("submit", before.cycle) +
+./.agents/workflows/quest-land.js:173:  function tapePreamble(edge, cycle) {
+./.agents/workflows/quest-land.js:218:      String(before.cycle) + ". " + tapePreamble("land", before.cycle) +
+./.agents/workflows/induct-grade.js:322:  function tapePreamble(edge, cycle) {
+./.agents/workflows/induct-grade.js:372:      tapePreamble("audit", before.cycle) +
+./.agents/workflows/induct-grade.js:448:    reviewLoad + tapePreamble("review", before.cycle) + gate +
+./.agents/workflows/induct-grade.js:468:    checkLoad + tapePreamble("check", before.cycle) + gate +
+./.agents/workflows/induct-exp.js:178:  function tapePreamble(edge, cycle) {
+./.agents/workflows/induct-exp.js:223:      String(before.cycle) + ". " + authorLoad + tapePreamble("submit", before.cycle) +
+./docs/quests/2026-11-07-bp3-mvp-engine-core/experiments/exp-4-tape-hooks/EXPERIMENT.md:97:| Binding impl | `induct-exp.js` `envPreset(edge, cycle)` applied to all four stage edge commands; `tapePreamble` instructs the prefix on the FIRST command. Durable test `test/induct-exp.test.mjs` (mock host, wired into `make check` via `test/induct.sh`) asserts every stage's commands carry `BP3_RUN_ID` matching its run folder |
+./skills/induct/workflows/quest-land.js:173:  function tapePreamble(edge, cycle) {
+./skills/induct/workflows/quest-land.js:218:      String(before.cycle) + ". " + tapePreamble("land", before.cycle) +
+./skills/induct/workflows/induct-grade.js:322:  function tapePreamble(edge, cycle) {
+./skills/induct/workflows/induct-grade.js:372:      tapePreamble("audit", before.cycle) +
+./skills/induct/workflows/induct-grade.js:448:    reviewLoad + tapePreamble("review", before.cycle) + gate +
+./skills/induct/workflows/induct-grade.js:468:    checkLoad + tapePreamble("check", before.cycle) + gate +
+./skills/induct/workflows/induct-exp.js:178:  function tapePreamble(edge, cycle) {
+./skills/induct/workflows/induct-exp.js:223:      String(before.cycle) + ". " + authorLoad + tapePreamble("submit", before.cycle) +
+src/quest/harness.ml:848:   bare mention: BP3_RUN_ID=<id> in a command or a stamped
+src/quest/harness.ml:851:  contains_sub text ("BP3_RUN_ID=" ^ run)
+src/quest/harness.ml:902:  scan "BP3_RUN_ID=" (fun start ->
+src/quest/harness.ml:1658:        if run_ids = [] then add_finding "foreign tape: no BP3_RUN_ID binding" "adapter";
+src/quest/harness.ml:1746:  Reads every .jsonl tape under the corpus (default: the engine's tape source), folds mechanical facts per tape (BP3_RUN_ID bindings, bp3 invocations, E_* refusals, commit shas, finish/exit evidence, torn tails; pi tapes also yield session-id, entry counts, and summed usage) and emits one verdict {ok, engine, corpus, tapes_replayed, identifiable, traces, findings}. Each finding names its tape, run-id, evidence lines, and proposed fix target (dispatcher, adapter, contract; muse findings keep bp3 q u / hooks). A parser crash fails the call; findings themselves never gate. Truncated, foreign, and torn tapes are reported in findings, never fatal. Replay is deterministic: same corpus, same verdict.\n\
+src/quest/hooks.ml:252:                     (match extract_preset command "BP3_RUN_ID",
+src/quest/store.ml:34:  match Sys.getenv_opt "BP3_RUN_ID" with Some v when v <> "" -> Some v | _ -> None
+./test
+./test/induct-grade.test.mjs
+./test/quest-land.test.mjs
+./test/induct-exp.test.mjs
+./docs/quests/2026-11-14-bp3-unit-tests
+./docs/quests/2026-11-14-bp3-unit-tests/experiments/exp-1-test-split-standard
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi
+    const result = await host.agent({
+      label: "init " + exp,
+      input:
+        "Run exactly `" + cmd + "` from the quest worktree if " +
+        "one is named below, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const v = parseVerdict(result);
+    if (!v || v.ok !== true) {
+      refusals.push(
+        "record-init refused before the " + edge + " child: " +
+        errorText(result)
+      );
+      return false;
+    }
+    return true;
+  }
+
+  function tapePreamble(edge, cycle) {
+    const folder = runFolder(edge, cycle, harness + "-" + model);
+    return (
+      "Your run folder is `" + folder + "` under `" + expDir +
+      "/runs/`. Prefix your FIRST shell command with `" +
+      envPreset(edge, cycle) + "` (hooks witness this prefix " +
+      "to bind your session to this run). First check whether that concrete run " +
+      "folder already exists: if it does, stop immediately, do " +
+      "not overwrite or reuse it, and return a JSON object " +
+      '{"ok":false,"error":{"code":"E_RUN_EXISTS"}} describing ' +
+      "the collision. Run-id folders must fail if they already " +
+      "exist. Otherwise create the folder, then tee all of your " +
+      "session output into its tape.log for the rest of the run: " +
+      "run your shell work so stdout and stderr are appended " +
+      "through `tee -a <run-folder>/tape.log` (for example " +
+      "`exec > >(tee -a <run-folder>/tape.log) 2>&1` in bash, " +
+      "or pipe each command through `tee -a`). The tape is " +
+      "verbatim evidence only; never parse tape text into facts. " +
+      "Write `<run-folder>/notes.md` with brief authored lessons " +
+      "from the run before you finish. Record the concrete run " +
+      "folder name as run_id in your reply JSON."
+    );
+  }
+
+  const before = await readState();
+  if (before.state === "unknown") {
+    refusals.push("initial read failed: " + (before.raw || "no verdict"));
+    return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+  }
+  if (before.state !== "submitted" && before.state !== "approved") {
+    return { exp: exp, outcome: before.state, matrix: [], run_ids: runIds, refusals: refusals };
+  }
+  const bound = before.commit ? String(before.commit) : "";
+  if (bound && bound !== commit) {
+    refusals.push(
+      "E_COMMIT_MISMATCH commit " + commit + " does not bind bound commit " + bound
+    );
+    return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+  }
+
+  if (!(await recordInit("audit", before.cycle))) {
+    return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+  }
+
+  // Audit: typed evidence matrix, read-only, no state edges.
+  const audit = await host.agent({
+    label: "audit " + exp,
+    input:
+      deskNote + "You are the audit child for exp `" + exp + "` of quest `" +
+      quest + "`, bound to commit `" + commit + "`. " +
+      tapePreamble("audit", before.cycle) +
+      " Read the exp's EXPERIMENT.md first. Build the evidence " +
+      "matrix: one row per Acceptance case (acceptance rows), plus " +
+      "adherence rows for the build Run that produced this commit " +
+      "(submit edge called by the child directly, env preset on " +
+      "the first command, clean commit, tape.log and notes.md " +
+      "present in its run folder, no hand-edited state). " + LADDER_TEXT +
+      "Every row " +
+      "is {case, rung: 1|2|3|4|5a|5b, evidence: {kind: file|command|ledger|grep, ref, " +
+      "quote}, verdict: pass|fail|missing|deferred}: name the rung " +
+      "that decided the row; a rung 5a row cites its pointer as " +
+      "{kind: command, ref: the find-tape --entry call, quote: " +
+      "the resolved entry verbatim}; a rung 5b row names its " +
+      "escalation (blocked, confused, or lying) in its case or " +
+      "quote, and an unnamed whole-tape read is downgraded to " +
+      "missing. Quote observed " +
+      "evidence verbatim; a gated case with no artifact is verdict " +
+      "missing, never pass, and free-string evidence is not a row. " +
+      "Deferred is a disposition, not a failure: when an " +
+      "Acceptance case's own text in EXPERIMENT.md says it is NOT " +
+      "gated by this exp and defers it to a named owning exp (for " +
+      "example `deferred to Exp 3`), emit verdict deferred for " +
+      "that row with the deferral text itself as typed evidence " +
+      "({kind: file, ref: the EXPERIMENT.md line, quote: the " +
+      "deferral line verbatim}); never mark such a case missing " +
+      "or pass for lacking this exp's artifact. A deferral that " +
+      "names no owning exp is not deferred: emit missing. For " +
+      "the adherence row `env preset on the first command`, quote " +
+      "the bp3-stamped ledger line for the submit edge (the mvp.1 " +
+      "mechanism: BP3_RUN_ID arrives via environment and bp3 stamps " +
+      "it into the verdict and the ledger line): find the submit " +
+      "line whose run_id is the build Run that produced this commit " +
+      "(the submit run folder under this exp's runs/) and quote it " +
+      "as {kind: ledger, ref: the exp ledger submit line, quote: " +
+      "the line verbatim}. Corroborate from the per-Run derivation " +
+      "log at `<git-common-dir>/bp3/run-lifecycle-derivations/" +
+      "<run-id>.jsonl` (resolve the common dir with " +
+      "`git rev-parse --git-common-dir`) when it exists. The hooks " +
+      "registry witness does not gate this row; outside a named " +
+      "rung 5b escalation, never read the whole tape or " +
+      "parse tape.log into facts. Judge only; do " +
+      "not edit any file and do not call any `bp3 q u` update edge. " +
+      "Write the matrix verbatim as JSON in your run folder's " +
+      "notes.md, with your brief authored lessons. Reply with only " +
+      "a JSON object {ok, run_id, matrix} where matrix is the row " +
+      "list you wrote in notes.md.",
+  });
+  const auditVerdict = parseVerdict(audit);
+  if (auditVerdict && typeof auditVerdict.run_id === "string" && auditVerdict.run_id) {
+    runIds.push(auditVerdict.run_id);
+  }
+  if (!auditVerdict || !Array.isArray(auditVerdict.matrix)) {
+    refusals.push("audit returned no matrix: " + errorText(audit));
+  }
+  const matrix = normalizeMatrix(auditVerdict ? auditVerdict.matrix : null);
+  const matrixJson = JSON.stringify(matrix);
+
+  // Review || check on the exact bound commit. A gated missing
+  // or fail row means the positive verdict is not available to
+  // them; deferred rows never gate.
+  const gate =
+    "The evidence matrix for this grade is: " + matrixJson + ". " +
+    "Rows with verdict deferred are not gated by this exp (each " +
+    "names the exp that owns it) and never block: ignore them. " +
+    "Any gated row with verdict fail or missing means the work " +
+    "is not correct: cast the negative verdict. " + LADDER_TEXT +
+    "A rung 5a fail row blocks citing its pointer: cast the " +
+    "negative verdict. A rung 5b row is evidence only when it " +
+    "names its escalation (blocked, confused, or lying); an " +
+    "unnamed whole-tape read, or a clean grade whose matrix " +
+    "shows a whole-log read it did not need, is not correct: " +
+    "cast the negative verdict. ";
+  const reviewPrompt = deskNote +
+    "You are the review child for exp `" + exp + "` of quest `" +
+    quest + "`, currently in state `" + before.state + "` at cycle " +
+    String(before.cycle) + ", bound to commit `" + commit + "`. " +
+    reviewLoad + tapePreamble("review", before.cycle) + gate +
+    " Review the work at the bound commit against the exp's " +
+    "own Acceptance cases in its EXPERIMENT.md (read it first): " +
+    "every gated case needs observed evidence (a case deferred " +
+    "to a named successor exp is not gated here), and any open " +
+    "design question in the exp means it was not done properly. Judge " +
+    "only; do not edit the work. Then call the state " +
+    "edge directly yourself, binding the exact commit: " +
+    "`" + envPreset("review", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
+    " review --verdict ship --commit " + commit +
+    " --reason \"<short reason>\"` when the work is correct, " +
+    "or the same call with `--verdict needs_fix` when it is " +
+    "not. Children call `bp3 q u` directly; never only return " +
+    "a verdict for the parent to relay. Reply with only a " +
+    "JSON object {ok, run_id, commit, verdict} where verdict " +
+    "is the JSON printed by the review call.";
+  const checkPrompt = deskNote +
+    "You are the check child for exp `" + exp + "` of quest `" +
+    quest + "`, currently in state `" + before.state + "` at cycle " +
+    String(before.cycle) + ", bound to commit `" + commit + "`. " +
+    checkLoad + tapePreamble("check", before.cycle) + gate +
+    " Run the exp's checks against the bound commit and judge " +
+    "only; do not edit the work. Then call the state edge " +
+    "directly yourself, binding the exact commit: " +
+    "`" + envPreset("check", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
+    " check --verdict pass --commit " + commit +
+    " --reason \"<short reason>\"` when every check passes, " +
+    "or the same call with `--verdict fail` when any check " +
+    "fails. Children call `bp3 q u` directly; never only " +
+    "return a verdict for the parent to relay. Reply with " +
+    "only a JSON object {ok, run_id, commit, verdict} where " +
+    "verdict is the JSON printed by the check call.";
+  if (!(await recordInit("review", before.cycle)) ||
+        "update edge.",
+    });
+    const v = parseVerdict(result);
+    if (!v || v.ok !== true) {
+      refusals.push(
+        "record-init refused before the " + edge + " child: " +
+        errorText(result)
+      );
+      return false;
+    }
+    return true;
+  }
+
+  function tapePreamble(edge, cycle) {
+    const folder = runFolder(edge, cycle, harness + "-" + model);
+    return (
+      "Your run folder is `" + folder + "` under `" + expDir +
+      "/runs/`. Prefix your FIRST shell command with `" +
+      envPreset(edge, cycle) + "` (hooks witness this prefix " +
+      "to bind your session to this run). First check whether that concrete run " +
+      "folder already exists: if it does, stop immediately, do " +
+      "not overwrite or reuse it, and return a JSON object " +
+      '{"ok":false,"error":{"code":"E_RUN_EXISTS"}} describing ' +
+      "the collision. Run-id folders must fail if they already " +
+      "exist. Otherwise create the folder, then tee all of your " +
+      "session output into its tape.log for the rest of the run: " +
+      "run your shell work so stdout and stderr are appended " +
+      "through `tee -a <run-folder>/tape.log` (for example " +
+      "`exec > >(tee -a <run-folder>/tape.log) 2>&1` in bash, " +
+      "or pipe each command through `tee -a`). The tape is " +
+      "verbatim evidence only; never parse tape text into facts. " +
+      "Write `<run-folder>/notes.md` with brief authored lessons " +
+      "from the run before you finish. Record the concrete run " +
+      "folder name as run_id in your reply JSON."
+    );
+  }
+
+  const before = await readState();
+  if (before.state === "unknown") {
+    refusals.push("initial read failed: " + (before.raw || "no verdict"));
+    return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+  }
+  if (before.state !== "approved") {
+    refusals.push(
+      "expected approved, got " + before.state + "; another step owns that state"
+    );
+    return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+  }
+
+  if (!(await recordInit("land", before.cycle))) {
+    return { exp: exp, outcome: "refused", run_ids: runIds, refusals: refusals };
+  }
+
+  const lander = await host.agent({
+    label: "land " + exp,
+    input:
+      deskNote + "You are the land child for exp `" + exp + "` of quest `" +
+      quest + "`, currently in state `approved` at cycle " +
+      String(before.cycle) + ". " + tapePreamble("land", before.cycle) +
+      " Call the state edge directly yourself: " +
+      "`" + envPreset("land", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
+      " land --reason \"<short reason>\"`. Children call " +
+      "`bp3 q u` directly; never only return a verdict for " +
+      "the parent to relay. Reply with only a JSON object " +
+      "{ok, run_id, commit, verdict} where verdict is the " +
+      "JSON printed by the land call.",
+  });
+  const landVerdict = parseVerdict(lander);
+  if (landVerdict && typeof landVerdict.run_id === "string" && landVerdict.run_id) {
+    runIds.push(landVerdict.run_id);
+  }
+
+  const after = await readState();
+  if (after.state === "landed") {
+    return { exp: exp, outcome: "landed", run_ids: runIds, refusals: refusals };
+  }
+  refusals.push(errorText(lander));
+  if (after.state === "unknown") {
+    refusals.push("re-read after land failed: " + (after.raw || "no verdict"));
+  } else {
+    refusals.push("land left state " + after.state + ", expected landed");
+.PHONY: check test lint release publish install
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/harness.sh
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/induct.sh
+	./test/completion.sh
+	./test/release.sh
+	./test/install.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	node --check skills/induct/workflows/induct-exp.js
+	node --check skills/induct/workflows/induct-grade.js
+	node --check skills/induct/workflows/quest-land.js
+
+test:
+	./test/skills.sh
+
+# --- release (Exp 5): tag-gated artifact + checksum; publish-once via gh ---
+RELEASE_VERSION := $(shell sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' src/quest/gitx.ml | head -1)
+RELEASE_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+RELEASE_ARCH := $(shell uname -m)
+RELEASE_ARTIFACT := dist/bp3-q-v$(RELEASE_VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
+
+release:
+	@./scripts/release-check >/dev/null
+	$(DUNE_BUILD) src/quest/main.exe
+	mkdir -p dist
+	cp _build/default/src/quest/main.exe $(RELEASE_ARTIFACT)
+	cd dist && shasum -a 256 $$(basename $(RELEASE_ARTIFACT)) > $$(basename $(RELEASE_ARTIFACT)).sha256
+	@echo "released $(RELEASE_ARTIFACT)"
+
+publish: release
+	./scripts/release-publish $(RELEASE_ARTIFACT) $(RELEASE_ARTIFACT).sha256
+
+PREFIX ?= $(HOME)/.local
+install:
+	PREFIX="$(PREFIX)" ./scripts/install-bp3.sh
+test/induct-exp.test.mjs:76:  assert(input.includes("Prefix your FIRST shell command"),
+test/induct-exp.test.mjs:77:    "author is told the first command binds the session");
+.agents/workflows/induct-exp.js
+.agents/workflows/induct-grade.js
+.agents/workflows/quest-land.js
+skills/induct/workflows/induct-exp.js
+skills/induct/workflows/induct-grade.js
+skills/induct/workflows/quest-land.js
+#!/bin/sh
+# induct workflow contract tests (mock host, no agent calls).
+set -eu
+cd "$(dirname "$0")/.."
+node test/induct-exp.test.mjs
+node test/induct-grade.test.mjs
+node test/quest-land.test.mjs
+test/induct-grade.test.mjs:2:// Covers the exp Acceptance table: typed matrix returned, a
+test/induct-grade.test.mjs:8:// commit returns the same matrix, the ladder fixtures (lying
+test/induct-grade.test.mjs:69:        return JSON.stringify({ ok: true, run_id: "r-audit", matrix: auditRows });
+test/induct-grade.test.mjs:85:// --- grade a submitted exp: outcome + typed matrix, bindings ---
+test/induct-grade.test.mjs:89:    auditRows: [passRow("acceptance: a"), passRow("adherence: tape present")],
+test/induct-grade.test.mjs:93:  assert(Array.isArray(result.matrix) && result.matrix.length === 2, "matrix has both rows");
+test/induct-grade.test.mjs:94:  assert(result.matrix.every((r) => r.verdict === "pass"), "all rows pass");
+test/induct-grade.test.mjs:108:  assert(inputs.audit.includes("notes.md"), "audit writes matrix in its notes.md");
+test/induct-grade.test.mjs:123:  assert(result.matrix[1].verdict === "missing", "missing row stays missing");
+test/induct-grade.test.mjs:132:  assert(result.matrix[0].verdict === "missing", "untyped pass downgraded to missing");
+test/induct-grade.test.mjs:148:// --- replay on the same commit: same matrix, still approved ---
+test/induct-grade.test.mjs:156:  assert(JSON.stringify(r2.matrix) === JSON.stringify(r1.matrix), "replay returns the same matrix");
+test/induct-grade.test.mjs:195:  assert(result.matrix[1].verdict === "deferred", "deferred row stays deferred");
+test/induct-grade.test.mjs:196:  assert(result.matrix[1].evidence.kind === "file", "deferred row keeps its typed deferral evidence");
+test/induct-grade.test.mjs:215:  assert(result.matrix[1].verdict === "missing", "unnamed deferral downgraded to missing");
+test/induct-grade.test.mjs:225:  assert(result.matrix[1].verdict === "deferred", "mislabeled deferral upgraded to deferred");
+test/induct-grade.test.mjs:234:  assert(result.matrix[0].verdict === "missing", "untyped deferred downgraded to missing");
+test/induct-grade.test.mjs:244:  assert(result.matrix[0].verdict === "missing", "unknown verdict coerced to missing");
+test/induct-grade.test.mjs:322:  assert(result.matrix[4].verdict === "fail", "pointer row stays fail");
+test/induct-grade.test.mjs:323:  assert(result.matrix[4].rung === "5a", "pointer row keeps rung 5a");
+test/induct-grade.test.mjs:324:  assert(result.matrix[4].evidence.ref.includes("find-tape --run-id"), "block cites the rung-5 pointer");
+test/induct-grade.test.mjs:338:  assert(result.matrix.every((r) => r.rung !== "5b"), "clean trace shows zero whole-log reads");
+test/induct-grade.test.mjs:349:  assert(result.matrix[1].verdict === "pass", "named escalation keeps its verdict");
+test/induct-grade.test.mjs:350:  assert(result.matrix[1].rung === "5b", "escalation row keeps rung 5b");
+test/induct-grade.test.mjs:362:  assert(result.matrix[1].verdict === "missing", "unnamed whole-tape pass downgraded to missing");
+test/induct-grade.test.mjs:371:  assert(result.matrix[0].rung === null, "unknown rung coerced to null");
+test/induct-grade.test.mjs:372:  assert(result.matrix[0].verdict === "pass", "row still judged on its typed evidence");
+#!/bin/bash
+# Validate actual YAML before the installer propagates a malformed source.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+command -v jq >/dev/null || { echo 'jq is required (brew bundle)' >&2; exit 2; }
+command -v yq >/dev/null || { echo 'Mike Farah yq v4 is required (brew bundle)' >&2; exit 2; }
+[[ $(yq --version) == *github.com/mikefarah/yq/*'version v4.'* ]] || { echo 'Mike Farah yq v4 is required' >&2; exit 2; }
+[[ $# -gt 0 ]] || set -- "$root/skills"
+count=0
+for dir in "$@"; do
+  for source in "$dir"/*/SKILL.md; do
+    [[ -f $source ]] || { echo "no SKILL.md files in $dir" >&2; exit 1; }
+    id=$(basename "$(dirname "$source")")
+    [[ $id =~ ^[a-z][a-z0-9-]*$ ]] || { echo "invalid skill id: $id" >&2; exit 1; }
+    IFS= read -r first < "$source"
+    if [[ $first != --- ]] || ! awk '/^---$/ {n++} END {exit (n < 2)}' "$source"; then
+      echo "$source: missing frontmatter delimiters" >&2
+      exit 1
+    fi
+    yq --front-matter=extract -o=json '.' "$source" |
+      jq -se --arg id "$id" 'length == 1 and (.[0] | type == "object" and .name == $id and (.description | type == "string" and test("\\S")))' >/dev/null || { echo "$source: invalid YAML frontmatter/name/description" >&2; exit 1; }
+    count=$((count + 1))
+  done
+done
+printf 'skills check: ok (%s files)\n' "$count"
+skills/induct/workflows/induct-grade.js-271-  }
+skills/induct/workflows/induct-grade.js-272-
+skills/induct/workflows/induct-grade.js:273:  function envPreset(edge, cycle) {
+skills/induct/workflows/induct-grade.js-274-    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
+skills/induct/workflows/induct-grade.js-275-    // as this stage's run folder. Hooks cannot inherit env from a
+skills/induct/workflows/induct-grade.js-276-    // child, but PreToolUse payloads carry the full command text,
+skills/induct/workflows/induct-grade.js-277-    // so the first prefixed command binds session -> run.
+skills/induct/workflows/induct-grade.js-278-    return (
+skills/induct/workflows/induct-grade.js-279-      "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
+--
+skills/induct/workflows/quest-land.js-122-  }
+skills/induct/workflows/quest-land.js-123-
+skills/induct/workflows/quest-land.js:124:  function envPreset(edge, cycle) {
+skills/induct/workflows/quest-land.js-125-    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
+skills/induct/workflows/quest-land.js-126-    // as this stage's run folder. Hooks cannot inherit env from a
+skills/induct/workflows/quest-land.js-127-    // child, but PreToolUse payloads carry the full command text,
+skills/induct/workflows/quest-land.js-128-    // so the first prefixed command binds session -> run.
+skills/induct/workflows/quest-land.js-129-    return (
+skills/induct/workflows/quest-land.js-130-      "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
+skills/induct/workflows/quest-land.js:125:    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
+skills/induct/workflows/quest-land.js:177:      "/runs/`. Prefix your FIRST shell command with `" +
+skills/induct/workflows/quest-land.js:178:      envPreset(edge, cycle) + "` (hooks witness this prefix " +
+skills/induct/workflows/induct-grade.js:274:    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
+skills/induct/workflows/induct-grade.js:326:      "/runs/`. Prefix your FIRST shell command with `" +
+skills/induct/workflows/induct-grade.js:327:      envPreset(edge, cycle) + "` (hooks witness this prefix " +
+skills/induct/workflows/induct-grade.js:377:      "the first command, clean commit, tape.log and notes.md " +
+skills/induct/workflows/induct-grade.js:399:      "the adherence row `env preset on the first command`, quote " +
+skills/induct/workflows/induct-grade.js:410:      "registry witness does not gate this row; outside a named " +
+skills/induct/workflows/induct-exp.js:130:    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
+skills/induct/workflows/induct-exp.js:182:      "/runs/`. Prefix your FIRST shell command with `" +
+skills/induct/workflows/induct-exp.js:183:      envPreset(edge, cycle) + "` (hooks witness this prefix " +
+test/hooks.sh:48:echo "$out" | jq -e '.event_line == null and .reason == "no binding witnessed for session"' >/dev/null || fail "unbound verdict: $out"
+test/hooks.sh:58:# --- preset witnessed but no matching run folder: unbound ---
+test/hooks.sh:98:# lint exit witnessed: pass on PostToolUse, fail on PostToolUseFailure
+test/induct-exp.test.mjs:8:// per-stage witnessed binding still holds for the author.
+test/induct-exp.test.mjs:76:  assert(input.includes("Prefix your FIRST shell command"),
+test/induct-exp.test.mjs:77:    "author is told the first command binds the session");
+#!/bin/bash
+# shellcheck disable=SC2016 # Literal JSON and Markdown in fixtures.
+set -euo pipefail
+repo=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d "${TMPDIR:-/tmp}/bp3-skills-tests.XXXXXX")
+trap 'rm -rf -- "$work"' EXIT
+checks=0
+assert() { "$@" || { printf 'FAIL: %s\n' "$*" >&2; exit 1; }; checks=$((checks + 1)); }
+rejects() {
+  if "$@" > "$work/out" 2> "$work/error"; then printf 'FAIL: expected rejection: %s\n' "$*" >&2; exit 1; fi
+  checks=$((checks + 1))
+}
+# A fresh checkout must carry the project-scope discovery exclusions too.
+for skill_dir in "$repo"/skills/*/; do
+  id=$(basename "$skill_dir")
+  assert jq -e --arg pattern "!**/.agents/skills/$id/SKILL.md" '.skills | index($pattern) != null' "$repo/.pi/settings.json"
+done
+
+mkdir -p "$work/project with spaces/bin" "$work/project with spaces/scripts"
+root="$work/project with spaces"
+cp "$repo/bin/bp3" "$root/bin/"
+cp "$repo/scripts/check-skills" "$root/scripts/"
+cp -R "$repo/skills" "$root/"
+source="$root/skills/add-yap-skill/SKILL.md"
+cp "$source" "$work/good.md"
+
+# The exact original nested-mapping regression: an unquoted colon+space.
+awk '/^description:/ {$0="description: Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests."} {print}' "$work/good.md" > "$source"
+rejects "$root/scripts/check-skills"
+rejects "$root/bin/bp3" skills install --harness=all
+assert test ! -e "$root/.pi"
+assert test ! -e "$root/.agents"
+assert test ! -e "$root/.claude"
+assert grep -Eq 'mapping|YAML' "$work/error"
+
+# Quoted colon and block-scalar descriptions must pass real YAML parsing.
+cp "$work/good.md" "$source"
+"$root/scripts/check-skills" > /dev/null
+assert test "$(yq --front-matter=extract '.description' "$source")" = 'Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests.'
+awk '/^description:/ {$0="description: |\n  A valid description: with a colon."} {print}' "$work/good.md" > "$source"
+"$root/scripts/check-skills" > /dev/null
+
+for description in 'description: [broken' 'description: {nested: mapping}' 'description: 42' 'description: ""'; do
+  awk -v description="$description" '/^description:/ {$0=description} {print}' "$work/good.md" > "$source"
+  rejects "$root/scripts/check-skills"
+done
+cp "$work/good.md" "$source"
+awk '/^name:/ {$0="name: wrong"} {print}' "$work/good.md" > "$source"
+rejects "$root/scripts/check-skills"
+cp "$work/good.md" "$source"
+rejects "$root/bin/bp3" skills install --harness=unknown
+assert test ! -e "$root/.pi"
+rejects "$root/bin/bp3" skills install --harness
+
+mkdir -p "$root/.pi"
+printf '{"defaultModel":"keep","skills":["/extra","!**/ignored/**"]}\n' > "$root/.pi/settings.json"
+"$root/bin/bp3" skills install --harness=all > /dev/null
+"$root/scripts/check-skills" "$root/skills" "$root/.pi/skills" "$root/.agents/skills" "$root/.claude/skills" > /dev/null
+assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/induct-quest/SKILL.md","!**/.agents/skills/induct-quest-no-human/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink-quest-landing-demo/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
+# The induct-quest alias renders beside induct and stays a pointer.
+for h in .pi .agents .claude; do
+  assert test -f "$root/$h/skills/induct-quest/SKILL.md"
+  assert grep -q 'skills/induct/SKILL.md' "$root/$h/skills/induct-quest/SKILL.md"
+done
+# The no-human skill renders beside induct in every harness.
+for h in .pi .agents .claude; do
+  assert test -f "$root/$h/skills/induct-quest-no-human/SKILL.md"
+done
+for h in .pi .agents .claude; do
+  assert test "$(yq --front-matter=extract '.description' "$root/$h/skills/add-yap-skill/SKILL.md")" = "$(yq --front-matter=extract '.description' "$source")"
+  assert test -f "$root/$h/skills/quest/SKILL.md"
+done
+assert test -f "$root/.agents/workflows/induct-exp.js"
+assert cmp "$root/skills/induct/workflows/induct-exp.js" "$root/.agents/workflows/induct-exp.js"
+assert test -f "$root/.agents/workflows/induct-grade.js"
+assert cmp "$root/skills/induct/workflows/induct-grade.js" "$root/.agents/workflows/induct-grade.js"
+assert test -f "$root/.agents/workflows/quest-land.js"
+assert cmp "$root/skills/induct/workflows/quest-land.js" "$root/.agents/workflows/quest-land.js"
+assert test -f "$root/.claude/hooks.json"
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.claude/hooks.json"
+assert test -f "$root/.muse/hooks.json"
+assert cmp "$root/.claude/hooks.json" "$root/.muse/hooks.json"
+assert test -f "$root/.claude/settings.json"
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+mkdir -p "$root/.claude"
+printf '{"keepMe":true}\n' > "$root/.claude/settings.json"
+"$root/bin/bp3" skills install --harness=claude > /dev/null
+assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+cp "$root/.pi/settings.json" "$work/settings.before"
+"$root/bin/bp3" skills install --harness=pi > /dev/null
+assert cmp "$work/settings.before" "$root/.pi/settings.json"
+assert cmp "$root/skills/induct/workflows/induct-exp.js" "$root/.agents/workflows/induct-exp.js"
+assert cmp "$root/skills/induct/workflows/induct-grade.js" "$root/.agents/workflows/induct-grade.js"
+assert cmp "$root/skills/induct/workflows/quest-land.js" "$root/.agents/workflows/quest-land.js"
+
+# Corrupt settings must fail BEFORE rewriting any installed files.
+printf 'sentinel\n' > "$root/.pi/skills/quest/SKILL.md"
+for settings in '{broken' '{"skills":null}' '{"skills":[1]}'; do
+  printf '%s\n' "$settings" > "$root/.pi/settings.json"
+  rejects "$root/bin/bp3" skills install --harness=all
+  assert grep -qx sentinel "$root/.pi/skills/quest/SKILL.md"
+done
+# Non-Pi installations must leave project Pi settings alone.
+printf '{broken' > "$root/.pi/settings.json"
+"$root/bin/bp3" skills install --harness=codex > /dev/null
+assert grep -qx '{broken' "$root/.pi/settings.json"
+
+# Quest red-chair of the source: critical/major concerns settle or become follow-up exps.
+assert grep -q 'Red-chair the source itself' "$repo/skills/quest/SKILL.md"
+assert grep -q 'appended as a \*\*follow-up exp\*\*' "$repo/skills/quest/SKILL.md"
+assert grep -q 'Risks is not a parking lot' "$repo/skills/quest/SKILL.md"
+assert grep -q 'Red-chair the source itself' "$root/.agents/skills/quest/SKILL.md"
+
+# Cycle autonomy (exp-6): needs_fix rides, blocked pages.
+assert grep -q 'next author cycle itself' "$repo/skills/induct/SKILL.md"
+assert grep -q 'named fix rides along verbatim' "$repo/skills/induct/SKILL.md"
+assert grep -q 'does not ask the owner about the cycle' "$repo/skills/induct/SKILL.md"
+assert grep -q 'cycle cap' "$repo/skills/induct/SKILL.md"
+assert grep -q 'scope change autonomously' "$repo/skills/induct/SKILL.md"
+assert grep -q 'Human attestation comes only from actual human words' "$repo/skills/induct/SKILL.md"
+assert grep -q 'next author cycle itself' "$root/.agents/skills/induct/SKILL.md"
+
+# Induct-quest-no-human (exp-8): alias renders everywhere, pointer plus rails.
+for h in .pi .agents .claude; do
+  assert test -f "$root/$h/skills/induct-quest-no-human/SKILL.md"
+  assert grep -q 'skills/induct/SKILL.md' "$root/$h/skills/induct-quest-no-human/SKILL.md"
+done
+assert grep -q 'means `/induct <quest>` per' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'BP3_DECIDER` stays unset' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'never takes `resume` or `delete`' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'park it' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'missing Acceptance rows' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'open' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'design question' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'make check` is green' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'the budget stopped it' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'quest_fin` stays the' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'usage_recorded` token totals' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'bp3 harness desk list' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'skill mode of `induct`' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'induct-quest-no-human' "$repo/skills/induct/SKILL.md"
+assert grep -q 'No-human never' "$root/.agents/skills/induct/SKILL.md"
+
+# Fleet (exp-9): footprint preflight, merge order, fleet budget, check-in report.
+assert grep -q 'one fleet, not several queues' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'merge order before the queue starts' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'Footprint: the paths a quest declares' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'no declared footprint' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'Disjoint quests run in parallel' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'refused at preflight, named' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'zero Runs spent on it' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'queues serially in a later fleet' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'The fleet never merges' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'predeclared merge order (fleet never merges)' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'one budget caps the whole fleet' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'every quest stops' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'one check-in list' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'grouped by quest, each with its inbox reason' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'same human decision appear as one' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'attested per exp at resume time' "$repo/skills/induct-quest-no-human/SKILL.md"
+assert grep -q 'Disjoint quests run in parallel' "$root/.agents/skills/induct-quest-no-human/SKILL.md"
+
+printf 'skills tests: ok (%s assertions)\n' "$checks"
+    );
+  }
+
+  function envPreset(edge, cycle) {
+    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
+    // as this stage's run folder. Hooks cannot inherit env from a
+    // child, but PreToolUse payloads carry the full command text,
+    // so the first prefixed command binds session -> run.
+    return (
+      "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
+      "-c" + String(cycle) + " BP3_QUEST=" + quest + " BP3_EXP=" +
+      exp + " " + envPrefix
+    );
+  }
+
+  function runIdOf(edge, cycle) {
+      deskNote + "You are the audit child for exp `" + exp + "` of quest `" +
+      quest + "`, bound to commit `" + commit + "`. " +
+      tapePreamble("audit", before.cycle) +
+      " Read the exp's EXPERIMENT.md first. Build the evidence " +
+      "matrix: one row per Acceptance case (acceptance rows), plus " +
+      "adherence rows for the build Run that produced this commit " +
+      "(submit edge called by the child directly, env preset on " +
+      "the first command, clean commit, tape.log and notes.md " +
+      "present in its run folder, no hand-edited state). " + LADDER_TEXT +
+      "Every row " +
+      "is {case, rung: 1|2|3|4|5a|5b, evidence: {kind: file|command|ledger|grep, ref, " +
+      "quote}, verdict: pass|fail|missing|deferred}: name the rung " +
+      "that decided the row; a rung 5a row cites its pointer as " +
+      "{kind: command, ref: the find-tape --entry call, quote: " +
+      "the resolved entry verbatim}; a rung 5b row names its " +
+      "escalation (blocked, confused, or lying) in its case or " +
+      "quote, and an unnamed whole-tape read is downgraded to " +
+      "missing. Quote observed " +
+      "evidence verbatim; a gated case with no artifact is verdict " +
+      "missing, never pass, and free-string evidence is not a row. " +
+      "Deferred is a disposition, not a failure: when an " +
+      "Acceptance case's own text in EXPERIMENT.md says it is NOT " +
+      "gated by this exp and defers it to a named owning exp (for " +
+      "example `deferred to Exp 3`), emit verdict deferred for " +
+      "that row with the deferral text itself as typed evidence " +
+      "({kind: file, ref: the EXPERIMENT.md line, quote: the " +
+      "deferral line verbatim}); never mark such a case missing " +
+      "or pass for lacking this exp's artifact. A deferral that " +
+      "names no owning exp is not deferred: emit missing. For " +
+      "the adherence row `env preset on the first command`, quote " +
+      "the bp3-stamped ledger line for the submit edge (the mvp.1 " +
+      "mechanism: BP3_RUN_ID arrives via environment and bp3 stamps " +
+      "it into the verdict and the ledger line): find the submit " +
+      "line whose run_id is the build Run that produced this commit " +
+      "(the submit run folder under this exp's runs/) and quote it " +
+      "as {kind: ledger, ref: the exp ledger submit line, quote: " +
+      "the line verbatim}. Corroborate from the per-Run derivation " +
+      "log at `<git-common-dir>/bp3/run-lifecycle-derivations/" +
+      "<run-id>.jsonl` (resolve the common dir with " +
+      "`git rev-parse --git-common-dir`) when it exists. The hooks " +
+      "registry witness does not gate this row; outside a named " +
+      "rung 5b escalation, never read the whole tape or " +
+      "parse tape.log into facts. Judge only; do " +
+      "-c" + String(cycle)
+    );
+  }
+
+  function envPreset(edge, cycle) {
+    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
+    // as this stage's run folder. Hooks cannot inherit env from a
+    // child, but PreToolUse payloads carry the full command text,
+    // so the first prefixed command binds session -> run.
+    return (
+      "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
+      "-c" + String(cycle) + " BP3_QUEST=" + quest + " BP3_EXP=" +
+      exp + " " + envPrefix
+    );
+  }
+
+skills check: ok (10 files)
+installed add-bp3-skill -> .pi/skills/add-bp3-skill/SKILL.md (pi)
+installed add-bp3-skill -> .claude/skills/add-bp3-skill/SKILL.md (claude)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (codex)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (muse)
+installed add-yap-skill -> .pi/skills/add-yap-skill/SKILL.md (pi)
+installed add-yap-skill -> .claude/skills/add-yap-skill/SKILL.md (claude)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (codex)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (muse)
+installed icebox -> .pi/skills/icebox/SKILL.md (pi)
+installed icebox -> .claude/skills/icebox/SKILL.md (claude)
+installed icebox -> .agents/skills/icebox/SKILL.md (codex)
+installed icebox -> .agents/skills/icebox/SKILL.md (muse)
+installed induct-quest-no-human -> .pi/skills/induct-quest-no-human/SKILL.md (pi)
+installed induct-quest-no-human -> .claude/skills/induct-quest-no-human/SKILL.md (claude)
+installed induct-quest-no-human -> .agents/skills/induct-quest-no-human/SKILL.md (codex)
+installed induct-quest-no-human -> .agents/skills/induct-quest-no-human/SKILL.md (muse)
+installed induct-quest -> .pi/skills/induct-quest/SKILL.md (pi)
+installed induct-quest -> .claude/skills/induct-quest/SKILL.md (claude)
+installed induct-quest -> .agents/skills/induct-quest/SKILL.md (codex)
+installed induct-quest -> .agents/skills/induct-quest/SKILL.md (muse)
+installed induct -> .pi/skills/induct/SKILL.md (pi)
+installed induct -> .claude/skills/induct/SKILL.md (claude)
+installed induct -> .agents/skills/induct/SKILL.md (codex)
+installed induct -> .agents/skills/induct/SKILL.md (muse)
+installed naming -> .pi/skills/naming/SKILL.md (pi)
+installed naming -> .claude/skills/naming/SKILL.md (claude)
+installed naming -> .agents/skills/naming/SKILL.md (codex)
+installed naming -> .agents/skills/naming/SKILL.md (muse)
+installed quest -> .pi/skills/quest/SKILL.md (pi)
+installed quest -> .claude/skills/quest/SKILL.md (claude)
+installed quest -> .agents/skills/quest/SKILL.md (codex)
+installed quest -> .agents/skills/quest/SKILL.md (muse)
+installed red-ink-quest-landing-demo -> .pi/skills/red-ink-quest-landing-demo/SKILL.md (pi)
+installed red-ink-quest-landing-demo -> .claude/skills/red-ink-quest-landing-demo/SKILL.md (claude)
+installed red-ink-quest-landing-demo -> .agents/skills/red-ink-quest-landing-demo/SKILL.md (codex)
+installed red-ink-quest-landing-demo -> .agents/skills/red-ink-quest-landing-demo/SKILL.md (muse)
+installed using-bp3 -> .pi/skills/using-bp3/SKILL.md (pi)
+installed using-bp3 -> .claude/skills/using-bp3/SKILL.md (claude)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (codex)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (muse)
+installed induct-exp -> .agents/workflows/induct-exp.js
+installed induct-grade -> .agents/workflows/induct-grade.js
+installed quest-land -> .agents/workflows/quest-land.js
+installed hooks -> .claude/hooks.json
+installed hooks -> .claude/settings.json
+installed hooks -> .muse/hooks.json
+installed _bp3 -> /opt/homebrew/share/zsh/site-functions/_bp3
+completion: source /Users/whycz/m/bp3/.bp3/worktrees/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/completions/bp3.bash (bash)
+ M .agents/workflows/induct-exp.js
+ M .agents/workflows/induct-grade.js
+ M .agents/workflows/quest-land.js
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/runs/20261116T003423Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M skills/induct/workflows/induct-exp.js
+ M skills/induct/workflows/induct-grade.js
+ M skills/induct/workflows/quest-land.js
+ M test/induct-exp.test.mjs
+induct-exp tests: ok
+FAIL: audit command carries BP3_RUN_ID=20260101T000000Z-audit-muse-code-test-model-c1
+extracted 3010
+skills/induct/workflows/induct-exp.js:0
+skills/induct/workflows/induct-grade.js:0
+skills/induct/workflows/quest-land.js:0
+.agents/workflows/induct-exp.js:0
+.agents/workflows/induct-grade.js:0
+.agents/workflows/quest-land.js:0
+skills/induct/workflows/induct-exp.js:1
+skills/induct/workflows/induct-grade.js:1
+skills/induct/workflows/quest-land.js:1
+test/induct-grade.test.mjs:4:// carries pass, a deferred row naming its owning exp never
+test/induct-grade.test.mjs:101:    const want = "BP3_RUN_ID=" + TS + "-" + edge + "-muse-code-test-model-c1";
+test/induct-grade.test.mjs:102:    assert(input.includes(want), edge + " command carries " + want);
+test/induct-grade.test.mjs:104:      edge + " run folder matches BP3_RUN_ID");
+test/induct-grade.test.mjs:127:// --- untyped evidence never carries pass; free string is not a row ---
+test/induct-grade.test.mjs:354:// --- unnamed whole-tape read never carries a grade ---
+test/quest-land.test.mjs:60:  const want = "BP3_RUN_ID=" + TS + "-land-muse-code-test-model-c1";
+test/quest-land.test.mjs:61:  assert(input.includes(want), "land command carries " + want);
+test/quest-land.test.mjs:63:    "land run folder matches BP3_RUN_ID");
+induct-exp tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+test/induct-exp.test.mjs:76:  assert(!input.includes("Prefix your FIRST"),
+test/induct-grade.test.mjs:103:    assert(!input.includes("Prefix your FIRST"),
+test/quest-land.test.mjs:64:  assert(!input.includes("Prefix your FIRST"),
+true
+true
+skills tests: ok (114 assertions)
+The following paths are ignored by one of your .gitignore files:
+docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
+M  .agents/workflows/induct-exp.js
+M  .agents/workflows/induct-grade.js
+M  .agents/workflows/quest-land.js
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/runs/20261116T003423Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+M  skills/induct/workflows/induct-exp.js
+M  skills/induct/workflows/induct-grade.js
+M  skills/induct/workflows/quest-land.js
+M  test/induct-exp.test.mjs
+M  test/induct-grade.test.mjs
+M  test/quest-land.test.mjs

@@ -122,10 +122,10 @@ export default async function workflow(host) {
   }
 
   function envPreset(edge, cycle) {
-    // Per-stage witnessed binding: BP3_RUN_ID carries the same id
-    // as this stage's run folder. Hooks cannot inherit env from a
-    // child, but PreToolUse payloads carry the full command text,
-    // so the first prefixed command binds session -> run.
+    // Env-set identity: BP3_RUN_ID carries the same id as this
+    // stage's run folder. `bp3` reads it from the environment
+    // and stamps it into verdicts and ledger lines, so no
+    // first-command prefix binds the session.
     return (
       "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
       "-c" + String(cycle) + " BP3_QUEST=" + quest + " BP3_EXP=" +
@@ -174,9 +174,10 @@ export default async function workflow(host) {
     const folder = runFolder(edge, cycle, harness + "-" + model);
     return (
       "Your run folder is `" + folder + "` under `" + expDir +
-      "/runs/`. Prefix your FIRST shell command with `" +
-      envPreset(edge, cycle) + "` (hooks witness this prefix " +
-      "to bind your session to this run). First check whether that concrete run " +
+      "/runs/`. `BP3_RUN_ID`, `BP3_QUEST`, `BP3_EXP`, " +
+      "`BP3_HARNESS`, and `BP3_MODEL` arrive via environment " +
+      "and `bp3` stamps them into its verdicts and ledger " +
+      "lines, so no first-command prefix is needed. First check whether that concrete run " +
       "folder already exists: if it does, stop immediately, do " +
       "not overwrite or reuse it, and return a JSON object " +
       '{"ok":false,"error":{"code":"E_RUN_EXISTS"}} describing ' +

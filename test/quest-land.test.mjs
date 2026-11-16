@@ -61,6 +61,10 @@ const landed = { state: "landed", cycle: 1, commit: "abc1234", legal_edges: [] }
   assert(input.includes(want), "land command carries " + want);
   assert(input.includes("runs/" + TS + "-land-muse-code-test-model-c1"),
     "land run folder matches BP3_RUN_ID");
+  assert(!input.includes("Prefix your FIRST"),
+    "land brief carries no first-command prefix instruction");
+  assert(input.includes("arrive via environment"),
+    "land is told the run-id arrives via environment");
   assert(input.includes("u fx land --reason"), "land child calls the land edge");
   assert(result.run_ids.join(",") === "r-land", "run_ids collect the land child");
 }
