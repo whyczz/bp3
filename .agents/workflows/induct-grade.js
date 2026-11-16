@@ -300,8 +300,9 @@ export default async function workflow(host) {
     const result = await host.agent({
       label: "init " + exp,
       input:
+        deskNote +
         "Run exactly `" + cmd + "` from the quest worktree if " +
-        "one is named below, else the repository root, and return " +
+        "one is named above, else the repository root, and return " +
         "only its stdout JSON verdict verbatim as your entire " +
         "reply, with no prose and no code fences. If the command " +
         "fails, return its stdout JSON verdict verbatim instead. " +
