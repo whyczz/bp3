@@ -1,0 +1,48 @@
+run folder: docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T045445Z-submit-muse-code-muse-wonder-1.0-c6
+copied flappy.html from c5 run (proven artifact, same flappy spelling)
+    3734 docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T045445Z-submit-muse-code-muse-wonder-1.0-c6/flappy.html
+diff --git a/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md b/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+index 0842cd0..5a2a8f5 100644
+--- a/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
++++ b/docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+@@ -50,6 +50,7 @@ for s in corpus("pi"):
+ | five incidents replayed | each derived or explained as a finding |
+ | pi WAL quirks | adapter gaps listed with file/line evidence |
+ | findings | proposed fix targets named (dispatcher, adapter, contract) |
++| env-set run-id (owner ruling from mvp.1) | `BP3_RUN_ID` arrives via environment and bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; the hooks registry witness does not gate this exp |
+ 
+ ## Acceptance test (goal block)
+ 
+@@ -61,7 +62,9 @@ for s in corpus("pi"):
+ 
+ ## Tests
+ 
+-findings-machine (as backtest.1). Known cases:
++findings-machine (as backtest.1); env-set run-id
++is stamped by bp3 into the submit verdict and
++ledger line (the mvp.1 mechanism). Known cases:
+ the five known incidents must each surface as a
+ finding; fold totals (usage) match tape sums on
+ sampled runs. Property-based: replay is
+extracted bytes: 3010
+has three import: True
+node-check exit:0
+6
+total 16
+drwxr-xr-x@  4 whycz  staff   128 Nov 15 23:55 .
+drwxr-xr-x@ 25 whycz  staff   800 Nov 15 23:55 ..
+-rw-r--r--@  1 whycz  staff  3734 Nov 15 23:55 flappy.html
+-rw-r--r--@  1 whycz  staff  1895 Nov 15 23:55 tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse/runs/20261116T001428Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/EXPERIMENT.md
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi/runs/20261116T003423Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T020249Z-submit-muse-code-muse-wonder-1.0-c4/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs/20261116T030657Z-submit-muse-code-muse-wonder-1.0-c5/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-followup-3-tape-binding/runs/20261116T023114Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+ M docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-followup-4-bind-resolution/runs/20261116T040928Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+The following paths are ignored by one of your .gitignore files:
+docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-1-muse-toy-quest/runs
+hint: Use -f if you really want to add them.
+hint: Disable this message with "git config set advice.addIgnoredFile false"
+staged:
