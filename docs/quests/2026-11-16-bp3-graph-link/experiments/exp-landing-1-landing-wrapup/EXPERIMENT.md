@@ -10,7 +10,7 @@ status: proposed
 ## TL;DR
 
 Close the graph-link quest: scorecard including
-per-node wall/wait/dwell and cohort timings,
+per-node wall/wait/dwell and ready-set timings,
 findings 100% dispositioned with homes, and the
 landing walkthrough actually run
 (red-ink-quest-landing-demo diligence) for the
@@ -47,7 +47,7 @@ wrap = {scorecard(nodes, timing=True), disposition(findings), run_walkthrough()}
 |---|---|
 | scorecard complete | every node present with observed evidence; wall/wait/dwell from the system (post-rename surfaces), unmeasured fields named with reasons |
 | findings dispositioned | 100% of quest findings fixed / iceboxed / rejected with homes; nothing "fixed" without a fix step |
-| walkthrough run | executed, outputs quoted; A/B and cohort results presented from dogfood numbers |
+| walkthrough run | executed, outputs quoted; A/B and ready-set results presented from dogfood numbers |
 | diagrams included | generated ascii + mermaid of the final graph state attached from the live rollup |
 
 ## Acceptance test (goal block)

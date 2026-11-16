@@ -12,7 +12,7 @@ status: proposed
 From a live rollup, emit the graph diagram in
 ASCII (terminals, tapes, records) and mermaid
 (rendered docs): nodes annotated with state and
-cycle, deps grouped into cohorts, blocked nodes
+cycle, deps grouped into ready-set waves, blocked nodes
 naming what they starve, landed nodes marked
 `exp_fin`-equivalent in the new vocabulary.
 Generated every time — hand-drawn diagrams rot.
@@ -21,7 +21,7 @@ Generated every time — hand-drawn diagrams rot.
 
 ```text
 bp3 <door> <graph> diagram --format ascii
-  A(landed) ─dep─► C(submitted c2)
+  A(landed) ─dep─► C(handed_off c2)
   B(blocked) ─dep─► D(todo, starved by B)
 
 bp3 <door> <graph> diagram --format mermaid
@@ -40,7 +40,7 @@ rollup (ledger fold) ─► layering (mvp.3) ─► ascii emitter
 ```python
 def diagram(graph, fmt):
     view = rollup(graph)           # states, cycles, starved sets
-    layers = cohorts(view.nodes)   # mvp.3
+    layers = ready-set waves(view.nodes)   # mvp.3
     return emit_ascii(layers, view) if fmt == "ascii" else emit_mermaid(layers, view)
 ```
 
@@ -57,7 +57,7 @@ def diagram(graph, fmt):
 |---|---|
 | ascii current | output reflects live states/cycles at call time; rerunning after a node moves changes exactly that node |
 | mermaid equivalent | mermaid source carries the same nodes, deps, states as the ascii of the same moment |
-| cohorts + starvation | cohort layers visible; a blocked node's starved dependents named on both formats |
+| ready-set waves + starvation | ready-set layers visible; a blocked node's starved dependents named on both formats |
 | honest labels | generated output states it is generated from live state with the rollup timestamp |
 
 ## Acceptance test (goal block)

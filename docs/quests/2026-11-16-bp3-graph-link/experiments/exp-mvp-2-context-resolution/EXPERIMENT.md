@@ -22,10 +22,10 @@ invocations behave exactly as today, plus
 ## Demo (design trace)
 
 ```text
-child (claimed session): bp3 q <exp> u submit --commit …
+child (claimed session): bp3 e handoff --commit …
   -> resolves session -> run-id/edge; ledger line stamped
-child (claimed, in desk): bp3 q r
-  -> resolves desk -> graph/node read, no names typed
+child (claimed, in desk): bp3 e
+  -> prints resolved context + source rung + legal edges, no names typed
 stranger shell: bp3 q …
   -> behaves as today + W_CONTEXT_UNCLAIMED
 ```
@@ -60,10 +60,12 @@ def resolve_context(env, cwd, session_id):
 
 | Case | Expected |
 |---|---|
-| claimed session | `bp3` calls with no graph/node arguments resolve and stamp the claimed run-id + edge on verdicts and the submit ledger line |
+| claimed session | `bp3` calls with no graph/node arguments resolve and stamp the claimed run-id + edge on verdicts and the handoff ledger line |
 | claimed desk, new shell | a fresh shell in the desk (no session-id) resolves via desk context |
+| bare `bp3 e` after claim | prints resolved context, source rung, and legal edges; the worker never types graph/node/run-id or exports on any call |
 | unclaimed | legacy behavior unchanged, one `W_CONTEXT_UNCLAIMED` warning |
 | env disagreement | env naming a different run-id warns `W_CONTEXT_ENV_MISMATCH` and the claim wins |
+| desk rung never guesses (red-chair) | when a desk holds more than one live claimed run config and no session rung resolves, resolution refuses (`E_NO_CONTEXT`, facts naming the live run_ids) instead of picking the latest claim |
 | no false claim | a session in an unclaimed desk never inherits a sibling node's context (desk context is per-claim, checked against cwd) |
 | env-set run-id (standing ruling) | the stamped run-id on grade evidence is the claimed one; hooks witness does not gate |
 
@@ -72,10 +74,10 @@ def resolve_context(env, cwd, session_id):
 - **Objective:** a claimed child drives a full
   edge touching zero context flags and zero
   exports, and the ledger proves it.
-- **Prove by:** submit drive from a claimed
+- **Prove by:** handoff drive from a claimed
   session + fresh desk shell; ledger line stamps;
   mismatch and unclaimed warning cases.
-- **Done when:** the submit ledger line carries
+- **Done when:** the handoff ledger line carries
   the claimed run-id with no env set, observed.
 
 ## Tests

@@ -10,8 +10,8 @@ status: proposed
 ## TL;DR
 
 The conductor mints a one-time link for one edge
-execution (`bp3 harness link --mint`). The child's
-first action claims it (`bp3 harness link <token>`).
+execution (`bp3 harness link mint`). The child's
+first action claims it (`bp3 harness link claim <token>`).
 The claim is a compare-and-swap in the common-dir
 hard store: exactly one winner; a second claim
 refuses `E_LINK_SPENT` naming the first claimant.
@@ -23,20 +23,21 @@ run-id, the join the grader and bind-tape need.
 ## Demo (design trace)
 
 ```text
-conductor: bp3 harness link --mint --graph G --node N --edge submit
-  -> {token: bp3link_7f3a…, run_id: 2026…-submit-pi-…-c1}
+conductor: bp3 harness link mint --kind edge --graph G --node N --edge handoff
+  -> {token: bp3link_7f3a…, run_id: 2026…-handoff-pi-…-c1}
 brief (one line): "claim bp3link_7f3a…, then build X"
-child: bp3 harness link bp3link_7f3a…
+child: bp3 harness link claim bp3link_7f3a…
   -> claimed {run_id, session_id, pid, desk}
-child again / quoting child: bp3 harness link bp3link_7f3a…
+child again / quoting child: bp3 harness link claim bp3link_7f3a…
   -> E_LINK_SPENT {first_claim: {session_id, pid, ts}}
 ```
 
 ## Diagram
 
 ```text
-mint ─► store/links/<token> {run_id, graph, node, edge, desk, unclaimed}
-claim: O_EXCL create claims/<token>.claimed   (CAS, one winner)
+mint ─► runs/<run_id>.json {kind, graph, node, edge?, parent_run_id,
+         depth, desk, token_hash, state: minted}   (created at mint)
+claim: CAS minted -> claimed on that run config   (one winner)
          ├─► store/by-session/<session-id> -> run_id
          └─► desk context file {run_id, graph, node, edge}
 ```
@@ -44,14 +45,14 @@ claim: O_EXCL create claims/<token>.claimed   (CAS, one winner)
 ## Pseudocode
 
 ```python
-def mint(graph, node, edge, desk):
+def mint(kind, graph, node, edge, desk):  # kind: node|edge
     run_id = mint_run_id(edge, harness, model, cycle)
-    create_excl(f"links/{token}", {run_id, graph, node, edge, desk})
+    write(f"runs/{run_id}.json", {kind, graph, node, edge, parent, depth, desk, token_hash, state: minted})
     return token
 
 def claim(token):
     facts = observe_caller()  # pid chain, cwd, session-id if offered
-    create_excl_or_refuse(f"claims/{token}.claimed", facts, E_LINK_SPENT)
+    cas_state(run_id, minted->claimed, facts) or refuse E_LINK_SPENT
     write_context(desk_of(token), facts.run_id)
     if facts.session_id: index_session(facts.session_id, facts.run_id)
 ```
@@ -71,6 +72,12 @@ def claim(token):
 | one winner | second claim of the same token (same or different session) refuses `E_LINK_SPENT` and names the first claimant's session/pid/ts |
 | by-session join | given only a session-id from a tape, one lookup returns run-id, graph, node, edge |
 | session-id offered vs not | muse claim records a session-id when the harness exposes one; pi claim records the dispatcher's session file identity; neither harness: claim still succeeds on pid+cwd facts (graceful floor) |
+| Pi engine MVP v2 nesting | a spawned Pi node-worker session is explicitly loaded with `bp3-pi`; its `spawn_run` edge child claims a distinct link. Every claim records `parent_run_id`, depth, graph, node, and edge, so root -> node worker -> edge worker can be reconstructed from bp3 alone |
+| missing Pi extension in child | if a Pi child cannot prove the `bp3-pi` tools are loaded before work, it refuses before doing edge work with a typed setup failure; it never silently becomes an unsupervised worker |
+| run config replaces InitRecord | mint writes `creator:{}` (parent run_id, depth, harness, model, minted_at, token_hash); claim writes `claim:{}` (session_id, pid, cwd); `bind-tape` writes `tape_path` into the run config; the supervisor fold derives lifecycle (`init/active/finished/orphaned`) from this one file + tape + pid, matching the old fold on harness fixtures; `bp3 harness record-init` refuses as retired |
+| claim CAS is real (red-chair) | the CAS is an O_EXCL claim marker, not a file edit: two parallel claims of one token produce exactly one winner and one `E_LINK_SPENT`; run config writes are single-write temp+fsync+rename, and a torn run config is never read as valid |
+| depth cap (red-chair) | mint beyond the depth cap (default 3: root/node/edge, machine-config overridable) refuses `E_DEPTH`; the Pi tree cannot fan out past it |
+| stale mint cleanup | `bp3 harness link cleanup --graph <graph>` removes every still-`minted` run config of that graph and reports them; other graphs' rows and all claimed run configs/derivations are byte-identical before/after; no TTL anywhere |
 | quoting safety | a token appearing in briefs/matrices confers nothing until claimed; spent tokens refuse forever |
 | env-set run-id (owner ruling from mvp.1 of the supervisor quest) | run-id arrives via the claim, not typed env prefixes; bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; hooks witness does not gate |
 

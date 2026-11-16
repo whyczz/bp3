@@ -5,34 +5,34 @@ exp: dogfood.2
 status: proposed
 ---
 
-# dogfood.2 - parallel-drive: one cohort, two flappy variants
+# dogfood.2 - parallel-drive: one ready-set, two flappy variants
 
 ## TL;DR
 
 Prove BFS scheduling end to end: two independent
-flappy-variant nodes in one cohort build and grade
+flappy-variant nodes in one ready-set build and grade
 in parallel (separate ad hoc desks, separate
 claims), then land through the serial queue. The
 scorecard reports wall minutes and tokens per
-node and for the cohort — the North Star made
+node and for the ready-set — the North Star made
 visible. Variants live in separate run folders so
 the land queue is boring by construction.
 
 ## Demo (design trace)
 
 ```text
-cohort [flappy-day, flappy-night] (no deps between them)
+ready-set [flappy-day, flappy-night] (no deps between them)
   t0: both claimed, both building in parallel desks
   t1: both graded in parallel (read-only)
   t2: land flappy-day; t3: land flappy-night (serial, re-checked)
-report: cohort wall < sum(node walls); both landed
+report: ready-set wall < sum(node walls); both landed
 ```
 
 ## Diagram
 
 ```text
         ┌─ flappy-day ──► approved ─┐
-cohort ─┤                            ├─► land queue ─► both landed
+ready-set ─┤                            ├─► land queue ─► both landed
         └─ flappy-night ─► approved ─┘
 one blocked variant would starve only its dependents (none here)
 ```
@@ -41,7 +41,7 @@ one blocked variant would starve only its dependents (none here)
 
 ```python
 desks = [adhoc_desk(), adhoc_desk()]
-parallel([drive(n, desk) for n, desk in zip(cohort, desks)])
+parallel([drive(n, desk) for n, desk in zip(ready-set, desks)])
 for n in approved_in_order: land(n)   # serial, mergeability re-checked
 ```
 
@@ -49,8 +49,8 @@ for n in approved_in_order: land(n)   # serial, mergeability re-checked
 |---|---|
 | Intent | parallel wall-clock savings, measured; isolation without pools |
 | Lane | standard |
-| Output | two landed variant nodes; cohort timing/token scorecard |
-| Depends on | mvp.3, dogfood.1 |
+| Output | two landed variant nodes; ready-set timing/token scorecard |
+| Depends on | mvp.3, mvp.5, dogfood.1 |
 
 ## Acceptance
 
@@ -59,8 +59,10 @@ for n in approved_in_order: land(n)   # serial, mergeability re-checked
 | true parallelism | both author Runs' tapes overlap in wall time (timestamps), different desks, different claims |
 | isolation | no cross-node file or context bleed (each desk's diff contains only its variant; contexts resolve per claim) |
 | serial land | land edges execute one at a time; second land re-checks against the new tip and succeeds |
-| scorecard honest | cohort wall, per-node wall/tokens reported from system timing (mvp.3); cohort wall < serial sum or the shortfall is named with cause |
+| scorecard honest | ready-set wall, per-node wall/tokens reported from system timing (mvp.3); ready-set wall < serial sum or the shortfall is named with cause |
 | quality floor unchanged | full grade matrix per node, `make check` green; no rung skipped for speed |
+| Pi tree death + revival | seed one Pi node with a human-blocking edge: its edge worker dies, node worker records `blocked` and exits, root receives one bubble, and no descendant process remains. After the owner answer + `resume`, root spawns a fresh Pi tree and the node continues; the sibling node is unaffected |
+| Muse parity bubble | the equivalent Muse node workflow returns the same terminal blocked bubble and exits; revival launches a fresh workflow, never resumes the old run's agents |
 | env-set run-id (standing ruling) | per-claim stamps as in mvp.2 |
 
 ## Acceptance test (goal block)
@@ -70,7 +72,7 @@ for n in approved_in_order: land(n)   # serial, mergeability re-checked
   take, at full quality.
 - **Prove by:** overlapping tape timestamps,
   land-queue ledger order, timing scorecard.
-- **Done when:** both variants landed, cohort
+- **Done when:** both variants landed, ready-set
   wall and tokens reported from the system,
   observed.
 

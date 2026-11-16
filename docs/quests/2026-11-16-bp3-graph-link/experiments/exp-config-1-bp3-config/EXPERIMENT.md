@@ -11,9 +11,10 @@ status: proposed
 
 Name and build the hard store as a bp3 config:
 `<git-common-dir>/bp3/` holding `config.json`
-(contexts, desks, local timing thresholds), the
-link/claim records, the by-session index, and the
-existing run-lifecycle derivations. Written only
+(machine settings only: local timing thresholds
+and gates), the per-run configs (`runs/<run_id>.json`,
+created at link mint), the derived by-session
+index, and the existing run-lifecycle derivations. Written only
 by bp3 verbs (link mint/claim, desk prepare,
 record-init) — never hand-edited, never
 committed. `bp3 config` door views it. This is
@@ -22,9 +23,9 @@ the substrate mvp.1/mvp.2 resolve context from.
 ## Demo (design trace)
 
 ```text
-bp3 config            -> {contexts: [], desks: [], thresholds: {setup_slow_s: 180}}
-bp3 harness link --mint … ; child claims
-bp3 config            -> {contexts: [{graph, node, edge, run_id, session_id, desk}], …}
+bp3 config            -> {thresholds: {setup_slow_s: 180}, contexts: []}   # contexts folded from runs/
+bp3 harness link mint … ; child claims
+bp3 config            -> {contexts: [{graph, node, edge, run_id, session_id, desk}], …}  # view of runs/*.json
 bp3 config --source   -> per-context: written by which verb, when
 ```
 
@@ -32,8 +33,8 @@ bp3 config --source   -> per-context: written by which verb, when
 
 ```text
 verbs (link/desk/record-init) ──write──► <git-common-dir>/bp3/
-                                           config.json (contexts, desks, gates)
-                                           links/ claims/ by-session/
+                                           config.json (machine settings only)
+                                           runs/<run_id>.json  by-session/ (derived)
                                            run-lifecycle-derivations/
 callers ──read (inference ladder)────────► same tree
 ```
@@ -64,7 +65,7 @@ def view(source=False):
 | Case | Expected |
 |---|---|
 | zero setup | first bp3 write on a fresh repo creates the config tree with defaults; no manual step |
-| viewable | `bp3 config` prints contexts, desks, thresholds; `--source` names the writing verb + ts per context |
+| viewable | `bp3 config` prints thresholds plus contexts folded from run configs; `--source` names the writing verb + ts per context; deleting `by-session/` loses nothing (rebuilt from `runs/`) |
 | local only | nothing under the config tree is committable (git status of the repo stays clean of it; tree lives in git-common-dir) |
 | thresholds local | timing gates (setup_slow_s etc.) editable locally, honored by verdicts, never required by committed files |
 | survives worktrees | all worktrees of the repo resolve the same config tree (common-dir), while contexts stay per-session |
