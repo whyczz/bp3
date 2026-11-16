@@ -12,6 +12,7 @@ check: lint
 	$(DUNE_BUILD) src/quest/main.exe
 	./test/q.sh
 	./test/harness.sh
+	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
 	./test/worktree.sh
 	./test/tape.sh
 	./test/hooks.sh

@@ -1,0 +1,9 @@
+{
+  "name": "bp3-pi",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "bp3-pi extension: four conductor tools backed by a dispatcher that spawns pi children under the supervisor (record-init before work, bind-tape after exit).",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}
