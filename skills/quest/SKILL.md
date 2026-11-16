@@ -159,8 +159,11 @@ code  = what we're gonna do
 
 An exp with no demo and no runnable goal block is unfinished
 spec, however good its prose reads. The Quest file itself
-follows the same law at its scale: Terms, then a Demos section
-(the quest's own traces, honestly labeled), then the railway.
+follows the same law at its scale: Terms, then Inputs, then
+Outputs, then a Demo section — one worked trace of the whole
+quest, honestly labeled — then the railway. A Quest file with
+Inputs/Outputs but no Demo is unfinished the same way: the
+reader must see the machine run before reading its parts.
 
 | Field | Carries |
 |---|---|
@@ -191,9 +194,36 @@ ELI5
 <every name and term, one line each; spellings match the code
 and data structures they name, exactly>
 
-## Demos
-<the quest's own worked traces, up front, each labeled
-observed or design trace>
+## Inputs
+<what the quest takes in: calls, flags, env, config, files —
+one row each, with source and precedence where they compete>
+
+## Outputs
+<what the quest emits: verdicts, artifacts, files, error
+codes, exits — one row each>
+
+## Demo
+<one worked trace of the whole quest running end to end,
+right after Inputs/Outputs; labeled observed or design trace>
+
+Worked example (miniature — voice and scale, not a template):
+
+```markdown
+## Inputs
+| Input | Source |
+|---|---|
+| link token | one-line brief from the conductor |
+
+## Outputs
+| Output | Shape |
+|---|---|
+| edge verdict | `{state, run_id, source}` stamped from the claim |
+
+## Demo (design trace)
+root: mint link -> node claims -> edge claims -> submit -> landed;
+blocked sibling: edge fails typed -> node blocks, exits -> root pages
+human -> resume -> fresh node worker continues.
+```
 
 ## Goal and why
 ## Success picture
