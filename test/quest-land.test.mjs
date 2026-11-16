@@ -18,15 +18,17 @@ function mockHost({ reads, initFails }) {
   const host = {
     args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model" },
     async agent({ label, input }) {
-      if (input.includes("harness record-init")) {
+      if (input.includes("harness link mint")) {
         labels.push("init");
         inputs.init = input;
-        const m = input.match(/--run-id (\S+)/);
-        inits.push(m ? m[1] : "");
+        const e = input.match(/--edge (\S+)/);
+        const edge = e ? e[1] : "node";
+        const runId = TS + "-" + edge + "-muse-code-test-model-c1";
+        inits.push(runId);
         if (initFails) {
-          return JSON.stringify({ ok: false, error: { code: "E_EXISTS" } });
+          return JSON.stringify({ ok: false, error: { code: "E_DEPTH" } });
         }
-        return JSON.stringify({ ok: true, run_id: m ? m[1] : "", harness: "muse-code" });
+        return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: runId, harness: "muse-code" });
       }
       if (input.startsWith("Run exactly")) {
         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
@@ -55,18 +57,18 @@ const landed = { state: "landed", cycle: 1, commit: "abc1234", legal_edges: [] }
   assert(result.outcome === "landed", "approved exp lands, got " + result.outcome);
   assert(labels.join(",") === "init,land", "writer precedes the land child, got " + labels.join(","));
   assert(inits.join(",") === TS + "-land-muse-code-test-model-c1",
-    "InitRecord names the land run-id, got " + inits.join(","));
+    "mint names the land run-id, got " + inits.join(","));
   const input = inputs.land;
-  const want = "BP3_RUN_ID=" + TS + "-land-muse-code-test-model-c1";
-  assert(input.includes(want), "land command carries " + want);
+  assert(input.includes("link claim bp3link_test-land"), "land brief carries its claim token");
+  assert(input.includes("BP3_RUN_ID=<that run_id>"), "land is told to stamp the claimed run-id");
   assert(input.includes("runs/" + TS + "-land-muse-code-test-model-c1"),
-    "land run folder matches BP3_RUN_ID");
+    "land run folder matches the minted run-id");
   assert(!input.includes("Prefix your FIRST"),
     "land brief carries no first-command prefix instruction");
-  assert(input.includes("arrive via environment"),
-    "land is told the run-id arrives via environment");
+  assert(input.includes("arrives via the"),
+    "land is told the run-id arrives via the claim");
   assert(input.includes("u fx land --reason"), "land child calls the land edge");
-  assert(result.run_ids.join(",") === "r-land", "run_ids collect the land child");
+  assert(result.run_ids.join(",") === TS + "-land-muse-code-test-model-c1,r-land", "run_ids collect mint and land child, got " + result.run_ids.join(","));
 }
 
 // --- any other state refuses with zero children ---
@@ -86,12 +88,12 @@ for (const state of ["todo", "handed_off", "landed", "blocked"]) {
   assert(labels.join(",") === "init,land", "land ran exactly once, got " + labels.join(","));
 }
 
-// --- writer refused: the land child never starts (mvp.8) ---
+// --- writer refused: the land child never starts (mvp.1) ---
 {
   const { host, labels } = mockHost({ reads: [approved, approved], initFails: true });
   const result = await workflow(host);
   assert(result.outcome === "refused", "writer refusal refuses the step, got " + result.outcome);
-  assert(labels.join(",") === "init", "no land child spawns after a refused InitRecord, got " + labels.join(","));
+  assert(labels.join(",") === "init", "no land child spawns after a refused mint, got " + labels.join(","));
 }
 
 // --- missing args refuse without spawning anything ---

@@ -1,7 +1,7 @@
 // Mock-host test for skills/traverse/workflows/node-loop.js.
 // Covers the exp Acceptance table for the slimmed build-only
-// step: the launcher's record-init writer precedes the author
-// child on a todo exp (mvp.8; a refused write spawns nothing),
+// step: the launcher's link mint precedes the author
+// child on a todo exp (mvp.1; a refused mint spawns nothing),
 // only the author child spawns on a todo exp, the launcher's
 // bind step follows the author (followup.3: find-tape resolves
 // the session tape, bind-tape binds it; a refused resolution
@@ -27,15 +27,17 @@ function mockHost({ reads, initFails, bindFails }) {
   const host = {
     args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model" },
     async agent({ label, input }) {
-      if (input.includes("harness record-init")) {
+      if (input.includes("harness link mint")) {
         labels.push("init");
         inputs.init = input;
-        const m = input.match(/--run-id (\S+)/);
-        inits.push(m ? m[1] : "");
+        const e = input.match(/--edge (\S+)/);
+        const edge = e ? e[1] : "node";
+        const runId = TS + "-" + edge + "-muse-code-test-model-c1";
+        inits.push(runId);
         if (initFails) {
-          return JSON.stringify({ ok: false, error: { code: "E_EXISTS" } });
+          return JSON.stringify({ ok: false, error: { code: "E_DEPTH" } });
         }
-        return JSON.stringify({ ok: true, run_id: m ? m[1] : "", harness: "muse-code" });
+        return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: runId, harness: "muse-code" });
       }
       if (input.includes("harness find-tape")) {
         labels.push("resolve");
@@ -82,11 +84,11 @@ const handedOff = { state: "handed_off", cycle: 1, commit: "abc1234", legal_edge
   assert(result.commit === "abc1234", "commit comes from the re-read, got " + result.commit);
   assert(labels.join(",") === "init,author,resolve,bind", "writer, author, then bind step, got " + labels.join(","));
   assert(inits.join(",") === TS + "-handoff-muse-code-test-model-c1",
-    "InitRecord names the author's run-id, got " + inits.join(","));
-  assert(inputs.init.includes("harness record-init --run-id " + TS + "-handoff-muse-code-test-model-c1"),
-    "writer calls record-init for the author run-id");
-  assert(inputs.init.includes("--harness muse-code") && inputs.init.includes("--quest toy") && inputs.init.includes("--exp fx"),
-    "writer records harness, quest, and exp");
+    "mint names the author's run-id, got " + inits.join(","));
+  assert(inputs.init.includes("harness link mint") && inputs.init.includes("--edge handoff"),
+    "minter calls link mint for the author edge");
+  assert(inputs.init.includes("--harness muse-code") && inputs.init.includes("--graph toy") && inputs.init.includes("--node fx"),
+    "minter records harness, graph, and node");
   assert(!inputs.init.includes("--tape-path"),
     "writer names no tape pre-spawn; the session tape is bound after the child returns");
   assert(inputs.resolve.includes("harness find-tape --run-id " + TS + "-handoff-muse-code-test-model-c1"),
@@ -98,18 +100,18 @@ const handedOff = { state: "handed_off", cycle: 1, commit: "abc1234", legal_edge
   assert(binds.join(",") === "/tmp/session-tape.jsonl",
     "exactly one binding, for the resolved tape, got " + binds.join(","));
   const input = inputs.author;
-  const want = "BP3_RUN_ID=" + TS + "-handoff-muse-code-test-model-c1";
-  assert(input.includes(want), "author command carries " + want);
+  assert(input.includes("link claim bp3link_test-handoff"), "author brief carries its claim token");
+  assert(input.includes("BP3_RUN_ID=<that run_id>"), "author is told to stamp the claimed run-id");
   assert(input.includes("BP3_QUEST=toy") && input.includes("BP3_EXP=fx"),
     "author prefix carries quest/exp");
   assert(input.includes("runs/" + TS + "-handoff-muse-code-test-model-c1"),
-    "handoff run folder matches BP3_RUN_ID");
+    "handoff run folder matches the minted run-id");
   assert(!input.includes("Prefix your FIRST"),
     "author brief carries no first-command prefix instruction");
-  assert(input.includes("arrive via environment"),
-    "author is told the run-id arrives via environment");
+  assert(input.includes("arrives via the"),
+    "author is told the run-id arrives via the claim");
   assert(input.includes("u fx handoff --commit"), "author calls the handoff edge");
-  assert(result.run_ids.join(",") === "r-author", "run_ids collect the author, got " + result.run_ids.join(","));
+  assert(result.run_ids.join(",") === TS + "-handoff-muse-code-test-model-c1,r-author", "run_ids collect mint and author, got " + result.run_ids.join(","));
 }
 
 // --- handed_off: refuses cleanly, no stage child, state untouched ---
@@ -153,8 +155,8 @@ for (const state of ["approved", "landed", "blocked"]) {
   const { host, labels } = mockHost({ reads: [todo, todo], initFails: true });
   const result = await workflow(host);
   assert(result.outcome === "refused", "writer refusal refuses the step, got " + result.outcome);
-  assert(labels.join(",") === "init", "no author spawns after a refused InitRecord, got " + labels.join(","));
-  assert(result.refusals.some((r) => r.includes("record-init")), "refusal names record-init");
+  assert(labels.join(",") === "init", "no author spawns after a refused mint, got " + labels.join(","));
+  assert(result.refusals.some((r) => r.includes("link mint")), "refusal names link mint");
 }
 
 // --- missing args refuse without spawning anything ---

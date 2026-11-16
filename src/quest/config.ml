@@ -2,8 +2,8 @@
    <git-common-dir>/bp3/ holding config.json (machine
    settings only: local thresholds and gates), the per-run
    configs runs/<run_id>.json (one canonical record per
-   Run; the shape is defined here, its writer is link mint
-   in mvp.1 — no verb writes run configs yet), links/, the
+   Run; the shape is defined here, its writers are link
+   mint/claim and bind-tape in mvp.1), links/, claims/, the
    derived by-session index, desks/, and the supervisor's
    run-lifecycle-derivations. Written only by bp3 verbs,
    never hand-edited, never committed; every worktree of
@@ -32,6 +32,7 @@ let config_dir () =
 
 let runs_dir dir = Filename.concat dir "runs"
 let links_dir dir = Filename.concat dir "links"
+let claims_dir dir = Filename.concat dir "claims"
 let by_session_dir dir = Filename.concat dir "by-session"
 let desks_dir dir = Filename.concat dir "desks"
 let derivations_dir_of dir = Filename.concat dir "run-lifecycle-derivations"
@@ -118,7 +119,7 @@ let ensure_config () =
         "No bp3 config store: not inside a git repository." 1
   | Some dir ->
       List.iter ensure_dir
-        [dir; runs_dir dir; links_dir dir; by_session_dir dir;
+        [dir; runs_dir dir; links_dir dir; claims_dir dir; by_session_dir dir;
          desks_dir dir; derivations_dir_of dir];
       let cf = config_file dir in
       if not (Sys.file_exists cf) then
@@ -137,6 +138,11 @@ type run_config = {
   rc_session : string option;
   rc_minted_at : string;
   rc_claimed_at : string;
+  rc_parent : string;
+  rc_depth : int;
+  rc_harness : string;
+  rc_pid : int option;
+  rc_tape : string option;
 }
 
 let run_config_of_file path =
@@ -160,7 +166,16 @@ let run_config_of_file path =
              rc_desk = jstr j "desk" "";
              rc_session = nested_opt claim "session_id";
              rc_minted_at = nested creator "minted_at";
-             rc_claimed_at = nested claim "claimed_at" }
+             rc_claimed_at = nested claim "claimed_at";
+             rc_parent = nested creator "run_id";
+             rc_depth = (match creator with
+               | Some c -> jint c "depth" 0 | None -> 0);
+             rc_harness = nested creator "harness";
+             rc_pid = (match claim with
+               | Some c -> (try match Yojson.Safe.Util.member "pid" c with
+                            | `Int n -> Some n | _ -> None with _ -> None)
+               | None -> None);
+             rc_tape = jopt j "tape_path" }
   with _ -> None
 
 (* A torn or foreign file under runs/ is never read as a
@@ -184,7 +199,26 @@ let context_json rc =
           ("edge", opt_json rc.rc_edge); ("run_id", json_str rc.rc_id);
           ("session_id", opt_json rc.rc_session);
           ("desk", json_str rc.rc_desk); ("state", json_str rc.rc_state);
-          ("kind", json_str rc.rc_kind)]
+          ("kind", json_str rc.rc_kind);
+          ("parent_run_id", json_str rc.rc_parent);
+          ("depth", `Int rc.rc_depth)]
+
+(* ---------- raw run configs (link mint/claim writers) ---------- *)
+let run_config_path dir run_id =
+  Filename.concat (runs_dir dir) (run_id ^ ".json")
+
+let load_run_config_json dir run_id =
+  let path = run_config_path dir run_id in
+  if not (Sys.file_exists path) then None
+  else
+    try
+      let j = Yojson.Safe.from_string (read_file_or path "") in
+      (match j with `Assoc _ -> Some j | _ -> None)
+    with _ -> None
+
+let save_run_config_json dir run_id j =
+  write_file_atomic (run_config_path dir run_id)
+    (Yojson.Safe.to_string j ^ "\n")
 
 (* Provenance: which verb wrote this context, and when.
    A claimed run config was last written by link claim; a

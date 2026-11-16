@@ -16,7 +16,7 @@ const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 // the bp3 repo, while the binary resolves its store from
 // the caller's repo (cwd) — the shape under test here.
 const bp3Bin = path.join(repoRoot, "_build", "default", "src", "quest", "main.exe");
-const { Dispatcher, derivationsDir, resolveRepoRoot } = await import(path.join(extRoot, "src", "dispatcher.ts"));
+const { Dispatcher, derivationsDir, runsDir, resolveRepoRoot } = await import(path.join(extRoot, "src", "dispatcher.ts"));
 const { validateInput, RefusedInput } = await import(path.join(extRoot, "src", "contract.ts"));
 const extension = (await import(path.join(extRoot, "index.ts"))).default;
 
@@ -44,7 +44,7 @@ const lines = [
   { type: "message", id: "b2", parentId: "a1", timestamp: ts, message: { role: "assistant", content: [{ type: "text", text: "done" }], provider: "fake", model: "fake-model", usage: { input: 1, output: 1, totalTokens: 2 }, stopReason: "stop", timestamp: Date.now() } },
 ];
 fs.writeFileSync(path.join(sessionDir, "tape.jsonl"), lines.map((l) => JSON.stringify(l)).join("\\n") + "\\n");
-fs.writeFileSync(path.join(sessionDir, "env-capture.json"), JSON.stringify({ pid: process.pid, BP3_RUN_ID: process.env.BP3_RUN_ID ?? null, BP3_MODEL: process.env.BP3_MODEL ?? null, BP3_THINKING: process.env.BP3_THINKING ?? null, argv: args }));
+fs.writeFileSync(path.join(sessionDir, "env-capture.json"), JSON.stringify({ pid: process.pid, BP3_RUN_ID: process.env.BP3_RUN_ID ?? null, BP3_LINK_TOKEN: process.env.BP3_LINK_TOKEN ?? null, BP3_MODEL: process.env.BP3_MODEL ?? null, BP3_THINKING: process.env.BP3_THINKING ?? null, argv: args }));
 `, { mode: 0o755 });
   return fake;
 }
@@ -110,7 +110,7 @@ test("hostile inputs are refused E_REFUSED_INPUT naming the key", () => {
   assert.equal(validateInput(base).prompt, "hi");
 });
 
-test("spawn path: record-init names the live pid, bind-tape pins the tape, list_runs folds finished", async () => {
+test("spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished", async () => {
   const repo = makeRepo();
   const fakePi = writeFakePi(repo);
   const nested = path.join(repo, "a", "b");
@@ -122,17 +122,17 @@ test("spawn path: record-init names the live pid, bind-tape pins the tape, list_
   assert.equal(result.ok, true);
   assert.match(result.run_id, /-handoff-pi-fake-model-c1$/);
 
-  const dir = derivationsDir(repo);
-  const logPath = path.join(dir, `${result.run_id}.jsonl`);
-  const rows = fs.readFileSync(logPath, "utf8").trim().split("\n").map((l) => JSON.parse(l));
-  assert.deepEqual(rows.map((r) => r.kind), ["init_record", "tape_binding"]);
-  assert.equal(rows[0].pid, result.pid);
-  assert.equal(rows[0].harness, "pi");
-  assert.equal(rows[1].tape_path, result.tape_path);
+  const cfg = JSON.parse(fs.readFileSync(path.join(runsDir(repo), `${result.run_id}.json`), "utf8"));
+  assert.equal(cfg.state, "claimed");
+  assert.equal(cfg.creator.harness, "pi");
+  assert.equal(cfg.claim.session_id, "fake-session");
+  assert.equal(cfg.tape_path, result.tape_path);
 
   const capture = JSON.parse(fs.readFileSync(path.join(path.dirname(result.tape_path), "env-capture.json"), "utf8"));
   assert.equal(capture.pid, result.pid);
-  assert.equal(capture.BP3_RUN_ID, result.run_id);
+  assert.equal(capture.BP3_RUN_ID, null);
+  assert.match(capture.BP3_LINK_TOKEN, /^bp3link_/);
+  assert.ok(capture.argv.includes("--extension"), "child explicitly loaded with bp3-pi");
   assert.equal(capture.BP3_MODEL, "fake-model");
 
   const runs = dispatcher.listRuns("toy");
@@ -157,7 +157,7 @@ test("worktree root: dispatcher serves the worktree it was spawned in, state sta
   assert.equal(resolveRepoRoot(repo), fs.realpathSync(repo));
 
   // No BP3_PI_BP3_BIN pin: the binary resolves under the
-  // worktree, so record-init reaches the worktree's bp3.
+  // worktree, so link mint reaches the worktree's bp3.
   const unpinned = new Dispatcher({ cwd: nested, piBin: "/nonexistent/pi" });
   assert.equal(unpinned.root, wt);
   assert.equal(unpinned.bp3Bin, path.join(wt, "bin", "bp3"));
@@ -169,7 +169,7 @@ test("worktree root: dispatcher serves the worktree it was spawned in, state sta
   const result = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", model: "fake-model" });
   assert.equal(result.ok, true);
   assert.equal(derivationsDir(nested), derivationsDir(fs.realpathSync(repo)));
-  assert.ok(fs.existsSync(path.join(derivationsDir(repo), `${result.run_id}.jsonl`)));
+  assert.ok(fs.existsSync(path.join(runsDir(repo), `${result.run_id}.json`)));
   const runs = dispatcher.listRuns("toy");
   assert.equal(runs.find((r) => r.run_id === result.run_id)?.lifecycle, "finished");
 
@@ -187,7 +187,7 @@ test("roles route model/thinking into the child env: override > role > conductor
   const dispatcher = new Dispatcher({ cwd: repo, bp3Bin, piBin: fakePi, env, rolesDir });
 
   // Role beats the conductor's env, observed in the child's
-  // captured env and in the InitRecord bp3 wrote.
+  // captured env and in the run config bp3 wrote.
   const roled = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", role: "scout" });
   assert.equal(roled.model, "role-model");
   assert.equal(roled.thinking, "high");
@@ -196,18 +196,18 @@ test("roles route model/thinking into the child env: override > role > conductor
   assert.equal(capture.BP3_THINKING, "high");
   assert.ok(capture.argv.includes("--model") && capture.argv.includes("role-model"));
   assert.ok(capture.argv.includes("--tools") && capture.argv.includes("read,bash"));
-  let rows = fs.readFileSync(path.join(derivationsDir(repo), `${roled.run_id}.jsonl`), "utf8").trim().split("\n").map((l) => JSON.parse(l));
-  assert.equal(rows[0].model, "role-model");
-  assert.equal(rows[0].thinking, "high");
+  let cfg = JSON.parse(fs.readFileSync(path.join(runsDir(repo), `${roled.run_id}.json`), "utf8"));
+  assert.equal(cfg.creator.model, "role-model");
+  assert.equal(cfg.creator.thinking, "high");
 
   // A named override beats the role on both fields.
   const overridden = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", role: "scout", model: "override-model", thinking: "max", cycle: 2 });
   capture = JSON.parse(fs.readFileSync(path.join(path.dirname(overridden.tape_path), "env-capture.json"), "utf8"));
   assert.equal(capture.BP3_MODEL, "override-model");
   assert.equal(capture.BP3_THINKING, "max");
-  rows = fs.readFileSync(path.join(derivationsDir(repo), `${overridden.run_id}.jsonl`), "utf8").trim().split("\n").map((l) => JSON.parse(l));
-  assert.equal(rows[0].model, "override-model");
-  assert.equal(rows[0].thinking, "max");
+  cfg = JSON.parse(fs.readFileSync(path.join(runsDir(repo), `${overridden.run_id}.json`), "utf8"));
+  assert.equal(cfg.creator.model, "override-model");
+  assert.equal(cfg.creator.thinking, "max");
 
   // No role: the conductor's env is the last resort, still explicit.
   const plain = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", cycle: 3 });
@@ -247,7 +247,8 @@ test("await_runs: hung child is killed by watch alone and lands orphaned, never 
   const runId = "20260101T000000Z-handoff-pi-fake-model-c1";
   const tapePath = path.join(repo, "hung.jsonl");
   fs.writeFileSync(tapePath, JSON.stringify({ type: "message", id: "h1", message: { role: "user", content: "work" } }) + "\n");
-  bp3(repo, ["harness", "record-init", "--run-id", runId, "--harness", "pi", "--quest", "toy", "--exp", "exp-1", "--pid", String(hung.pid), "--tape-path", tapePath, "--model", "fake-model"]);
+  fs.mkdirSync(derivationsDir(repo), { recursive: true });
+  fs.writeFileSync(path.join(derivationsDir(repo), `${runId}.jsonl`), JSON.stringify({ kind: "init_record", run_id: runId, harness: "pi", quest: "toy", exp: "exp-1", pid: hung.pid, tape_path: tapePath, model: "fake-model", ts: new Date().toISOString() }) + "\n");
   try {
     const [verdict] = dispatcher.awaitRuns([runId], { timeoutSeconds: 15, silenceSeconds: 1 });
     assert.equal(verdict.outcome, "watchdog_killed");
@@ -270,7 +271,8 @@ test("await_runs: closed-not-exited suspends the silence kill; the timeout still
     JSON.stringify({ type: "message", id: "c1", message: { role: "user", content: "work" } }),
     JSON.stringify({ type: "session_closed", id: "c2" }),
   ].join("\n") + "\n");
-  bp3(repo, ["harness", "record-init", "--run-id", runId, "--harness", "pi", "--quest", "toy", "--exp", "exp-1", "--pid", String(child.pid), "--tape-path", tapePath, "--model", "fake-model"]);
+  fs.mkdirSync(derivationsDir(repo), { recursive: true });
+  fs.writeFileSync(path.join(derivationsDir(repo), `${runId}.jsonl`), JSON.stringify({ kind: "init_record", run_id: runId, harness: "pi", quest: "toy", exp: "exp-1", pid: child.pid, tape_path: tapePath, model: "fake-model", ts: new Date().toISOString() }) + "\n");
   try {
     const [verdict] = dispatcher.awaitRuns([runId], { timeoutSeconds: 3, silenceSeconds: 1 });
     assert.equal(verdict.outcome, "timeout");
@@ -321,15 +323,22 @@ test("dispatcher never signals a pid: watch is the sole killer", () => {
   assert.ok(!/SIGTERM|SIGKILL|\.kill\(/.test(src), "dispatcher signals a pid");
 });
 
-test("dispatcher writes nothing itself under run-lifecycle-derivations", async () => {
+test("dispatcher writes nothing itself: the run config is bp3-written", async () => {
   const repo = makeRepo();
   const fakePi = writeFakePi(repo);
   const dispatcher = new Dispatcher({ cwd: repo, bp3Bin, piBin: fakePi });
   const result = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", model: "fake-model" });
+  assert.ok(fs.existsSync(path.join(runsDir(repo), `${result.run_id}.json`)));
   const dir = derivationsDir(repo);
-  const files = fs.readdirSync(dir).sort();
-  // Only bp3-written artifacts for this Run: the log and,
-  // after the listRuns fold, the supervisor's cache.
-  assert.ok(files.every((f) => f.startsWith(result.run_id)));
-  assert.ok(files.includes(`${result.run_id}.jsonl`));
+  const files = fs.existsSync(dir) ? fs.readdirSync(dir).sort() : [];
+  assert.ok(!files.some((f) => f.startsWith(result.run_id)), "dispatcher left derivation artifacts");
+});
+
+test("missing bp3-pi extension refuses E_SETUP before any spawn", async () => {
+  const repo = makeRepo();
+  const dispatcher = new Dispatcher({ cwd: repo, bp3Bin, piBin: writeFakePi(repo), extensionPath: "/nonexistent/bp3-pi-index.ts" });
+  await assert.rejects(
+    () => dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", model: "fake-model" }),
+    (e) => e.code === "E_SETUP",
+  );
 });

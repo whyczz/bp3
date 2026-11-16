@@ -471,8 +471,60 @@ let read_cache dir run_id silence_seconds =
               Some (rec_, lifecycle, warns)
   with _ -> None
 
+(* Lifecycle from one run config (mvp.1): birth from
+   creator, presence from claim pid + tape mtime, proof
+   from tape_path — the same derive_lifecycle words the
+   derivation fold produces. *)
+let fold_run_config ~silence_seconds (rc : Config.run_config) =
+  let rec_ : init_record = {
+    run_id = rc.Config.rc_id;
+    harness = rc.Config.rc_harness;
+    session_id = rc.Config.rc_session;
+    pid = rc.Config.rc_pid;
+    tape_path = rc.Config.rc_tape;
+    quest = (if rc.Config.rc_graph = "" then None else Some rc.Config.rc_graph);
+    exp = (if rc.Config.rc_node = "" then None else Some rc.Config.rc_node);
+    init_ts = (if rc.Config.rc_claimed_at = "" then None else Some rc.Config.rc_claimed_at);
+  } in
+  if rc.Config.rc_state = "minted" then
+    (rec_, no_observation, derive_lifecycle (Some rec_) no_observation, [])
+  else
+    let alive = match rec_.pid with Some p -> Some (pid_alive p) | None -> None in
+    let (tape_seen, fresh, blind) = match rec_.tape_path with
+      | None -> (false, false, true)
+      | Some tp ->
+          (try let st = Unix.stat tp in
+               (true, Unix.time () -. st.Unix.st_mtime
+                       <= float_of_int silence_seconds, false)
+           with _ -> (false, false, true)) in
+    let (fin, exit_e, torn_t) = match rec_.tape_path with
+      | Some tp -> tape_evidence rec_.harness (read_file_or tp "")
+      | None -> (false, false, false) in
+    let obs = { pid_alive = alive; exit_observed = exit_e || alive = Some false;
+                finish_evidence = fin; settle_row = false;
+                tape_seen; fresh } in
+    let warns = (if blind && rc.Config.rc_state = "claimed"
+                 then ["W_SUPERVISOR_BLIND"] else [])
+      @ (if torn_t then ["W_TORN_TAIL"] else []) in
+    (rec_, obs, derive_lifecycle (Some rec_) obs, warns)
+
 let fold_all ~quest ~silence_seconds =
-  match derivations_dir () with
+  let linked =
+    match Config.config_dir () with
+    | None -> []
+    | Some cdir ->
+        List.filter_map (fun (rc : Config.run_config) ->
+          if rc.Config.rc_graph <> quest then None
+          else
+            let (rec_, obs, lifecycle, warns) =
+              fold_run_config ~silence_seconds rc in
+            Some {
+              rf_view = { rv_id = rc.Config.rc_id; rv_lifecycle = lifecycle;
+                          rv_harness = rec_.harness; rv_warnings = warns };
+              rf_rec = rec_; rf_obs = Some obs; rf_jsonl = "";
+            }) (Config.list_run_configs cdir) in
+  let linked_ids = List.map (fun f -> f.rf_view.rv_id) linked in
+  let legacy = match derivations_dir () with
   | None -> []
   | Some dir ->
       let names = try Array.to_list (Sys.readdir dir) with _ -> [] in
@@ -503,7 +555,8 @@ let fold_all ~quest ~silence_seconds =
                        rf_view = { rv_id = run_id; rv_lifecycle = lifecycle;
                                    rv_harness = rec_.harness; rv_warnings = warns };
                        rf_rec = { rec_ with run_id }; rf_obs = Some obs; rf_jsonl = path;
-                     })) names
+                     })) names in
+  linked @ List.filter (fun f -> not (List.mem f.rf_view.rv_id linked_ids)) legacy
 
 (* ---------- per-Run writer (supervisor-owned) ---------- *)
 let last_observed_lifecycle path =
@@ -554,7 +607,8 @@ let probe_observation ~silence_seconds (rec_ : init_record) prior =
    the same Run append whole rows only (append_row). *)
 let append_observation dir (rf : run_fold) ~silence_seconds =
   let run_id = rf.rf_view.rv_id in
-  if run_id = "" || contains_sub run_id "/" || contains_sub run_id ".." then ()
+  if rf.rf_jsonl = "" then ()
+  else if run_id = "" || contains_sub run_id "/" || contains_sub run_id ".." then ()
   else
     try
       ensure_dir dir;
@@ -866,6 +920,33 @@ let all_init_records () =
           List.rev !found |> List.map (fun (r : init_record) ->
             { r with tape_path =
               (match r.tape_path with Some _ as t -> t | None -> !binding) }))
+
+(* Run configs are InitRecord-equivalents (mvp.1): a claimed
+   run config resolves exactly like an InitRecord, with
+   graph/node spelling quest/exp until the rename lands. *)
+let run_config_records () =
+  match Config.config_dir () with
+  | None -> []
+  | Some dir ->
+      List.filter_map (fun (rc : Config.run_config) ->
+        if rc.Config.rc_state <> "claimed" then None
+        else Some {
+          run_id = rc.Config.rc_id;
+          harness = rc.Config.rc_harness;
+          session_id = rc.Config.rc_session;
+          pid = rc.Config.rc_pid;
+          tape_path = rc.Config.rc_tape;
+          quest = (if rc.Config.rc_graph = "" then None else Some rc.Config.rc_graph);
+          exp = (if rc.Config.rc_node = "" then None else Some rc.Config.rc_node);
+          init_ts = (if rc.Config.rc_claimed_at = "" then None else Some rc.Config.rc_claimed_at);
+        }) (Config.list_run_configs dir)
+
+let all_records () =
+  let legacy = all_init_records () in
+  let linked = run_config_records () in
+  let linked_ids = List.map (fun (r : init_record) -> r.run_id) linked in
+  linked @ List.filter (fun (r : init_record) ->
+    not (List.mem r.run_id linked_ids)) legacy
 
 let tape_roots = function
   | "pi" ->
@@ -1222,7 +1303,7 @@ let do_find_tape args =
    | None, None -> usage "find-tape needs --run-id or --session-id"
    | Some "", _ | _, Some "" -> usage "identity flags need a non-empty value"
    | _ -> ());
-  let records = all_init_records () in
+  let records = all_records () in
   let by_run = match fl.ft_run with
     | Some r -> List.filter (fun (rec_ : init_record) -> rec_.run_id = r) records
     | None -> [] in
@@ -1405,7 +1486,7 @@ let resolve_watch fl =
    | Some r when contains_sub r "/" || contains_sub r " " ->
        usage ("invalid run-id: " ^ r)
    | _ -> ());
-  let records = all_init_records () in
+  let records = all_records () in
   let by_run = match fl.wt_run with
     | Some r -> List.filter (fun (rec_ : init_record) -> rec_.run_id = r) records
     | None -> [] in
@@ -1633,118 +1714,10 @@ let do_watch args =
    never writes its own proof. Create-only: an existing
    derivation log for the run-id is E_EXISTS, never an
    overwrite or a second init row. *)
-type ri_flags = {
-  mutable ri_run : string option; mutable ri_harness : string option;
-  mutable ri_session : string option; mutable ri_pid : int option;
-  mutable ri_tape : string option; mutable ri_quest : string option;
-  mutable ri_exp : string option; mutable ri_desk : string option;
-  mutable ri_model : string option; mutable ri_thinking : string option;
-}
 
-let parse_ri_flags args =
-  let fl = { ri_run = None; ri_harness = None; ri_session = None;
-             ri_pid = None; ri_tape = None; ri_quest = None;
-             ri_exp = None; ri_desk = None; ri_model = None;
-             ri_thinking = None } in
-  let rec loop = function
-    | [] -> fl
-    | "--run-id" :: v :: rest ->
-        if fl.ri_run <> None then usage "duplicate flag --run-id";
-        fl.ri_run <- Some v; loop rest
-    | "--harness" :: v :: rest ->
-        if fl.ri_harness <> None then usage "duplicate flag --harness";
-        fl.ri_harness <- Some v; loop rest
-    | "--session-id" :: v :: rest ->
-        if fl.ri_session <> None then usage "duplicate flag --session-id";
-        fl.ri_session <- Some v; loop rest
-    | "--pid" :: v :: rest ->
-        if fl.ri_pid <> None then usage "duplicate flag --pid";
-        fl.ri_pid <- Some (positive_seconds "--pid" v); loop rest
-    | "--tape-path" :: v :: rest ->
-        if fl.ri_tape <> None then usage "duplicate flag --tape-path";
-        fl.ri_tape <- Some v; loop rest
-    | "--quest" :: v :: rest ->
-        if fl.ri_quest <> None then usage "duplicate flag --quest";
-        fl.ri_quest <- Some v; loop rest
-    | "--exp" :: v :: rest ->
-        if fl.ri_exp <> None then usage "duplicate flag --exp";
-        fl.ri_exp <- Some v; loop rest
-    | "--desk" :: v :: rest ->
-        if fl.ri_desk <> None then usage "duplicate flag --desk";
-        fl.ri_desk <- Some v; loop rest
-    | "--model" :: v :: rest ->
-        if fl.ri_model <> None then usage "duplicate flag --model";
-        fl.ri_model <- Some v; loop rest
-    | "--thinking" :: v :: rest ->
-        if fl.ri_thinking <> None then usage "duplicate flag --thinking";
-        fl.ri_thinking <- Some v; loop rest
-    | ["--run-id"] | ["--harness"] | ["--session-id"] | ["--pid"]
-    | ["--tape-path"] | ["--quest"] | ["--exp"] | ["--desk"] | ["--model"] | ["--thinking"] ->
-        usage "flag needs a value"
-    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
-        (match String.index_opt f '=' with
-         | Some _ -> usage ("unknown flag form: " ^ f)
-         | None -> usage ("unknown flag: " ^ f))
-    | stray :: _ -> usage ("stray positional: " ^ stray) in
-  loop args
-
-let do_record_init args =
-  let fl = parse_ri_flags args in
-  let run_id = match fl.ri_run with
-    | Some r when r <> "" -> r
-    | _ -> usage "record-init needs --run-id <id>" in
-  if contains_sub run_id "/" || contains_sub run_id ".."
-     || contains_sub run_id " " then
-    usage ("invalid run-id: " ^ run_id);
-  let harness = match fl.ri_harness with
-    | Some h when h = "muse-code" || h = "pi" -> h
-    | Some h -> usage ("--harness must be muse-code or pi, got: " ^ h)
-    | None -> usage "record-init needs --harness muse-code|pi" in
-  (match derivations_dir () with
-   | None ->
-       err "E_NOT_FOUND" (`Assoc [("run_id", json_str run_id)])
-         "No derivation store (not a git repo?); no InitRecord written." 1
-   | Some dir ->
-       let path = Filename.concat dir (run_id ^ ".jsonl") in
-       if Sys.file_exists path then
-         err "E_EXISTS" (`Assoc [("run_id", json_str run_id);
-                                 ("path", json_str path)])
-           "An InitRecord already exists for that run-id; refusing to overwrite." 1;
-       ensure_dir dir;
-       ignore (Config.ensure_config ());
-       let opt_fields = List.filter_map (fun x -> x) [
-         (match fl.ri_session with Some s -> Some ("session_id", json_str s) | None -> None);
-         (match fl.ri_pid with Some p -> Some ("pid", `Int p) | None -> None);
-         (match fl.ri_tape with Some s -> Some ("tape_path", json_str s) | None -> None);
-         (match fl.ri_quest with Some s -> Some ("quest", json_str s) | None -> None);
-         (match fl.ri_exp with Some s -> Some ("exp", json_str s) | None -> None);
-         (match fl.ri_desk with Some s -> Some ("desk", json_str s) | None -> None);
-         (match fl.ri_model with Some s -> Some ("model", json_str s) | None -> None);
-         (match fl.ri_thinking with Some s -> Some ("thinking", json_str s) | None -> None);
-       ] in
-       let row = `Assoc ([
-         ("kind", json_str "init_record");
-         ("run_id", json_str run_id);
-         ("harness", json_str harness);
-         ("ts", json_str (now_ts ()));
-       ] @ opt_fields) in
-       (try create_row path (Yojson.Safe.to_string row)
-        with Unix.Unix_error (Unix.EEXIST, _, _) ->
-          err "E_EXISTS" (`Assoc [("run_id", json_str run_id);
-                                  ("path", json_str path)])
-            "An InitRecord already exists for that run-id; refusing to overwrite." 1);
-       print_endline (Yojson.Safe.to_string (`Assoc [
-         ("ok", `Bool true);
-         ("run_id", json_str run_id);
-         ("harness", json_str harness);
-         ("session_id", (match fl.ri_session with Some s -> json_str s | None -> `Null));
-         ("pid", (match fl.ri_pid with Some p -> `Int p | None -> `Null));
-         ("tape_path", (match fl.ri_tape with Some s -> json_str s | None -> `Null));
-         ("quest", (match fl.ri_quest with Some s -> json_str s | None -> `Null));
-         ("exp", (match fl.ri_exp with Some s -> json_str s | None -> `Null));
-         ("path", json_str path);
-       ]));
-       0)
+let do_record_init _args =
+  err "E_RETIRED" (`Assoc [("verb", json_str "record-init")])
+    "record-init is retired: mint a one-time link (bp3 harness link mint) and let the child claim it (bp3 harness link claim); the run config is the InitRecord-equivalent." 1
 
 (* ---------- bind-tape (followup.3: the launcher's bind step) ---------- *)
 (* The traverse workflow launcher is the named binder: it runs
@@ -1793,6 +1766,32 @@ let do_bind_tape args =
   let tape_path = match fl.bind_tape with
     | Some t when t <> "" -> t
     | _ -> usage "bind-tape needs --tape-path <path>" in
+  (* mvp.1: a claimed run's tape binds into its run config *)
+  (match Config.config_dir () with
+   | Some cdir ->
+       (match Config.load_run_config_json cdir run_id with
+        | Some (`Assoc fs) ->
+            (match List.assoc_opt "tape_path" fs with
+             | Some (`String tp) when tp = tape_path -> ()
+             | Some (`String tp) ->
+                 err "E_EXISTS" (`Assoc [("run_id", json_str run_id);
+                   ("tape_path", json_str tape_path);
+                   ("bound_tape", json_str tp)])
+                   ("Run already bound to a different tape; refusing to rebind: " ^ tp) 1
+             | _ ->
+                 let fs2 = ("tape_path", json_str tape_path)
+                   :: List.filter (fun (k, _) -> k <> "tape_path") fs in
+                 Config.save_run_config_json cdir run_id (`Assoc fs2));
+            print_endline (Yojson.Safe.to_string (`Assoc [
+              ("ok", `Bool true);
+              ("run_id", json_str run_id);
+              ("tape_path", json_str tape_path);
+              ("path", json_str (Config.run_config_path cdir run_id));
+            ]));
+            0
+        | _ -> -1)
+   | None -> -1) |> (fun bound_rc ->
+  if bound_rc >= 0 then bound_rc else
   (match derivations_dir () with
    | None ->
        err "E_NOT_FOUND" (`Assoc [("run_id", json_str run_id)])
@@ -1874,7 +1873,7 @@ let do_bind_tape args =
          ("tape_path", json_str tape_path);
          ("path", json_str path);
        ]));
-       0)
+       0))
 
 (* ---------- backtest (backtest.1: findings, not a gate) ---------- *)
 let count_sub text sub =
@@ -2062,6 +2061,531 @@ let do_backtest args =
     ("traces", `List traces); ("findings", `List findings)]));
   0
 
+(* ---------- link (mvp.1: one-time claim binding) ---------- *)
+let link_hex_of_bytes s =
+  let buf = Buffer.create (String.length s * 2) in
+  String.iter (fun c ->
+    Buffer.add_string buf (Printf.sprintf "%02x" (Char.code c))) s;
+  Buffer.contents buf
+
+let mint_token () =
+  let raw =
+    try
+      let fd = Unix.openfile "/dev/urandom" [Unix.O_RDONLY] 0 in
+      let b = Bytes.make 16 '\x00' in
+      let n = Unix.read fd b 0 16 in
+      Unix.close fd;
+      if n = 16 then Bytes.to_string b else raise Exit
+    with _ ->
+      let seed = Printf.sprintf "%d-%f-%d" (Unix.getpid ()) (Unix.time ())
+        (Random.int 1_000_000_000) in
+      String.sub (sha256_hex seed ^ sha256_hex (seed ^ "!")) 0 16 in
+  "bp3link_" ^ link_hex_of_bytes raw
+
+let compact_ts () =
+  let t = Unix.gmtime (Unix.time ()) in
+  Printf.sprintf "%04d%02d%02dT%02d%02d%02dZ"
+    (t.Unix.tm_year + 1900) (t.Unix.tm_mon + 1) t.Unix.tm_mday
+    t.Unix.tm_hour t.Unix.tm_min t.Unix.tm_sec
+
+let slug_keep s =
+  let b = Buffer.create (String.length s) in
+  String.iter (fun c ->
+    let ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+      || (c >= '0' && c <= '9') || c = '-' || c = '.' || c = '_' in
+    Buffer.add_char b (if ok then c else '-')) s;
+  let v = Buffer.contents b in
+  if v = "" then "unknown" else v
+
+let env_or flagv name =
+  match flagv with
+  | Some v when v <> "" -> v
+  | _ -> (match Sys.getenv_opt name with Some v when v <> "" -> v | _ -> "")
+
+let nonneg_flag flag v =
+  let n = try int_of_string v with _ -> -1 in
+  if n < 0 || string_of_int n <> v then
+    usage (flag ^ " needs a non-negative integer, got: " ^ v)
+  else n
+
+type mint_flags = {
+  mutable m_kind : string option; mutable m_graph : string option;
+  mutable m_node : string option; mutable m_edge : string option;
+  mutable m_parent : string option; mutable m_depth : int option;
+  mutable m_desk : string option; mutable m_harness : string option;
+  mutable m_model : string option; mutable m_thinking : string option;
+  mutable m_cycle : int; mutable m_run : string option;
+}
+
+let parse_mint_flags args =
+  let fl = { m_kind = None; m_graph = None; m_node = None; m_edge = None;
+             m_parent = None; m_depth = None; m_desk = None;
+             m_harness = None; m_model = None; m_thinking = None;
+             m_cycle = 1; m_run = None } in
+  let cyc_set = ref false in
+  let rec loop = function
+    | [] -> fl
+    | "--kind" :: v :: rest ->
+        if fl.m_kind <> None then usage "duplicate flag --kind";
+        fl.m_kind <- Some v; loop rest
+    | "--graph" :: v :: rest ->
+        if fl.m_graph <> None then usage "duplicate flag --graph";
+        fl.m_graph <- Some v; loop rest
+    | "--node" :: v :: rest ->
+        if fl.m_node <> None then usage "duplicate flag --node";
+        fl.m_node <- Some v; loop rest
+    | "--edge" :: v :: rest ->
+        if fl.m_edge <> None then usage "duplicate flag --edge";
+        fl.m_edge <- Some v; loop rest
+    | "--parent-run-id" :: v :: rest ->
+        if fl.m_parent <> None then usage "duplicate flag --parent-run-id";
+        fl.m_parent <- Some v; loop rest
+    | "--depth" :: v :: rest ->
+        if fl.m_depth <> None then usage "duplicate flag --depth";
+        fl.m_depth <- Some (nonneg_flag "--depth" v); loop rest
+    | "--desk" :: v :: rest ->
+        if fl.m_desk <> None then usage "duplicate flag --desk";
+        fl.m_desk <- Some v; loop rest
+    | "--harness" :: v :: rest ->
+        if fl.m_harness <> None then usage "duplicate flag --harness";
+        fl.m_harness <- Some v; loop rest
+    | "--model" :: v :: rest ->
+        if fl.m_model <> None then usage "duplicate flag --model";
+        fl.m_model <- Some v; loop rest
+    | "--thinking" :: v :: rest ->
+        if fl.m_thinking <> None then usage "duplicate flag --thinking";
+        fl.m_thinking <- Some v; loop rest
+    | "--cycle" :: v :: rest ->
+        if !cyc_set then usage "duplicate flag --cycle";
+        cyc_set := true;
+        fl.m_cycle <- positive_seconds "--cycle" v; loop rest
+    | "--run-id" :: v :: rest ->
+        if fl.m_run <> None then usage "duplicate flag --run-id";
+        fl.m_run <- Some v; loop rest
+    | ["--kind"] | ["--graph"] | ["--node"] | ["--edge"]
+    | ["--parent-run-id"] | ["--depth"] | ["--desk"] | ["--harness"]
+    | ["--model"] | ["--thinking"] | ["--cycle"] | ["--run-id"] ->
+        usage "flag needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray) in
+  loop args
+
+let jassoc j key =
+  try match Yojson.Safe.Util.member key j with `Assoc _ as o -> Some o | _ -> None
+  with _ -> None
+
+let creator_depth dir parent =
+  match parent with
+  | None -> None
+  | Some p ->
+      (match Config.load_run_config_json dir p with
+       | Some j ->
+           (match jassoc j "creator" with
+            | Some c -> Some (Config.jint c "depth" 0 + 1)
+            | None -> None)
+       | None -> None)
+
+let do_link_mint args =
+  let fl = parse_mint_flags args in
+  let kind = match fl.m_kind with
+    | Some k when k = "node" || k = "edge" -> k
+    | Some k -> usage ("--kind must be node or edge, got: " ^ k)
+    | None -> usage "link mint needs --kind node|edge" in
+  let graph = match fl.m_graph with
+    | Some g when g <> "" -> g | _ -> usage "link mint needs --graph <graph>" in
+  let node = match fl.m_node with
+    | Some n when n <> "" -> n | _ -> usage "link mint needs --node <node>" in
+  Store.check_slug graph; Store.check_slug node;
+  let edge = match kind, fl.m_edge with
+    | "edge", Some e when e <> "" -> Some e
+    | "edge", _ -> usage "link mint --kind edge needs --edge <edge>"
+    | _, Some _ -> usage "link mint --kind node takes no --edge"
+    | _, None -> None in
+  (match edge with
+   | Some e ->
+       if not (List.mem e ["handoff"; "grade"; "verify"; "land"; "block"; "resume"])
+       then usage ("unknown edge: " ^ e)
+   | None -> ());
+  let dir = Config.ensure_config () in
+  let parent = fl.m_parent in
+  let depth = match fl.m_depth with
+    | Some d -> d
+    | None -> (match creator_depth dir parent with
+               | Some d -> d | None -> 0) in
+  let thresholds = Config.load_thresholds dir in
+  if depth > thresholds.Config.depth_cap then
+    err "E_DEPTH" (`Assoc [("depth", `Int depth);
+      ("depth_cap", `Int thresholds.Config.depth_cap);
+      ("graph", json_str graph); ("node", json_str node)])
+      "Depth beyond the machine depth cap; the worker tree cannot fan out past it." 1;
+  let harness_v = env_or fl.m_harness "BP3_HARNESS" in
+  let harness_v = if harness_v = "" then "muse-code" else harness_v in
+  let model_v = env_or fl.m_model "BP3_MODEL" in
+  let model_v = if model_v = "" then "unknown" else model_v in
+  let desk = match fl.m_desk with Some d -> d | None -> Sys.getcwd () in
+  let edge_label = match edge with Some e -> e | None -> "node" in
+  let run_id = match fl.m_run with
+    | Some r when r <> "" ->
+        if Config.load_run_config_json dir r <> None then
+          err "E_EXISTS" (`Assoc [("run_id", json_str r)])
+            "A run config already exists for that run-id." 1;
+        r
+    | _ ->
+        let rec gen tries =
+          let cand = Printf.sprintf "%s-%s-%s-%s-c%d" (compact_ts ())
+            edge_label (slug_keep harness_v) (slug_keep model_v) fl.m_cycle in
+          if Config.load_run_config_json dir cand = None then cand
+          else if tries <= 0 then
+            err "E_EXISTS" (`Assoc [("run_id", json_str cand)])
+              "Minted run-id collided; retry." 1
+          else begin ignore (Unix.select [] [] [] 1.0); gen (tries - 1) end in
+        gen 5 in
+  let token = mint_token () in
+  let token_hash = "sha256:" ^ sha256_hex token in
+  let creator = [
+    ("run_id", json_str (match parent with Some p -> p | None -> ""));
+    ("depth", `Int depth);
+    ("harness", json_str harness_v);
+    ("model", json_str model_v);
+    ("minted_at", json_str (now_ts ()));
+    ("token_hash", json_str token_hash);
+  ] @ (match fl.m_thinking with Some t -> [("thinking", json_str t)] | None -> []) in
+  let fields = [
+    ("run_id", json_str run_id);
+    ("kind", json_str kind);
+    ("graph", json_str graph);
+    ("node", json_str node);
+    ("state", json_str "minted");
+    ("desk", json_str desk);
+    ("creator", `Assoc creator);
+  ] @ (match edge with Some e -> [("edge", json_str e)] | None -> []) in
+  Config.save_run_config_json dir run_id (`Assoc fields);
+  let hash_hex = sha256_hex token in
+  Config.write_file_atomic
+    (Filename.concat (Config.links_dir dir) hash_hex) (run_id ^ "\n");
+  print_endline (Yojson.Safe.to_string (`Assoc [
+    ("ok", `Bool true); ("token", json_str token);
+    ("run_id", json_str run_id); ("kind", json_str kind);
+    ("graph", json_str graph); ("node", json_str node);
+    ("edge", (match edge with Some e -> json_str e | None -> `Null));
+    ("state", json_str "minted"); ("depth", `Int depth);
+    ("parent_run_id", (match parent with Some p -> json_str p | None -> `Null));
+    ("desk", json_str desk);
+  ]));
+  0
+
+let observe_session explicit =
+  match explicit with
+  | Some s when s <> "" -> Some s
+  | _ ->
+      let first_env names =
+        List.fold_left (fun acc n ->
+          match acc with Some _ -> acc
+          | None -> (match Sys.getenv_opt n with
+                     | Some v when v <> "" -> Some v | _ -> None)) None names in
+      (match first_env ["BP3_SESSION_ID"; "MUSE_SESSION_ID"; "MUSE_THREAD_ID";
+                        "PI_SESSION_ID"] with
+       | Some _ as v -> v
+       | None ->
+           (match Sys.getenv_opt "PI_SESSION_FILE" with
+            | Some f when f <> "" ->
+                let b = Filename.basename f in
+                Some (if Filename.check_suffix b ".jsonl"
+                      then Filename.remove_extension b else b)
+            | _ -> None))
+
+let parse_claim_args args =
+  let rec loop token session = function
+    | [] -> (token, session)
+    | "--session-id" :: v :: rest ->
+        if session <> None then usage "duplicate flag --session-id";
+        loop token (Some v) rest
+    | ["--session-id"] -> usage "flag needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | v :: rest ->
+        if token <> None then usage "link claim takes one token";
+        loop (Some v) session rest in
+  loop None None args
+
+let first_claim_of dir run_id fallback =
+  let marker = Filename.concat (Config.claims_dir dir) (run_id ^ ".claim") in
+  let from_text text =
+    try
+      let j = Yojson.Safe.from_string text in
+      let sess = Config.jopt j "session_id" in
+      let pid = try match Yojson.Safe.Util.member "pid" j with
+        | `Int n -> n | _ -> 0 with _ -> 0 in
+      let ts = Config.jstr j "claimed_at" "" in
+      Some (sess, pid, ts)
+    with _ -> None in
+  match (if Sys.file_exists marker then from_text (read_file_or marker "") else None) with
+  | Some _ as v -> v
+  | None ->
+      (match fallback with
+       | `Assoc fs ->
+           (match List.assoc_opt "claim" fs with
+            | Some (`Assoc cf) ->
+                let sess = (match List.assoc_opt "session_id" cf with
+                  | Some (`String s) -> Some s | _ -> None) in
+                let pid = (match List.assoc_opt "pid" cf with
+                  | Some (`Int n) -> n | _ -> 0) in
+                let ts = (match List.assoc_opt "claimed_at" cf with
+                  | Some (`String s) -> s | _ -> "") in
+                Some (sess, pid, ts)
+            | _ -> None)
+       | _ -> None)
+
+let link_spent dir run_id fallback =
+  match first_claim_of dir run_id fallback with
+  | Some (sess, pid, ts) ->
+      err "E_LINK_SPENT" (`Assoc [("run_id", json_str run_id);
+        ("first_claim", `Assoc [
+          ("session_id", (match sess with Some s -> json_str s | None -> `Null));
+          ("pid", `Int pid); ("ts", json_str ts)])])
+        "Link already claimed; the first claimant is named in first_claim." 1
+  | None ->
+      err "E_LINK_SPENT" (`Assoc [("run_id", json_str run_id)])
+        "Link already claimed." 1
+
+let sanitize_desk d =
+  let b = Buffer.create (String.length d) in
+  String.iter (fun c ->
+    let ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+      || (c >= '0' && c <= '9') || c = '-' || c = '_' || c = '.' in
+    Buffer.add_char b (if ok then c else '_')) d;
+  Buffer.contents b
+
+let write_desk_context dir run_id graph node edge desk =
+  if desk = "" then ()
+  else
+    let payload = Yojson.Safe.to_string (`Assoc [
+      ("run_id", json_str run_id); ("graph", json_str graph);
+      ("node", json_str node);
+      ("edge", (match edge with Some e -> json_str e | None -> `Null))]) ^ "\n" in
+    (try
+       let sub = Filename.concat (Config.desks_dir dir) (sanitize_desk desk) in
+       Config.ensure_dir sub;
+       (* ensure_dir makes parent+dir; sub parent already exists *)
+       Config.write_file_atomic (Filename.concat sub "context") payload
+     with _ -> ());
+    (try
+       if Sys.file_exists desk && Sys.is_directory desk then
+         Config.write_file_atomic (Filename.concat desk ".bp3-context.json") payload
+     with _ -> ())
+
+let do_link_claim args =
+  let (token_opt, sess_flag) = parse_claim_args args in
+  let token = match token_opt with
+    | Some t when t <> "" -> t | _ -> usage "link claim needs a token" in
+  let dir = Config.ensure_config () in
+  let hash_hex = sha256_hex token in
+  let link_path = Filename.concat (Config.links_dir dir) hash_hex in
+  if not (Sys.file_exists link_path) then
+    err "E_NOT_FOUND" (`Assoc [("token_hash", json_str ("sha256:" ^ hash_hex))])
+      "Unknown link token; no run config was minted for it." 1;
+  let run_id = String.trim (read_file_or link_path "") in
+  if run_id = "" || Config.load_run_config_json dir run_id = None then
+    err "E_NOT_FOUND" (`Assoc [("run_id", json_str run_id)])
+      "Link names no readable run config; a torn run config is never valid." 1;
+  let raw = match Config.load_run_config_json dir run_id with
+    | Some j -> j | None -> `Assoc [] in
+  let stored_hash = match jassoc raw "creator" with
+    | Some c -> Config.jstr c "token_hash" "" | None -> "" in
+  if stored_hash <> "" && stored_hash <> ("sha256:" ^ hash_hex) then
+    err "E_NOT_FOUND" (`Assoc [("run_id", json_str run_id)])
+      "Link token does not match its run config." 1;
+  let session_id = observe_session sess_flag in
+  let pid = Unix.getpid () in
+  let cwd = Sys.getcwd () in
+  let claimed_at = now_ts () in
+  let claim_fields = [
+    ("pid", `Int pid); ("cwd", json_str cwd);
+    ("claimed_at", json_str claimed_at);
+  ] @ (match session_id with Some s -> [("session_id", json_str s)] | None -> []) in
+  let marker = Filename.concat (Config.claims_dir dir) (run_id ^ ".claim") in
+  Config.ensure_dir (Config.claims_dir dir);
+  let marker_text = Yojson.Safe.to_string (`Assoc ([
+    ("run_id", json_str run_id)] @ claim_fields)) ^ "\n" in
+  let won =
+    try
+      let fd = Unix.openfile marker
+        [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_EXCL] 0o644 in
+      (try write_one fd marker marker_text; Unix.fsync fd
+       with e -> (try Unix.close fd with _ -> ()); raise e);
+      Unix.close fd; true
+    with Unix.Unix_error (Unix.EEXIST, _, _) -> false in
+  if not won then link_spent dir run_id raw;
+  (* winner: complete the run config in one atomic write *)
+  let graph = Config.jstr raw "graph" "" in
+  let node = Config.jstr raw "node" "" in
+  let kind = Config.jstr raw "kind" "" in
+  let edge = Config.jopt raw "edge" in
+  let desk = Config.jstr raw "desk" "" in
+  (match raw with
+   | `Assoc fs ->
+       let fs2 = List.filter (fun (k, _) ->
+         k <> "state" && k <> "claim") fs in
+       Config.save_run_config_json dir run_id
+         (`Assoc (fs2 @ [("state", json_str "claimed");
+                         ("claim", `Assoc claim_fields)]))
+   | _ -> ());
+  (match session_id with
+   | Some s when Config.valid_index_key s ->
+       Config.write_file_atomic
+         (Filename.concat (Config.by_session_dir dir) s) (run_id ^ "\n")
+   | _ -> ());
+  write_desk_context dir run_id graph node edge desk;
+  let creator = jassoc raw "creator" in
+  let parent = match creator with Some c -> Config.jstr c "run_id" "" | None -> "" in
+  let depth = match creator with Some c -> Config.jint c "depth" 0 | None -> 0 in
+  print_endline (Yojson.Safe.to_string (`Assoc [
+    ("ok", `Bool true); ("run_id", json_str run_id);
+    ("kind", json_str kind); ("graph", json_str graph);
+    ("node", json_str node);
+    ("edge", (match edge with Some e -> json_str e | None -> `Null));
+    ("state", json_str "claimed");
+    ("session_id", (match session_id with Some s -> json_str s | None -> `Null));
+    ("pid", `Int pid); ("cwd", json_str cwd); ("desk", json_str desk);
+    ("parent_run_id", json_str parent); ("depth", `Int depth);
+    ("claimed_at", json_str claimed_at);
+  ]));
+  0
+
+let parse_lookup_args args =
+  let rec loop session run = function
+    | [] -> (session, run)
+    | "--session-id" :: v :: rest ->
+        if session <> None then usage "duplicate flag --session-id";
+        loop (Some v) run rest
+    | "--run-id" :: v :: rest ->
+        if run <> None then usage "duplicate flag --run-id";
+        loop session (Some v) rest
+    | ["--session-id"] | ["--run-id"] -> usage "flag needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray) in
+  loop None None args
+
+let do_link_lookup args =
+  let (sess, run) = parse_lookup_args args in
+  (match sess, run with
+   | None, None -> usage "link lookup needs --session-id or --run-id"
+   | Some _, Some _ -> usage "link lookup takes one of --session-id or --run-id"
+   | _ -> ());
+  let dir = Config.ensure_config () in
+  let rcs = Config.list_run_configs dir in
+  let found = match run with
+    | Some r -> List.find_opt (fun (rc : Config.run_config) ->
+        rc.Config.rc_id = r) rcs
+    | None ->
+        let s = match sess with Some v -> v | None -> "" in
+        (match List.find_opt (fun (rc : Config.run_config) ->
+           rc.Config.rc_session = Some s) rcs with
+         | Some _ as v -> v
+         | None ->
+             let idx = Filename.concat (Config.by_session_dir dir) s in
+             if s <> "" && Sys.file_exists idx then
+               let rid = String.trim (read_file_or idx "") in
+               List.find_opt (fun (rc : Config.run_config) ->
+                 rc.Config.rc_id = rid) rcs
+             else None) in
+  match found with
+  | None ->
+      let facts = match sess with
+        | Some s -> `Assoc [("session_id", json_str s)]
+        | None -> `Assoc [("run_id", json_str (match run with Some r -> r | None -> ""))] in
+      err "E_NOT_FOUND" facts "No claimed run config for that session." 1
+  | Some rc ->
+      print_endline (Yojson.Safe.to_string (`Assoc [
+        ("ok", `Bool true); ("run_id", json_str rc.Config.rc_id);
+        ("graph", json_str rc.Config.rc_graph);
+        ("node", json_str rc.Config.rc_node);
+        ("edge", (match rc.Config.rc_edge with Some e -> json_str e | None -> `Null));
+        ("kind", json_str rc.Config.rc_kind);
+        ("state", json_str rc.Config.rc_state);
+        ("session_id", (match rc.Config.rc_session with Some s -> json_str s | None -> `Null));
+        ("desk", json_str rc.Config.rc_desk);
+        ("parent_run_id", json_str rc.Config.rc_parent);
+        ("depth", `Int rc.Config.rc_depth);
+      ]));
+      0
+
+let parse_cleanup_args args =
+  let rec loop graph = function
+    | [] -> graph
+    | "--graph" :: v :: rest ->
+        if graph <> None then usage "duplicate flag --graph";
+        loop (Some v) rest
+    | ["--graph"] -> usage "flag needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray) in
+  loop None args
+
+let do_link_cleanup args =
+  let graph = match parse_cleanup_args args with
+    | Some g when g <> "" -> g
+    | _ -> usage "link cleanup needs --graph <graph>" in
+  Store.check_slug graph;
+  let dir = Config.ensure_config () in
+  let rcs = Config.list_run_configs dir in
+  let stale = List.filter (fun (rc : Config.run_config) ->
+    rc.Config.rc_graph = graph && rc.Config.rc_state = "minted") rcs in
+  List.iter (fun (rc : Config.run_config) ->
+    (match Config.load_run_config_json dir rc.Config.rc_id with
+     | Some j ->
+         (match jassoc j "creator" with
+          | Some c ->
+              let th = Config.jstr c "token_hash" "" in
+              let hex = if String.length th > 7 && String.sub th 0 7 = "sha256:"
+                then String.sub th 7 (String.length th - 7) else th in
+              (try Unix.unlink (Filename.concat (Config.links_dir dir) hex)
+               with _ -> ())
+          | None -> ())
+     | None -> ());
+    (try Unix.unlink (Config.run_config_path dir rc.Config.rc_id) with _ -> ()))
+    stale;
+  print_endline (Yojson.Safe.to_string (`Assoc [
+    ("ok", `Bool true); ("graph", json_str graph);
+    ("removed", `List (List.map (fun (rc : Config.run_config) ->
+       json_str rc.Config.rc_id) stale));
+    ("count", `Int (List.length stale));
+  ]));
+  0
+
+let do_link args =
+  if List.exists (fun a -> a = "-h" || a = "--help") args then begin
+    print_string "bp3 harness link - one-time link binding (mvp.1):\n\
+  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]   mint a one-time link; writes runs/<run_id>.json (state minted, creator facts, token_hash) and links/<token_hash>; refuses E_DEPTH beyond the depth cap\n\
+  bp3 harness link claim <token> [--session-id <s>]   claim once via an O_EXCL claim marker; second claim refuses E_LINK_SPENT naming first_claim; writes claim facts, by-session index, and desk context\n\
+  bp3 harness link lookup --session-id <s>   one lookup from session-id to run-id, graph, node, edge (or --run-id <id>)\n\
+  bp3 harness link cleanup --graph <g>   remove every still-minted run config of one graph and report them; claimed rows untouched\n\
+Example: bp3 harness link mint --kind edge --graph G --node N --edge handoff\n"; 0
+  end else match args with
+  | [] -> usage "link needs a verb: mint, claim, lookup, or cleanup"
+  | [h] when (h = "-h" || h = "--help") ->
+      print_string "bp3 harness link - one-time link binding (mvp.1):\n\
+  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]   mint a one-time link; writes runs/<run_id>.json (state minted, creator facts, token_hash) and links/<token_hash>; refuses E_DEPTH beyond the depth cap\n\
+  bp3 harness link claim <token> [--session-id <s>]   claim once via an O_EXCL claim marker; second claim refuses E_LINK_SPENT naming first_claim; writes claim facts, by-session index, and desk context\n\
+  bp3 harness link lookup --session-id <s>   one lookup from session-id to run-id, graph, node, edge (or --run-id <id>)\n\
+  bp3 harness link cleanup --graph <g>   remove every still-minted run config of one graph and report them; claimed rows untouched\n\
+Example: bp3 harness link mint --kind edge --graph G --node N --edge handoff\n"; 0
+  | "mint" :: rest -> do_link_mint rest
+  | "claim" :: rest -> do_link_claim rest
+  | "lookup" :: rest -> do_link_lookup rest
+  | "cleanup" :: rest -> do_link_cleanup rest
+  | verb :: _ -> usage ("unknown link verb: " ^ verb)
+
 (* ---------- help (docstrings beside dispatch) ---------- *)
 let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]   passive loop: tell -> watch -> judge -> finalize\n\
@@ -2069,10 +2593,11 @@ let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]   InitRecord-first run-id -> tape; --session-id <id> is a reverse lookup\n\
   bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]   blocking watch: sole TERM/KILL owner\n\
   bp3 harness desk <verb> ...                      machine-local desks: derive, create, inspect, remove, prepare, check, exit, release, list\n\
-  bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>] [--thinking <t>]   launcher writes the InitRecord before the child starts (create-only)\n\
-  bp3 harness bind-tape --run-id <id> --tape-path <p>   launcher binds a finished child's session tape after it returns (pointer-only tape_binding row)\n\
+  bp3 harness link mint|claim|lookup|cleanup ...   one-time link binding: mint a link, the child claims it once (E_LINK_SPENT, E_DEPTH)\n\
+  bp3 harness record-init ...                      retired (E_RETIRED): use link mint/claim; the run config is the InitRecord-equivalent\n\
+  bp3 harness bind-tape --run-id <id> --tape-path <p>   launcher binds a finished child's session tape (into the run config when claimed)\n\
   bp3 harness backtest [--engine muse-code|pi] [--corpus <dir>]   replay the fold over stored tapes; findings, not a gate\n\
-Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init, t=bind-tape, b=backtest. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
+Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init, t=bind-tape, b=backtest, l=link. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
 
 let help_supervisor = "bp3 harness supervisor - passive supervisor loop for one quest:\n\
   bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]\n\
@@ -2113,15 +2638,22 @@ let help_desk = "bp3 harness desk - machine-local desks, never ledgered (same Wo
   bp3 harness desk list [--quest <quest>]\n\
 Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
 
-let help_bind_tape = "bp3 harness bind-tape - bind a finished child's session tape to its Run (the launcher's bind step; the author child writes no InitRecord, binding, or observation):\n\
+let help_bind_tape = "bp3 harness bind-tape - bind a finished child's session tape to its Run (the launcher's bind step):\n\
   bp3 harness bind-tape --run-id <id> --tape-path <p>\n\
-  Appends one pointer-only tape_binding row (run-id, tape path, timestamp; never tape content) as a single write to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl, after the child returns and its session tape has closed. The binding is one-to-one and pinned: the fold names the tape from the InitRecord's own tape path, else the first binding, and that pointer is the only one it reads. Re-binding the same tape is a no-op; a second, different tape for the run-id, or a tape already bound to another run-id, is E_EXISTS, never a silent rebind; a missing tape path is never guessed. A run-id with no InitRecord is E_NOT_FOUND; a bad run-id or a missing, duplicate, or =-formed flag is E_USAGE. Emits {ok, run_id, tape_path, path}.\n\
+  For a link-claimed Run, writes tape_path into runs/<run_id>.json in one atomic write; the binding is pinned: re-binding the same tape is a no-op, a different tape is E_EXISTS. For a legacy Run with only an InitRecord, appends one pointer-only tape_binding row to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl. A run-id with neither is E_NOT_FOUND; a bad run-id or a missing, duplicate, or =-formed flag is E_USAGE. Emits {ok, run_id, tape_path, path}.\n\
 Example: bp3 harness bind-tape --run-id 20261115T000000Z-handoff-muse-code-model-c1 --tape-path ~/.local/share/muse/sessions/2026/11/15/<session>/session.jsonl\n"
 
-let help_record_init = "bp3 harness record-init - write one Run's InitRecord (the launcher's verb; the child never writes its own proof):\n\
-  bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>] [--thinking <t>]\n\
-  Appends the first derivation row (kind init_record) to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl before the child starts, so find-tape/watch/supervisor resolve the Run from birth. Create-only: an existing log for the run-id is E_EXISTS; a bad run-id, engine, or pid is E_USAGE. Emits {ok, run_id, harness, session_id, pid, tape_path, quest, exp, path}.\n\
-Example: bp3 harness record-init --run-id 20261115T000000Z-handoff-muse-code-model-c1 --harness muse-code --quest toy --exp exp-1\n"
+let help_record_init = "bp3 harness record-init - retired (mvp.1):\n\
+  bp3 harness record-init ... refuses E_RETIRED. The run config replaces the InitRecord: mint with bp3 harness link mint, the child claims with bp3 harness link claim, and bind-tape writes tape_path into the run config.\n\
+Example: bp3 harness link mint --kind edge --graph G --node N --edge handoff\n"
+
+let help_link = "bp3 harness link - one-time link binding (mvp.1):\n\
+  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]\n\
+  bp3 harness link claim <token> [--session-id <s>]\n\
+  bp3 harness link lookup --session-id <s> (or --run-id <id>)\n\
+  bp3 harness link cleanup --graph <g>\n\
+  Mint writes runs/<run_id>.json (state minted; creator: parent run_id, depth, harness, model, minted_at, token_hash) and links/<token_hash> -> run_id, and returns the one-time token. Depth beyond the machine depth cap (config thresholds.depth_cap, default 3) refuses E_DEPTH. Claim is a compare-and-swap on an O_EXCL claim marker: exactly one winner completes the run config (state claimed; claim: session_id when offered, pid, cwd, claimed_at), writes the by-session index and the desk context; a second claim refuses E_LINK_SPENT naming first_claim (session_id, pid, ts) forever. Session-id discovery: --session-id, else BP3_SESSION_ID, MUSE_SESSION_ID/MUSE_THREAD_ID, PI_SESSION_ID/PI_SESSION_FILE; with none offered the claim still succeeds on pid+cwd. Lookup resolves session-id to run-id, graph, node, edge in one call. Cleanup removes only still-minted run configs of one graph. Run config writes are single-write temp+fsync+rename; a torn run config is never read as valid.\n\
+Example: bp3 harness link claim bp3link_7f3a\n"
 
 let is_help = function "-h" | "--help" -> true | _ -> false
 
@@ -2139,10 +2671,11 @@ let normalize_verb = function
   | "d" | "desk" -> "desk"
   | "r" | "record-init" -> "record-init"
   | "t" | "bind-tape" -> "bind-tape"
+  | "l" | "link" -> "link"
   | other -> other
 
 let run = function
-  | [] -> usage "harness needs a verb: supervisor, init-check, find-tape, watch, desk, record-init, bind-tape, or backtest"
+  | [] -> usage "harness needs a verb: supervisor, init-check, find-tape, watch, desk, link, record-init, bind-tape, or backtest"
   | [h] when is_help h -> print_string help_harness; 0
   | verb :: (h :: _) when is_help h ->
       print_string (match normalize_verb verb with
@@ -2154,7 +2687,9 @@ let run = function
         | "record-init" -> help_record_init
         | "bind-tape" -> help_bind_tape
         | "backtest" -> help_backtest
+        | "link" -> help_link
         | _ -> help_harness); 0
+  | "link" :: (h :: _) when is_help h -> do_link [h]
   | verb_raw :: rest ->
       (match normalize_verb verb_raw with
        | "supervisor" ->
@@ -2166,6 +2701,7 @@ let run = function
        | "watch" -> do_watch rest
        | "record-init" -> do_record_init rest
        | "bind-tape" -> do_bind_tape rest
+       | "link" -> do_link rest
        | "backtest" -> do_backtest rest
        | "desk" ->
            (match rest with

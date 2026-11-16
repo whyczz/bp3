@@ -3,8 +3,8 @@
 // never throws and never touches disk; with bp3 unreachable
 // the session still works and each tool refuses with a
 // typed error. Lifecycle, settle truth, and kills belong
-// to the supervisor/watch; run-ids are minted only inside
-// the dispatcher and never parsed here.
+// to the supervisor/watch; run-ids are minted by bp3 at
+// link mint and never parsed here.
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Dispatcher, TypedRefusal } from "./src/dispatcher.ts";
@@ -55,7 +55,7 @@ export default function bp3Pi(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "spawn_run",
     label: "Spawn Run",
-    description: "Spawn one supervised pi child: record-init (live pid) before work, bind-tape after exit. Example: spawn_run({quest, exp, edge:\"handoff\", prompt})",
+    description: "Spawn one supervised pi child: link mint before spawn, the child claims first, bind-tape after exit. Example: spawn_run({quest, exp, edge:\"handoff\", prompt})",
     parameters: SPAWN_PARAMS as never,
     async execute(_id, params, _signal, _onUpdate, ctx) {
       try {

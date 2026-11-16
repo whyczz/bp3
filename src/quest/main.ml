@@ -411,7 +411,7 @@ Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
 
 let help_config = "bp3 config - view the machine-local bp3 config store (<git-common-dir>/bp3/, never committed):\n\
   bp3 config [--source] [--format json|table]   thresholds plus contexts folded from runs/<run_id>.json\n\
-  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. Thresholds are honored by this view today; their enforcement in edge verdicts lands with mvp.1 (depth cap) and mvp.3 (W_SETUP_SLOW). First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
+  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. The depth cap is enforced at link mint (mvp.1, E_DEPTH); W_SETUP_SLOW enforcement lands with mvp.3. First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
 Example: bp3 config --source\n"
 
 let is_help = function "-h" | "--help" -> true | _ -> false

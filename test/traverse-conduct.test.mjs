@@ -57,8 +57,10 @@ function fixtureHost() {
         }
         return JSON.stringify({ ok: true, run_id: "r-" + stage, commit: COMMIT, verdict: { ok: true } });
       }
-      if (input.includes("harness record-init")) {
-        return JSON.stringify({ ok: true, run_id: "init", harness: "muse-code" });
+      if (input.includes("harness link mint")) {
+        const e = input.match(/--edge (\S+)/);
+        const edge = e ? e[1] : "audit";
+        return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: "20260101T000000Z-" + edge + "-muse-code-test-model-c1", harness: "muse-code" });
       }
       if (input.includes("harness find-tape")) {
         const m = input.match(/--run-id (\S+)/);

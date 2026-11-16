@@ -8,9 +8,9 @@
 // adherence rows, no edges), then
 // grade and verify children run in parallel on the exact bound
 // commit and call their verdict edges directly. Grade children
-// never edit the work. As the named InitRecord writer (mvp.8)
-// this launcher records each child's InitRecord via
-// `bp3 harness record-init` before that child spawns; no child
+// never edit the work. As the link minter (mvp.1)
+// this launcher mints each child's one-time link via
+// `bp3 harness link mint` before that child spawns; no child
 // writes its own proof. Returns {outcome, matrix, run_ids,
 // refusals}; replay on the same commit is safe: the audit is
 // read-only and re-cast verdicts bind the same commit.
@@ -264,41 +264,53 @@ export default async function workflow(host) {
   }
 
   function runFolder(edge, cycle, harnessNote) {
-    return (
-      expDir + "/runs/" + ts + "-" + edge + "-" + harnessNote +
-      "-c" + String(cycle)
-    );
+    void harnessNote;
+    return expDir + "/runs/" + runIdOf(edge, cycle);
   }
 
   function envPreset(edge, cycle) {
-    // Env-set identity: BP3_RUN_ID carries the same id as this
-    // stage's run folder. `bp3` reads it from the environment
-    // and stamps it into verdicts and ledger lines, so no
-    // first-command prefix binds the session.
+    // Identity arrives via the claim, never typed env: the
+    // child claims its link first and prefixes its edge call
+    // with BP3_RUN_ID=<run_id from the claim verdict>; bp3
+    // stamps it into verdicts and ledger lines.
+    void edge; void cycle;
+    return "BP3_QUEST=" + quest + " BP3_EXP=" + exp + " " + envPrefix;
+  }
+
+  const links = {};
+
+  function claimNote(edge) {
+    const link = links[edge];
+    if (!link) return "";
     return (
-      "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
-      "-c" + String(cycle) + " BP3_QUEST=" + quest + " BP3_EXP=" +
-      exp + " " + envPrefix
+      "Your first action claims your one-time link: run `" +
+      envPrefix + "./bin/bp3 harness link claim " + link.token +
+      "` and note the run_id it returns (expected " + link.run_id +
+      "). Prefix your state-edge call below with " +
+      "BP3_RUN_ID=<that run_id>. "
     );
   }
 
   function runIdOf(edge, cycle) {
+    if (links[edge] && links[edge].run_id) return links[edge].run_id;
     return ts + "-" + edge + "-" + harness + "-" + model +
       "-c" + String(cycle);
   }
 
-  // The named InitRecord writer (mvp.8): this launcher, before
+  // The link minter (mvp.1): this launcher, before
   // each child spawns. The child never writes its own proof; a
   // refused write means that child never starts.
-  async function recordInit(edge, cycle) {
+  async function mintLink(edge, cycle) {
+    const fsm = ["handoff", "grade", "verify", "land", "block", "resume"].includes(edge);
     const cmd =
-      envPreset(edge, cycle) + "./bin/bp3 harness record-init" +
-      " --run-id " + runIdOf(edge, cycle) +
-      " --harness " + harness + " --quest " + quest +
-      " --exp " + exp + " --model " + model +
+      envPreset(edge, cycle) + "./bin/bp3 harness link mint" +
+      (fsm ? " --kind edge --edge " + edge : " --kind node") +
+      " --graph " + quest + " --node " + exp +
+      " --harness " + harness + " --model " + model +
+      " --cycle " + String(cycle) +
       (desk ? " --desk " + desk : "");
     const result = await host.agent({
-      label: "init " + exp,
+      label: "mint " + exp,
       input:
         deskNote +
         "Run exactly `" + cmd + "` from the quest worktree if " +
@@ -310,13 +322,15 @@ export default async function workflow(host) {
         "update edge.",
     });
     const v = parseVerdict(result);
-    if (!v || v.ok !== true) {
+    if (!v || v.ok !== true || typeof v.token !== "string" || typeof v.run_id !== "string") {
       refusals.push(
-        "record-init refused before the " + edge + " child: " +
+        "link mint refused before the " + edge + " child: " +
         errorText(result)
       );
       return false;
     }
+    links[edge] = { token: v.token, run_id: v.run_id };
+    runIds.push(v.run_id);
     return true;
   }
 
@@ -324,10 +338,11 @@ export default async function workflow(host) {
     const folder = runFolder(edge, cycle, harness + "-" + model);
     return (
       "Your run folder is `" + folder + "` under `" + expDir +
-      "/runs/`. `BP3_RUN_ID`, `BP3_QUEST`, `BP3_EXP`, " +
-      "`BP3_HARNESS`, and `BP3_MODEL` arrive via environment " +
-      "and `bp3` stamps them into its verdicts and ledger " +
-      "lines, so no first-command prefix is needed. First check whether that concrete run " +
+      "/runs/`. " + claimNote(edge) +
+      "`BP3_QUEST`, `BP3_EXP`, `BP3_HARNESS`, and `BP3_MODEL` " +
+      "arrive via environment; your run-id arrives via the " +
+      "claim above and `bp3` stamps it into its verdicts and " +
+      "ledger lines. First check whether that concrete run " +
       "folder already exists: if it does, stop immediately, do " +
       "not overwrite or reuse it, and return a JSON object " +
       '{"ok":false,"error":{"code":"E_RUN_EXISTS"}} describing ' +
@@ -361,7 +376,7 @@ export default async function workflow(host) {
     return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
   }
 
-  if (!(await recordInit("audit", before.cycle))) {
+  if (!(await mintLink("audit", before.cycle))) {
     return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
   }
 
@@ -400,7 +415,7 @@ export default async function workflow(host) {
       "names no owning exp is not deferred: emit missing. For " +
       "the adherence row `env-set run-id`, quote " +
       "the bp3-stamped ledger line for the handoff edge (the mvp.1 " +
-      "mechanism: BP3_RUN_ID arrives via environment and bp3 stamps " +
+      "mechanism: BP3_RUN_ID arrives via the link claim and bp3 stamps " +
       "it into the verdict and the ledger line): find the handoff " +
       "line whose run_id is the build Run that produced this commit " +
       "(the handoff run folder under this exp's runs/) and quote it " +
@@ -443,6 +458,10 @@ export default async function workflow(host) {
     "unnamed whole-tape read, or a clean grade whose matrix " +
     "shows a whole-log read it did not need, is not correct: " +
     "cast the negative verdict. ";
+  if (!(await mintLink("grade", before.cycle)) ||
+      !(await mintLink("verify", before.cycle))) {
+    return { exp: exp, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
+  }
   const gradePrompt = deskNote +
     "You are the grade child for exp `" + exp + "` of quest `" +
     quest + "`, currently in state `" + before.state + "` at cycle " +
@@ -479,10 +498,6 @@ export default async function workflow(host) {
     "return a verdict for the parent to relay. Reply with " +
     "only a JSON object {ok, run_id, commit, verdict} where " +
     "verdict is the JSON printed by the verify call.";
-  if (!(await recordInit("grade", before.cycle)) ||
-      !(await recordInit("verify", before.cycle))) {
-    return { exp: exp, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
-  }
   const stageResults = await host.parallel([
     { label: "grade " + exp, input: gradePrompt },
     { label: "verify " + exp, input: verifyPrompt },

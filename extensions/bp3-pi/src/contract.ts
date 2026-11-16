@@ -1,8 +1,8 @@
-// bp3-pi contract: the SpawnInput shape, the hostile-key
-// refusal, and the run-id mint. Spellings reuse the quest
-// vocabulary (Run, tape, desk, InitRecord); the run-id shape
-// is <ts>-<edge>-<harness>-<model>-c<cycle>, opaque to every
-// consumer except the dispatcher that mints it.
+// bp3-pi contract: the SpawnInput shape and the hostile-key
+// refusal. Spellings reuse the quest vocabulary (Run, tape,
+// desk, run config); the run-id shape is
+// <ts>-<edge>-<harness>-<model>-c<cycle>, minted by bp3 at
+// link mint and opaque to every other consumer.
 
 export interface SpawnInput {
   quest: string;

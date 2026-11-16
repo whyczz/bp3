@@ -49,15 +49,17 @@ function mockHost({ reads, auditRows, initFails }) {
   const host = {
     args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: COMMIT },
     async agent({ label, input }) {
-      if (input.includes("harness record-init")) {
+      if (input.includes("harness link mint")) {
         order.push("init");
         inputs.init = input;
-        const m = input.match(/--run-id (\S+)/);
-        inits.push(m ? m[1] : "");
+        const e = input.match(/--edge (\S+)/);
+        const edge = e ? e[1] : "audit";
+        const runId = TS + "-" + edge + "-muse-code-test-model-c1";
+        inits.push(runId);
         if (initFails) {
-          return JSON.stringify({ ok: false, error: { code: "E_EXISTS" } });
+          return JSON.stringify({ ok: false, error: { code: "E_DEPTH" } });
         }
-        return JSON.stringify({ ok: true, run_id: m ? m[1] : "", harness: "muse-code" });
+        return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: runId, harness: "muse-code" });
       }
       if (input.startsWith("Run exactly")) {
         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
@@ -94,20 +96,20 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   assert(result.matrix.every((r) => r.verdict === "pass"), "all rows pass");
   assert(order.join(",") === "init,audit,init,init,grade,verify", "writer precedes each grade child, got " + order.join(","));
   assert(inits.join(",") === [TS + "-audit-muse-code-test-model-c1", TS + "-grade-muse-code-test-model-c1", TS + "-verify-muse-code-test-model-c1"].join(","),
-    "InitRecords name every grade run-id, got " + inits.join(","));
+    "mints name every grade run-id, got " + inits.join(","));
   for (const edge of ["audit", "grade", "verify"]) {
     const input = inputs[edge];
     assert(input, edge + " child was spawned");
     assert(input.includes("runs/" + TS + "-" + edge + "-muse-code-test-model-c1"),
-      edge + " run folder matches BP3_RUN_ID");
+      edge + " run folder matches the minted run-id");
     assert(!input.includes("Prefix your FIRST"),
       edge + " brief carries no first-command prefix instruction");
-    assert(input.includes("arrive via environment"),
-      edge + " is told the run-id arrives via environment");
+    assert(input.includes("arrives via the"),
+      edge + " is told the run-id arrives via the claim");
   }
   for (const edge of ["grade", "verify"]) {
-    const want = "BP3_RUN_ID=" + TS + "-" + edge + "-muse-code-test-model-c1";
-    assert(inputs[edge].includes(want), edge + " command carries " + want);
+    assert(inputs[edge].includes("link claim bp3link_test-" + edge), edge + " brief carries its claim token");
+    assert(inputs[edge].includes("BP3_RUN_ID=<that run_id>"), edge + " is told to stamp the claimed run-id");
   }
   assert(inputs.audit.includes("do not call any `bp3 q u` update edge"),
     "audit child spawns no state edge");
@@ -116,8 +118,8 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
     "grade binds the exact commit");
   assert(inputs.verify.includes("verify --verdict pass --commit " + COMMIT),
     "verify binds the exact commit");
-  assert(result.run_ids.join(",") === "r-audit,r-grade,r-verify",
-    "run_ids collect every grade child, got " + result.run_ids.join(","));
+  assert(result.run_ids.join(",") === [TS + "-audit-muse-code-test-model-c1", "r-audit", TS + "-grade-muse-code-test-model-c1", TS + "-verify-muse-code-test-model-c1", "r-grade", "r-verify"].join(","),
+    "run_ids collect mints and every grade child, got " + result.run_ids.join(","));
 }
 
 // --- no artifact: row missing, outcome cannot be approved ---
@@ -383,8 +385,8 @@ function rungRow(name, rung, verdict, quote) {
   const { host, order } = mockHost({ reads: [handedOff, approved], auditRows: [passRow("acceptance: a")], initFails: true });
   const result = await workflow(host);
   assert(result.outcome === "refused", "writer refusal refuses the grade, got " + result.outcome);
-  assert(order.join(",") === "init", "no grade child spawns after a refused InitRecord, got " + order.join(","));
-  assert(result.refusals.some((r) => r.includes("record-init")), "refusal names record-init");
+  assert(order.join(",") === "init", "no grade child spawns after a refused mint, got " + order.join(","));
+  assert(result.refusals.some((r) => r.includes("link mint")), "refusal names link mint");
 }
 
 if (failures > 0) process.exit(1);

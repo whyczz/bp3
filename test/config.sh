@@ -43,10 +43,11 @@ echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "outside-g
 BP3_Q_BIN="$work/repo/q-bin" "$work/nogit/bin/bp3" config -h >/dev/null || fail "config -h outside git"
 
 # --- first write creates the tree (zero setup) ---
-out=$(h record-init --run-id R0 --harness muse-code --quest demo --exp exp-1)
-echo "$out" | jq -e '.ok == true' >/dev/null || fail "record-init: $out"
+out=$(h link mint --kind edge --graph demo --node exp-1 --edge handoff --run-id R0 --harness muse-code --model test-model)
+echo "$out" | jq -e '.ok == true' >/dev/null || fail "link mint: $out"
+BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link cleanup --graph demo >/dev/null
 [ -f "$store/config.json" ] || fail "first write did not create config.json"
-for d in runs links by-session desks run-lifecycle-derivations; do
+for d in runs links claims by-session desks run-lifecycle-derivations; do
   [ -d "$store/$d" ] || fail "first write did not create $d/"
 done
 jq -e '.thresholds.setup_slow_s == 180 and .thresholds.depth_cap == 3 and (has("contexts") | not)' \
@@ -57,7 +58,7 @@ jq -e '.thresholds.setup_slow_s == 180 and .thresholds.depth_cap == 3 and (has("
 # --- view: defaults, empty contexts, derivations folded in ---
 out=$(c)
 echo "$out" | jq -e '.ok == true and .thresholds.setup_slow_s == 180 and .thresholds.depth_cap == 3
-  and .contexts == [] and .desks == [] and .by_session_entries == 0 and .derivations >= 1' \
+  and .contexts == [] and .desks == [] and .by_session_entries == 0 and .derivations == 0' \
   >/dev/null || fail "empty view: $out"
 echo "$out" | jq -e '.config_dir | endswith(".git/bp3")' >/dev/null || fail "config_dir: $out"
 out=$(c --format table) || fail "config --format table exit"
