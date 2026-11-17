@@ -338,6 +338,68 @@ let do_update quest exp edge fl id =
       finish ns line
   | _ -> usage ("unknown edge: " ^ edge)
 
+(* ---------- context door (mvp.2: bp3 e) ---------- *)
+let no_context amb =
+  match amb with
+  | Some ids ->
+      err "E_NO_CONTEXT"
+        (`Assoc [("run_ids", `List (List.map json_str ids));
+                 ("live_run_ids", `List (List.map json_str ids));
+                 ("desk", json_str (Sys.getcwd ()));
+                 ("source", json_str "desk")])
+        "Desk holds more than one live claimed run and no session rung resolves; refusing to guess. Claim a link for one run, or address the call explicitly." 1
+  | None ->
+      err "E_NO_CONTEXT"
+        (`Assoc [("desk", json_str (Sys.getcwd ()))])
+        "No claimed context resolves for this call (no session claim, no desk context). Claim a link first, or address the call explicitly." 1
+
+let with_context v (rc : Config.run_config) source =
+  match v with
+  | `Assoc fs ->
+      `Assoc (fs @ [("graph", json_str rc.Config.rc_graph);
+                    ("node", json_str rc.Config.rc_node);
+                    ("source", json_str source);
+                    ("source_rung", json_str source);
+                    ("context", Config.resolved_context_json rc source)])
+  | other -> other
+
+let do_e_bare (rc : Config.run_config) source =
+  let graph = rc.Config.rc_graph and node = rc.Config.rc_node in
+  let (state, legal) =
+    match fold_exp graph node with
+    | Some (_, s, _) -> (json_str s.st, List.map json_str (legal_edges s.st))
+    | None -> (`Null, []) in
+  let thresholds =
+    match Config.config_dir () with
+    | Some dir -> Config.thresholds_json (Config.load_thresholds dir)
+    | None -> Config.thresholds_json Config.default_thresholds in
+  `Assoc [("ok", `Bool true);
+          ("graph", json_str graph); ("quest", json_str graph);
+          ("node", json_str node); ("exp", json_str node);
+          ("edge", (match rc.Config.rc_edge with Some e -> json_str e | None -> `Null));
+          ("run_id", json_str rc.Config.rc_id);
+          ("kind", json_str rc.Config.rc_kind);
+          ("desk", json_str rc.Config.rc_desk);
+          ("session_id", (match rc.Config.rc_session with Some s -> json_str s | None -> `Null));
+          ("source", json_str source); ("source_rung", json_str source);
+          ("state", state); ("legal_edges", `List legal);
+          ("context", Config.resolved_context_json rc source);
+          ("thresholds", thresholds)]
+
+let do_e ctx_rc ctx_source ctx_amb id = function
+  | [] ->
+      (match ctx_rc with
+       | Some rc -> print_verdict ~fmt:"json" (do_e_bare rc ctx_source); 0
+       | None -> no_context ctx_amb)
+  | edge :: tail ->
+      let (pos, fl) = split_flags tail in
+      if pos <> [] then usage "stray positional in e";
+      (match ctx_rc with
+       | Some rc ->
+           let v = do_update rc.Config.rc_graph rc.Config.rc_node edge fl id in
+           print_verdict ~fmt:fl.fmt (with_context v rc ctx_source); 0
+       | None -> no_context ctx_amb)
+
 (* ---------- main dispatch ---------- *)
 let normalize_verb = function
   | "c" | "create" -> "c" | "r" | "read" -> "r"
@@ -369,6 +431,7 @@ let help_q = "bp3 q - quest/exp state. Doors:\n\
   bp3 q c|r|d ...              quest door (create, read, delete)\n\
   bp3 q <quest> c|r|u|d ...    exp door for one quest\n\
   bp3 q icebox r [term...]     search frozen icebox entries (read-only)\n\
+  bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)\n\
   bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias\n\
   bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)\n\
   bp3 q hooks                  harness hook emitter (fail-open)\n\
@@ -397,6 +460,12 @@ let help_update = "bp3 q <quest> u <exp> <edge> - edges and their flags:\n\
   resume --reason <why>                    human only: unblock\n\
 Shared flags: --format json|table|tree, --target <name>.\n\
 Example: bp3 q my-quest u exp-1 handoff --commit abc123 --reason \"ready\"\n"
+
+let help_e = "bp3 e - claimed edge door (mvp.2): context is resolved, never carried:\n\
+  bp3 e                                    print the resolved context, its source rung (session|desk), state, and legal edges\n\
+  bp3 e <edge> [flags]                     take the claimed run's edge: handoff grade verify land block resume (same flags as bp3 q <quest> u <exp> <edge>)\n\
+  Resolution: session claim first, desk context second, checked against cwd; no rung refuses E_NO_CONTEXT, an ambiguous desk refuses E_NO_CONTEXT naming the live run_ids. Env BP3_RUN_ID is a hint only: a mismatch warns W_CONTEXT_ENV_MISMATCH and the claim wins; an unclaimed explicit edge call warns W_CONTEXT_UNCLAIMED.\n\
+Example: bp3 e handoff --commit abc123 --reason \"ready\"\n"
 
 let help_icebox = "bp3 q icebox r - search frozen icebox entries (read-only):\n\
   bp3 q icebox r [term...] [--format json|table|tree]   list entries matching all terms\n\
@@ -432,7 +501,41 @@ let guard_write argv =
     | _ -> ()
 
 let run argv =
-  let id = identity () in
+  let base_id = identity () in
+  (* Context resolution (mvp.2): session rung, then desk
+     rung. Explicit addresses always win for the target;
+     a resolved claim wins the run-id stamp over the env
+     hint. Help and the machine doors resolve nothing. *)
+  let help_invoked =
+    List.exists is_help (List.filteri (fun i _ -> i < 3) argv) in
+  let context_door = match argv with
+    | "harness" :: _ | "config" :: _ | "worktree" :: _ | "hooks" :: _
+    | "init-repo" :: _ | [] -> false
+    | _ -> not help_invoked in
+  let (ctx_rc, ctx_source, ctx_amb) =
+    if not context_door then (None, "", None)
+    else match Config.resolve_context () with
+      | Config.Resolved (rc, src) -> (Some rc, src, None)
+      | Config.Ambiguous (ids, _) -> (None, "", Some ids)
+      | Config.No_context -> (None, "", None) in
+  let id = match ctx_rc with
+    | Some rc -> { base_id with run_id = Some rc.Config.rc_id }
+    | None -> base_id in
+  Store.resolved_run_id :=
+    (match ctx_rc with Some rc -> Some rc.Config.rc_id | None -> None);
+  let edge_call = match argv with
+    | "e" :: _ :: _ -> true
+    | _q :: v :: _e :: _edge :: _ when is_verb v && normalize_verb v = "u" -> true
+    | _ -> false in
+  Store.context_warnings :=
+    (match ctx_rc with
+     | Some rc ->
+         (match base_id.run_id with
+          | Some env when env <> "" && env <> rc.Config.rc_id ->
+              ["W_CONTEXT_ENV_MISMATCH"]
+          | _ -> [])
+     | None ->
+         if edge_call && ctx_amb = None then ["W_CONTEXT_UNCLAIMED"] else []);
   guard_write argv;
   match argv with
   | "-h" :: _ | "--help" :: _ -> print_string help_q; 0
@@ -442,6 +545,9 @@ let run argv =
   | "config" :: rest ->
       let (source, fmt) = parse_config_flags rest in
       print_verdict ~fmt (Config.view ~source); 0
+  | "e" :: (h :: _) when is_help h -> print_string help_e; 0
+  | "e" :: _edge :: (h :: _) when is_help h -> print_string help_e; 0
+  | "e" :: rest -> do_e ctx_rc ctx_source ctx_amb id rest
   | "worktree" :: (h :: _) when is_help h -> print_string help_worktree; 0
   | "icebox" :: (h :: _) when is_help h -> print_string help_icebox; 0
   | "icebox" :: ("r" | "read") :: (h :: _) when is_help h -> print_string help_icebox; 0
@@ -539,7 +645,10 @@ let run argv =
        | "u", exp :: edge :: tail ->
            let (pos, fl) = split_flags tail in
            if pos <> [] then usage "stray positional in update";
-           let v = do_update quest exp edge fl id in print_verdict ~fmt:fl.fmt v; 0
+           let v = do_update quest exp edge fl id in
+           let v = match ctx_rc with
+             | Some rc -> with_context v rc ctx_source | None -> v in
+           print_verdict ~fmt:fl.fmt v; 0
        | "u", _ -> usage "update needs <exp> <edge>"
        | "d", exp :: tail ->
            let (pos, fl) = split_flags tail in

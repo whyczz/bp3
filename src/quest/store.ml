@@ -16,7 +16,7 @@ let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
    addressed again (the token would parse as the door or
    verb instead), so creation refuses it; reads stay total. *)
 let reserved_slugs =
-  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo"; "config";
+  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo"; "config"; "e";
     "supervisor"; "init-check"; "find-tape"; "watch"; "desk"; "backtest"; "b";
     "c"; "create"; "r"; "read"; "u"; "update"; "d"; "delete";
     "s"; "i"; "f"; "w";
@@ -33,12 +33,23 @@ type identity = { harness : string; model : string; decider_human : bool; incomp
 let run_id_of_env () =
   match Sys.getenv_opt "BP3_RUN_ID" with Some v when v <> "" -> Some v | _ -> None
 
+(* The claimed run-id (mvp.2 context resolution), set by the
+   CLI door once per call when a rung resolves. The claim
+   wins over the env hint; env alone keeps the legacy
+   stamping for unclaimed callers. *)
+let resolved_run_id : string option ref = ref None
+let context_warnings : string list ref = ref []
+
+let effective_run_id () =
+  match !resolved_run_id with Some _ as r -> r | None -> run_id_of_env ()
+
 let stamp_run_id = function
-  | `Assoc fs as v ->
-      if List.mem_assoc "run_id" fs then v
-      else (match run_id_of_env () with
-        | Some r -> `Assoc (fs @ [("run_id", json_str r)])
-        | None -> v)
+  | `Assoc fs ->
+      (match effective_run_id () with
+       | Some r ->
+           `Assoc (List.filter (fun (k, _) -> k <> "run_id") fs
+                   @ [("run_id", json_str r)])
+       | None -> `Assoc fs)
   | v -> v
 
 let identity () =

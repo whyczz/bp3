@@ -274,12 +274,24 @@ let render_table_icebox fields =
 
 let print_verdict ~fmt v =
   let v = stamp_run_id v in
-  (* Exp 5: any verdict in a version-ahead repo carries the warning *)
+  (* Warnings merge once, in order: the verdict's own, the
+     context warnings (mvp.2), then Exp 5's version warning.
+     No warnings anywhere keeps the field absent. *)
   let v = match v with
-    | `Assoc fs when not (List.mem_assoc "warnings" fs) ->
-        (match version_ahead () with
-         | Some _ -> `Assoc (fs @ [("warnings", `List [json_str "W_VERSION_AHEAD"])])
-         | None -> v)
+    | `Assoc fs ->
+        let existing = match List.assoc_opt "warnings" fs with
+          | Some (`List xs) ->
+              List.filter_map (function `String s -> Some s | _ -> None) xs
+          | _ -> [] in
+        let merged =
+          List.fold_left (fun acc w ->
+            if List.mem w acc then acc else acc @ [w]) existing
+            (!context_warnings
+             @ (match version_ahead () with
+                | Some _ -> ["W_VERSION_AHEAD"] | None -> [])) in
+        if merged = [] then v
+        else `Assoc (List.filter (fun (k, _) -> k <> "warnings") fs
+                     @ [("warnings", `List (List.map json_str merged))])
     | _ -> v in
   match fmt, v with
   | "tree", `Assoc fields when List.mem_assoc "exps" fields ->

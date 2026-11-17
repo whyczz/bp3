@@ -104,9 +104,11 @@ _bp3_candidates() {
 
   if [ "$has_q" -eq 0 ]; then
     if [ "${#a[@]}" -eq 0 ]; then
-      printf '%s\n' q quest init skills harness worktree config | _bp3_filter "$cur"
+      printf '%s\n' q quest e init skills harness worktree config | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'config' ]; then
       printf '%s\n' --source --format -h --help | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'e' ]; then
+      _bp3_words "$_bp3_edges" | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'skills' ]; then
       printf '%s\n' install | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'harness' ]; then

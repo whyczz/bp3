@@ -14,6 +14,7 @@ check: lint
 	./test/harness.sh
 	./test/config.sh
 	./test/link.sh
+	./test/context.sh
 	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
 	./test/worktree.sh
 	./test/tape.sh
@@ -24,7 +25,7 @@ check: lint
 	./test/install.sh
 
 lint:
-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/config.sh test/link.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
 	node --check skills/traverse/workflows/node-loop.js
 	node --check skills/traverse/workflows/induct-grade.js
 	node --check skills/traverse/workflows/quest-land.js

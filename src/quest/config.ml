@@ -282,6 +282,116 @@ let derivations_count dir =
   if not (Sys.file_exists dd) then 0
   else (try Array.length (Sys.readdir dd) with _ -> 0)
 
+(* ---------- context resolution (mvp.2) ---------- *)
+(* Context is resolved, never carried: session rung first
+   (by-session claim), desk rung second (the desk context a
+   claim wrote, checked against cwd). Env vars are hints the
+   caller cross-checks, never the store. Resolution reads
+   only; it never creates the store. *)
+let observed_session_id () =
+  let first_env names =
+    List.fold_left (fun acc n ->
+      match acc with Some _ -> acc
+      | None -> (match Sys.getenv_opt n with
+                 | Some v when v <> "" -> Some v | _ -> None)) None names in
+  match first_env ["BP3_SESSION_ID"; "MUSE_SESSION_ID"; "MUSE_THREAD_ID";
+                   "PI_SESSION_ID"] with
+  | Some _ as v -> v
+  | None ->
+      (match Sys.getenv_opt "PI_SESSION_FILE" with
+       | Some f when f <> "" ->
+           let b = Filename.basename f in
+           Some (if Filename.check_suffix b ".jsonl"
+                 then Filename.remove_extension b else b)
+       | _ -> None)
+
+let canon_path p =
+  let p = if p <> "/" && Filename.check_suffix p "/" then
+      String.sub p 0 (String.length p - 1) else p in
+  try Unix.realpath p with _ -> p
+
+(* A stored desk matches cwd when any spelling of it (as
+   stored, root-relative, or common-dir-relative) names cwd. *)
+let desk_matches desk cwd =
+  if desk = "" then false
+  else
+    let target = canon_path cwd in
+    let spellings =
+      desk
+      :: (if Filename.is_relative desk then
+            [Filename.concat root desk;
+             (match config_dir () with
+              | Some dir -> Filename.concat (Filename.dirname (Filename.dirname dir)) desk
+              | None -> desk)]
+          else []) in
+    List.exists (fun s -> canon_path s = target) spellings
+
+type resolution =
+  | Resolved of run_config * string (* run config, source rung: session | desk *)
+  | Ambiguous of string list * string (* live run_ids, desk *)
+  | No_context
+
+let rec resolve_context () =
+  match config_dir () with
+  | None -> No_context
+  | Some dir ->
+      if not (Sys.file_exists dir) then No_context
+      else
+        let claimed =
+          List.filter (fun rc -> rc.rc_state = "claimed")
+            (list_run_configs dir) in
+        (match observed_session_id () with
+         | Some sid ->
+             (* one session may claim again over its life;
+                the latest claim is its context, matching the
+                by-session index the last claim wrote *)
+             let mine =
+               List.filter (fun rc -> rc.rc_session = Some sid) claimed in
+             (match mine with
+              | [] -> resolve_desk claimed
+              | first :: rest ->
+                  let latest = List.fold_left
+                    (fun a b ->
+                      if (b.rc_claimed_at, b.rc_id) > (a.rc_claimed_at, a.rc_id)
+                      then b else a) first rest in
+                  Resolved (latest, "session"))
+         | None -> resolve_desk claimed)
+
+and resolve_desk claimed =
+  let cwd = Sys.getcwd () in
+  let at_desk =
+    List.filter (fun rc -> desk_matches rc.rc_desk cwd) claimed in
+  match at_desk with
+  | [rc] -> Resolved (rc, "desk")
+  | _ :: _ :: _ ->
+      Ambiguous (List.sort String.compare
+                   (List.map (fun rc -> rc.rc_id) at_desk), cwd)
+  | [] ->
+      (* the desk context file a claim wrote into this desk
+         corroborates the rung, checked against cwd: a file
+         naming a run whose desk is elsewhere resolves
+         nothing (no sibling inheritance) *)
+      let file = Filename.concat cwd ".bp3-context.json" in
+      if not (Sys.file_exists file) then No_context
+      else
+        (try
+           let j = Yojson.Safe.from_string (read_file_or file "") in
+           match jopt j "run_id" with
+           | Some rid ->
+               (match List.find_opt (fun rc -> rc.rc_id = rid) claimed with
+                | Some rc when desk_matches rc.rc_desk cwd ->
+                    Resolved (rc, "desk")
+                | _ -> No_context)
+           | None -> No_context
+         with _ -> No_context)
+
+let resolved_context_json rc source =
+  match context_json rc with
+  | `Assoc fs ->
+      `Assoc (fs @ [("source", json_str source);
+                    ("source_rung", json_str source)])
+  | other -> other
+
 (* ---------- the view ---------- *)
 let view ~source =
   let dir = ensure_config () in

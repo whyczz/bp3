@@ -2280,22 +2280,7 @@ let do_link_mint args =
 let observe_session explicit =
   match explicit with
   | Some s when s <> "" -> Some s
-  | _ ->
-      let first_env names =
-        List.fold_left (fun acc n ->
-          match acc with Some _ -> acc
-          | None -> (match Sys.getenv_opt n with
-                     | Some v when v <> "" -> Some v | _ -> None)) None names in
-      (match first_env ["BP3_SESSION_ID"; "MUSE_SESSION_ID"; "MUSE_THREAD_ID";
-                        "PI_SESSION_ID"] with
-       | Some _ as v -> v
-       | None ->
-           (match Sys.getenv_opt "PI_SESSION_FILE" with
-            | Some f when f <> "" ->
-                let b = Filename.basename f in
-                Some (if Filename.check_suffix b ".jsonl"
-                      then Filename.remove_extension b else b)
-            | _ -> None))
+  | _ -> Config.observed_session_id ()
 
 let parse_claim_args args =
   let rec loop token session = function
