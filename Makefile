@@ -14,6 +14,7 @@ check: lint
 	./test/ready.sh
 	./test/diagram.sh
 	./test/blocked.sh
+	node test/pi-tree.test.mjs
 	./test/harness.sh
 	./test/config.sh
 	./test/link.sh
@@ -29,6 +30,7 @@ check: lint
 
 lint:
 	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	node --check test/pi-tree.test.mjs
 	node --check skills/traverse/workflows/induct-node.js
 	node --check skills/traverse/workflows/node-loop.js
 	node --check skills/traverse/workflows/induct-grade.js
