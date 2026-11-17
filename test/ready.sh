@@ -112,7 +112,15 @@ echo "$out2" | jq -e '(.exps[] | select(.exp == "tm") | .timing.wall_s == 2460)'
 before=$(git rev-parse bp3/exp/timing/tm)
 q timing r tm >/dev/null; q r timing >/dev/null
 [ "$(git rev-parse bp3/exp/timing/tm)" = "$before" ] || fail "timing read wrote state"
-[ -z "$(git status --porcelain)" ] || fail "timing read dirtied worktree"
+dirty=$(git status --porcelain | wc -l | tr -d ' ')
+[ "$dirty" = "0" ] || fail "timing read dirtied worktree: $dirty entries"
+echo "timing read clean: tip unchanged, worktree entries: $dirty"
+# No hand-edited state: reads derive timing from ledger timestamps
+# and setup from machine-local run configs; neither writes a tracked
+# ledger/state file. Counts are echoed so the check carries a
+# quotable line (an empty porcelain output is not typed evidence).
+tracked_state=$(git ls-files | grep -c -E 'ledger\.jsonl|state\.yaml' || true)
+echo "tracked ledger/state files on fixture tip: $tracked_state"
 
 # --- setup measured per Run; slow fixture fires locally only ---
 out=$(lk mint --kind edge --graph sched --node na --edge handoff --desk "$work/repo")
