@@ -126,3 +126,9 @@ reads for every pre-existing node return the
 same state/commit under the new ID, and one
 post-migration conduct completes with zero
 rename-caused refusals.
+
+## Fix ledger (append-only)
+
+- 2026-11-17 · cycle 2 · from grade of c0ab195 (blocked) · status: open
+  fix: "grep proof fails: 671 quest hits on live docs/goals at bound commit, first GOAL.md:11 — scope grep-zero to live surfaces (code, skills, CLI, this graph's live docs); exempt by name: other graphs' historical records, dated amendments, landed ledger text (owner A at blocked gate). Cycle 2 also delivers scope C: migration script (dry-run, idempotent, refuses dirty tree), GRAPH.md/NODE.md, nodes/ folders, node- IDs, skill renames /graph, traverse, traverse-no-human, red-ink-graph-landing-demo."
+  regression_test: none named (existing make check + grep proof)

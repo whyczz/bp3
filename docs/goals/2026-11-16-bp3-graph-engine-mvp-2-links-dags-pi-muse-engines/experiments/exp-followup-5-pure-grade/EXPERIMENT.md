@@ -99,3 +99,22 @@ append-only): OPEN by conductor, RESOLVED by
 author in its fix commit, verified by grader.
 Not the killed followup.4: no typed payload
 schema; the fix stays verbatim text.
+
+## Amendment (owner, 2026-11-17): audit reuses run evidence (warden row #9)
+
+The audit child must not re-run, uncached,
+suites the author already ran for the same
+commit. The validations LOG (`.git/bp3/<ts>-
+<node>-validations.log`) and the author Run's
+notes/test outputs are the shared evidence
+plane: audit reads them first and re-runs only
+acceptance-named tests that lack typed evidence
+there. Acceptance adds: (1) a fixture audit
+whose acceptance test already has typed pass
+evidence in the author Run artifacts does not
+re-execute that suite (tape grep: command
+absent from the audit tape); (2) a case with
+no prior evidence is executed by the audit as
+today; (3) reused evidence is quoted with its
+source (log path / run folder), never as a
+fresh run.

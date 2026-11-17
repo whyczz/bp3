@@ -702,6 +702,16 @@ the looper applies effects: one verdict cast
 (verdict race dies), fix-ledger entries,
 dispatch — with named pushback/escalation.
 Runs after followup.3, before dogfood.3.
+Amendment 2026-11-17: audit reuses run
+evidence (validations LOG + author artifacts)
+before re-running suites.
+
+### followup.6 - check-tiers — [record](experiments/exp-followup-6-check-tiers/EXPERIMENT.md)
+Test the change, not the world: `check-changed`
+(path->suite selector, fail-safe), `check-fast`
+(no wall-clock fixtures), full `make check`
+unchanged at gates. Runs after followup.5,
+before dogfood.3 (owner: all followups first).
 
 ### Milestone: landing
 
