@@ -45,7 +45,7 @@ graph up it. Names below reuse the node's words: `fleet`,
 `footprint`, `merge order`, and `check-in report`.
 
 - Footprint: the paths a graph declares it will touch —
-  every path named in its GOAL.md Scope and in each
+  every path named in its GRAPH.md Scope and in each
   node's Output. Two footprints overlap when they name
   the same path, or one names a directory the other
   names a path under. A graph with no declared footprint

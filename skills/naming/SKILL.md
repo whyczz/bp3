@@ -36,7 +36,7 @@ ordinary code identifiers with no bp3 meaning.
 - Dimensions: `goal_type` (the plan: default is implemented;
   design, mvp, refactor, frontend, backend are proposed), `engine` (who executes: single,
   master-subagents, panes, workflows).
-- Artifacts: GOAL.md, state.yaml, ledger.jsonl,
+- Artifacts: GRAPH.md, state.yaml, ledger.jsonl,
   tape.log, notes.md, runs/. Storage paths and ledger history
   keep their frozen spellings (landed ledger text, `bp3/quest/` legacy refs, `quest_type` legacy key); only the fold maps them.
 - Ceremony lanes: micro, standard, high-blast-radius.

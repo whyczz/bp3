@@ -24,7 +24,7 @@ General coding in this repo does not need this skill.
    `ledger.jsonl`, or `fsm.yaml` by hand to decide anything.
 2. Start graphs with `./bin/bp3 g create <name> --type <graph_type>
    --engine <engine>`. It scaffolds `docs/graphs/<name>/`
-   (GOAL.md, fsm.yaml, state.yaml, ledger.jsonl, runs/).
+   (GRAPH.md, fsm.yaml, state.yaml, ledger.jsonl, runs/).
    Two independent dimensions: `graph_type` is the plan in
    `plans/` (default: one grade round), `engine` is who
    executes (single, master-subagents, panes, workflows).
@@ -51,7 +51,7 @@ General coding in this repo does not need this skill.
 
 - Never hand-edit `state.yaml` or `ledger.jsonl`. If a move was
   not taken through `bp3 g`, it did not happen.
-- Status is a frontmatter field in `GOAL.md`
+- Status is a frontmatter field in `GRAPH.md`
   (`proposed | active | landed | canceled`), never a folder.
   Graph paths never move; links and node records point at them.
 - A reviewer who refactors takes a fix edge and produces a new
