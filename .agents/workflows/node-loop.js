@@ -6,13 +6,12 @@
 // a different step; this file refuses it untouched. All state
 // moves through `bp3 q u`, called directly by the author child;
 // this script never writes state. Its one write is proof, not
-// state: as the named InitRecord writer (mvp.8) it records the
-// child's InitRecord via `bp3 harness record-init` before the
-// child spawns; the child never writes its own proof. As the
-// named tape binder (followup.3) it then binds the child's
-// session tape via `bp3 harness bind-tape` after the child
-// returns; the child writes no InitRecord, binding, or
-// observation.
+// state: as the link minter (mvp.1) it mints a one-time link via
+// `bp3 harness link mint` before the child spawns; the
+// child's first action claims it, and the claim binds
+// session to run-id. As the named tape binder it then
+// binds the child's session tape via `bp3 harness
+// bind-tape` after the child returns.
 // Args are supplied by the calling traverse skill as {quest, exp,
 // ts, harness, model}; ts is a UTC compact timestamp from the
 // caller, embedded by the child in its run-id because scripts
@@ -124,45 +123,56 @@ export default async function workflow(host) {
   }
 
   function runFolder(edge, cycle, harnessNote) {
-    return (
-      expDir + "/runs/" + ts + "-" + edge + "-" + harnessNote +
-      "-c" + String(cycle)
-    );
+    void harnessNote;
+    return expDir + "/runs/" + runIdOf(edge, cycle);
   }
 
   function envPreset(edge, cycle) {
-    // Env-set identity: BP3_RUN_ID carries the same id as this
-    // stage's run folder. `bp3` reads it from the environment
-    // and stamps it into verdicts and ledger lines, so no
-    // first-command prefix binds the session.
+    // Identity arrives via the claim, never typed env: the
+    // child claims its link first and prefixes its edge call
+    // with BP3_RUN_ID=<run_id from the claim verdict>; bp3
+    // stamps it into verdicts and ledger lines.
+    void edge; void cycle;
+    return "BP3_QUEST=" + quest + " BP3_EXP=" + exp + " " + envPrefix;
+  }
+
+  const links = {};
+
+  function claimNote(edge) {
+    const link = links[edge];
+    if (!link) return "";
     return (
-      "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
-      "-c" + String(cycle) + " BP3_QUEST=" + quest + " BP3_EXP=" +
-      exp + " " + envPrefix
+      "Your first action claims your one-time link: run `" +
+      envPrefix + "./bin/bp3 harness link claim " + link.token +
+      "` and note the run_id it returns (expected " + link.run_id +
+      "). Prefix your state-edge call below with " +
+      "BP3_RUN_ID=<that run_id>. "
     );
   }
 
   function runIdOf(edge, cycle) {
+    if (links[edge] && links[edge].run_id) return links[edge].run_id;
     return ts + "-" + edge + "-" + harness + "-" + model +
       "-c" + String(cycle);
   }
 
-  // The named InitRecord writer (mvp.8): this launcher, before
-  // the child spawns. The child never writes its own proof; a
-  // refused write means the child never starts. The record
-  // names no tape (followup.3): the child's session tape does
-  // not exist yet, so the launcher binds it after the child
+  // The link minter (mvp.1): this launcher, before the child
+  // spawns. A refused mint means the child never starts. The
+  // mint names no tape: the child's session tape does not
+  // exist yet, so the launcher binds it after the child
   // returns (bindTape below). The run folder's tape.log stays
   // the child's own transcript, never finish evidence.
-  async function recordInit(edge, cycle) {
+  async function mintLink(edge, cycle) {
+    const fsm = ["handoff", "grade", "verify", "land", "block", "resume"].includes(edge);
     const cmd =
-      envPreset(edge, cycle) + "./bin/bp3 harness record-init" +
-      " --run-id " + runIdOf(edge, cycle) +
-      " --harness " + harness + " --quest " + quest +
-      " --exp " + exp + " --model " + model +
+      envPreset(edge, cycle) + "./bin/bp3 harness link mint" +
+      (fsm ? " --kind edge --edge " + edge : " --kind node") +
+      " --graph " + quest + " --node " + exp +
+      " --harness " + harness + " --model " + model +
+      " --cycle " + String(cycle) +
       (desk ? " --desk " + desk : "");
     const result = await host.agent({
-      label: "init " + exp,
+      label: "mint " + exp,
       input:
         deskNote +
         "Run exactly `" + cmd + "` from the quest worktree if " +
@@ -174,13 +184,15 @@ export default async function workflow(host) {
         "update edge.",
     });
     const v = parseVerdict(result);
-    if (!v || v.ok !== true) {
+    if (!v || v.ok !== true || typeof v.token !== "string" || typeof v.run_id !== "string") {
       refusals.push(
-        "record-init refused before the " + edge + " child: " +
+        "link mint refused before the " + edge + " child: " +
         errorText(result)
       );
       return false;
     }
+    links[edge] = { token: v.token, run_id: v.run_id };
+    runIds.push(v.run_id);
     return true;
   }
 
@@ -251,10 +263,11 @@ export default async function workflow(host) {
     const folder = runFolder(edge, cycle, harness + "-" + model);
     return (
       "Your run folder is `" + folder + "` under `" + expDir +
-      "/runs/`. `BP3_RUN_ID`, `BP3_QUEST`, `BP3_EXP`, " +
-      "`BP3_HARNESS`, and `BP3_MODEL` arrive via environment " +
-      "and `bp3` stamps them into its verdicts and ledger " +
-      "lines, so no first-command prefix is needed. First check whether that concrete run " +
+      "/runs/`. " + claimNote(edge) +
+      "`BP3_QUEST`, `BP3_EXP`, `BP3_HARNESS`, and `BP3_MODEL` " +
+      "arrive via environment; your run-id arrives via the " +
+      "claim above and `bp3` stamps it into its verdicts and " +
+      "ledger lines. First check whether that concrete run " +
       "folder already exists: if it does, stop immediately, do " +
       "not overwrite or reuse it, and return a JSON object " +
       '{"ok":false,"error":{"code":"E_RUN_EXISTS"}} describing ' +
@@ -284,7 +297,7 @@ export default async function workflow(host) {
     return { exp: exp, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
   }
 
-  if (!(await recordInit("handoff", before.cycle))) {
+  if (!(await mintLink("handoff", before.cycle))) {
     return { exp: exp, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
   }
 
