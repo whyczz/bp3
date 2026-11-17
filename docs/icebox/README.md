@@ -16,5 +16,13 @@ know — so that when we are ready, promoting it to a Quest with
 
 Entries live flat here as `YYYY-MM-DD-<slug>.md`. Nothing in
 this folder is state; the ledger never points here. When an
-entry thaws, it becomes a Quest under `docs/quests/` and the
-entry is marked `promoted: <quest path>` — never deleted.
+entry thaws, its context is copied into the quest, the entry
+gains `promoted: <quest path>`, and it is then deleted — git
+history is the fossil (owner rule, 2026-11-15). An unpromoted
+entry is never deleted.
+
+Standing rule (owner, 2026-11-17): whenever a quest or graph
+is written from an icebox entry — and at every promotion —
+copy the entry **verbatim** to `ICEBOX.md` in the quest/graph
+folder before the original is deleted. Never transcribe it
+into prose; the frozen file travels as-is.
