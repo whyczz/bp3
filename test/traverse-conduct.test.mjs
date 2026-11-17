@@ -34,6 +34,14 @@ function fixtureHost() {
   const host = {
     args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: null },
     async agent({ label, input }) {
+      if (label.startsWith("validations")) {
+        return JSON.stringify({
+          git_clean: { stdout: "", exit: 0 },
+          git_show: { stdout: COMMIT + " subject\n", exit: 0 },
+          run_folders: ["20260101T000000Z-handoff-muse-code-test-model-c1 tape=yes notes=yes"],
+          handoff_line: '{"edge":"handoff","run_id":"r-build","commit":"' + COMMIT + '"}',
+        });
+      }
       // Stage children first: their briefs mention harness
       // commands (find-tape in the ladder text) without calling them.
       const stage = label.split(" ")[0];

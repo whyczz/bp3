@@ -117,6 +117,24 @@ above stays the one conductor procedure.
    is always safe, so a killed grade is simply dispatched
    again — no attempt bookkeeping here.
 
+   Grade evidence contract (followup.1): inside
+   `induct-grade`, a deterministic grade validations
+   pipeline mints every adherence row in code before the
+   audit child spawns (empty stdout quoted as
+   `(empty stdout, exit 0)`, never hand-quoted); the audit
+   builds only acceptance rows. A row without typed
+   evidence is re-collected once inside the audit (named
+   rows) and never reaches the FSM: it casts no verdict,
+   burns no author cycle, and pages no human. Evidence
+   still uncollectable returns outcome `audit_failure`,
+   naming the row and the collection error — quote it as
+   grader paperwork, never as a product `needs_fix`, and
+   simply re-dispatch the grade. When grade and verify
+   cast in parallel and the second cast is refused with
+   `E_ILLEGAL_EDGE` after the first moved state, the
+   outcome names it an expected verdict race; re-read and
+   judge from the fresh state.
+
    Cycle autonomy: when a grade returns `needs_fix` (or a
    verify returns `fail`) and the re-read shows the exp back
    in `todo` below the cycle cap, the conductor dispatches

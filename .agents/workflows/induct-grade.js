@@ -3,17 +3,29 @@
 // `bp3 skills install`. The grade climbs the evidence ladder
 // (mvp.7): records, diff, tests run, style, then tape via
 // derivation pointers (find-tape --entry); the whole tape is
-// escalation only, blocked/confused/lying and named. Audit
-// child builds the typed evidence matrix (acceptance rows +
-// adherence rows, no edges), then
-// grade and verify children run in parallel on the exact bound
-// commit and call their verdict edges directly. Grade children
-// never edit the work. As the link minter (mvp.1)
-// this launcher mints each child's one-time link via
-// `bp3 harness link mint` before that child spawns; no child
-// writes its own proof. Returns {outcome, matrix, run_ids,
-// refusals}; replay on the same commit is safe: the audit is
-// read-only and re-cast verdicts bind the same commit.
+// escalation only, blocked/confused/lying and named.
+// Grade validations (followup.1): before the audit child
+// spawns, a deterministic validations pipeline mints every
+// adherence row in code (one plug per row, ctx in, one typed
+// evidence row out; silence can be the expectation and empty
+// stdout is quoted with the machine-minted token below, never
+// hand-quoted by an LLM). The audit child then builds only
+// acceptance rows. A row without typed evidence is an
+// audit-internal re-collect (one retry, named rows), never an
+// FSM verdict: it burns no author cycle and pages no human.
+// Evidence still uncollectable returns outcome
+// `audit_failure`, naming the row and the collection error,
+// with no grade/verify cast. Grade and verify children then
+// run in parallel on the exact bound commit and call their
+// verdict edges directly; a cast refused with E_ILLEGAL_EDGE
+// after its sibling moved state is a named expected verdict
+// race, not an unexplained refusal. Grade children never
+// edit the work. As the link minter (mvp.1) this launcher
+// mints each child's one-time link via `bp3 harness link
+// mint` before that child spawns; no child writes its own
+// proof. Returns {outcome, matrix, run_ids, refusals};
+// replay on the same commit is safe: the audit is read-only
+// and re-cast verdicts bind the same commit.
 // Args are supplied by the calling traverse skill as
 // {quest, exp, ts, harness, model, commit}; ts is a UTC compact
 // timestamp from the caller, embedded by children in every
@@ -72,6 +84,132 @@ function typedEvidence(ev) {
     typeof ev.ref === "string" && ev.ref !== "" &&
     typeof ev.quote === "string" && ev.quote !== ""
   );
+}
+
+// Machine-minted quote for command output (followup.1): an
+// empty stdout is evidence when silence is the expectation,
+// quoted with this token by code, never hand-quoted as "".
+function quoteForStdout(stdout, exit) {
+  const out = typeof stdout === "string" ? stdout : "";
+  if (out !== "") return out;
+  return "(empty stdout, exit " + String(exit) + ")";
+}
+
+function stdoutOf(obs) {
+  return obs && typeof obs.stdout === "string" ? obs.stdout : "";
+}
+
+function exitOf(obs) {
+  return obs && typeof obs.exit === "number" ? obs.exit : 1;
+}
+
+// Grade validations (followup.1, owner-locked names): each
+// plug is deterministic code — ctx in, one typed evidence
+// row out, expectation declared in the plug itself. ctx is
+// {expDir, commit, obs} where obs carries raw command output
+// gathered verbatim; plugs judge, transports never quote.
+function validate_git_clean(ctx) {
+  const stdout = stdoutOf(ctx.obs.git_clean);
+  const exit = exitOf(ctx.obs.git_clean);
+  const ok = exit === 0 && stdout === "";
+  return {
+    case: "adherence: no hand-edited state",
+    rung: "2",
+    evidence: { kind: "command", ref: "git status --porcelain", quote: quoteForStdout(stdout, exit) },
+    verdict: ok ? "pass" : "fail",
+  };
+}
+
+function validate_clean_commit(ctx) {
+  const stdout = stdoutOf(ctx.obs.git_show);
+  const exit = exitOf(ctx.obs.git_show);
+  const shown = exit === 0 && stdout.indexOf(ctx.commit) >= 0;
+  const clean = validate_git_clean(ctx).verdict === "pass";
+  const first = stdout.split("\n")[0] || "";
+  return {
+    case: "adherence: clean commit",
+    rung: "2",
+    evidence: { kind: "command", ref: "git show " + ctx.commit, quote: quoteForStdout(first, exit) },
+    verdict: shown && clean ? "pass" : "fail",
+  };
+}
+
+function validate_run_folder_present(ctx) {
+  const lines = Array.isArray(ctx.obs.run_folders) ? ctx.obs.run_folders : [];
+  const complete = lines.filter(function (l) {
+    return typeof l === "string" && l.indexOf("tape=yes") >= 0 && l.indexOf("notes=yes") >= 0;
+  });
+  const handoff = complete.filter(function (l) { return l.indexOf("-handoff-") >= 0; });
+  const chosen = handoff[0] || complete[0] || "";
+  return {
+    case: "adherence: run folder present",
+    rung: "2",
+    evidence: {
+      kind: "file",
+      ref: ctx.expDir + "/runs/",
+      quote: chosen !== "" ? chosen : "no run folder with tape.log and notes.md",
+    },
+    verdict: chosen !== "" ? "pass" : "fail",
+  };
+}
+
+function validate_handoff_by_child(ctx) {
+  const line = typeof ctx.obs.handoff_line === "string" ? ctx.obs.handoff_line : "";
+  const ok = line.indexOf('"edge":"handoff"') >= 0 || line.indexOf('"edge":"submit"') >= 0;
+  return {
+    case: "adherence: handoff by child",
+    rung: "2",
+    evidence: {
+      kind: "ledger",
+      ref: ctx.expDir + "/ledger.jsonl handoff line",
+      quote: line !== "" ? line : "(no handoff ledger line)",
+    },
+    verdict: ok ? "pass" : "fail",
+  };
+}
+
+function validate_env_run_id_stamped(ctx) {
+  const line = typeof ctx.obs.handoff_line === "string" ? ctx.obs.handoff_line : "";
+  const ok = /"run_id":"[^"]+"/.test(line);
+  return {
+    case: "adherence: env run-id stamped",
+    rung: "2",
+    evidence: {
+      kind: "ledger",
+      ref: ctx.expDir + "/ledger.jsonl handoff line",
+      quote: line !== "" ? line : "(no handoff ledger line)",
+    },
+    verdict: ok ? "pass" : "fail",
+  };
+}
+
+const GRADE_VALIDATIONS = [
+  validate_git_clean,
+  validate_clean_commit,
+  validate_run_folder_present,
+  validate_handoff_by_child,
+  validate_env_run_id_stamped,
+];
+
+function runValidations(ctx) {
+  return GRADE_VALIDATIONS.map(function (v) { return v(ctx); });
+}
+
+function rowCase(row, i) {
+  return row && typeof row.case === "string" && row.case !== ""
+    ? row.case
+    : "row " + String(i + 1);
+}
+
+// Rows the audit still owes typed evidence for. Any verdict
+// label on an untyped row is paperwork, not a judgment.
+function untypedRows(rows) {
+  if (!Array.isArray(rows)) return [];
+  const out = [];
+  rows.forEach(function (row, i) {
+    if (!typedEvidence(row ? row.evidence : null)) out.push(rowCase(row, i));
+  });
+  return out;
 }
 
 // Deferred is a disposition, not a failure: the exp's own
@@ -376,6 +514,50 @@ export default async function workflow(host) {
     return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
   }
 
+  // Grade validations pipeline (followup.1): deterministic
+  // code mints every adherence row before the audit child
+  // spawns. The probe child only transports raw command
+  // output verbatim; the plugs above judge it. A pipeline
+  // that returns no observations is grader paperwork, so it
+  // fails as an audit failure with no FSM verdict.
+  const validationsResult = await host.agent({
+    label: "validations " + exp,
+    input:
+      deskNote + "You are the grade validations transport for exp `" + exp +
+      "` of quest `" + quest + "`, bound to commit `" + commit + "`. " +
+      "Run these commands from the quest worktree and return only a JSON " +
+      "object {git_clean: {stdout, exit}, git_show: {stdout, exit}, " +
+      "run_folders, handoff_line} quoting stdout verbatim (never " +
+      "summarize, never edit any file, and do not call any `bp3 q u` " +
+      "update edge): (1) `git status --porcelain` for git_clean; " +
+      "(2) `git show --stat " + commit + "` for git_show; " +
+      "(3) for run_folders, one line per folder under `" + expDir +
+      "/runs/` in the form `<folder> tape=yes|no notes=yes|no` by " +
+      "testing tape.log and notes.md in each folder; (4) for " +
+      "handoff_line, the verbatim last handoff line of `" + expDir +
+      "/ledger.jsonl` on the exp branch (`git show bp3/exp/" + quest +
+      "/" + exp + ":" + expDir + "/ledger.jsonl`), or an empty string " +
+      "when there is none. Quote an empty stdout as an empty string; " +
+      "the validations pipeline mints its token in code.",
+  });
+  const validationsVerdict = parseVerdict(validationsResult);
+  if (
+    !validationsVerdict ||
+    typeof validationsVerdict.git_clean !== "object" ||
+    typeof validationsVerdict.git_show !== "object"
+  ) {
+    refusals.push(
+      "audit failure: grade validations pipeline returned no observations: " +
+      errorText(validationsResult)
+    );
+    return { exp: exp, outcome: "audit_failure", matrix: [], run_ids: runIds, refusals: refusals };
+  }
+  const adherence = runValidations({
+    expDir: expDir,
+    commit: commit,
+    obs: validationsVerdict,
+  });
+
   if (!(await mintLink("audit", before.cycle))) {
     return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
   }
@@ -388,11 +570,12 @@ export default async function workflow(host) {
       quest + "`, bound to commit `" + commit + "`. " +
       tapePreamble("audit", before.cycle) +
       " Read the exp's EXPERIMENT.md first. Build the evidence " +
-      "matrix: one row per Acceptance case (acceptance rows), plus " +
-      "adherence rows for the build Run that produced this commit " +
-      "(handoff edge called by the child directly, env-set run-id " +
-      "stamped by bp3, clean commit, tape.log and notes.md " +
-      "present in its run folder, no hand-edited state). " + LADDER_TEXT +
+      "matrix: one row per Acceptance case (acceptance rows only). " +
+      "Adherence rows are minted by the grade validations pipeline " +
+      "before you spawn (adherence: no hand-edited state, " +
+      "adherence: clean commit, adherence: run folder present, " +
+      "adherence: handoff by child, adherence: env run-id stamped); " +
+      "never emit an adherence row. " + LADDER_TEXT +
       "Every row " +
       "is {case, rung: 1|2|3|4|5a|5b, evidence: {kind: file|command|ledger|grep, ref, " +
       "quote}, verdict: pass|fail|missing|deferred}: name the rung " +
@@ -412,15 +595,10 @@ export default async function workflow(host) {
       "({kind: file, ref: the EXPERIMENT.md line, quote: the " +
       "deferral line verbatim}); never mark such a case missing " +
       "or pass for lacking this exp's artifact. A deferral that " +
-      "names no owning exp is not deferred: emit missing. For " +
-      "the adherence row `env-set run-id`, quote " +
-      "the bp3-stamped ledger line for the handoff edge (the mvp.1 " +
-      "mechanism: BP3_RUN_ID arrives via the link claim and bp3 stamps " +
-      "it into the verdict and the ledger line): find the handoff " +
-      "line whose run_id is the build Run that produced this commit " +
-      "(the handoff run folder under this exp's runs/) and quote it " +
-      "as {kind: ledger, ref: the exp ledger handoff line, quote: " +
-      "the line verbatim}. Corroborate from the per-Run derivation " +
+      "names no owning exp is not deferred: emit missing. When a " +
+      "command's stdout is empty and its exit is 0, quote " +
+      "`(empty stdout, exit 0)` verbatim; never quote an empty " +
+      "string as evidence. Corroborate from the per-Run derivation " +
       "log at `<git-common-dir>/bp3/run-lifecycle-derivations/" +
       "<run-id>.jsonl` (resolve the common dir with " +
       "`git rev-parse --git-common-dir`) when it exists. The hooks " +
@@ -437,10 +615,79 @@ export default async function workflow(host) {
   if (auditVerdict && typeof auditVerdict.run_id === "string" && auditVerdict.run_id) {
     runIds.push(auditVerdict.run_id);
   }
-  if (!auditVerdict || !Array.isArray(auditVerdict.matrix)) {
-    refusals.push("audit returned no matrix: " + errorText(audit));
+  let acceptance = auditVerdict && Array.isArray(auditVerdict.matrix)
+    ? auditVerdict.matrix
+    : null;
+  if (acceptance === null || acceptance.length === 0) {
+    // No matrix at all is a collection failure, not a defect.
+    refusals.push(
+      "audit failure: row \"evidence audit\" carries no typed evidence " +
+      "(collection error: " +
+      (acceptance === null ? errorText(audit) : "audit returned no matrix") +
+      "); no verdict was cast and the exp cycle is unchanged"
+    );
+    return { exp: exp, outcome: "audit_failure", matrix: adherence, run_ids: runIds, refusals: refusals };
   }
-  const matrix = normalizeMatrix(auditVerdict ? auditVerdict.matrix : null);
+  // Audit-internal re-collect (followup.1): one retry naming
+  // the untyped rows, inside the same audit Run (no new mint,
+  // no FSM verdict, no cycle burn). Rows still untyped after
+  // the retry are an explicit audit failure, never needs_fix.
+  let missingTyped = untypedRows(acceptance);
+  if (missingTyped.length > 0) {
+    const recollect = await host.agent({
+      label: "audit " + exp,
+      input:
+        deskNote + "Re-collect typed evidence for exp `" + exp + "` of quest `" +
+        quest + "`, bound to commit `" + commit + "`. " +
+        tapePreamble("audit", before.cycle) +
+        " Your previous audit matrix carried no typed evidence for " +
+        "these named rows: " + missingTyped.join(", ") + ". Collect " +
+        "observed evidence for exactly those rows and reply with only " +
+        "a JSON object {ok, run_id, matrix} whose matrix holds one " +
+        "replacement row per named case, each {case, rung: " +
+        "1|2|3|4|5a|5b, evidence: {kind: file|command|ledger|grep, " +
+        "ref, quote}, verdict: pass|fail|missing|deferred} quoting " +
+        "observed evidence verbatim. When a command's stdout is " +
+        "empty and its exit is 0, quote `(empty stdout, exit 0)` " +
+        "verbatim; never quote an empty string. Judge only; do not " +
+        "edit any file and do not call any `bp3 q u` update edge.",
+    });
+    const recollectVerdict = parseVerdict(recollect);
+    if (recollectVerdict && typeof recollectVerdict.run_id === "string" && recollectVerdict.run_id) {
+      runIds.push(recollectVerdict.run_id);
+    }
+    if (recollectVerdict && Array.isArray(recollectVerdict.matrix)) {
+      const byCase = {};
+      recollectVerdict.matrix.forEach(function (row, i) {
+        byCase[rowCase(row, i)] = row;
+      });
+      acceptance = acceptance.map(function (row, i) {
+        const name = rowCase(row, i);
+        return Object.prototype.hasOwnProperty.call(byCase, name) ? byCase[name] : row;
+      });
+    }
+    missingTyped = untypedRows(acceptance);
+    if (missingTyped.length > 0) {
+      const collectionError = recollectVerdict && Array.isArray(recollectVerdict.matrix)
+        ? "re-collected row still carried no typed evidence"
+        : errorText(recollect);
+      for (const name of missingTyped) {
+        refusals.push(
+          "audit failure: row \"" + name + "\" carries no typed evidence " +
+          "after re-collect (collection error: " + collectionError +
+          "); no verdict was cast and the exp cycle is unchanged"
+        );
+      }
+      return {
+        exp: exp,
+        outcome: "audit_failure",
+        matrix: adherence.concat(normalizeMatrix(acceptance)),
+        run_ids: runIds,
+        refusals: refusals,
+      };
+    }
+  }
+  const matrix = adherence.concat(normalizeMatrix(acceptance));
   const matrixJson = JSON.stringify(matrix);
 
   // Grade || verify on the exact bound commit. A gated missing
@@ -518,7 +765,25 @@ export default async function workflow(host) {
     return { exp: exp, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
   }
   const outcome = outcomeFor(after.state, matrix);
-  if (outcome === "refused") {
+  // Verdict race (followup.1): grade and verify cast in
+  // parallel; the first cast can move state so the second
+  // cast's edge is no longer legal. When the re-read shows
+  // state moved, that E_ILLEGAL_EDGE is an expected verdict
+  // race and is named as such, never an unexplained refusal.
+  const stageEdges = ["grade", "verify"];
+  let raced = false;
+  for (let i = 0; i < stageResults.length; i++) {
+    if (textOf(stageResults[i]).indexOf("E_ILLEGAL_EDGE") >= 0 && after.state !== "handed_off") {
+      raced = true;
+      refusals.push(
+        "expected verdict race: " + stageEdges[i] + " cast refused with " +
+        "E_ILLEGAL_EDGE after the parallel verdict moved state to " +
+        after.state + "; the refused cast is expected and does not " +
+        "change the outcome"
+      );
+    }
+  }
+  if (outcome === "refused" && !raced) {
     for (let i = 0; i < stageResults.length; i++) {
       refusals.push(errorText(stageResults[i]));
     }

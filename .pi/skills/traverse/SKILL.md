@@ -89,6 +89,23 @@ above stays the one conductor procedure.
    | `blocked` | human gate (step 4) | — |
    | `landed` / `deleted` | none | advance to the next exp, or report at terminal (`landed` is reported as `exp_fin`) |
 
+   Ready-set dispatch (mvp.3): the rollup read reports
+   `ready_set_waves`, `ready`, `starved`, per-exp `deps`
+   and `timing` (wall/wait/dwell derived from ledger
+   timestamps), and per-Run `setup` (`W_SETUP_SLOW` when a
+   setup exceeds the local threshold). Dispatch one
+   `induct-node` workflow run per node in `ready`, in
+   parallel desks: it owns that node's whole FSM loop
+   (author, grade+verify, and land as phases inside it)
+   and returns exactly one terminal outcome (`landed`,
+   `blocked`, or `deleted`). The state-step workflows in
+   the table above remain the phases' shapes and the
+   fallback when `induct-node` is not installed. Landing
+   stays serial: one node's land at a time, each land
+   re-checked against the new quest tip. A blocked node
+   starves only the dependents named in `starved`; the
+   rest of the ready set keeps moving.
+
    `ts` is a UTC compact timestamp (for example
    `20261107T143022Z`) supplied in args because workflow
    scripts cannot read the clock; `harness` and `model` carry
@@ -100,6 +117,24 @@ above stays the one conductor procedure.
    free: re-dispatching `induct-grade` on the same `commit`
    is always safe, so a killed grade is simply dispatched
    again — no attempt bookkeeping here.
+
+   Grade evidence contract (followup.1): inside
+   `induct-grade`, a deterministic grade validations
+   pipeline mints every adherence row in code before the
+   audit child spawns (empty stdout quoted as
+   `(empty stdout, exit 0)`, never hand-quoted); the audit
+   builds only acceptance rows. A row without typed
+   evidence is re-collected once inside the audit (named
+   rows) and never reaches the FSM: it casts no verdict,
+   burns no author cycle, and pages no human. Evidence
+   still uncollectable returns outcome `audit_failure`,
+   naming the row and the collection error — quote it as
+   grader paperwork, never as a product `needs_fix`, and
+   simply re-dispatch the grade. When grade and verify
+   cast in parallel and the second cast is refused with
+   `E_ILLEGAL_EDGE` after the first moved state, the
+   outcome names it an expected verdict race; re-read and
+   judge from the fresh state.
 
    Cycle autonomy: when a grade returns `needs_fix` (or a
    verify returns `fail`) and the re-read shows the exp back
