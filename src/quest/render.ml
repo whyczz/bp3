@@ -324,6 +324,109 @@ let render_table_icebox fields =
     | _ -> None) entries in
   render_rows ["slug"; "date"; "status"; "promoted"; "title"] rows
 
+(* ---------- diagram emit (mvp.4) ---------- *)
+(* Generated from the live rollup fields at call time: both
+   formats render one quest_view snapshot, so ascii and
+   mermaid of the same moment carry the same facts. Every
+   node is defined once with its state and cycle (landed
+   nodes carry exp_fin), every dep is drawn once, ready-set
+   waves group the todo layers, and a blocked node names
+   the dependents it starves. The header states the output
+   is generated, with the rollup timestamp. *)
+let dget fields k = List.assoc_opt k fields
+let dstr fields k = match dget fields k with Some (`String s) -> s | _ -> "?"
+let dlist fields k = match dget fields k with Some (`List xs) -> xs | _ -> []
+let jstr_of = function `String s -> s | o -> Yojson.Safe.to_string o
+
+type dnode = { d_id : string; d_label : string; d_deps : string list }
+
+let diagram_nodes fields =
+  List.filter_map (fun item ->
+    match item with
+    | `Assoc fs ->
+        let fin = match List.assoc_opt "fin" fs with
+          | Some (`String f) -> ", " ^ f | _ -> "" in
+        let cycle = match List.assoc_opt "cycle" fs with
+          | Some (`Int c) -> string_of_int c | _ -> "?" in
+        Some { d_id = dstr fs "exp";
+               d_label = Printf.sprintf "%s (%s, cycle %s%s)"
+                 (dstr fs "exp") (dstr fs "state") cycle fin;
+               d_deps = List.filter_map
+                 (function `String s -> Some s | _ -> None) (dlist fs "deps") }
+    | _ -> None) (dlist fields "exps")
+
+let diagram_deps nodes =
+  List.concat_map (fun n -> List.map (fun d -> (d, n.d_id)) n.d_deps) nodes
+
+let diagram_waves fields =
+  List.map (fun w -> match w with
+    | `List xs -> List.map jstr_of xs | o -> [jstr_of o]) (dlist fields "ready_set_waves")
+
+let diagram_starved fields =
+  List.filter_map (fun item ->
+    match item with
+    | `Assoc fs ->
+        Some (dstr fs "blocked",
+              List.map jstr_of (dlist fs "starved"))
+    | _ -> None) (dlist fields "starved")
+
+let emit_ascii fields generated_at =
+  let nodes = diagram_nodes fields in
+  let deps = diagram_deps nodes in
+  let waves = diagram_waves fields in
+  let starved = diagram_starved fields in
+  let b = Buffer.create 256 in
+  Printf.bprintf b "quest %s diagram (generated from live state at %s)\n"
+    (dstr fields "quest") generated_at;
+  Printf.bprintf b "rollup: %s\n" (dstr fields "rollup");
+  Buffer.add_string b "nodes:\n";
+  (match nodes with
+   | [] -> Buffer.add_string b "  (none)\n"
+   | _ -> List.iter (fun n -> Printf.bprintf b "  %s\n" n.d_label) nodes);
+  Buffer.add_string b "deps:\n";
+  (match deps with
+   | [] -> Buffer.add_string b "  (none)\n"
+   | _ -> List.iter (fun (d, n) ->
+       Printf.bprintf b "  %s \xe2\x94\x80dep\xe2\x94\x80\xe2\x96\xba %s\n" d n) deps);
+  Buffer.add_string b "waves:\n";
+  (match waves with
+   | [] -> Buffer.add_string b "  (none)\n"
+   | _ -> List.iteri (fun i w ->
+       Printf.bprintf b "  wave %d: %s\n" (i + 1) (String.concat ", " w)) waves);
+  Buffer.add_string b "starved:\n";
+  (match starved with
+   | [] -> Buffer.add_string b "  (none)\n"
+   | _ -> List.iter (fun (blocked, ids) ->
+       Printf.bprintf b "  %s starves: %s\n" blocked (String.concat ", " ids)) starved);
+  Buffer.contents b
+
+let mermaid_id s =
+  String.map (fun c ->
+    if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+       || (c >= '0' && c <= '9') || c = '_' then c else '_') s
+
+let emit_mermaid fields generated_at =
+  let nodes = diagram_nodes fields in
+  let deps = diagram_deps nodes in
+  let waves = diagram_waves fields in
+  let starved = diagram_starved fields in
+  let b = Buffer.create 256 in
+  Printf.bprintf b "%%%% generated from live state at %s\n" generated_at;
+  Printf.bprintf b "%%%% quest %s rollup: %s\n"
+    (dstr fields "quest") (dstr fields "rollup");
+  Buffer.add_string b "graph LR\n";
+  List.iter (fun n ->
+    Printf.bprintf b "  %s[\"%s\"]\n" (mermaid_id n.d_id) n.d_label) nodes;
+  List.iter (fun (d, n) ->
+    Printf.bprintf b "  %s -->|dep| %s\n" (mermaid_id d) (mermaid_id n)) deps;
+  List.iteri (fun i w ->
+    Printf.bprintf b "  subgraph wave_%d[\"wave %d\"]\n" (i + 1) (i + 1);
+    List.iter (fun id -> Printf.bprintf b "    %s\n" (mermaid_id id)) w;
+    Buffer.add_string b "  end\n") waves;
+  List.iter (fun (blocked, ids) ->
+    Printf.bprintf b "  %%%% %s starves: %s\n" blocked (String.concat ", " ids)) starved;
+  Buffer.contents b
+
 let print_verdict ~fmt v =
   let v = stamp_run_id v in
   (* Warnings merge once, in order: the verdict's own, the

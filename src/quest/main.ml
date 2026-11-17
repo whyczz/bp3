@@ -403,6 +403,53 @@ let do_update quest exp edge fl id =
       finish ns line
   | _ -> usage ("unknown edge: " ^ edge)
 
+(* ---------- diagram (mvp.4) ---------- *)
+(* Read-only: renders the quest_view rollup snapshot at
+   call time and writes no ledger line. ascii/mermaid print
+   raw text; json prints the same facts as a verdict. *)
+let parse_diagram_flags args =
+  let rec loop fmt fmt_set = function
+    | [] -> fmt
+    | "--format" :: v :: rest ->
+        if fmt_set then usage "duplicate flag --format";
+        if v <> "ascii" && v <> "mermaid" && v <> "json" then
+          usage "--format must be ascii, mermaid, or json";
+        loop v true rest
+    | ["--format"] -> usage "--format needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray) in
+  loop "ascii" false args
+
+let do_diagram quest tail =
+  check_slug quest;
+  let fmt = parse_diagram_flags tail in
+  let (view, _, _, _) = quest_view quest in
+  let fields = match view with `Assoc fs -> fs | _ -> [] in
+  let generated_at = now_ts () in
+  (match fmt with
+   | "ascii" -> print_string (emit_ascii fields generated_at)
+   | "mermaid" -> print_string (emit_mermaid fields generated_at)
+   | _ ->
+       print_verdict ~fmt:"json" (`Assoc [
+         ("ok", `Bool true); ("quest", json_str quest);
+         ("format", json_str "json");
+         ("generated_at", json_str generated_at);
+         ("rollup", json_str (dstr fields "rollup"));
+         ("exps", `List (dlist fields "exps"));
+         ("deps", `List (List.map (fun (d, n) ->
+            `Assoc [("from", json_str d); ("to", json_str n)])
+            (diagram_deps (diagram_nodes fields))));
+         ("ready_set_waves", `List (dlist fields "ready_set_waves"));
+         ("ready", `List (dlist fields "ready"));
+         ("starved", `List (dlist fields "starved"));
+         ("diagram_ascii", json_str (emit_ascii fields generated_at));
+         ("diagram_mermaid", json_str (emit_mermaid fields generated_at));
+       ]));
+  0
+
 (* ---------- context door (mvp.2: bp3 e) ---------- *)
 let no_context amb =
   match amb with
@@ -495,6 +542,7 @@ let do_icebox = function
 let help_q = "bp3 q - quest/exp state. Doors:\n\
   bp3 q c|r|d ...              quest door (create, read, delete)\n\
   bp3 q <quest> c|r|u|d ...    exp door for one quest\n\
+  bp3 q <quest> diagram ...    generated graph diagram from the live rollup (mvp.4)\n\
   bp3 q icebox r [term...]     search frozen icebox entries (read-only)\n\
   bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)\n\
   bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias\n\
@@ -514,12 +562,18 @@ let help_exp_door = "bp3 q <quest> <exp door> - verbs:\n\
   bp3 q <quest> u <exp> <edge> [flags]                         take an FSM edge (see u -h)\n\
   bp3 q <quest> d <exp> --reason <why>                         delete an exp\n\
   bp3 q <quest> dep <exp> --depends-on <a,b> --reason <why>    redeclare an exp's deps (mutable-but-logged)\n\
+  bp3 q <quest> diagram [--format ascii|mermaid|json]          generated diagram from the live rollup (see diagram -h)\n\
 Long forms: create, read, update, delete. Example: bp3 q my-quest r exp-1\n"
 
 let help_dep = "bp3 q <quest> dep <exp> - redeclare an exp's node deps (mvp.3):\n\
   bp3 q <quest> dep <exp> --depends-on <a,b> --reason <why>   set deps; --depends-on \"\" clears them\n\
   Deps name exps in the same quest, are read back from the exp ledger, and a cycle refuses at write time (E_DEP_CYCLE) naming the cycle. The dep line is logged with the exp state and cycle, so a mid-flight edit stays on the record.\n\
 Example: bp3 q my-quest dep exp-2 --depends-on exp-1 --reason \"needs exp-1 first\"\n"
+
+let help_diagram = "bp3 q <quest> diagram - generated graph diagram from the live rollup (mvp.4):\n\
+  bp3 q <quest> diagram [--format ascii|mermaid|json]   emit the diagram (default ascii)\n\
+  Nodes carry state and cycle (landed nodes carry exp_fin), deps are drawn once, todo nodes are grouped into ready-set waves, and a blocked node names the dependents it starves. Output is generated at call time from live state; its header carries the rollup timestamp (generated_at). ascii suits terminals and records, mermaid suits rendered docs, json carries the same facts plus both texts for diffing.\n\
+Example: bp3 q my-quest diagram --format mermaid\n"
 
 let help_update = "bp3 q <quest> u <exp> <edge> - edges and their flags:\n\
   edges: handoff grade verify land block resume\n\
@@ -687,6 +741,8 @@ let run argv =
            let v = do_quest_delete quest fl id in print_verdict ~fmt:fl.fmt v; 0
        | "d", [] -> usage "quest delete needs a quest name"
        | _ -> usage "quest door verbs are c, r, d")
+  | _q :: "diagram" :: (h :: _) when is_help h -> print_string help_diagram; 0
+  | quest :: "diagram" :: tail -> do_diagram quest tail
   | _q :: "dep" :: (h :: _) when is_help h -> print_string help_dep; 0
   | quest :: "dep" :: exp :: tail ->
       let (pos, fl) = split_flags tail in
