@@ -156,3 +156,7 @@ tests (an old name that must refuse).
 
 - 2026-11-17 · cycle 3 · RESOLVED (this handoff)
   resolution: "Grade path fixed without redoing the rename: (1) .gitignore ignores .bp3-context.json and **/runs/*/tape.log so runtime residue (bind-tape appends, regenerated desk context) never dirties the tree; notes.md stays deliberate and is committed by hand. Live proof: this run's tape.log and .bp3-context.json are absent from git status --porcelain. (2) Grade probe in skills/bp3g/workflows/bp3g-grade.js resolves the handoff ledger line via bp3/node/<graph>/<node> (the desk binary's post-migration Store.node_branch scheme); both bp3/exp/ hardcodes removed and stale EXPERIMENT.md prompt refs now say NODE.md; render regenerated, skills check fresh. Regression tests kept in test/: bp3g-grade.test.mjs asserts the probe uses bp3/node and carries no bp3/exp; test/cleanliness.sh (in make check + lint) asserts porcelain stays empty across a step with residue present and notes.md stays visible. Re-handoff from a clean tree via the claimed child path; the handoff ledger line carries the stamped run-id."
+
+- 2026-11-17 · cycle 4 · from grade of 7382b94 (blocked) · status: open
+  fix: "files renamed fails: GRAPH.md record link still points at experiments/exp-followup-3-goal-term-purge/NODE.md (broken path) — re-point to nodes/node-followup-3-goal-term-purge/NODE.md. terms synced fails: AGENTS.md Layout/status still documents GOAL.md — rename to GRAPH.md. (Owner A at blocked gate.)"
+  regression_test: none named (existing grep proof + link check at grade)
