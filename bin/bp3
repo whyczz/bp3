@@ -71,10 +71,10 @@ skills_install() {
       ;;
   esac
 
-  # The traverse saved workflows ship with the traverse skill. They are
+  # The bp3g saved workflows ship with the bp3g skill. They are
   # plain copies (no render notice); the target is the project workflows
   # dir every harness discovers. Absent source means nothing to copy.
-  local workflow_names="node-loop induct-grade quest-land induct-node"
+  local workflow_names="node-loop bp3g-grade bp3g-land bp3g-node"
 
   local skill_dir skill
   for skill_dir in "$src_dir"/*/; do
@@ -89,9 +89,9 @@ skills_install() {
   fi
   local workflow_name
   for workflow_name in $workflow_names; do
-    if [ -f "$src_dir/traverse/workflows/$workflow_name.js" ]; then
+    if [ -f "$src_dir/bp3g/workflows/$workflow_name.js" ]; then
       mkdir -p "$root/.agents/workflows"
-      cp "$src_dir/traverse/workflows/$workflow_name.js" "$root/.agents/workflows/$workflow_name.js"
+      cp "$src_dir/bp3g/workflows/$workflow_name.js" "$root/.agents/workflows/$workflow_name.js"
       echo "installed $workflow_name -> .agents/workflows/$workflow_name.js"
     fi
   done
@@ -101,15 +101,15 @@ skills_install() {
   cat > "$root/.claude/hooks.json" <<'HOOKS_JSON'
 {
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
-    "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
-    "PostToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
-    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
-    "PostLLMCall": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
-    "SubagentStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
-    "SubagentStop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
-    "Stop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
-    "SessionEnd": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}]
+    "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
+    "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
+    "PostToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
+    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
+    "PostLLMCall": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
+    "SubagentStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}]
   }
 }
 HOOKS_JSON
@@ -167,29 +167,34 @@ HOOKS_JSON
   fi
 }
 
-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+g_bin() { echo "${BP3_G_BIN:-$root/_build/default/src/graph/main.exe}"; }
 case "${1:-}" in
-  -h|--help) printf '%s\n' "$usage_text"; printf '%s\n' '  bp3 q -h for quest/exp doors'; exit 0 ;;
-  q|quest) shift
-    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
-    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
-    BP3_ROOT="$root" exec "$q_bin" "$@" ;;
+  -h|--help) printf '%s\n' "$usage_text"; printf '%s\n' '  bp3 g -h for graph/node doors'; exit 0 ;;
+  g) shift
+    gb="$(g_bin)"
+    [[ -x $gb ]] || { echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$gb" g "$@" ;;
+  n) shift
+    gb="$(g_bin)"
+    [[ -x $gb ]] || { echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$gb" n "$@" ;;
   e) shift
-    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
-    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
-    BP3_ROOT="$root" exec "$q_bin" e "$@" ;;
+    gb="$(g_bin)"
+    [[ -x $gb ]] || { echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$gb" e "$@" ;;
   harness) shift
-    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
-    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
-    BP3_ROOT="$root" exec "$q_bin" harness "$@" ;;
+    gb="$(g_bin)"
+    [[ -x $gb ]] || { echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$gb" harness "$@" ;;
   config) shift
-    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
-    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
-    BP3_ROOT="$root" exec "$q_bin" config "$@" ;;
+    gb="$(g_bin)"
+    [[ -x $gb ]] || { echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$gb" config "$@" ;;
   worktree) shift
-    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
-    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
-    BP3_ROOT="$root" exec "$q_bin" worktree "$@" ;;
+    gb="$(g_bin)"
+    [[ -x $gb ]] || { echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$gb" worktree "$@" ;;
   init) shift; skills_install "$@" ;;
   skills)
     shift

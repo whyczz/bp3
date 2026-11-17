@@ -1,4 +1,4 @@
-quest_type: direct
+graph_type: direct
 max_cycles: 0
 grade:
   required: false

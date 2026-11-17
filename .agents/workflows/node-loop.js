@@ -1,10 +1,10 @@
-// node-loop: build one todo exp, then stop. Installed to
+// node-loop: build one todo node, then stop. Installed to
 // .agents/workflows/node-loop.js by `bp3 skills install`.
 // This step owns exactly one transition family: it reads state,
-// spawns the single author child for a `todo` exp, re-reads, and
+// spawns the single author child for a `todo` node, re-reads, and
 // returns what the re-read reports. Any other state belongs to
 // a different step; this file refuses it untouched. All state
-// moves through `bp3 q u`, called directly by the author child;
+// moves through `bp3 g u`, called directly by the author child;
 // this script never writes state. Its one write is proof, not
 // state: as the link minter (mvp.1) it mints a one-time link via
 // `bp3 harness link mint` before the child spawns; the
@@ -12,7 +12,7 @@
 // session to run-id. As the named tape binder it then
 // binds the child's session tape via `bp3 harness
 // bind-tape` after the child returns.
-// Args are supplied by the calling traverse skill as {quest, exp,
+// Args are supplied by the calling bp3g skill as {graph, node,
 // ts, harness, model}; ts is a UTC compact timestamp from the
 // caller, embedded by the child in its run-id because scripts
 // cannot read the clock.
@@ -64,44 +64,44 @@ export default async function workflow(host) {
   const rawArgs = typeof host.args === "string"
     ? JSON.parse(host.args)
     : (host.args || {});
-  const quest = rawArgs.quest;
-  const exp = rawArgs.exp;
+  const graph = rawArgs.graph;
+  const node = rawArgs.node;
   const ts = rawArgs.ts;
   const harness = rawArgs.harness || "muse-code";
   const model = rawArgs.model || "unknown";
   const desk = rawArgs.desk ? String(rawArgs.desk) : "";
   const envPrefix =
     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
-  const deskNote = desk ? ("Your working directory is the quest worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
+  const deskNote = desk ? ("Your working directory is the graph worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
   const authorLoad =
     "First load the code-writer skill (read_skill \"code-writer\") " +
     "and follow its procedure, including naming discipline and " +
     "its language references. ";
   const refusals = [];
   const runIds = [];
-  if (!quest || !exp || !ts) {
+  if (!graph || !node || !ts) {
     return {
-      exp: exp || null,
+      node: node || null,
       outcome: "refused",
       commit: null,
       run_ids: runIds,
-      refusals: ["missing quest, exp, or ts in workflow args"],
+      refusals: ["missing graph, node, or ts in workflow args"],
     };
   }
 
-  const expDir =
-    "docs/quests/" + quest + "/experiments/" + exp;
+  const nodeDir =
+    "docs/quests/" + graph + "/experiments/" + node;
 
   async function readState() {
     const result = await host.agent({
-      label: "read " + exp,
+      label: "read " + node,
       input:
-        "Run exactly `" + envPrefix + "./bin/bp3 q " + quest + " r " + exp +
-        "` from the quest worktree if one is named below, else the repository root, and return only its stdout JSON " +
+        "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
+        "` from the graph worktree if one is named below, else the repository root, and return only its stdout JSON " +
         "verdict verbatim as your entire reply, with no prose and no " +
         "code fences. If the command fails, return its stdout JSON " +
         "verdict verbatim instead. Do not edit any file and do not " +
-        "call any `bp3 q u` update edge.",
+        "call any `bp3 g u` update edge.",
     });
     const v = parseVerdict(result);
     if (!v || typeof v.state !== "string") {
@@ -124,7 +124,7 @@ export default async function workflow(host) {
 
   function runFolder(edge, cycle, harnessNote) {
     void harnessNote;
-    return expDir + "/runs/" + runIdOf(edge, cycle);
+    return nodeDir + "/runs/" + runIdOf(edge, cycle);
   }
 
   function envPreset(edge, cycle) {
@@ -133,7 +133,7 @@ export default async function workflow(host) {
     // with BP3_RUN_ID=<run_id from the claim verdict>; bp3
     // stamps it into verdicts and ledger lines.
     void edge; void cycle;
-    return "BP3_QUEST=" + quest + " BP3_EXP=" + exp + " " + envPrefix;
+    return "BP3_GRAPH=" + graph + " BP3_NODE=" + node + " " + envPrefix;
   }
 
   const links = {};
@@ -167,20 +167,20 @@ export default async function workflow(host) {
     const cmd =
       envPreset(edge, cycle) + "./bin/bp3 harness link mint" +
       (fsm ? " --kind edge --edge " + edge : " --kind node") +
-      " --graph " + quest + " --node " + exp +
+      " --graph " + graph + " --node " + node +
       " --harness " + harness + " --model " + model +
       " --cycle " + String(cycle) +
       (desk ? " --desk " + desk : "");
     const result = await host.agent({
-      label: "mint " + exp,
+      label: "mint " + node,
       input:
         deskNote +
-        "Run exactly `" + cmd + "` from the quest worktree if " +
+        "Run exactly `" + cmd + "` from the graph worktree if " +
         "one is named above, else the repository root, and return " +
         "only its stdout JSON verdict verbatim as your entire " +
         "reply, with no prose and no code fences. If the command " +
         "fails, return its stdout JSON verdict verbatim instead. " +
-        "Do not edit any file and do not call any `bp3 q u` " +
+        "Do not edit any file and do not call any `bp3 g u` " +
         "update edge.",
     });
     const v = parseVerdict(result);
@@ -209,15 +209,15 @@ export default async function workflow(host) {
       envPreset(edge, cycle) + "./bin/bp3 harness find-tape" +
       " --run-id " + runId;
     const resolved = await host.agent({
-      label: "resolve " + exp,
+      label: "resolve " + node,
       input:
         deskNote +
-        "Run exactly `" + resolveCmd + "` from the quest worktree if " +
+        "Run exactly `" + resolveCmd + "` from the graph worktree if " +
         "one is named above, else the repository root, and return " +
         "only its stdout JSON verdict verbatim as your entire " +
         "reply, with no prose and no code fences. If the command " +
         "fails, return its stdout JSON verdict verbatim instead. " +
-        "Do not edit any file and do not call any `bp3 q u` " +
+        "Do not edit any file and do not call any `bp3 g u` " +
         "update edge.",
     });
     const rv = parseVerdict(resolved);
@@ -237,15 +237,15 @@ export default async function workflow(host) {
       envPreset(edge, cycle) + "./bin/bp3 harness bind-tape" +
       " --run-id " + runId + " --tape-path " + tapePath;
     const bound = await host.agent({
-      label: "bind " + exp,
+      label: "bind " + node,
       input:
         deskNote +
-        "Run exactly `" + bindCmd + "` from the quest worktree if " +
+        "Run exactly `" + bindCmd + "` from the graph worktree if " +
         "one is named above, else the repository root, and return " +
         "only its stdout JSON verdict verbatim as your entire " +
         "reply, with no prose and no code fences. If the command " +
         "fails, return its stdout JSON verdict verbatim instead. " +
-        "Do not edit any file and do not call any `bp3 q u` " +
+        "Do not edit any file and do not call any `bp3 g u` " +
         "update edge.",
     });
     const bv = parseVerdict(bound);
@@ -262,9 +262,9 @@ export default async function workflow(host) {
   function tapePreamble(edge, cycle) {
     const folder = runFolder(edge, cycle, harness + "-" + model);
     return (
-      "Your run folder is `" + folder + "` under `" + expDir +
+      "Your run folder is `" + folder + "` under `" + nodeDir +
       "/runs/`. " + claimNote(edge) +
-      "`BP3_QUEST`, `BP3_EXP`, `BP3_HARNESS`, and `BP3_MODEL` " +
+      "`BP3_GRAPH`, `BP3_NODE`, `BP3_HARNESS`, and `BP3_MODEL` " +
       "arrive via environment; your run-id arrives via the " +
       "claim above and `bp3` stamps it into its verdicts and " +
       "ledger lines. First check whether that concrete run " +
@@ -288,31 +288,31 @@ export default async function workflow(host) {
   const before = await readState();
   if (before.state === "unknown") {
     refusals.push("initial read failed: " + (before.raw || "no verdict"));
-    return { exp: exp, outcome: "refused", commit: null, run_ids: runIds, refusals: refusals };
+    return { node: node, outcome: "refused", commit: null, run_ids: runIds, refusals: refusals };
   }
   if (before.state !== "todo") {
     refusals.push(
       "expected todo, got " + before.state + "; another step owns that state"
     );
-    return { exp: exp, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
+    return { node: node, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
   }
 
   if (!(await mintLink("handoff", before.cycle))) {
-    return { exp: exp, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
+    return { node: node, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
   }
 
   const author = await host.agent({
-    label: "author " + exp,
+    label: "author " + node,
     input:
-      deskNote + "You are the author child for exp `" + exp + "` of quest `" +
-      quest + "`, currently in state `todo` at cycle " +
+      deskNote + "You are the author child for node `" + node + "` of graph `" +
+      graph + "`, currently in state `todo` at cycle " +
       String(before.cycle) + ". " + authorLoad + tapePreamble("handoff", before.cycle) +
-      " Do the exp's work in the repository, then commit the " +
+      " Do the node's work in the repository, then commit the " +
       "work as a clean git commit and note its full sha. Then " +
       "call the state edge directly yourself: " +
-      "`" + envPreset("handoff", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
+      "`" + envPreset("handoff", before.cycle) + "./bin/bp3 g " + graph + " u " + node +
       " handoff --commit <your-commit-sha> --reason \"<short reason>\"`. " +
-      "Children call `bp3 q u` directly; never only return a " +
+      "Children call `bp3 g u` directly; never only return a " +
       "verdict for the parent to relay. Reply with only a JSON " +
       "object {ok, run_id, commit, verdict} where verdict is " +
       "the JSON printed by the handoff call.",
@@ -331,7 +331,7 @@ export default async function workflow(host) {
     const commit = after.commit
       ? String(after.commit)
       : (authorVerdict && authorVerdict.commit ? String(authorVerdict.commit) : null);
-    return { exp: exp, outcome: "handed_off", commit: commit, run_ids: runIds, refusals: refusals };
+    return { node: node, outcome: "handed_off", commit: commit, run_ids: runIds, refusals: refusals };
   }
   refusals.push(errorText(author));
   if (after.state === "unknown") {
@@ -340,7 +340,7 @@ export default async function workflow(host) {
     refusals.push("author left state " + after.state + ", expected handed_off");
   }
   return {
-    exp: exp,
+    node: node,
     outcome: "refused",
     commit: after.commit === undefined ? null : after.commit,
     run_ids: runIds,

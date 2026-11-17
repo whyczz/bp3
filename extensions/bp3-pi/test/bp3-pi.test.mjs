@@ -15,7 +15,7 @@ const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 // The raw binary, not bin/bp3: the shim pins BP3_ROOT to
 // the bp3 repo, while the binary resolves its store from
 // the caller's repo (cwd) — the shape under test here.
-const bp3Bin = path.join(repoRoot, "_build", "default", "src", "quest", "main.exe");
+const bp3Bin = path.join(repoRoot, "_build", "default", "src", "graph", "main.exe");
 const { Dispatcher, derivationsDir, runsDir, resolveRepoRoot } = await import(path.join(extRoot, "src", "dispatcher.ts"));
 const { validateInput, RefusedInput } = await import(path.join(extRoot, "src", "contract.ts"));
 const extension = (await import(path.join(extRoot, "index.ts"))).default;
@@ -89,15 +89,15 @@ test("extension registers exactly four tools and loads fail-open", async () => {
   const repo = makeRepo();
   // The tool itself returns a typed refusal, never a throw,
   // when bp3 cannot be reached (here: no bin/bp3 in repo).
-  const refused = await spawn.execute("c", { quest: "q", exp: "e", edge: "handoff", prompt: "hi" }, null, null, { cwd: repo });
+  const refused = await spawn.execute("c", { graph: "g", node: "e", edge: "handoff", prompt: "hi" }, null, null, { cwd: repo });
   assert.equal(refused.isError, true);
   assert.equal(JSON.parse(refused.content[0].text).error.code, "E_BP3_UNREACHABLE");
   const missing = new Dispatcher({ cwd: repo, bp3Bin: "/nonexistent/bp3", piBin: "/nonexistent/pi" });
-  await assert.rejects(() => missing.spawnRun({ quest: "q", exp: "e", edge: "handoff", prompt: "hi" }), (e) => e.code === "E_BP3_UNREACHABLE");
+  await assert.rejects(() => missing.spawnRun({ graph: "g", node: "e", edge: "handoff", prompt: "hi" }), (e) => e.code === "E_BP3_UNREACHABLE");
 });
 
 test("hostile inputs are refused E_REFUSED_INPUT naming the key", () => {
-  const base = { quest: "q", exp: "e", edge: "handoff", prompt: "hi" };
+  const base = { graph: "g", node: "e", edge: "handoff", prompt: "hi" };
   for (const [extra, key] of [
     [{ BP3_DECIDER: "x" }, "BP3_DECIDER"],
     [{ env: { A: "1" } }, "env"],
@@ -118,7 +118,7 @@ test("spawn path: link claim binds the session, bind-tape pins the tape, list_ru
   assert.equal(resolveRepoRoot(nested), fs.realpathSync(repo));
 
   const dispatcher = new Dispatcher({ cwd: nested, bp3Bin, piBin: fakePi });
-  const result = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "say hi", model: "fake-model" });
+  const result = await dispatcher.spawnRun({ graph: "toy", node: "node-1", edge: "handoff", prompt: "say hi", model: "fake-model" });
   assert.equal(result.ok, true);
   assert.match(result.run_id, /-handoff-pi-fake-model-c1$/);
 
@@ -166,7 +166,7 @@ test("worktree root: dispatcher serves the worktree it was spawned in, state sta
   // log lands in the shared common-dir store, not the worktree.
   const fakePi = writeFakePi(repo);
   const dispatcher = new Dispatcher({ cwd: nested, bp3Bin, piBin: fakePi });
-  const result = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", model: "fake-model" });
+  const result = await dispatcher.spawnRun({ graph: "toy", node: "node-1", edge: "handoff", prompt: "hi", model: "fake-model" });
   assert.equal(result.ok, true);
   assert.equal(derivationsDir(nested), derivationsDir(fs.realpathSync(repo)));
   assert.ok(fs.existsSync(path.join(runsDir(repo), `${result.run_id}.json`)));
@@ -188,7 +188,7 @@ test("roles route model/thinking into the child env: override > role > conductor
 
   // Role beats the conductor's env, observed in the child's
   // captured env and in the run config bp3 wrote.
-  const roled = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", role: "scout" });
+  const roled = await dispatcher.spawnRun({ graph: "toy", node: "node-1", edge: "handoff", prompt: "hi", role: "scout" });
   assert.equal(roled.model, "role-model");
   assert.equal(roled.thinking, "high");
   let capture = JSON.parse(fs.readFileSync(path.join(path.dirname(roled.tape_path), "env-capture.json"), "utf8"));
@@ -201,7 +201,7 @@ test("roles route model/thinking into the child env: override > role > conductor
   assert.equal(cfg.creator.thinking, "high");
 
   // A named override beats the role on both fields.
-  const overridden = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", role: "scout", model: "override-model", thinking: "max", cycle: 2 });
+  const overridden = await dispatcher.spawnRun({ graph: "toy", node: "node-1", edge: "handoff", prompt: "hi", role: "scout", model: "override-model", thinking: "max", cycle: 2 });
   capture = JSON.parse(fs.readFileSync(path.join(path.dirname(overridden.tape_path), "env-capture.json"), "utf8"));
   assert.equal(capture.BP3_MODEL, "override-model");
   assert.equal(capture.BP3_THINKING, "max");
@@ -210,19 +210,19 @@ test("roles route model/thinking into the child env: override > role > conductor
   assert.equal(cfg.creator.thinking, "max");
 
   // No role: the conductor's env is the last resort, still explicit.
-  const plain = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", cycle: 3 });
+  const plain = await dispatcher.spawnRun({ graph: "toy", node: "node-1", edge: "handoff", prompt: "hi", cycle: 3 });
   capture = JSON.parse(fs.readFileSync(path.join(path.dirname(plain.tape_path), "env-capture.json"), "utf8"));
   assert.equal(capture.BP3_MODEL, "conductor-model");
   assert.equal(capture.BP3_THINKING, "low");
 
   // The bundled role files parse to the decided cast.
   const bundled = new Dispatcher({ cwd: repo, bp3Bin, piBin: fakePi, env });
-  const authored = await bundled.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", role: "author", cycle: 4 });
+  const authored = await bundled.spawnRun({ graph: "toy", node: "node-1", edge: "handoff", prompt: "hi", role: "author", cycle: 4 });
   assert.equal(authored.model, "openai/gpt-6.1-sol");
   assert.equal(authored.thinking, "medium");
 
   await assert.rejects(
-    () => dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", role: "nope", cycle: 5 }),
+    () => dispatcher.spawnRun({ graph: "toy", node: "node-1", edge: "handoff", prompt: "hi", role: "nope", cycle: 5 }),
     (e) => e.code === "E_NOT_FOUND",
   );
 });
@@ -231,7 +231,7 @@ test("await_runs relays watch verbatim: settled on a finished Run", async () => 
   const repo = makeRepo();
   const fakePi = writeFakePi(repo);
   const dispatcher = new Dispatcher({ cwd: repo, bp3Bin, piBin: fakePi });
-  const result = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", model: "fake-model" });
+  const result = await dispatcher.spawnRun({ graph: "toy", node: "node-1", edge: "handoff", prompt: "hi", model: "fake-model" });
   const [verdict] = dispatcher.awaitRuns([result.run_id], { timeoutSeconds: 5, silenceSeconds: 5 });
   assert.equal(verdict.ok, true);
   assert.equal(verdict.outcome, "settled");
@@ -248,7 +248,7 @@ test("await_runs: hung child is killed by watch alone and lands orphaned, never 
   const tapePath = path.join(repo, "hung.jsonl");
   fs.writeFileSync(tapePath, JSON.stringify({ type: "message", id: "h1", message: { role: "user", content: "work" } }) + "\n");
   fs.mkdirSync(derivationsDir(repo), { recursive: true });
-  fs.writeFileSync(path.join(derivationsDir(repo), `${runId}.jsonl`), JSON.stringify({ kind: "init_record", run_id: runId, harness: "pi", quest: "toy", exp: "exp-1", pid: hung.pid, tape_path: tapePath, model: "fake-model", ts: new Date().toISOString() }) + "\n");
+  fs.writeFileSync(path.join(derivationsDir(repo), `${runId}.jsonl`), JSON.stringify({ kind: "init_record", run_id: runId, harness: "pi", graph: "toy", node: "node-1", pid: hung.pid, tape_path: tapePath, model: "fake-model", ts: new Date().toISOString() }) + "\n");
   try {
     const [verdict] = dispatcher.awaitRuns([runId], { timeoutSeconds: 15, silenceSeconds: 1 });
     assert.equal(verdict.outcome, "watchdog_killed");
@@ -272,7 +272,7 @@ test("await_runs: closed-not-exited suspends the silence kill; the timeout still
     JSON.stringify({ type: "session_closed", id: "c2" }),
   ].join("\n") + "\n");
   fs.mkdirSync(derivationsDir(repo), { recursive: true });
-  fs.writeFileSync(path.join(derivationsDir(repo), `${runId}.jsonl`), JSON.stringify({ kind: "init_record", run_id: runId, harness: "pi", quest: "toy", exp: "exp-1", pid: child.pid, tape_path: tapePath, model: "fake-model", ts: new Date().toISOString() }) + "\n");
+  fs.writeFileSync(path.join(derivationsDir(repo), `${runId}.jsonl`), JSON.stringify({ kind: "init_record", run_id: runId, harness: "pi", graph: "toy", node: "node-1", pid: child.pid, tape_path: tapePath, model: "fake-model", ts: new Date().toISOString() }) + "\n");
   try {
     const [verdict] = dispatcher.awaitRuns([runId], { timeoutSeconds: 3, silenceSeconds: 1 });
     assert.equal(verdict.outcome, "timeout");
@@ -287,12 +287,12 @@ test("fake-pi failure kinds: crash refuses the bind; malformed and self-settled 
   const repo = makeRepo();
   const crash = new Dispatcher({ cwd: repo, bp3Bin, piBin: writeFakePiKind(repo, "crash") });
   await assert.rejects(
-    () => crash.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", model: "fake-model" }),
+    () => crash.spawnRun({ graph: "toy", node: "node-1", edge: "handoff", prompt: "hi", model: "fake-model" }),
     (e) => e.code === "E_TAPE_BIND",
   );
   for (const kind of ["malformed", "settle"]) {
     const dispatcher = new Dispatcher({ cwd: repo, bp3Bin, piBin: writeFakePiKind(repo, kind) });
-    const result = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", model: "fake-model", cycle: kind === "malformed" ? 2 : 3 });
+    const result = await dispatcher.spawnRun({ graph: "toy", node: "node-1", edge: "handoff", prompt: "hi", model: "fake-model", cycle: kind === "malformed" ? 2 : 3 });
     const runs = dispatcher.listRuns("toy");
     const mine = runs.find((r) => r.run_id === result.run_id);
     assert.ok(mine, `${kind}: run listed`);
@@ -305,7 +305,7 @@ test("release_desk: dirty desk refused and preserved; clean desk released", asyn
   execFileSync("git", ["-C", repo, "commit", "-q", "--allow-empty", "-m", "init"]);
   const dispatcher = new Dispatcher({ cwd: repo, bp3Bin, piBin: writeFakePi(repo) });
   const runId = "20260101T000002Z-handoff-pi-fake-model-c1";
-  const prepared = bp3(repo, ["harness", "desk", "prepare", "toy", "exp-1", "--run", runId]);
+  const prepared = bp3(repo, ["harness", "desk", "prepare", "toy", "node-1", "--run", runId]);
   assert.equal(prepared.ok, true);
   const deskPath = path.isAbsolute(prepared.path) ? prepared.path : path.join(repo, prepared.path);
   fs.writeFileSync(path.join(deskPath, "dirty.txt"), "uncommitted\n");
@@ -327,7 +327,7 @@ test("dispatcher writes nothing itself: the run config is bp3-written", async ()
   const repo = makeRepo();
   const fakePi = writeFakePi(repo);
   const dispatcher = new Dispatcher({ cwd: repo, bp3Bin, piBin: fakePi });
-  const result = await dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", model: "fake-model" });
+  const result = await dispatcher.spawnRun({ graph: "toy", node: "node-1", edge: "handoff", prompt: "hi", model: "fake-model" });
   assert.ok(fs.existsSync(path.join(runsDir(repo), `${result.run_id}.json`)));
   const dir = derivationsDir(repo);
   const files = fs.existsSync(dir) ? fs.readdirSync(dir).sort() : [];
@@ -338,7 +338,7 @@ test("missing bp3-pi extension refuses E_SETUP before any spawn", async () => {
   const repo = makeRepo();
   const dispatcher = new Dispatcher({ cwd: repo, bp3Bin, piBin: writeFakePi(repo), extensionPath: "/nonexistent/bp3-pi-index.ts" });
   await assert.rejects(
-    () => dispatcher.spawnRun({ quest: "toy", exp: "exp-1", edge: "handoff", prompt: "hi", model: "fake-model" }),
+    () => dispatcher.spawnRun({ graph: "toy", node: "node-1", edge: "handoff", prompt: "hi", model: "fake-model" }),
     (e) => e.code === "E_SETUP",
   );
 });

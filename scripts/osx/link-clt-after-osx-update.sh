@@ -3,7 +3,7 @@
 # toolchain whose SDK the linker cannot parse (fresh links fail
 # with "tapi error: malformed file ... unknown architecture
 # arm64e.x1"). Repointing at the CommandLineTools install fixed
-# it on 2026-11-16 (dune/OCaml link of src/quest/main.exe).
+# it on 2026-11-16 (dune/OCaml link of src/graph/main.exe).
 # Run manually; it needs sudo.
 set -euo pipefail
 

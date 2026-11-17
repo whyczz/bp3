@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tab completion fixture: static lists pin against src/quest/main.ml,
+# Tab completion fixture: static lists pin against src/graph/main.ml,
 # scripted candidate traces (bash and zsh), silent failure, delivery.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -9,7 +9,7 @@ trap 'rm -rf "$work"' EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # --- static lists: every spelling in the scripts exists in main.ml ---
-main_ml="$root/src/quest/main.ml"
+main_ml="$root/src/graph/main.ml"
 for shell_file in "$root/completions/_bp3" "$root/completions/bp3.bash"; do
   [ -f "$shell_file" ] || fail "missing completion script: $shell_file"
   flags=$(sed -n 's/^_bp3_flags=//p' "$shell_file" | tr -d "()'" | tr ' ' '\n' | sed '/^$/d')
@@ -36,10 +36,10 @@ grep -q '#compdef bp3' "$root/completions/_bp3" || fail "zsh script lacks #compd
 grep -q 'compadd' "$root/completions/_bp3" || fail "zsh script lacks compadd"
 grep -q 'complete -F _bp3 bp3' "$root/completions/bp3.bash" || fail "bash script lacks complete -F _bp3 bp3"
 
-# --- scratch repo with live quests/exps ---
+# --- scratch repo with live graphs/nodes ---
 mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root/_build/default/src/graph/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
 cd "$work/repo"
 git init -q -b master
@@ -47,9 +47,9 @@ git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
-export BP3_Q_BIN="$work/repo/q-bin"
+export BP3_G_BIN="$work/repo/g-bin"
 export BP3_COMPLETION_BP3="$work/repo/bin/bp3"
-q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+q() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
 q c toy-drive >/dev/null
 q c demo >/dev/null
 q toy-drive c parser-fix >/dev/null
@@ -65,23 +65,23 @@ lacks() {
 # --- bash traces ---
 # shellcheck disable=SC1091
 source "$root/completions/bp3.bash"
-out=$(_bp3_candidates q "toy-")
+out=$(_bp3_candidates g "toy-")
 has "$out" toy-drive; lacks "$out" demo
-out=$(_bp3_candidates q "")
+out=$(_bp3_candidates g "")
 has "$out" toy-drive; has "$out" demo; lacks "$out" r
-out=$(_bp3_candidates q r "")
+out=$(_bp3_candidates g r "")
 has "$out" toy-drive
-out=$(_bp3_candidates q toy-drive r "")
+out=$(_bp3_candidates g toy-drive r "")
 has "$out" parser-fix; has "$out" skill-probe
-out=$(_bp3_candidates q toy-drive r "parser-")
+out=$(_bp3_candidates g toy-drive r "parser-")
 has "$out" parser-fix; lacks "$out" skill-probe
-out=$(_bp3_candidates q toy-drive u parser-fix "")
+out=$(_bp3_candidates g toy-drive u parser-fix "")
 for edge in handoff grade verify land block resume; do has "$out" "$edge"; done
-out=$(_bp3_candidates q toy-drive r parser-fix "--f")
+out=$(_bp3_candidates g toy-drive r parser-fix "--f")
 has "$out" --format; lacks "$out" --reason
-out=$(_bp3_candidates q toy-drive r parser-fix --format "")
+out=$(_bp3_candidates g toy-drive r parser-fix --format "")
 has "$out" json; has "$out" table; has "$out" tree
-out=$(_bp3_candidates q toy-drive "")
+out=$(_bp3_candidates g toy-drive "")
 has "$out" r; has "$out" u
 out=$(_bp3_candidates "")
 has "$out" harness; has "$out" worktree; has "$out" config
@@ -97,13 +97,13 @@ has "$out" prepare; has "$out" release
 # --- zsh traces (same candidate logic) ---
 if command -v zsh >/dev/null 2>&1; then
   zcand() { zsh -c 'source "$1"; shift; _bp3_candidates "$@"' _ "$root/completions/_bp3" "$@"; }
-  out=$(zcand q "toy-")
+  out=$(zcand g "toy-")
   has "$out" toy-drive; lacks "$out" demo
-  out=$(zcand q toy-drive r "")
+  out=$(zcand g toy-drive r "")
   has "$out" parser-fix; has "$out" skill-probe
-  out=$(zcand q toy-drive u parser-fix "")
+  out=$(zcand g toy-drive u parser-fix "")
   for edge in handoff grade verify land block resume; do has "$out" "$edge"; done
-  out=$(zcand q toy-drive r parser-fix "--f")
+  out=$(zcand g toy-drive r parser-fix "--f")
   has "$out" --format
 fi
 
@@ -111,11 +111,11 @@ fi
 mkdir -p "$work/nowhere"
 cd "$work/nowhere"
 err="$work/err.txt"
-out=$(BP3_COMPLETION_BP3="$work/no-such-bp3" _bp3_candidates q "" 2>"$err")
+out=$(BP3_COMPLETION_BP3="$work/no-such-bp3" _bp3_candidates g "" 2>"$err")
 [ -z "$out" ] || fail "silent failure produced candidates: $out"
 [ ! -s "$err" ] || fail "silent failure made noise: $(cat "$err")"
 if command -v zsh >/dev/null 2>&1; then
-  out=$(BP3_COMPLETION_BP3="$work/no-such-bp3" zsh -c 'source "$1"; shift; _bp3_candidates "$@"' _ "$root/completions/_bp3" q "" 2>"$err")
+  out=$(BP3_COMPLETION_BP3="$work/no-such-bp3" zsh -c 'source "$1"; shift; _bp3_candidates "$@"' _ "$root/completions/_bp3" g "" 2>"$err")
   [ -z "$out" ] || fail "zsh silent failure produced candidates: $out"
   [ ! -s "$err" ] || fail "zsh silent failure made noise: $(cat "$err")"
 fi

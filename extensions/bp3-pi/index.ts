@@ -36,10 +36,10 @@ function refused(err: unknown): ToolResult {
 const SPAWN_PARAMS = {
   type: "object",
   additionalProperties: true,
-  required: ["quest", "exp", "edge", "prompt"],
+  required: ["graph", "node", "edge", "prompt"],
   properties: {
-    quest: { type: "string", description: "Quest slug the child Run belongs to" },
-    exp: { type: "string", description: "Exp id the child Run belongs to" },
+    graph: { type: "string", description: "Graph slug the child Run belongs to" },
+    node: { type: "string", description: "Node id the child Run belongs to" },
     edge: { type: "string", description: "FSM edge the child will call (e.g. handoff)" },
     prompt: { type: "string", description: "Task prompt for the pi child" },
     role: { type: "string", description: "Role name; routing only, never a proof input" },
@@ -55,7 +55,7 @@ export default function bp3Pi(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "spawn_run",
     label: "Spawn Run",
-    description: "Spawn one supervised pi child: link mint before spawn, the child claims first, bind-tape after exit. Example: spawn_run({quest, exp, edge:\"handoff\", prompt})",
+    description: "Spawn one supervised pi child: link mint before spawn, the child claims first, bind-tape after exit. Example: spawn_run({graph, node, edge:\"handoff\", prompt})",
     parameters: SPAWN_PARAMS as never,
     async execute(_id, params, _signal, _onUpdate, ctx) {
       try {
@@ -93,16 +93,16 @@ export default function bp3Pi(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "list_runs",
     label: "List Runs",
-    description: "List pi Runs with the supervisor's derived lifecycle (folded from run-lifecycle-derivations). Example: list_runs({quest})",
+    description: "List pi Runs with the supervisor's derived lifecycle (folded from run-lifecycle-derivations). Example: list_runs({graph})",
     parameters: {
       type: "object",
       additionalProperties: false,
-      properties: { quest: { type: "string", description: "Optional quest slug filter" } },
+      properties: { graph: { type: "string", description: "Optional graph slug filter" } },
     } as never,
     async execute(_id, params, _signal, _onUpdate, ctx) {
       try {
-        const p = params as { quest?: string };
-        return ok({ ok: true, runs: dispatcherFor(ctx.cwd).listRuns(p.quest) });
+        const p = params as { graph?: string };
+        return ok({ ok: true, runs: dispatcherFor(ctx.cwd).listRuns(p.graph) });
       } catch (err) {
         return refused(err);
       }

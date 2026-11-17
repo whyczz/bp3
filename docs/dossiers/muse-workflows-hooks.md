@@ -2,7 +2,7 @@
 
 Question this serves: can bp3 build an execution engine on Muse
 workflows and Pi hooks without rebuilding its Board inside a harness
-feature? Reader: the human deciding the engine Quest split, and the
+feature? Reader: the human deciding the engine Graph split, and the
 implementer of the engine seam and the Muse workflow test. Evidence date:
 2026-11-07/08. Local environment: Muse Code 1.4.14-R7309.1,
 `muse workflows list` returns no saved workflows.
@@ -78,7 +78,7 @@ implementer of the engine seam and the Muse workflow test. Evidence date:
   deadline checks that already exist.
 - A configurable DAG was explicitly rejected in the MVP design
   (no general graph vocabulary, no workflow DSL) and the engine
-  Quest keeps workflow DSLs out of scope.
+  Graph keeps workflow DSLs out of scope.
 
 ## Forces
 
@@ -106,7 +106,7 @@ implementer of the engine seam and the Muse workflow test. Evidence date:
   Run states; add a `role` column and per-role generations. What it
   takes: one additive migration plus invariant tests. What it
   breaks: the one-live-Run invariant, deliberately. Counter-case:
-  if Exp 1 shows ceremony/provider waits dominate, even this is
+  if Node 1 shows ceremony/provider waits dominate, even this is
   wasted work — the loop is not the bottleneck.
 - **Configurable DAG.** What it takes: graph schema, validation,
   join semantics, budget/retry per node. What it breaks:
@@ -122,7 +122,7 @@ implementer of the engine seam and the Muse workflow test. Evidence date:
   content fetch is a separate audited operation.
 - **Hooks: full transcript scraping.** Buys deep review/drift
   analysis; pays with the largest privacy and retention surface.
-  Only behind per-Quest scoping, redaction before insert, TTL, and
+  Only behind per-Graph scoping, redaction before insert, TTL, and
   an audit row for every fetch.
 - **Doing nothing.** The bridge signal set covers the Pi crew today.
   Cost: no cost accounting (cost stays null), no cross-engine
@@ -133,22 +133,22 @@ implementer of the engine seam and the Muse workflow test. Evidence date:
 1. Block/resume versus block-then-respawn for ephemeral children.
    Changes the blocker contract everywhere. Recommended default:
    block-then-respawn with a new generation; revisit only if a spike
-   proves resumable steering. Owner: human, with bp3-mvp-muse-workflows Exp 1 evidence.
+   proves resumable steering. Owner: human, with bp3-mvp-muse-workflows Node 1 evidence.
 2. Does the V8 workflow engine actually execute on this machine,
    and can a child reach the bp3 CLI through its tool grant? Gates
    the whole Muse spike. Default: assume CLI-only until a live
-   child run proves otherwise. Owner: implementer, in bp3-mvp-muse-workflows Exp 1.
+   child run proves otherwise. Owner: implementer, in bp3-mvp-muse-workflows Node 1.
 3. Warden scope: pointers-only versus audited content fetch.
    Changes the privacy surface permanently. Default: pointers only.
    Owner: human.
 4. When does configurability earn its keep? Default trigger: two or
-   more distinct topologies observed, plus Exp 1 evidence that
+   more distinct topologies observed, plus Node 1 evidence that
    scheduling (not context, ceremony, or provider) is the
-   bottleneck. Owner: human, at the Quest split gate.
+   bottleneck. Owner: human, at the Graph split gate.
 5. Reviewer independence: same model fresh context, or different
    model? Default: same model, fresh context, verdict bound to the
    exact commit; measure disagreement before routing models.
-   Owner: implementer, in the loop exp.
+   Owner: implementer, in the loop node.
 
 ## What I did not verify
 
@@ -159,5 +159,5 @@ implementer of the engine seam and the Muse workflow test. Evidence date:
 - Muse observability claims (hook names, JSONL shapes) are general
   knowledge used as design reference, not verified against Muse
   source in this repo.
-- All speed and context-rent comparisons are goals until Exp 1
+- All speed and context-rent comparisons are goals until Node 1
   measures the baseline; Board cost is currently hardcoded null.

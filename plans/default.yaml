@@ -1,4 +1,4 @@
-quest_type: default
+graph_type: default
 max_cycles: 1
 grade:
   required: true

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # mvp.3: node deps, ready-set waves, starved sets, derived
 # timing, setup gate, serial land. Fixture graphs are built
-# through bp3 q itself; timing fixtures write ledger lines
+# through bp3 g itself; timing fixtures write ledger lines
 # with fixed timestamps through git plumbing.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -9,7 +9,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root/_build/default/src/graph/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
 cd "$work/repo"
 git init -q -b master
@@ -17,11 +17,11 @@ git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
-q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
-lk() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
+q() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
+lk() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness link "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-commit_on_exp() { # $1 quest $2 exp $3 path $4 content -> new tip
+commit_on_node() { # $1 graph $2 node $3 path $4 content -> new tip
   local branch="refs/heads/bp3/exp/$1/$2" tip blob tree new_tip idx="$work/idx-$1-$2"
   tip=$(git rev-parse "$branch"); rm -f "$idx"
   blob=$(printf '%s' "$4" | git hash-object -w --stdin)
@@ -32,14 +32,14 @@ commit_on_exp() { # $1 quest $2 exp $3 path $4 content -> new tip
   git update-ref "$branch" "$new_tip" "$tip"; rm -f "$idx"
   printf '%s' "$new_tip"
 }
-land_exp() { # $1 quest $2 exp $3 path
-  local c; c=$(commit_on_exp "$1" "$2" "$3" "content-$2")
+land_node() { # $1 graph $2 node $3 path
+  local c; c=$(commit_on_node "$1" "$2" "$3" "content-$2")
   q "$1" u "$2" handoff --commit "$c" --reason work >/dev/null
   q "$1" u "$2" grade --verdict ship --reason ok >/dev/null
   q "$1" u "$2" verify --verdict pass --reason ok >/dev/null
   q "$1" u "$2" land --reason ship >/dev/null
 }
-exp_ledger() { git show "bp3/exp/$1/$2:docs/quests/$1/experiments/$2/ledger.jsonl"; }
+node_ledger() { git show "bp3/exp/$1/$2:docs/quests/$1/experiments/$2/ledger.jsonl"; }
 
 # --- diamond: deps declared, waves, ready, handoff gate ---
 q c sched >/dev/null
@@ -53,17 +53,17 @@ echo "$out" | jq -e '.ready_set_waves == [["na","nb","nd"],["nc"]] and .ready ==
 echo w > w.txt; git add w.txt; git commit -qm w; W=$(git rev-parse HEAD)
 if out=$(q sched u nc handoff --commit "$W" --reason early 2>&1); then fail "dep-blocked handoff accepted"; fi
 echo "$out" | jq -e '.error.code == "E_DEPENDENCY" and (.error.facts.blocked_by == ["na","nb"])' >/dev/null || fail "handoff gate: $out"
-land_exp sched na fa.txt; land_exp sched nb fb.txt
+land_node sched na fa.txt; land_node sched nb fb.txt
 out=$(q r sched)
 echo "$out" | jq -e '.ready == ["nc","nd"] and .ready_set_waves == [["nc","nd"]]' >/dev/null || fail "ready after land: $out"
 
 # --- cycle refused at write time, naming the cycle ---
 q sched c nx >/dev/null
 q sched dep nx --depends-on nc --reason "chain" >/dev/null
-before=$(exp_ledger sched nc | wc -l)
+before=$(node_ledger sched nc | wc -l)
 if out=$(q sched dep nc --depends-on nx --reason loop 2>&1); then fail "cycle dep accepted"; fi
 echo "$out" | jq -e '.error.code == "E_DEP_CYCLE" and (.error.facts.cycle | index("nc") != null) and (.error.facts.cycle | index("nx") != null)' >/dev/null || fail "cycle facts: $out"
-[ "$(exp_ledger sched nc | wc -l)" = "$before" ] || fail "cycle refusal ledgered"
+[ "$(node_ledger sched nc | wc -l)" = "$before" ] || fail "cycle refusal ledgered"
 if out=$(q sched dep na --depends-on na --reason self 2>&1); then fail "self dep accepted"; fi
 echo "$out" | jq -e '.error.code == "E_DEP_CYCLE"' >/dev/null || fail "self cycle code: $out"
 if out=$(q sched c ghost --depends-on nope 2>&1); then fail "unknown dep accepted"; fi
@@ -72,12 +72,12 @@ echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "unknown d
 # --- deps mutable-but-logged, mid-flight edit on the record ---
 out=$(q sched dep nd --depends-on na --reason "nd waits for na")
 echo "$out" | jq -e '.ok == true and .deps == ["na"] and .state == "todo"' >/dev/null || fail "dep edit: $out"
-exp_ledger sched nd | tail -1 | jq -e '.edge == "dep" and .from == "todo" and .to == "todo" and .depends_on == ["na"]' >/dev/null || fail "dep line logged"
+node_ledger sched nd | tail -1 | jq -e '.edge == "dep" and .from == "todo" and .to == "todo" and .depends_on == ["na"]' >/dev/null || fail "dep line logged"
 out=$(q sched u nd handoff --commit "$W" --reason work)
 echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "nd handoff (dep landed): $out"
 out=$(q sched dep nd --depends-on nb --reason "mid-flight swap")
 echo "$out" | jq -e '.ok == true and .state == "handed_off" and .deps == ["nb"]' >/dev/null || fail "mid-flight dep edit: $out"
-exp_ledger sched nd | tail -1 | jq -e '.edge == "dep" and .from == "handed_off" and .to == "handed_off" and .cycle == 1 and .depends_on == ["nb"]' >/dev/null || fail "mid-flight dep line carries state+cycle"
+node_ledger sched nd | tail -1 | jq -e '.edge == "dep" and .from == "handed_off" and .to == "handed_off" and .cycle == 1 and .depends_on == ["nb"]' >/dev/null || fail "mid-flight dep line carries state+cycle"
 
 # --- blocked blast radius: starved dependents, independents ready ---
 q c blast >/dev/null
@@ -85,7 +85,7 @@ q blast c bx >/dev/null; q blast c bw >/dev/null
 q blast c by --depends-on bx >/dev/null; q blast c bz --depends-on by >/dev/null
 q blast u bx block --reason "choose storage" >/dev/null
 out=$(q r blast)
-echo "$out" | jq -e '.ready == ["bw"] and .starved == [{"blocked":"bx","starved":["by","bz"]}] and ([.inbox[] | select(.exp == "bx")] | length == 1)' >/dev/null || fail "starved rollup: $out"
+echo "$out" | jq -e '.ready == ["bw"] and .starved == [{"blocked":"bx","starved":["by","bz"]}] and ([.inbox[] | select(.node == "bx")] | length == 1)' >/dev/null || fail "starved rollup: $out"
 if out=$(q blast u by handoff --commit "$W" --reason early 2>&1); then fail "starved handoff accepted"; fi
 echo "$out" | jq -e '.error.code == "E_DEPENDENCY"' >/dev/null || fail "starved handoff gate: $out"
 
@@ -93,7 +93,7 @@ echo "$out" | jq -e '.error.code == "E_DEPENDENCY"' >/dev/null || fail "starved 
 q c timing >/dev/null; q timing c tm >/dev/null
 tip=$(git rev-parse bp3/exp/timing/tm); idx="$work/idx-tm"; rm -f "$idx"
 cat > "$work/tm-ledger.jsonl" <<EOF
-{"ts":"2026-01-01T00:00:00Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"t","model":"t","bp3_version":"0.2.0","exp_type":"default"}
+{"ts":"2026-01-01T00:00:00Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"t","model":"t","bp3_version":"0.2.0","node_type":"default"}
 {"ts":"2026-01-01T00:10:00Z","edge":"handoff","from":"todo","to":"handed_off","cycle":1,"commit":"$W","verdict":null,"reason":"work","harness":"t","model":"t","bp3_version":"0.2.0"}
 {"ts":"2026-01-01T00:20:00Z","edge":"grade","from":"handed_off","to":"handed_off","cycle":1,"commit":"$W","verdict":"ship","reason":"ok","harness":"t","model":"t","bp3_version":"0.2.0"}
 {"ts":"2026-01-01T00:30:00Z","edge":"verify","from":"handed_off","to":"approved","cycle":1,"commit":"$W","verdict":"pass","reason":"ok","harness":"t","model":"t","bp3_version":"0.2.0"}
@@ -108,7 +108,7 @@ git update-ref refs/heads/bp3/exp/timing/tm "$nt" "$tip"; rm -f "$idx"
 out=$(q timing r tm)
 echo "$out" | jq -e '.state == "landed" and .timing.wait_s == 600 and .timing.wall_s == 2460 and .timing.dwell_s == {"todo":600,"handed_off":1200,"approved":1260} and .timing.cycles == 1' >/dev/null || fail "timing math: $out"
 out2=$(q r timing)
-echo "$out2" | jq -e '(.exps[] | select(.exp == "tm") | .timing.wall_s == 2460)' >/dev/null || fail "rollup timing: $out2"
+echo "$out2" | jq -e '(.nodes[] | select(.node == "tm") | .timing.wall_s == 2460)' >/dev/null || fail "rollup timing: $out2"
 before=$(git rev-parse bp3/exp/timing/tm)
 q timing r tm >/dev/null; q r timing >/dev/null
 [ "$(git rev-parse bp3/exp/timing/tm)" = "$before" ] || fail "timing read wrote state"
@@ -137,12 +137,12 @@ cp "$work/slow.json" ".git/bp3/runs/$SRID.json"
 out=$(q r sched)
 echo "$out" | jq -e --arg r "$SRID" '(.setup[] | select(.run_id == $r) | .setup_wall_s == 600) and (.warnings | index("W_SETUP_SLOW") != null)' >/dev/null || fail "slow setup gate: $out"
 for e in na nb nc nd nx; do
-  exp_ledger sched "$e" | grep -q setup_wall && fail "setup leaked into ledger $e"
+  node_ledger sched "$e" | grep -q setup_wall && fail "setup leaked into ledger $e"
 done
 
 # --- serial land: second land re-checks against the new tip ---
 q c serial >/dev/null; q serial c sl-a >/dev/null; q serial c sl-b >/dev/null
-CA=$(commit_on_exp serial sl-a sa.txt "A"); CB=$(commit_on_exp serial sl-b sb.txt "B")
+CA=$(commit_on_node serial sl-a sa.txt "A"); CB=$(commit_on_node serial sl-b sb.txt "B")
 for e in sl-a sl-b; do
   c=$CA; [ "$e" = sl-b ] && c=$CB
   q serial u "$e" handoff --commit "$c" --reason work >/dev/null
@@ -157,15 +157,15 @@ echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "second still appr
 out=$(q serial u sl-b land --reason second)
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "second land: $out"
 git merge-base --is-ancestor "$tip1" bp3/quest/serial || fail "second land did not build on first tip"
-git merge-base --is-ancestor "$CB" bp3/quest/serial || fail "second reviewed commit not in quest tip"
+git merge-base --is-ancestor "$CB" bp3/quest/serial || fail "second reviewed commit not in graph tip"
 [ "$(git show bp3/quest/serial:sa.txt)" = "A" ] && [ "$(git show bp3/quest/serial:sb.txt)" = "B" ] || fail "serial merge lost files"
 
 # --- help: dep verb and flags documented at their doors ---
 out=$(q sched dep -h) || fail "dep -h exit"
 echo "$out" | grep -q -- "--depends-on" || fail "dep help flags: $out"
 echo "$out" | grep -q "E_DEP_CYCLE" || fail "dep help cycle: $out"
-out=$(q sched -h) || fail "exp door -h exit"
-echo "$out" | grep -q "dep" || fail "exp door help dep: $out"
-echo "$out" | grep -q -- "--depends-on" || fail "exp door help depends-on: $out"
+out=$(q sched -h) || fail "node door -h exit"
+echo "$out" | grep -q "dep" || fail "node door help dep: $out"
+echo "$out" | grep -q -- "--depends-on" || fail "node door help depends-on: $out"
 
 echo "ready tests: ok"

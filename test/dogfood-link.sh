@@ -8,7 +8,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root/_build/default/src/graph/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
 cd "$work/repo"
 git init -q -b master
@@ -16,9 +16,9 @@ git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
-q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
-lk() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
-h() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness "$@"; }
+q() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
+lk() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness link "$@"; }
+h() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 NOSID=(env -u MUSE_SESSION_ID -u MUSE_THREAD_ID -u BP3_SESSION_ID -u PI_SESSION_ID -u PI_SESSION_FILE -u BP3_RUN_ID)
 
@@ -63,10 +63,10 @@ HTML
 # --- briefs: old setup prose vs one-line link brief ---
 old_brief() { # <run-id>
   cat <<EOF
-You are the author child for exp flappy of quest g1.
-First export BP3_QUEST=g1 BP3_EXP=flappy BP3_RUN_ID=$1 BP3_HARNESS=muse-code BP3_MODEL=test-model.
-Your desk is $work/repo; if state looks wrong, guess the desk from the quest branch name.
-When done run: ./bin/bp3 q g1 u flappy handoff --commit <sha> --reason "<short reason>".
+You are the author child for node flappy of graph g1.
+First export BP3_GRAPH=g1 BP3_NODE=flappy BP3_RUN_ID=$1 BP3_HARNESS=muse-code BP3_MODEL=test-model.
+Your desk is $work/repo; if state looks wrong, guess the desk from the graph branch name.
+When done run: ./bin/bp3 g g1 u flappy handoff --commit <sha> --reason "<short reason>".
 Build flappy in three.js.
 EOF
 }
@@ -89,7 +89,7 @@ drive() {
     tok=$(echo "$mint" | jq -r .token)
     local brief="claim $tok, build flappy $variant"
     [ "$(printf '%s' "$brief" | wc -l | tr -d ' ')" = 0 ] || fail "link brief not one line"
-    printf '%s' "$brief" | grep -qiE 'export|desk|BP3_RUN_ID|BP3_QUEST|BP3_EXP' \
+    printf '%s' "$brief" | grep -qiE 'export|desk|BP3_RUN_ID|BP3_GRAPH|BP3_NODE' \
       && fail "link brief carries setup prose: $brief"
     brief_chars=$(printf '%s' "$brief" | wc -c | tr -d ' ')
     echo "claim $tok" >> "$calls"
@@ -100,22 +100,22 @@ drive() {
     else
       printf '%s\n' '{"type":"session","id":"x"}' > "$work/sess-$way-$shape.jsonl"
       "${NOSID[@]}" PI_SESSION_FILE="$work/sess-$way-$shape.jsonl" \
-        BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link claim "$tok" >/dev/null \
+        BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness link claim "$tok" >/dev/null \
         || fail "link claim $shape"
     fi
     flappy_write "$art" "$variant"
     tend=$(date +%s)
     # edge call after claim: bare e door, no graph/node/run-id carried
     echo "bp3 e handoff --commit $TIP" >> "$calls"
-    grep -qE 'bp3 q g1 u|BP3_RUN_ID|--run-id' "$calls" \
+    grep -qE 'bp3 g g1 u|BP3_RUN_ID|--run-id' "$calls" \
       && fail "link-way call carries carried context: $(cat "$calls")"
   else
     brief_chars=$OLD_CHARS
     t0=$(date +%s)
     flappy_write "$art" "$variant"
     tend=$(date +%s)
-    echo "bp3 q g1 u flappy handoff --commit $TIP (exports + guessed desk)" >> "$calls"
-    grep -q 'bp3 q g1 u' "$calls" || fail "old-way call shape unrecorded"
+    echo "bp3 g g1 u flappy handoff --commit $TIP (exports + guessed desk)" >> "$calls"
+    grep -q 'bp3 g g1 u' "$calls" || fail "old-way call shape unrecorded"
   fi
   [ -f "$art" ] || fail "drive $way-$shape wrote no artifact"
   jq -n --arg drive "$way-$shape" --argjson brief_chars "$brief_chars" \
@@ -164,9 +164,9 @@ echo "quoting claim -> E_NOT_FOUND (token in brief confers nothing)" >> "$attack
 mkdir -p "$work/repo/deskA" "$work/repo/deskB"
 mint=$(lk mint --kind edge --graph g1 --node flappy --edge handoff --depth 2 --desk "$work/repo/deskA")
 TOKW=$(echo "$mint" | jq -r .token)
-(cd "$work/repo/deskA" && MUSE_SESSION_ID=atk-desk BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" harness link claim "$TOKW" >/dev/null) \
+(cd "$work/repo/deskA" && MUSE_SESSION_ID=atk-desk BP3_G_BIN="$work/repo/g-bin" "$work/repo/bin/bp3" harness link claim "$TOKW" >/dev/null) \
   || fail "desk A claim"
-if out=$(cd "$work/repo/deskB" && "${NOSID[@]}" BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" e 2>&1); then
+if out=$(cd "$work/repo/deskB" && "${NOSID[@]}" BP3_G_BIN="$work/repo/g-bin" "$work/repo/bin/bp3" e 2>&1); then
   fail "wrong-desk e accepted: $out"; fi
 echo "$out" | jq -e '.error.code == "E_NO_CONTEXT"' >/dev/null || fail "wrong-desk verdict: $out"
 [ ! -e "$work/repo/deskB/flappy.html" ] || fail "wrong-desk drive did work"
@@ -176,17 +176,17 @@ echo "wrong-desk e -> E_NO_CONTEXT (no context on the wrong desk)" >> "$attacks"
 # --- Pi nested tree: root -> node worker -> edge worker, distinct links ---
 mint=$(lk mint --kind node --graph g1 --node flappy --depth 0 --harness pi --model fake)
 RTOK=$(echo "$mint" | jq -r .token); RRID=$(echo "$mint" | jq -r .run_id)
-"${NOSID[@]}" PI_SESSION_FILE="$work/root.jsonl" BP3_Q_BIN="$work/repo/q-bin" \
+"${NOSID[@]}" PI_SESSION_FILE="$work/root.jsonl" BP3_G_BIN="$work/repo/g-bin" \
   ./bin/bp3 harness link claim "$RTOK" >/dev/null || fail "pi root claim"
 mint=$(lk mint --kind node --graph g1 --node flappy --depth 1 --parent-run-id "$RRID" --harness pi --model fake)
 NTOK=$(echo "$mint" | jq -r .token); NRID=$(echo "$mint" | jq -r .run_id)
 printf '%s\n' '{"type":"session","id":"n"}' > "$work/node.jsonl"
-"${NOSID[@]}" PI_SESSION_FILE="$work/node.jsonl" BP3_Q_BIN="$work/repo/q-bin" \
+"${NOSID[@]}" PI_SESSION_FILE="$work/node.jsonl" BP3_G_BIN="$work/repo/g-bin" \
   ./bin/bp3 harness link claim "$NTOK" >/dev/null || fail "pi node claim"
 mint=$(lk mint --kind edge --graph g1 --node flappy --edge handoff --depth 2 --parent-run-id "$NRID" --harness pi --model fake)
 ETOK=$(echo "$mint" | jq -r .token); ERID=$(echo "$mint" | jq -r .run_id)
 printf '%s\n' '{"type":"session","id":"e"}' > "$work/edge.jsonl"
-"${NOSID[@]}" PI_SESSION_FILE="$work/edge.jsonl" BP3_Q_BIN="$work/repo/q-bin" \
+"${NOSID[@]}" PI_SESSION_FILE="$work/edge.jsonl" BP3_G_BIN="$work/repo/g-bin" \
   ./bin/bp3 harness link claim "$ETOK" >/dev/null || fail "pi edge claim"
 [ "$RRID" != "$NRID" ] && [ "$NRID" != "$ERID" ] || fail "pi tree run-ids not distinct"
 jq -e --arg p "$RRID" '.creator.run_id == $p and .creator.depth == 1' ".git/bp3/runs/$NRID.json" >/dev/null \

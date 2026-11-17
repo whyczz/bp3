@@ -1,12 +1,12 @@
 // bp3-pi contract: the SpawnInput shape and the hostile-key
-// refusal. Spellings reuse the quest vocabulary (Run, tape,
+// refusal. Spellings reuse the graph vocabulary (Run, tape,
 // desk, run config); the run-id shape is
 // <ts>-<edge>-<harness>-<model>-c<cycle>, minted by bp3 at
 // link mint and opaque to every other consumer.
 
 export interface SpawnInput {
-  quest: string;
-  exp: string;
+  graph: string;
+  node: string;
   edge: string;
   prompt: string;
   role?: string;
@@ -54,7 +54,7 @@ export function validateInput(input: unknown): SpawnInput {
       }
     }
   }
-  for (const field of ["quest", "exp", "edge", "prompt"] as const) {
+  for (const field of ["graph", "node", "edge", "prompt"] as const) {
     if (typeof raw[field] !== "string" || (raw[field] as string).trim() === "") {
       throw new RefusedInput(field);
     }

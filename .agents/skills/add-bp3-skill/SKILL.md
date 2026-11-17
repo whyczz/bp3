@@ -27,13 +27,13 @@ clothes — route it there.
    propose that edit instead. If the job is portable and stateless,
    stop and route to add-yap-skill.
 3. Run the stateless test in reverse: project skills may touch bp3
-   concepts (Quest files, Board ops, lanes), but the skill file itself
+   concepts (Graph files, Board ops, lanes), but the skill file itself
    stays instructions — no state, no hooks, no daemon assumptions.
    Anything needing runtime behavior belongs in core, not a skill.
 4. Red chair, proportionate: wrong layer (core vs skill vs yap),
    context tax on Controller/Worker sessions that will load it, name
    collisions with yap skills across harnesses, and trigger overlap
-   with quest/add-yap-skill.
+   with graph/add-yap-skill.
 5. Write the source at `skills/<skill-id>/SKILL.md`: frontmatter `name`
    equal to the directory, one-sentence `description`, no template placeholders, concise self-contained
    body in the house shape (when to use, procedure, rules).

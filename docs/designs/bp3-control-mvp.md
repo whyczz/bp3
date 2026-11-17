@@ -12,20 +12,20 @@ below are agreed; implementation proposals and open questions are labeled.
 
 Help the user **learn more and deliver more with less time and higher-signal
 human input/output**. The user directs intent; a lightweight Controller frames
-Quests and exps, delegates all coding execution to Workers, synthesizes
-evidence, and owns landing mechanics. Exps land into a Quest branch
-automatically under strict gates; the human steps in at Quest-to-master, where
+Graphs and nodes, delegates all coding execution to Workers, synthesizes
+evidence, and owns landing mechanics. Nodes land into a Graph branch
+automatically under strict gates; the human steps in at Graph-to-master, where
 they understand the integrated result and authorize promotion. Push needs its
 own explicit scope.
 
 Build the smallest reliable, single-host coordination loop, then use it to
-build **bp3 itself**. esc3 follows as Quest 2, a separate one-week
+build **bp3 itself**. esc3 follows as Graph 2, a separate one-week
 build-out, not the first dogfood. Optimize for useful outcomes and human attention, not Worker count,
 parallelism, or cheap tokens in isolation.
 
 ## ELI5
 
-A Quest says what we want and why. An exp says what useful thing to try next
+A Graph says what we want and why. An node says what useful thing to try next
 and how we will judge it. Workers do the work. The Board remembers what they
 were told, what happened, and what remains unresolved. You get a short briefing
 and a recommendation when your judgment is needed, not a scheduling job.
@@ -39,7 +39,7 @@ This MVP records the subsequent review and user clarification.
 Three findings shape the next design:
 
 - **Understandability is the data-model requirement.** The user must be able
-  to reason about a clear Quest and clean exps. Fewer SQL tables or edge types
+  to reason about a clear Graph and clean nodes. Fewer SQL tables or edge types
   is not the goal by itself. Do not introduce a general graph vocabulary where
   a named relationship would be clearer.
 - **Reliability is still a design obligation.** The sketch names launch,
@@ -47,12 +47,12 @@ Three findings shape the next design:
   transaction boundaries, authority, retries, or reconciliation.
 - **A rewrite is not proof of value.** `esc2/docs/m1.md` reports successful
   logging but unused comparisons/metrics. Building bp3 with bp3 tests the
-  coordination loop on real work; esc3 follows as Quest 2 so a good
+  coordination loop on real work; esc3 follows as Graph 2 so a good
   self-dogfood is not mistaken for general proof.
 
 Local provenance, not vendored dependencies: the sibling `bp3-docs` at
 `99c111479a7bc79eabbcc37e8638fb9dee8bb8df` still describes Task/Milestone
-identities in `docs/repos/worker.md` and exp-only attribution in
+identities in `docs/repos/worker.md` and node-only attribution in
 `docs/repos/archive.md`. Its `docs/repos/control.md` proposes OCaml/SQLite.
 Those contracts must not silently override this MVP. The esc2 reference is
 `c8baf953d658fb3ccac3c92e331842a041480c35`; see its `README.md`, `docs/m1.md`,
@@ -62,24 +62,24 @@ document.
 ## Agreed MVP contract
 
 1. **Goal:** more learning and accepted delivery per unit of human attention.
-2. **Planning:** evolving Quests and bounded, outcome-defined exps; executions
-   are records inside an exp, not another planning layer.
-3. **Delegation:** all coding work goes through an exp and a Worker, including
+2. **Planning:** evolving Graphs and bounded, outcome-defined nodes; executions
+   are records inside an node, not another planning layer.
+3. **Delegation:** all coding work goes through an node and a Worker, including
    small changes and one-off fixes. The Controller does not author code; it
    frames, delegates, reviews, synthesizes, and lands. Ceremony scales with
    blast radius, not diff size (see lanes below). The only direct-code
    exceptions are the hand-built genesis kernel and emergency repair when bp3
    or its launcher is down; both are logged and reconciled.
-4. **Authority:** the human controls intent. An exp lands into its Quest
+4. **Authority:** the human controls intent. An node lands into its Graph
    branch automatically only when its lane's gates pass — deterministic
    checks for the micro lane, checks plus independent review for standard
    and high-blast-radius lanes — the integration target is unchanged, the
    result kind satisfies its prerequisites, and budget remains. Every
-   auto-land emits an IIUC/TL;DR land report (below) and moves the exp to
-   the `auto_landed` state. The human steps in at Quest-to-master to
+   auto-land emits an IIUC/TL;DR land report (below) and moves the node to
+   the `auto_landed` state. The human steps in at Graph-to-master to
    understand the integrated result and authorize promotion. Push is a
-   separately scoped action; Quest-to-master approval does not imply it.
-   Human touchpoints are Quest framing, Quest-to-master, and escalations
+   separately scoped action; Graph-to-master approval does not imply it.
+   Human touchpoints are Graph framing, Graph-to-master, and escalations
    (success-picture change, budget exhaustion, integration conflict, stale
    downstream results).
 5. **Blockers:** every blocked Worker notifies the user through an IIUC-style
@@ -96,34 +96,34 @@ document.
    skills, and all design docs (see Repository shape below); the generic
    bp3-yap-skills library stays a separate repo. Colima/Docker or stronger
    isolation is a follow-up, not a claimed property.
-8. **Dogfood:** two Quests, specced below. Quest 1 proves the loop on bp3
-   itself (genesis kernel, then exps 1-3) with a toy fixture as the permanent
-   conformance target. Quest 2 is the one-week esc3 MVP build-out, run
+8. **Dogfood:** two Graphs, specced below. Graph 1 proves the loop on bp3
+   itself (genesis kernel, then nodes 1-3) with a toy fixture as the permanent
+   conformance target. Graph 2 is the one-week esc3 MVP build-out, run
    entirely through bp3, with the toy template as its daily dogfood gate and
    cross-repo checks between bp3 and esc3. Projections mean recaps, not
    forecasts.
-9. **Success:** Quest 1 ends with a self-hosted, human-promoted bp3 change,
+9. **Success:** Graph 1 ends with a self-hosted, human-promoted bp3 change,
    Controller restart recovery, blocker briefings, and no unreconciled target
-   movement. Quest 2 ends with a usable esc3, the week's scorecard, and a
+   movement. Graph 2 ends with a usable esc3, the week's scorecard, and a
    prioritized hardening list. bp3 is adopted going forward; measurement
    prices friction, it is not an adoption trial against a predecessor.
 
 ### The human-facing model
 
 ```text
-Quest — What outcome are we pursuing, and why?
-  └─ exp — What bounded contribution or question are we tackling next?
+Graph — What outcome are we pursuing, and why?
+  └─ node — What bounded contribution or question are we tackling next?
        └─ executions — Which Workers tried it, with which inputs and results?
 ```
 
-Only Quest and exp are planning concepts. Results, reviews, questions,
+Only Graph and node are planning concepts. Results, reviews, questions,
 permissions, and integration records explain the work; they are not new queues
 for the user to manage. A Worker can keep a private implementation checklist.
 
-An exp may produce code, a design, a comparison, or an accepted negative finding.
+An node may produce code, a design, a comparison, or an accepted negative finding.
 Rework against the same brief is another execution; a changed brief is an
-explicit revision; a separate useful outcome calls for a new exp. Review does
-not automatically create another planning exp.
+explicit revision; a separate useful outcome calls for a new node. Review does
+not automatically create another planning node.
 
 Dependencies name the accepted results needed next, not a collection of vague
 "related to" edges.
@@ -134,7 +134,7 @@ All coding goes to a Worker; the paperwork scales with blast radius and
 reversibility, not lines changed. The user experiences a lane, not a form.
 
 - **Micro lane:** one-line intent, auto-assembled brief, a warm Worker that
-  already holds Quest context, deterministic checks, auto-land to the Quest
+  already holds Graph context, deterministic checks, auto-land to the Graph
   branch, land report. For contained, easily reversed changes. This lane is
   the explicit checks-only exception to the independent-review gate; the
   land report and revert handle are its audit trail.
@@ -148,27 +148,27 @@ reversibility, not lines changed. The user experiences a lane, not a form.
 
 Deterministic mechanics — formatting, builds, test runs, Git operations —
 are tooling or Controller verification, not model Worker work. Workers are
-spawned per Quest and kept warm across its exps where context continuity
-helps; each exp still gets its own worktree, branch, and execution record.
+spawned per Graph and kept warm across its nodes where context continuity
+helps; each node still gets its own worktree, branch, and execution record.
 Independent review always uses a fresh execution, never the author's.
 
 ### One-off fixes
 
-A one-off is a taxi ride, not a Quest ceremony. Board records are still
+A one-off is a taxi ride, not a Graph ceremony. Board records are still
 created for provenance, but the user sees only: request, patch, evidence,
 decision.
 
-- Inside an active Quest, a one-off attaches as a micro-exp.
-- With no active Quest, bp3 creates a hidden single-exp Quest. Its exp
+- Inside an active Graph, a one-off attaches as a micro-node.
+- With no active Graph, bp3 creates a hidden single-node Graph. Its node
   auto-lands to the integration branch; the human does a proportionate
-  Quest-to-master review of the final diff.
+  Graph-to-master review of the final diff.
 - Urgent breakage expedites the same path; it does not preempt or kill
   unrelated running Workers unless the user says so.
 - A read-only investigation is a scout execution returning a report; no
-  patch or landing follows unless it becomes an exp.
-- Do not accumulate one-offs in a standing miscellaneous Quest. Batch only
+  patch or landing follows unless it becomes an node.
+- Do not accumulate one-offs in a standing miscellaneous Graph. Batch only
   independent one-offs the user deliberately promotes together, so the
-  Quest-to-master review stays comprehensible.
+  Graph-to-master review stays comprehensible.
 
 ### The human interface
 
@@ -188,7 +188,7 @@ The Controller may synthesize multiple notifications into one briefing, but no
 blocker disappears through coalescing. A transport acknowledgement is not proof
 that a question was seen, answered, or handled.
 
-Every exp auto-land posts a compact land report to the main session, in
+Every node auto-land posts a compact land report to the main session, in
 IIUC/TL;DR style:
 
 - **TL;DR:** one line — what landed and why it matters.
@@ -198,21 +198,21 @@ IIUC/TL;DR style:
   to it; "none" is stated, never implied.
 - **Tests:** check and (per lane) review verdicts with receipts, including
   failures that were waived and by what rule.
-- **Code pointers:** integration commit, Quest/exp/execution IDs, files and
-  key functions changed, exps unblocked or staled, and a revert handle.
+- **Code pointers:** integration commit, Graph/node/execution IDs, files and
+  key functions changed, nodes unblocked or staled, and a revert handle.
 
 Reports inform; silence is never consent, and a report is not an approval
 request. Reports may be coalesced for display, but none is dropped; blockers
 and escalations interrupt instead of waiting for the next digest. The report
-is stored on the integration record, which carries the exp's `auto_landed`
+is stored on the integration record, which carries the node's `auto_landed`
 state (see Data models).
 
-Quest-to-master is a comprehension gate, not a rubber stamp on a raw diff. The
+Graph-to-master is a comprehension gate, not a rubber stamp on a raw diff. The
 Controller presents a promotion packet: a runnable demo with observed output,
 a diff tour ordered by concept (what changed and why), check receipts bound to
 the exact integration commit, risks and limitations, the auto-land log,
 superseded or excluded results, and a rollback plan. Any change after review
-invalidates the packet and regenerates it. If a Quest grows past what the
+invalidates the packet and regenerates it. If a Graph grows past what the
 human can understand in one sitting, the Controller splits it before the gate.
 
 ## Implementation design scope — proposed
@@ -244,7 +244,7 @@ Human <-> Controller (pi; intent clarification and judgment)
 predecessor's OCaml/SQLite core. The pi adapter is a bridge extension inside
 the Worker's pi session (see Small runtime below), not a second language
 core; if pi's extension surface cannot carry it, that fact must surface in
-the Exp 1 spike, not after the core is built. One codebase does not require
+the Node 1 spike, not after the core is built. One codebase does not require
 one OS process: CLI, runtime, and bridge may be separate executables from
 the same source.
 
@@ -293,9 +293,9 @@ Rules that keep it small:
   multi-backend adapters, secondmates, forge integrations, relay, project
   modes, pane-hash classifiers — is out of scope by name, not by accident.
 - Fallback, stated honestly: if the bridge cannot carry brief, blocker, and
-  settled-idle signals in the Exp 1 spike, Workers run owned-process RPC
-  (`pi --mode rpc`) for Quest 1 and live view/drive becomes the harness
-  exp's acceptance test instead of a claim.
+  settled-idle signals in the Node 1 spike, Workers run owned-process RPC
+  (`pi --mode rpc`) for Graph 1 and live view/drive becomes the harness
+  node's acceptance test instead of a claim.
 
 ### Repository shape: one monorepo named bp3
 
@@ -322,29 +322,29 @@ bp3/
   plugins/packs/            expert packs and routed Worker content
   plugins/warden-*/         future: event consumers that flag and question
   plugins/cron-*/           future: obligation/timer sources only
-  skills/          project skill sources (quest + Board-coupled control skills)
+  skills/          project skill sources (graph + Board-coupled control skills)
   docs/            this MVP, the historical sketch, imported provenance
-  docs/quests/     one file per Quest: <date>-<slug>.md
+  docs/quests/     one file per Graph: <date>-<slug>.md
 ```
 
 **Project skills install, explicit when working in bp3:** skill sources
 live in `skills/<id>/SKILL.md` as plain Markdown — no templating in bp3;
-skills are invoked by name (`/quest`, `$quest` is harness UI, not skill
+skills are invoked by name (`/graph`, `$graph` is harness UI, not skill
 content). `bp3 skills install --harness=<pi|claude|codex|muse|all>`
 copies each source into that harness's project skill dir (`.pi/skills`,
 `.claude/skills`, `.agents/skills`) with a GENERATED notice. Rendered
-files are generated — edit the source and re-run. `/quest` is a bp3
+files are generated — edit the source and re-run. `/graph` is a bp3
 project skill and ships this way; the generic bp3-yap-skills library
 remains the separate personal layer.
 
-**Quest file convention, explicit when working in bp3:** every Quest gets
+**Graph file convention, explicit when working in bp3:** every Graph gets
 exactly one human-facing file at `docs/quests/<date>-<slug>.md` in its home
 repo (`<date>` as `YYYY-MM-DD`, `<slug>` short lowercase kebab-case), written
-with the `$quest` skill — TL;DR, ELI5, goal, success picture, scope, human
-touchpoints, exps with acceptance checks, scorecard, red chair. The file is
+with the `$graph` skill — TL;DR, ELI5, goal, success picture, scope, human
+touchpoints, nodes with acceptance checks, scorecard, red chair. The file is
 the record humans read and approve; the Board is the runtime truth once
-implementation exists. Cross-repo Quests keep their file in their home repo
-(the esc3 Quest's file lives in esc3), never copied into bp3.
+implementation exists. Cross-repo Graphs keep their file in their home repo
+(the esc3 Graph's file lives in esc3), never copied into bp3.
 
 Core is what bp3 cannot run without: protocol, board, control, runtime.
 Spawn mechanics live in runtime for the MVP; harness-specific adapters sit
@@ -392,7 +392,7 @@ resource namespaces, deaths, restarts — for 3-10 concurrent children,
 reviewers included. The Controller never watches panes or holds every
 Worker's context. On an actionable wake it reads one compact control
 snapshot from the Board: needs-decision (blockers, escalations), ready
-(candidates passing checks), running (exp, elapsed, last meaningful event,
+(candidates passing checks), running (node, elapsed, last meaningful event,
 budget consumed), failed or stale, and capacity (free slots, review and
 integration backlog). Full transcripts stay behind references.
 
@@ -403,7 +403,7 @@ Launch is gated by backpressure, not by free slots alone:
 - Stop launching when the review backlog grows, even with free Worker slots.
   Reserve reviewer capacity; a proposed starting split is eight execution
   and two review slots, borrowed dynamically when one side idles.
-- Serialize integration per Quest branch; individually passing branches can
+- Serialize integration per Graph branch; individually passing branches can
   still fail composed.
 - Priority order: unblock a human or a dependency chain, finish nearly
   complete work, review and land completed candidates, start new independent
@@ -423,23 +423,23 @@ to be designed. Avoid a universal node/edge store for this control plane.
 
 | Record | Responsibility and essential data |
 |---|---|
-| Quest | Intent, why, success picture, constraints, state, human acceptance, optional prior-result provenance. |
-| exp | Quest ID, versioned brief, bounded contribution, expected result kind, acceptance basis, prerequisites, limits, selected result, disposition and state (including `auto_landed`), ceremony lane. |
-| Execution | Exp ID, role, ownership generation, immutable brief/input revisions, harness/model/version, workspace, endpoint/session, desired state and observed liveness, intended file scope, resource namespace, warm-session reference. |
+| Graph | Intent, why, success picture, constraints, state, human acceptance, optional prior-result provenance. |
+| node | Graph ID, versioned brief, bounded contribution, expected result kind, acceptance basis, prerequisites, limits, selected result, disposition and state (including `auto_landed`), ceremony lane. |
+| Execution | Node ID, role, ownership generation, immutable brief/input revisions, harness/model/version, workspace, endpoint/session, desired state and observed liveness, intended file scope, resource namespace, warm-session reference. |
 | Result | Execution ID, exact output commits/artifacts, result kind, evidence claims, limitations; useful findings need no fabricated merge. |
 | Review | Exact result/brief, independent reviewer or verifier execution, check receipts, findings, verdict. Worker claims remain separate from verifier receipts. |
 | Question/reply | Execution and question identity, blocker, answer/decision reference, delivery and handling state. |
 | Approval/integration | Land kind (auto or human-promoted), land report (TL;DR, IIUC, demos, tests, code pointers), human decision reference where required, exact authorized action/target/revision, expected target commit, checked integration commit, resulting state, durable operation journal. |
 
 Idempotency receipts, revisions, ordered events, and consumer cursors are
-protocol machinery, not planning entities. Preserve `quest_id`, `exp_id`,
+protocol machinery, not planning entities. Preserve `graph_id`, `node_id`,
 `execution_id`, `result_id`, `review_id`, and session role across adapters and
-future archive integration. An exp ID alone cannot identify a particular run
+future archive integration. An node ID alone cannot identify a particular run
 or review.
 
 Load-bearing invariants:
 
-- Launch resolves exact inputs. Later Quest/brief edits do not rewrite what a
+- Launch resolves exact inputs. Later Graph/brief edits do not rewrite what a
   Worker was given. Replacement and review runs retain separate attribution.
 - Prerequisites distinguish a code artifact from a finding; an accepted
   negative finding cannot accidentally satisfy a required-code input.
@@ -453,11 +453,11 @@ Load-bearing invariants:
 - Submission is not review; review is not human authorization; authorization
   for one revision/action is not permission for another.
 - An auto-land report is not an approval request, and silence after a report
-  is not consent for Quest-to-master or push.
-- `auto_landed` is a distinct exp state: the selected result is integrated
-  into the Quest branch and carries its land report. It is not human
-  acceptance, not Quest completion, and not promotion to master; reverting an
-  auto-land returns the exp to an explicit non-landed disposition without
+  is not consent for Graph-to-master or push.
+- `auto_landed` is a distinct node state: the selected result is integrated
+  into the Graph branch and carries its land report. It is not human
+  acceptance, not Graph completion, and not promotion to master; reverting an
+  auto-land returns the node to an explicit non-landed disposition without
   erasing the report.
 
 ### Functions and Worker protocol
@@ -466,13 +466,13 @@ Names describe responsibilities, not implemented command spellings.
 
 | Operation | Responsibility and failure behavior |
 |---|---|
-| Define/amend Quest or exp | Record intent and explicit revisions; reject invalid dependencies; identify consequences for existing executions/results. |
+| Define/amend Graph or node | Record intent and explicit revisions; reject invalid dependencies; identify consequences for existing executions/results. |
 | Launch | Assign the ceremony lane; validate scope, prerequisites and capacity (3-10 child cap, reviewer reserve, review-backlog backpressure); warn on likely file-scope overlap; reserve execution ownership; freeze inputs; prepare worktree and resource namespace; start and handshake from the actual Worker environment. Reconcile partial launch instead of blindly retrying it. |
 | Report / ask / reply | Persist progress, blockers, candidates, and answers with stable identities. Workers cannot accept their own result or authorize land through reporting operations. |
 | Review | Dispatch independent inspection/check execution against exact outputs; retain receipts and return a bounded review packet to the Controller. |
-| Prepare / auto-land / promote | Compose and check the actual integration. Exp-to-Quest-branch land is automatic when the lane's authority gates pass; it records the land report on the integration record, moves the exp to `auto_landed`, and posts the report to the main session. Quest-to-master requires the human comprehension packet and explicit authorization, and conditionally updates only the authorized target. Journal partial progress for recovery. |
+| Prepare / auto-land / promote | Compose and check the actual integration. Node-to-Graph-branch land is automatic when the lane's authority gates pass; it records the land report on the integration record, moves the node to `auto_landed`, and posts the report to the main session. Graph-to-master requires the human comprehension packet and explicit authorization, and conditionally updates only the authorized target. Journal partial progress for recovery. |
 | Context / query / recap | Return the compact control snapshot and current coordination and evidence references, including unresolved obligations; full transcripts are fetched only when needed. |
-| Cancel / replace / complete | Record desired state, fence obsolete ownership, reconcile the process outcome, and explicitly dispose of remaining work before Quest completion. |
+| Cancel / replace / complete | Record desired state, fence obsolete ownership, reconcile the process outcome, and explicitly dispose of remaining work before Graph completion. |
 
 Proposed mutation envelope: protocol version, stable operation ID, execution
 ID/ownership generation where applicable, expected entity revision for
@@ -500,12 +500,12 @@ Controller initially needs autonomous idle wake.
   truth. A recap states its window, time zone, source revisions/cursor, and
   evidence links. A generated narrative does not become an authoritative fact.
 
-For bp3, proposed day/week and Quest recaps cover outcomes, learning, blockers,
+For bp3, proposed day/week and Graph recaps cover outcomes, learning, blockers,
 decisions, next actions, and available cost/attention observations, including
 ceremony cost per lane (intent-to-spawn latency, Controller framing and review
 turns versus Worker execution time) and every manual bypass. The control
-snapshot and the Quest-to-master promotion packet are projections of the same
-records, not second sources of truth. For Quest 2 (esc3), recaps
+snapshot and the Graph-to-master promotion packet are projections of the same
+records, not second sources of truth. For Graph 2 (esc3), recaps
 cover recorded activity, plans, contexts/goals, and metrics. These are
 separate domains/stores, not a shared generic graph schema. Historical
 "as known then" versus current-corrected views must be specified rather than
@@ -519,9 +519,9 @@ and test restore in a fresh location.
 **Self-hosting:** because bp3 builds bp3, the running system is always the
 last promoted build. Workers edit only the next build in worktrees; candidate
 changes are tested against a scratch copy of the Board, never the live Board.
-Promotion is an explicit Quest-to-master act: candidate build, checks on a Board
+Promotion is an explicit Graph-to-master act: candidate build, checks on a Board
 copy, human acceptance, atomic switch with a retained rollback build. A bad
-exp must never be able to corrupt the coordinator that would repair it; if it
+node must never be able to corrupt the coordinator that would repair it; if it
 does, the emergency direct-repair exception applies and is reconciled into
 the Board afterward.
 
@@ -535,8 +535,8 @@ not fix that. Do not claim a sandbox or safe execution of hostile checks.
 
 Run independent checks in a separate verifier environment with the narrowest
 practical authority, not inside the Controller session merely because a Worker
-supplied a command. The later isolation exp must cover both Workers and check
-runners. The concrete human approval entry path for Quest-to-master remains a
+supplied a command. The later isolation node must cover both Workers and check
+runners. The concrete human approval entry path for Graph-to-master remains a
 pre-promotion design gate; a model-supplied `actor=human` field is not proof
 of permission. Because worktrees are cooperative, bypass of the protocol by a
 same-user process cannot be prevented; it must be detectable — target-branch
@@ -545,17 +545,17 @@ movement without a matching Board journal is an unreconciled-landing incident.
 Authority tiers:
 
 - **Worker commits** in its own worktree and branch: automatic, no gate.
-- **Exp-to-Quest-branch land:** automatic when the lane's gates pass on the
+- **Node-to-Graph-branch land:** automatic when the lane's gates pass on the
   exact integration — deterministic checks for micro; checks plus independent
   review for standard and high-blast-radius — the target is unchanged, the
   result kind satisfies prerequisites, and budget remains. The land records
-  its IIUC/TL;DR report, sets the exp state to `auto_landed`, and posts the
+  its IIUC/TL;DR report, sets the node state to `auto_landed`, and posts the
   report to the main session. Auto-land changes who signs, not what is
   verified.
-- **Quest-to-master promotion:** human, via the comprehension packet, bound to
+- **Graph-to-master promotion:** human, via the comprehension packet, bound to
   the exact checked integration commit.
 - **Push or publishing:** separately scoped human authorization; neither
-  auto-land nor Quest-to-master approval implies it.
+  auto-land nor Graph-to-master approval implies it.
 
 Proposed land transaction (both tiers): record expected target **B**,
 construct integration commit **I**, check **I**, apply the tier's authority
@@ -585,7 +585,7 @@ movement requires re-preparation and, for promotion, renewed authorization.
 In: one host, one bp3 monorepo (OCaml codebase/CLI), SQLite, pi/Zellij, worktrees, bounded
 Worker briefs, ceremony lanes, one-off taxi lane, 3-10 child multiplexing with
 backpressure, durable reports/questions, deterministic waiting, independent
-review, gated auto-land to Quest branches, human Quest-to-master promotion,
+review, gated auto-land to Graph branches, human Graph-to-master promotion,
 recovery, self-hosting safeguards, and queryable evidence-backed recaps.
 Retain small-scale fan-out/fan-in without building a general scheduler.
 
@@ -597,20 +597,20 @@ Not required for the MVP:
   extraction trigger fires (see Repository shape).
 - Colima/Docker isolation, hostile-Worker security claims, or unrestricted
   external actions. Isolation remains a follow-up, not a dismissed risk.
-- Automatic reruns of stale descendants, automatic Quest-to-master promotion,
+- Automatic reruns of stale descendants, automatic Graph-to-master promotion,
   automatic push, forecast engines, archive mining, or model-routing
   optimization before end-to-end value exists.
-- Driving esc3 before Quest 1 completes. esc3 is Quest 2, a separate
-  one-week build-out Quest, not part of Quest 1's proof.
+- Driving esc3 before Graph 1 completes. esc3 is Graph 2, a separate
+  one-week build-out Graph, not part of Graph 1's proof.
 
 Adoption is settled: bp3 is the way forward, with no predecessor fallback.
 That does not exempt it from measurement. Track human attention, ceremony
-cost per lane, bypasses, and rework across the Quest 2 week; cut lanes,
+cost per lane, bypasses, and rework across the Graph 2 week; cut lanes,
 gates, or reports that cost attention without buying recovery, evidence, or
 outcomes. Evaluate targeted protocol patterns rather than importing an entire
 orchestration platform. More parallelism is not itself an acceptance test.
 
-## Quest 1: bp3 loop on itself
+## Graph 1: bp3 loop on itself
 
 Goal: bp3 coordinates one real change to itself, end-to-end, without human
 scheduling, and survives the Controller dying mid-flight. This tests the
@@ -619,32 +619,32 @@ second product's design. It also creates the central self-hosting risk,
 handled above: the running bp3 is always the last promoted build, Workers
 edit only the next build, and candidates rehearse against a Board copy.
 
-Each core part gets its thinnest working version in this Quest: protocol
-(packet and report ops with stable IDs), board (Quest, exp, execution;
+Each core part gets its thinnest working version in this Graph: protocol
+(packet and report ops with stable IDs), board (Graph, node, execution;
 idempotent reports), control (launch plus recovery briefing), runtime
 (spawn one visible pi Worker with the bridge extension, reconcile it
 after Controller death).
-Later exps deepen one part at a time; the whole system never grows
+Later nodes deepen one part at a time; the whole system never grows
 uniformly ahead of evidence.
 
 ### The toy fixture
 
 `tests/toy-template/` holds a minimal OCaml project — a `hello` command
 slot, one test harness, a README. A script materializes it as a scratch git
-repo wherever an exp needs one. It is the permanent conformance and dogfood
+repo wherever an node needs one. It is the permanent conformance and dogfood
 target: boring, reproducible, and never graduated. Coordinator bugs are
 debugged against the toy, never inside real work.
 
-### Exp 1 — One Worker round-trip
+### Node 1 — One Worker round-trip
 
 Hand-build the genesis kernel (an exception in transport, never described
-as bp3 building itself). Exp 1 is staged; each substep is independently
-checkable and the exp is not done until all five pass on the toy repo.
+as bp3 building itself). Node 1 is staged; each substep is independently
+checkable and the node is not done until all five pass on the toy repo.
 
-- **1.1 Board and ops skeleton.** OCaml CLI plus SQLite with Quest, exp,
-  and execution records; create-Quest/exp ops; immutable brief storage;
+- **1.1 Board and ops skeleton.** OCaml CLI plus SQLite with Graph, node,
+  and execution records; create-Graph/node ops; immutable brief storage;
   the toy template at `tests/toy-template/` with a materialize script.
-  Check: create a Quest and exp against a materialized toy repo and read
+  Check: create a Graph and node against a materialized toy repo and read
   them back through `bp3 context`; no Worker exists yet.
 - **1.2 Visible Worker spawn.** Runtime creates the worktree and branch,
   opens a Zellij pane running pi with `plugins/harness-pi/bridge` loaded,
@@ -656,7 +656,7 @@ checkable and the exp is not done until all five pass on the toy repo.
   (add `hello`, its check, scope, limits); the runtime delivers it via the
   bridge (`pi.sendUserMessage`), never keystrokes. The Worker implements
   `hello` and reports a candidate (commit SHA, check output) by running
-  `bp3` ops from its shell. Check: `hello` test green on the exp branch,
+  `bp3` ops from its shell. Check: `hello` test green on the node branch,
   candidate recorded against the exact brief revision.
 - **1.4 Blocker, steering, takeover.** The check named in the brief
   deliberately does not exist, so the Worker blocks through the Board
@@ -677,36 +677,36 @@ checkable and the exp is not done until all five pass on the toy repo.
 
 If the 1.2 bridge spike fails — the extension cannot register, inject, or
 report settled-idle honestly — fall back to owned-process RPC Workers for
-the remaining substeps and record live view/drive as a harness-exp debt.
+the remaining substeps and record live view/drive as a harness-node debt.
 
-### Exp 2 — Auto-land with land report
+### Node 2 — Auto-land with land report
 
 A fresh reviewer Worker (never the author) reviews the candidate; gates bind
 to the exact integration; auto-land sets `auto_landed` and stores the
 IIUC/TL;DR land report (demos, tests, code pointers, revert handle). Revert
 is a revert commit; the report survives. Three refusal drills are
-mandatory: failing check, hand-moved Quest branch (target mismatch), and
-reviewer rejection returning as rework on the same exp. Still the toy repo;
+mandatory: failing check, hand-moved Graph branch (target mismatch), and
+reviewer rejection returning as rework on the same node. Still the toy repo;
 one Worker plus one reviewer, sequential.
 
-### Exp 3 — First self-hosted change, promoted by the human
+### Node 3 — First self-hosted change, promoted by the human
 
 Make `bp3 context` (the recovery briefing) a real command, built by a Worker
 in a bp3 worktree against the next build only. Rehearse the candidate
 against a Board copy plus a green toy run. The human promotes from a
 comprehension packet (concept-ordered diff tour with file pointers, observed
 demo, risks, rollback plan); annex on demand. Pull the deliberate rollback
-once in-exp. Any change after authorization invalidates the packet
-mechanically. Quest completion is recorded with limitations stated;
-remaining exps get explicit dispositions.
+once in-node. Any change after authorization invalidates the packet
+mechanically. Graph completion is recorded with limitations stated;
+remaining nodes get explicit dispositions.
 
 If bp3 is down during any of this, work directly to unblock, log it as an
 incident, and reconcile it into the Board afterward — commitment to bp3
 does not mean work stops when the coordinator does.
 
-## Quest 2: esc3 MVP build-out (one week)
+## Graph 2: esc3 MVP build-out (one week)
 
-A separate Quest, framed fresh once Quest 1 completes. Goal: a usable esc3
+A separate Graph, framed fresh once Graph 1 completes. Goal: a usable esc3
 — esc2's MVP capabilities with clearer data, plus queryable day/week
 recaps — built entirely through bp3 in one week. bp3's loop is already
 proven on home turf, so this week tests transfer, not the coordinator's
@@ -726,9 +726,9 @@ Python/web/auth/audio Escapement application is not the scope.
 - **Toy template as daily dogfood gate.** Before esc3 work each day, and
   after any bp3 change, one toy run end-to-end (spawn, blocker, auto-land,
   revert). A red toy run pauses esc3 work; the failure becomes a bp3
-  incident exp. New bp3 capabilities are dogfooded on the toy before esc3
+  incident node. New bp3 capabilities are dogfooded on the toy before esc3
   ever sees them.
-- **Scorecard, running all week.** Accepted, reworked, and blocked exps;
+- **Scorecard, running all week.** Accepted, reworked, and blocked nodes;
   human-active minutes per accepted change; interventions and repeated
   explanations; ceremony cost per lane; Controller restarts and recovery;
   manual bypasses (target zero unreconciled); blockers and their resolution
@@ -736,17 +736,17 @@ Python/web/auth/audio Escapement application is not the scope.
   cut, and fix decisions tied to logged incidents or measurements. A lane
   whose framing and review cost more Controller turns than its Workers
   spend executing is too heavy and gets loosened.
-- **Cross-repo checks.** Every Quest names a home repo; its exps work and
-  land there. Findings are never fixed inside the wrong repo's exp: an
-  esc3-discovered bp3 bug becomes a linked bp3 exp (structural findings
-  earn their own bp3 Quest) with provenance to the exposing esc3 Quest/exp
-  and incident. Cross-repo prerequisites name exact commits; an esc3 exp
+- **Cross-repo checks.** Every Graph names a home repo; its nodes work and
+  land there. Findings are never fixed inside the wrong repo's node: an
+  esc3-discovered bp3 bug becomes a linked bp3 node (structural findings
+  earn their own bp3 Graph) with provenance to the exposing esc3 Graph/node
+  and incident. Cross-repo prerequisites name exact commits; an esc3 node
   resumes only when the named bp3 commit exists and checks out. No
   cross-repo atomic land — each repo lands on its own gates and the Board
   links the commits. During the week, no bp3 change promotes unless the
-  toy run and a scripted bp3-driven esc3 smoke exp both pass; every esc3
+  toy run and a scripted bp3-driven esc3 smoke node both pass; every esc3
   change arrives through bp3's gates in the esc3 repo. The daily briefing
-  reviews new cross-repo bugs, waiting exps, and anything unreconciled.
+  reviews new cross-repo bugs, waiting nodes, and anything unreconciled.
 
 Success requires both halves: the user runs esc3 for real days and judges
 the recap useful, and every esc3 change arrived through bp3 with land
@@ -759,20 +759,20 @@ is absent, not reported executions of a failing test suite.
 
 | Check | Acceptance observation |
 |---|---|
-| Understandable model | From a Quest view, the user can explain why each exp exists, what it needs, what it produced, and the next decision without reading transcripts or raw SQL. |
+| Understandable model | From a Graph view, the user can explain why each node exists, what it needs, what it produced, and the next decision without reading transcripts or raw SQL. |
 | Worker round-trip | A real pi Worker in its worktree handshakes, reads the exact brief, reports a blocker/candidate, and safely retries a lost response. Cross-execution mutations are rejected by the protocol. |
 | Protocol counterexamples | Duplicate/conflicting operation IDs, stale ownership, dependency cycles, invalid result kinds, and cancellation/completion races have deterministic outcomes. |
 | Tokenless waiting | Proposed 30-minute idle run has zero waiting-attributable provider requests; routine events do not start turns; actionable wakes are bounded and coalesced without losing obligations. Account for unrelated harness background traffic; do not assume exactly-once external delivery. |
 | Disposable Controller | Restart during work and during a pending question; replacement reconstructs current state and obligations without duplicate launches or repeated explanation from the user. |
 | Blocker briefing | A forced blocker reaches the user with IIUC, challenged next steps, and a recommendation; reply is traceable through handling. |
 | Lineage and composition | Fan-out/fan-in consumes exact inputs; selection changes, pins and invalid withdrawals do not silently validate incompatible or stale outputs. |
-| Review and authorized land | Independent checks bind to the actual integration; exp auto-land fires only when its lane's gates pass, records the IIUC/TL;DR land report (demos, tests, code pointers), and sets `auto_landed`; Quest-to-master refuses absent, mismatched, or stale human authorization and target movement. Crash recovery reconciles Git and Board; branch movement without a journal is detected and frozen, never silently adopted. |
+| Review and authorized land | Independent checks bind to the actual integration; node auto-land fires only when its lane's gates pass, records the IIUC/TL;DR land report (demos, tests, code pointers), and sets `auto_landed`; Graph-to-master refuses absent, mismatched, or stale human authorization and target movement. Crash recovery reconciles Git and Board; branch movement without a journal is detected and frozen, never silently adopted. |
 | Limits and restore | Exhaust a configured limit; interrupt the runtime; restore Board plus referenced artifacts in a fresh location without lost or silently resumed obligations. |
-| Lanes and one-offs | A micro one-off goes from request to evidence-backed patch with no Quest conversation; a one-line high-blast-radius change is forced into the high lane; deterministic mechanical changes run without a model Worker. Per-lane ceremony cost is recorded. |
+| Lanes and one-offs | A micro one-off goes from request to evidence-backed patch with no Graph conversation; a one-line high-blast-radius change is forced into the high lane; deterministic mechanical changes run without a model Worker. Per-lane ceremony cost is recorded. |
 | Multiplexing | Run 3, then 5, then 10 concurrent children including reviewers; review saturation stops new launches; a common blocker consolidates into one question; overlapping scopes warn before launch; resource namespaces keep parallel test runs apart; a snapshot after Controller restart reconstructs the full roster. |
-| Land report and promotion packet | Every auto-land produces exactly one stored report — TL;DR, IIUC, demos, tests, code pointers, revert handle — posts it to the main session, and sets `auto_landed`; silence is never treated as consent; a revert restores a non-landed disposition without erasing the report. The Quest-to-master packet explains the integrated diff by concept, binds receipts to the exact commit, and is invalidated by any later change; an oversized Quest is split before the gate. |
-| Self-hosting | A Worker exp that would corrupt the Board, launcher, or land path is caught on a Board copy; the running build is unaffected; promotion switches atomically and rollback restores the prior build. |
-| Useful dogfood | Quest 1: bp3 lands and promotes a change to itself through exps 1-3 without manual scheduling. Quest 2: esc3 is built entirely through bp3 in one week behind the daily toy gate, with the scorecard, hardening list, and cross-repo checks all exercised. |
+| Land report and promotion packet | Every auto-land produces exactly one stored report — TL;DR, IIUC, demos, tests, code pointers, revert handle — posts it to the main session, and sets `auto_landed`; silence is never treated as consent; a revert restores a non-landed disposition without erasing the report. The Graph-to-master packet explains the integrated diff by concept, binds receipts to the exact commit, and is invalidated by any later change; an oversized Graph is split before the gate. |
+| Self-hosting | A Worker node that would corrupt the Board, launcher, or land path is caught on a Board copy; the running build is unaffected; promotion switches atomically and rollback restores the prior build. |
+| Useful dogfood | Graph 1: bp3 lands and promotes a change to itself through nodes 1-3 without manual scheduling. Graph 2: esc3 is built entirely through bp3 in one week behind the daily toy gate, with the scorecard, hardening list, and cross-repo checks all exercised. |
 
 Measure human active time, interventions/repeated explanations, accepted
 outcomes, useful learning, elapsed time, ceremony cost per lane, and total
@@ -782,18 +782,18 @@ settled, report these as friction to fix, not as an adoption verdict.
 
 ## Proposed delivery milestones
 
-These are design-stage experiment proposals, **not created Board records or a
-new Milestone entity**. Scope each exp around an inspectable output.
+These are design-stage node proposals, **not created Board records or a
+new Milestone entity**. Scope each node around an inspectable output.
 
-| Exp | Shippable output and decisive check | Depends on |
+| Node | Shippable output and decisive check | Depends on |
 |---|---|---|
 | Q1E1 — One Worker round-trip | Staged 1.1-1.5: Board/ops skeleton, visible bridge Worker spawn, brief + `hello`, blocker/steer/takeover with duplicate-report safety, death and recovery. Each substep independently checkable. | None |
 | Q1E2 — Auto-land with land report | Fresh reviewer, gated auto-land to `auto_landed` with stored land report, revert commit, and all three refusal drills (failing check, moved target, reviewer rejection) on the toy repo. | Q1E1 |
-| Q1E3 — Self-hosted promotion | `bp3 context` built by a Worker, rehearsed on a Board copy plus green toy run, human promotion from a comprehension packet, deliberate rollback. Quest 1 completes. | Q1E2 |
-| Q2 — esc3 MVP build-out week | Separate Quest: esc3 built entirely through bp3 in one week, toy template as daily gate, scorecard running, cross-repo checks active. | Quest 1 complete |
+| Q1E3 — Self-hosted promotion | `bp3 context` built by a Worker, rehearsed on a Board copy plus green toy run, human promotion from a comprehension packet, deliberate rollback. Graph 1 completes. | Q1E2 |
+| Q2 — esc3 MVP build-out week | Separate Graph: esc3 built entirely through bp3 in one week, toy template as daily gate, scorecard running, cross-repo checks active. | Graph 1 complete |
 
-Named future exps, deliberately undated — each is specced from what the
-Quests teach, not designed in advance: protocol counterexample fixtures
+Named future nodes, deliberately undated — each is specced from what the
+Graphs teach, not designed in advance: protocol counterexample fixtures
 (retries, ownership, races) grown from Q1E1's live cases; tokenless waiting
 and the 3-to-10 multiplexing ramp under backpressure; evolving lineage
 (fan-out/fan-in, pins, withdrawals); lanes and one-off hardening from
@@ -813,8 +813,8 @@ of dogfood. No bootstrap records or Workers are created by this document.
 Ordered by the decisions they unblock. These are implementation questions, not
 another product interview.
 
-1. **Board/Worker contract — owner: implementer/designer.** Write worked Quest,
-   exp and execution records, the transition/authority matrix, brief/result
+1. **Board/Worker contract — owner: implementer/designer.** Write worked Graph,
+   node and execution records, the transition/authority matrix, brief/result
    formats, and the retry/fencing rules. Resolve result compatibility and
    invalidation before E0/E1; preserve the two-level planning vocabulary.
 2. **Runtime and transport — owner: implementer.** Specify process ownership,
@@ -823,18 +823,18 @@ another product interview.
    control snapshot format. Test the actual pi interface from OCaml rather
    than treating adapter documentation as an end-to-end guarantee; the core
    language is settled as OCaml.
-3. **Review, land, and promotion — owner: designer; human owns Quest-to-master.**
+3. **Review, land, and promotion — owner: designer; human owns Graph-to-master.**
    Define the auto-land gates, land report, and `auto_landed` state; how
    deliberate human promotion is recorded, its exact action scope, the
-   comprehension packet and Quest-size
+   comprehension packet and Graph-size
    budget, verifier authority, integration target policy, the recovery
    journal, and self-hosting promotion/rollback. Recommend an explicitly named
-   Quest integration branch; promotion and external push are separately scoped
+   Graph integration branch; promotion and external push are separately scoped
    actions. This gates E5, not a promise that worktrees enforce authorization
    against a hostile process.
 4. **Queries and recaps — owner: designer with user evaluation.** Pin day/week
    windows, current-corrected versus historical semantics, traceability, the
-   Quest 2 scorecard fields, and the smallest useful output fixtures. Keep
+   Graph 2 scorecard fields, and the smallest useful output fixtures. Keep
    bp3 coordination projections and the later esc3 activity projections
    separate; both must be queryable, not only prose.
 
@@ -845,15 +845,15 @@ before detailed SQL, a full command catalog, or any repo split.
 
 - **User input:** strongest attack was optimizing "fewer edges" rather than
   understandability. The user clarified the requirement; the MVP now centers
-  clear Quests/exps and separates that requirement from esc3's storage choice.
+  clear Graphs/nodes and separates that requirement from esc3's storage choice.
 - **Problem space:** another Escapement rewrite or more parallel Workers could
   ship without reducing friction. The user settled this: bp3 builds bp3 first,
-  esc3 is Quest 2, and adoption is not on trial. Measure human
-  attention, ceremony per lane, and bypasses during Quest 2 and cut
+  esc3 is Graph 2, and adoption is not on trial. Measure human
+  attention, ceremony per lane, and bypasses during Graph 2 and cut
   whatever does not buy recovery, evidence, or outcomes.
 - **Solution:** a CLI/worktree is not a security boundary, and a notification
   is not durable delivery. Carry forward tiered authority (gated auto-land to
-  Quest branches, human comprehension-gated Quest-to-master, separately scoped
+  Graph branches, human comprehension-gated Graph-to-master, separately scoped
   push), atomic events, idempotency, ownership, independent receipts, exact
   integration binding, and unreconciled-movement detection. The unresolved
   concrete mechanisms are gates in design slices 1–3, not implemented
@@ -863,7 +863,7 @@ before detailed SQL, a full command catalog, or any repo split.
   riskiest useful slice. Make the hand-built genesis kernel and the
   stable-host/promotion split explicit, prove one real round-trip and
   idle/restart behavior, multiplex 3-10 children under backpressure, then run
-  Quest 2's esc3 build-out week behind the daily toy gate.
+  Graph 2's esc3 build-out week behind the daily toy gate.
 
 ## Handoff
 

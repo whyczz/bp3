@@ -5,7 +5,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root/_build/default/src/graph/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
 cd "$work/repo"
 git init -q -b master
@@ -13,8 +13,8 @@ git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
-q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
-h() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness "$@"; }
+q() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
+h() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # --- help: every harness verb documented, exit 0, no state read ---
@@ -37,8 +37,8 @@ out=$(h w -h) || fail "alias w -h exit"
 echo "$out" | grep -q "watch" || fail "alias w help: $out"
 
 # --- usage: strict argv, bare positive durations, exit 2 ---
-if out=$(h supervisor 2>&1); then fail "supervisor without quest accepted"; fi
-echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "no-quest code: $out"
+if out=$(h supervisor 2>&1); then fail "supervisor without graph accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "no-graph code: $out"
 if out=$(h supervisor toy --timeout-seconds 0 2>&1); then fail "zero timeout accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "zero timeout code: $out"
 if out=$(h supervisor toy --timeout-seconds -5 2>&1); then fail "negative timeout accepted"; fi
@@ -48,11 +48,11 @@ if out=$(h supervisor toy --engine bogus 2>&1); then fail "bogus engine accepted
 if out=$(h supervisor toy --bogus 1 2>&1); then fail "unknown flag accepted"; fi
 if out=$(h bogus 2>&1); then fail "unknown harness verb accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "unknown verb code: $out"
-if out=$(h supervisor no-such-quest --timeout-seconds 1 2>&1); then fail "missing quest accepted"; fi
-echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "missing quest code: $out"
+if out=$(h supervisor no-such-graph --timeout-seconds 1 2>&1); then fail "missing graph accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "missing graph code: $out"
 
 # --- desk (mvp.6): harness desk door, worktree door is its alias ---
-wt() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 worktree "$@"; }
+wt() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 worktree "$@"; }
 normj() { jq -Sc 'walk(if type == "object" then del(.created_ts, .stale_s) else . end)'; }
 out=$(h desk -h) || fail "desk -h exit"
 for v in derive create inspect remove prepare check exit release list; do
@@ -64,17 +64,17 @@ if out=$(h desk 2>&1); then fail "desk without a verb accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "desk no-verb code: $out"
 
 # golden parity: read verbs answer identically through both doors
-[ "$(h desk derive demo exp-a R1 | normj)" = "$(wt derive demo exp-a R1 | normj)" ] || fail "derive parity"
+[ "$(h desk derive demo node-a R1 | normj)" = "$(wt derive demo node-a R1 | normj)" ] || fail "derive parity"
 [ "$(h desk list | normj)" = "$(wt list | normj)" ] || fail "empty list parity"
 [ "$(h d list | normj)" = "$(h desk list | normj)" ] || fail "alias d list parity"
-out=$(h desk prepare demo exp-a --run DA)
-echo "$out" | jq -e '.ok == true and .run_id == "DA" and .path == ".bp3/worktrees/demo/exp-a/DA"' >/dev/null || fail "desk prepare: $out"
+out=$(h desk prepare demo node-a --run DA)
+echo "$out" | jq -e '.ok == true and .run_id == "DA" and .path == ".bp3/worktrees/demo/node-a/DA"' >/dev/null || fail "desk prepare: $out"
 [ "$(h desk check --run DA | normj)" = "$(wt check --run DA | normj)" ] || fail "check parity"
 [ "$(h desk list | normj)" = "$(wt list | normj)" ] || fail "list parity"
-[ "$(h desk inspect .bp3/worktrees/demo/exp-a/DA | normj)" = "$(wt inspect .bp3/worktrees/demo/exp-a/DA | normj)" ] || fail "inspect parity"
+[ "$(h desk inspect .bp3/worktrees/demo/node-a/DA | normj)" = "$(wt inspect .bp3/worktrees/demo/node-a/DA | normj)" ] || fail "inspect parity"
 
 # dirty refusal is the same verdict through both doors, record intact
-echo stray >> .bp3/worktrees/demo/exp-a/DA/a.txt
+echo stray >> .bp3/worktrees/demo/node-a/DA/a.txt
 d1=$(h desk release --run DA 2>&1 | normj) || true
 d2=$(wt release --run DA 2>&1 | normj) || true
 [ "$d1" = "$d2" ] || fail "dirty release parity: $d1 vs $d2"
@@ -86,41 +86,41 @@ echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "desk
 
 # create/remove and exit through the desk door
 SHA=$(git rev-parse HEAD)
-out=$(h desk create .bp3/worktrees/demo/exp-a/DC --commit "$SHA")
+out=$(h desk create .bp3/worktrees/demo/node-a/DC --commit "$SHA")
 echo "$out" | jq -e '.ok == true and .detached == true' >/dev/null || fail "desk create: $out"
-out=$(h desk remove .bp3/worktrees/demo/exp-a/DC)
+out=$(h desk remove .bp3/worktrees/demo/node-a/DC)
 echo "$out" | jq -e '.ok == true and .removed == true' >/dev/null || fail "desk remove: $out"
-h desk prepare demo exp-a --run DB >/dev/null
-out=$(cd .bp3/worktrees/demo/exp-a/DB && BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" harness desk exit)
+h desk prepare demo node-a --run DB >/dev/null
+out=$(cd .bp3/worktrees/demo/node-a/DB && BP3_G_BIN="$work/repo/g-bin" "$work/repo/bin/bp3" harness desk exit)
 echo "$out" | jq -e '.ok == true and .released == true and (.conductor_path | type == "string")' >/dev/null || fail "desk exit: $out"
-out=$(h desk prepare --quest demoq)
-echo "$out" | jq -e '.ok == true and .exp == "(quest)" and .path == ".bp3/worktrees/demoq"' >/dev/null || fail "desk quest prepare: $out"
-out=$(h desk release --quest demoq)
-echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "desk quest release: $out"
+out=$(h desk prepare --graph demoq)
+echo "$out" | jq -e '.ok == true and .node == "(graph)" and .path == ".bp3/worktrees/demoq"' >/dev/null || fail "desk graph prepare: $out"
+out=$(h desk release --graph demoq)
+echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "desk graph release: $out"
 
 # creation refuses reserved door/verb slugs (E_USAGE), reads stay total
 for bad in harness worktree desk supervisor watch c create list check; do
-  if out=$(q c "$bad" 2>&1); then fail "quest create accepted reserved slug: $bad"; fi
-  echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved quest code [$bad]: $out"
+  if out=$(q c "$bad" 2>&1); then fail "graph create accepted reserved slug: $bad"; fi
+  echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved graph code [$bad]: $out"
 done
 q c slug-q >/dev/null
 for bad in harness desk find-tape release; do
-  if out=$(q slug-q c "$bad" 2>&1); then fail "exp create accepted reserved slug: $bad"; fi
-  echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved exp code [$bad]: $out"
+  if out=$(q slug-q c "$bad" 2>&1); then fail "node create accepted reserved slug: $bad"; fi
+  echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved node code [$bad]: $out"
 done
-if out=$(h desk prepare --quest watch 2>&1); then fail "desk prepare accepted reserved quest slug"; fi
+if out=$(h desk prepare --graph watch 2>&1); then fail "desk prepare accepted reserved graph slug"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved desk-prepare code: $out"
-out=$(q slug-q c fine-exp)
-echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "ordinary exp create after refusals: $out"
+out=$(q slug-q c fine-node)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "ordinary node create after refusals: $out"
 
 # --- init-check: blind probe warns, never blocks ---
 mkdir -p "$work/nohome"
-out=$(HOME="$work/nohome" BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness init-check) || fail "init-check blind exit"
+out=$(HOME="$work/nohome" BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness init-check) || fail "init-check blind exit"
 echo "$out" | jq -e '.ok == true and (.checks | length == 2) and (.warnings | index("W_SUPERVISOR_BLIND") != null)' >/dev/null || fail "init-check blind: $out"
 out=$(h init-check --engine muse-code) || fail "init-check one engine exit"
 echo "$out" | jq -e '.ok == true and (.checks | length == 1) and .checks[0].harness == "muse-code"' >/dev/null || fail "init-check engine: $out"
 
-# --- fake children: exps in landed / blocked / todo states ---
+# --- fake children: nodes in landed / blocked / todo states ---
 q c done-q >/dev/null; q done-q c e1 >/dev/null
 q c gate-q >/dev/null; q gate-q c e1 >/dev/null
 q c toy >/dev/null; q toy c e1 >/dev/null
@@ -137,12 +137,12 @@ q gate-q u e1 grade --verdict needs_fix --reason broken >/dev/null
 out=$(h supervisor done-q --timeout-seconds 5) || fail "settled exit: $out"
 echo "$out" | tail -1 | jq -e '.ok == true and .outcome == "settled" and .settled == true' >/dev/null || fail "settled verdict: $out"
 
-# human gate: blocked exp -> outcome human_gate, exit 4, inbox names it
+# human gate: blocked node -> outcome human_gate, exit 4, inbox names it
 set +e; out=$(h supervisor gate-q --timeout-seconds 5); rc=$?; set -e
 [ "$rc" = 4 ] || fail "human_gate exit class: $rc ($out)"
-echo "$out" | tail -1 | jq -e '.outcome == "human_gate" and .settled == false and (.inbox | length == 1) and .inbox[0].exp == "e1"' >/dev/null || fail "human_gate verdict: $out"
+echo "$out" | tail -1 | jq -e '.outcome == "human_gate" and .settled == false and (.inbox | length == 1) and .inbox[0].node == "e1"' >/dev/null || fail "human_gate verdict: $out"
 
-# timeout: todo exp never settles -> outcome timeout, exit 3
+# timeout: todo node never settles -> outcome timeout, exit 3
 set +e; out=$(h s toy --timeout-seconds 1); rc=$?; set -e
 [ "$rc" = 3 ] || fail "timeout exit class: $rc ($out)"
 echo "$out" | tail -1 | jq -e '.outcome == "timeout" and .settled == false' >/dev/null || fail "timeout verdict: $out"
@@ -155,13 +155,13 @@ mkdir -p "$store" fixtures
 echo tape > fixtures/fresh.log
 touch -t 202001010000 fixtures/stale.log
 sleep 60 & LIVE=$!
-printf '%s\n' '{"kind":"init_record","run_id":"R-init","harness":"muse-code","quest":"toy"}' > "$store/R-init.jsonl"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-active\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/fresh.log\"}" > "$store/R-active.jsonl"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-orphan\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/stale.log\"}" > "$store/R-orphan.jsonl"
-printf '%s\n' '{"kind":"init_record","run_id":"R-fin","harness":"pi","quest":"toy"}' '{"kind":"observation","exit_observed":true,"tape_closed":true}' > "$store/R-fin.jsonl"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-settle-live\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/fresh.log\"}" '{"kind":"observation","settle_row":true,"tape_closed":false}' > "$store/R-settle-live.jsonl"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-blind\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/missing.log\"}" > "$store/R-blind.jsonl"
-printf '%s\n' '{"kind":"init_record","run_id":"R-torn","harness":"pi","quest":"toy"}' '{"kind":"observation","tape_seen":tru' > "$store/R-torn.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-init","harness":"muse-code","graph":"toy"}' > "$store/R-init.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-active\",\"harness\":\"pi\",\"graph\":\"toy\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/fresh.log\"}" > "$store/R-active.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-orphan\",\"harness\":\"pi\",\"graph\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/stale.log\"}" > "$store/R-orphan.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-fin","harness":"pi","graph":"toy"}' '{"kind":"observation","exit_observed":true,"tape_closed":true}' > "$store/R-fin.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-settle-live\",\"harness\":\"pi\",\"graph\":\"toy\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/fresh.log\"}" '{"kind":"observation","settle_row":true,"tape_closed":false}' > "$store/R-settle-live.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-blind\",\"harness\":\"pi\",\"graph\":\"toy\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/missing.log\"}" > "$store/R-blind.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-torn","harness":"pi","graph":"toy"}' '{"kind":"observation","tape_seen":tru' > "$store/R-torn.jsonl"
 
 # engine contradicting an InitRecord is a usage error
 if out=$(h supervisor toy --engine muse-code --timeout-seconds 1 2>&1); then fail "engine contradiction accepted"; fi
@@ -182,8 +182,8 @@ echo "$last" | jq -e '(.orphans | index("R-orphan") != null)' >/dev/null || fail
 mkdir -p fixtures/pi-store fixtures/muse-store/S-muse
 printf '%s\n' '{"type":"session","version":3,"id":"S-pi","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}' '{"type":"message","id":"e1","message":{"role":"user","content":"BP3_RUN_ID=R-pi-run work"}}' '{"type":"message","id":"e2","message":{"role":"assistant","content":"done"}}' '{"type":"message","id":"e3","message":{"role":"assistant","content":"bye"}}' > fixtures/pi-store/pi1.jsonl
 printf '%s\n' '{"session_id":"S-muse","id":"m1","content":"BP3_RUN_ID=R-muse-run work"}' > fixtures/muse-store/S-muse/session.jsonl
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-find\",\"harness\":\"pi\",\"session_id\":\"S-pi\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/pi-store/pi1.jsonl\",\"quest\":\"toy\"}" > "$store/R-find.jsonl"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-bad\",\"harness\":\"pi\",\"tape_path\":\"$work/repo/fixtures/pi-store/pi1.jsonl\",\"quest\":\"toy\"}" > "$store/R-bad.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-find\",\"harness\":\"pi\",\"session_id\":\"S-pi\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/pi-store/pi1.jsonl\",\"graph\":\"toy\"}" > "$store/R-find.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-bad\",\"harness\":\"pi\",\"tape_path\":\"$work/repo/fixtures/pi-store/pi1.jsonl\",\"graph\":\"toy\"}" > "$store/R-bad.jsonl"
 export BP3_PI_TAPE_DIR="$work/repo/fixtures/pi-store" BP3_MUSE_TAPE_DIR="$work/repo/fixtures/muse-store"
 
 out=$(h find-tape -h) || fail "find-tape -h exit"
@@ -262,7 +262,7 @@ rm fixtures/pi-store/pi2.jsonl
 mkdir -p fixtures/watch
 printf '%s\n' '{"type":"message","id":"w1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-clean work"}}' '{"type":"session_closed","id":"w2"}' > fixtures/watch/clean.log
 sleep 1 & CLEANPID=$!
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-clean\",\"harness\":\"pi\",\"session_id\":\"S-watch-clean\",\"pid\":$CLEANPID,\"tape_path\":\"$work/repo/fixtures/watch/clean.log\",\"quest\":\"toy\"}" > "$store/R-watch-clean.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-clean\",\"harness\":\"pi\",\"session_id\":\"S-watch-clean\",\"pid\":$CLEANPID,\"tape_path\":\"$work/repo/fixtures/watch/clean.log\",\"graph\":\"toy\"}" > "$store/R-watch-clean.jsonl"
 out=$(h watch --run-id R-watch-clean --timeout-seconds 5) || fail "watch clean exit: $out"
 echo "$out" | tail -1 | jq -e '.ok == true and .outcome == "settled" and .settled == true and .lifecycle == "finished" and .run_id == "R-watch-clean"' >/dev/null || fail "watch clean verdict: $out"
 echo "$out" | while IFS= read -r line; do echo "$line" | jq -e . >/dev/null || fail "watch non-JSON stdout line: $line"; done
@@ -272,7 +272,7 @@ echo "$out" | tail -1 | jq -e '.outcome == "settled" and .run_id == "R-watch-cle
 
 printf '%s\n' '{"type":"message","id":"h1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-hung work"}}' > fixtures/watch/hung.log
 sleep 30 & HUNGPID=$!
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-hung\",\"harness\":\"pi\",\"pid\":$HUNGPID,\"tape_path\":\"$work/repo/fixtures/watch/hung.log\",\"quest\":\"toy\"}" > "$store/R-watch-hung.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-hung\",\"harness\":\"pi\",\"pid\":$HUNGPID,\"tape_path\":\"$work/repo/fixtures/watch/hung.log\",\"graph\":\"toy\"}" > "$store/R-watch-hung.jsonl"
 set +e; out=$(h watch --run-id R-watch-hung --silence-seconds 1 --grace-seconds 1 --timeout-seconds 10); rc=$?; set -e
 [ "$rc" = 1 ] || fail "watch hung exit class: $rc ($out)"
 echo "$out" | tail -1 | jq -e '.outcome == "watchdog_killed" and .settled == false and .lifecycle == "orphaned"' >/dev/null || fail "watch hung verdict: $out"
@@ -287,7 +287,7 @@ EOS
 chmod +x fixtures/watch/stubborn.sh
 printf '%s\n' '{"type":"message","id":"t1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-stubborn work"}}' > fixtures/watch/stubborn.log
 fixtures/watch/stubborn.sh & STUBPID=$!
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-stubborn\",\"harness\":\"pi\",\"pid\":$STUBPID,\"tape_path\":\"$work/repo/fixtures/watch/stubborn.log\",\"quest\":\"toy\"}" > "$store/R-watch-stubborn.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-stubborn\",\"harness\":\"pi\",\"pid\":$STUBPID,\"tape_path\":\"$work/repo/fixtures/watch/stubborn.log\",\"graph\":\"toy\"}" > "$store/R-watch-stubborn.jsonl"
 set +e; out=$(h watch --run-id R-watch-stubborn --silence-seconds 1 --grace-seconds 1 --timeout-seconds 10); rc=$?; set -e
 [ "$rc" = 1 ] || fail "watch stubborn exit class: $rc ($out)"
 echo "$out" | tail -1 | jq -e '.outcome == "watchdog_killed" and .settled == false and .lifecycle == "orphaned"' >/dev/null || fail "watch stubborn verdict: $out"
@@ -303,13 +303,13 @@ EOS
 chmod +x fixtures/watch/drip.sh
 printf '%s\n' '{"type":"message","id":"p1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-drip work"}}' > fixtures/watch/drip.log
 fixtures/watch/drip.sh "$work/repo/fixtures/watch/drip.log" & DRIPPID=$!
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-drip\",\"harness\":\"pi\",\"pid\":$DRIPPID,\"tape_path\":\"$work/repo/fixtures/watch/drip.log\",\"quest\":\"toy\"}" > "$store/R-watch-drip.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-drip\",\"harness\":\"pi\",\"pid\":$DRIPPID,\"tape_path\":\"$work/repo/fixtures/watch/drip.log\",\"graph\":\"toy\"}" > "$store/R-watch-drip.jsonl"
 out=$(h watch --run-id R-watch-drip --silence-seconds 1 --grace-seconds 1 --timeout-seconds 10) || fail "watch drip exit: $out"
 echo "$out" | tail -1 | jq -e '.outcome == "settled" and .settled == true and .lifecycle == "finished"' >/dev/null || fail "watch drip verdict: $out"
 wait "$DRIPPID" 2>/dev/null || true
 
 sleep 30 & BLINDPID=$!
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-blind\",\"harness\":\"pi\",\"pid\":$BLINDPID,\"tape_path\":\"$work/repo/fixtures/watch/missing.log\",\"quest\":\"toy\"}" > "$store/R-watch-blind.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-blind\",\"harness\":\"pi\",\"pid\":$BLINDPID,\"tape_path\":\"$work/repo/fixtures/watch/missing.log\",\"graph\":\"toy\"}" > "$store/R-watch-blind.jsonl"
 set +e; out=$(h watch --run-id R-watch-blind --silence-seconds 1 --grace-seconds 1 --timeout-seconds 10); rc=$?; set -e
 [ "$rc" = 1 ] || fail "watch blind exit class: $rc ($out)"
 echo "$out" | tail -1 | jq -e '.outcome == "watchdog_killed" and .settled == false and (.warnings | index("W_SUPERVISOR_BLIND") != null)' >/dev/null || fail "watch blind verdict: $out"
@@ -318,7 +318,7 @@ if kill -0 "$BLINDPID" 2>/dev/null; then fail "blind pid survived watch"; fi
 
 printf '%s\n' '{"type":"message","id":"c1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-closed work"}}' '{"type":"session_closed","id":"c2"}' > fixtures/watch/closed.log
 sleep 30 & CLOSEDPID=$!
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-closed\",\"harness\":\"pi\",\"pid\":$CLOSEDPID,\"tape_path\":\"$work/repo/fixtures/watch/closed.log\",\"quest\":\"toy\"}" > "$store/R-watch-closed.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-closed\",\"harness\":\"pi\",\"pid\":$CLOSEDPID,\"tape_path\":\"$work/repo/fixtures/watch/closed.log\",\"graph\":\"toy\"}" > "$store/R-watch-closed.jsonl"
 set +e; out=$(h watch --run-id R-watch-closed --silence-seconds 1 --grace-seconds 1 --timeout-seconds 2); rc=$?; set -e
 [ "$rc" = 3 ] || fail "watch closed exit class: $rc ($out)"
 echo "$out" | tail -1 | jq -e '.outcome == "timeout" and .settled == false and .lifecycle == "active"' >/dev/null || fail "watch closed verdict: $out"
@@ -328,7 +328,7 @@ wait "$CLOSEDPID" 2>/dev/null || true
 
 printf '%s\n' '{"type":"message","id":"s1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-settle work"}}' > fixtures/watch/settle.log
 sleep 30 & SETTLEPID=$!
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-settle\",\"harness\":\"pi\",\"pid\":$SETTLEPID,\"tape_path\":\"$work/repo/fixtures/watch/settle.log\",\"quest\":\"toy\"}" '{"kind":"observation","settle_row":true,"tape_closed":false}' > "$store/R-watch-settle.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-settle\",\"harness\":\"pi\",\"pid\":$SETTLEPID,\"tape_path\":\"$work/repo/fixtures/watch/settle.log\",\"graph\":\"toy\"}" '{"kind":"observation","settle_row":true,"tape_closed":false}' > "$store/R-watch-settle.jsonl"
 set +e; out=$(h watch --run-id R-watch-settle --silence-seconds 1 --grace-seconds 1 --timeout-seconds 2); rc=$?; set -e
 [ "$rc" = 3 ] || fail "watch settle exit class: $rc ($out)"
 echo "$out" | tail -1 | jq -e '.outcome == "timeout" and .settled == false' >/dev/null || fail "watch settle verdict: $out"
@@ -350,23 +350,23 @@ reg="$common/bp3-run-registry.json"
 evdir="$common/bp3-run-events"
 mkdir -p "$evdir"
 now_s=$(date +%s)
-printf '%s\n' "{\"sessions\":{\"S-leg\":{\"quest\":\"toy\",\"exp\":\"e1\",\"run_id\":\"L-leg\",\"settled\":true,\"last_seen_epoch\":$now_s},\"S-dup\":{\"quest\":\"toy\",\"exp\":\"e1\",\"run_id\":\"R-active\",\"settled\":true,\"last_seen_epoch\":$now_s}}}" > "$reg"
-printf '%s\n' '{"kind":"init_record","run_id":"L-events","harness":"pi","quest":"toy"}' > "$evdir/L-events.jsonl"
+printf '%s\n' "{\"sessions\":{\"S-leg\":{\"graph\":\"toy\",\"node\":\"e1\",\"run_id\":\"L-leg\",\"settled\":true,\"last_seen_epoch\":$now_s},\"S-dup\":{\"graph\":\"toy\",\"node\":\"e1\",\"run_id\":\"R-active\",\"settled\":true,\"last_seen_epoch\":$now_s}}}" > "$reg"
+printf '%s\n' '{"kind":"init_record","run_id":"L-events","harness":"pi","graph":"toy"}' > "$evdir/L-events.jsonl"
 reg_hash=$(shasum -a 256 "$reg" | cut -d' ' -f1)
 reg_mtime=$(stat -f %m "$reg" 2>/dev/null || stat -c %Y "$reg")
 ev_hash=$(shasum -a 256 "$evdir/L-events.jsonl" | cut -d' ' -f1)
 
 # child never told any prefix: session-owned tape still resolves
 printf '%s\n' '{"type":"session","version":3,"id":"S-noprefix","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}' '{"type":"message","id":"n1","message":{"role":"user","content":"hello work"}}' '{"type":"session_closed","id":"n2"}' > fixtures/noprefix.jsonl
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-noprefix\",\"harness\":\"pi\",\"session_id\":\"S-noprefix\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/noprefix.jsonl\",\"quest\":\"toy\"}" > "$store/R-noprefix.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-noprefix\",\"harness\":\"pi\",\"session_id\":\"S-noprefix\",\"pid\":$LIVE,\"tape_path\":\"$work/repo/fixtures/noprefix.jsonl\",\"graph\":\"toy\"}" > "$store/R-noprefix.jsonl"
 out=$(h find-tape --run-id R-noprefix) || fail "find-tape no-prefix exit: $out"
 echo "$out" | jq -e '.run_id == "R-noprefix" and .session_id == "S-noprefix"' >/dev/null || fail "find-tape no-prefix: $out"
 
 # natural completion folds finished once the probe is persisted
 printf '%s\n' '{"type":"message","id":"k1","message":{"role":"user","content":"cache work"}}' '{"type":"session_closed","id":"k2"}' > fixtures/cache.log
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-cache\",\"harness\":\"pi\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/cache.log\",\"quest\":\"toy\"}" > "$store/R-cache.jsonl"
-printf '%s\n' '{"kind":"init_record","run_id":"R-par-a","harness":"pi","quest":"toy"}' > "$store/R-par-a.jsonl"
-printf '%s\n' '{"kind":"init_record","run_id":"R-par-b","harness":"pi","quest":"toy"}' > "$store/R-par-b.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-cache\",\"harness\":\"pi\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/cache.log\",\"graph\":\"toy\"}" > "$store/R-cache.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-par-a","harness":"pi","graph":"toy"}' > "$store/R-par-a.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-par-b","harness":"pi","graph":"toy"}' > "$store/R-par-b.jsonl"
 
 sleep 1
 set +e; out=$(h supervisor toy --timeout-seconds 3); set -e
@@ -407,7 +407,7 @@ kill $LIVE 2>/dev/null || true
 # --- derivation concurrency (followup.1): parallel writers, one log ---
 sleep 60 & RACE_LIVE=$!
 printf '%s\n' '{"type":"message","id":"r1","message":{"role":"user","content":"race work"}}' > fixtures/race.log
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-race\",\"harness\":\"pi\",\"pid\":$RACE_LIVE,\"tape_path\":\"$work/repo/fixtures/race.log\",\"quest\":\"toy\"}" > "$store/R-race.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-race\",\"harness\":\"pi\",\"pid\":$RACE_LIVE,\"tape_path\":\"$work/repo/fixtures/race.log\",\"graph\":\"toy\"}" > "$store/R-race.jsonl"
 # two supervisors fold the same Run at once, repeatedly: rows
 # interleave whole (single write, O_APPEND) or not at all
 race_round=0
@@ -443,7 +443,7 @@ echo "$out" | jq -e '.error.code == "E_RETIRED"' >/dev/null || fail "record-init
 
 # born lookup-able (legacy derivation fixture): the record lands
 # before any tape entry exists; link-born runs are covered in link.sh
-printf '%s\n' '{"kind":"init_record","run_id":"R-born","harness":"muse-code","quest":"toy","exp":"e1","session_id":"S-born","ts":"2026-01-01T00:00:00Z"}' > "$store/R-born.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-born","harness":"muse-code","graph":"toy","node":"e1","session_id":"S-born","ts":"2026-01-01T00:00:00Z"}' > "$store/R-born.jsonl"
 head -1 "$store/R-born.jsonl" | jq -e '.kind == "init_record" and .run_id == "R-born" and .harness == "muse-code" and (.ts | type == "string")' >/dev/null || fail "born init row: $(head -1 "$store/R-born.jsonl")"
 mkdir -p fixtures/muse-store/S-born
 printf '%s\n' '{"session_id":"S-born","id":"b1","content":"BP3_RUN_ID=R-born work"}' > fixtures/muse-store/S-born/session.jsonl
@@ -456,7 +456,7 @@ echo "$out" | tail -1 | jq -e '(.runs[] | select(.run_id == "R-born"))' >/dev/nu
 # killed mid-spawn: record first, dead pid, stale tape -> orphaned, never invisible
 printf '%s\n' '{"type":"message","id":"k9","message":{"role":"user","content":"BP3_RUN_ID=R-killed work"}}' > fixtures/killed.log
 touch -t 202001010000 fixtures/killed.log
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-killed\",\"harness\":\"muse-code\",\"quest\":\"toy\",\"exp\":\"e1\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/killed.log\"}" > "$store/R-killed.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-killed\",\"harness\":\"muse-code\",\"graph\":\"toy\",\"node\":\"e1\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/killed.log\"}" > "$store/R-killed.jsonl"
 set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
 echo "$out" | tail -1 | jq -e '(.runs[] | select(.run_id == "R-killed") | .lifecycle == "orphaned")' >/dev/null || fail "killed run not orphaned: $out"
 
@@ -464,26 +464,26 @@ echo "$out" | tail -1 | jq -e '(.runs[] | select(.run_id == "R-killed") | .lifec
 sleep 60 & F2LIVE=$!
 # muse child tape: exit entry (runtime terminal), no close marker
 printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' '{"payload_type":"runtime.session","payload":{"kind":"run","run_id":"x","event":{"kind":"terminal","terminal":"completed"}}}' > fixtures/f2-muse-exit.log
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-muse-exit\",\"harness\":\"muse-code\",\"quest\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-muse-exit.log\"}" > "$store/R-f2-muse-exit.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-muse-exit\",\"harness\":\"muse-code\",\"graph\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-muse-exit.log\"}" > "$store/R-f2-muse-exit.jsonl"
 # muse main tape: session.end close marker
 printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' '{"payload_type":"session.end","payload":{"kind":"session_end"}}' > fixtures/f2-muse-end.log
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-muse-end\",\"harness\":\"muse-code\",\"quest\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-muse-end.log\"}" > "$store/R-f2-muse-end.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-muse-end\",\"harness\":\"muse-code\",\"graph\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-muse-end.log\"}" > "$store/R-f2-muse-end.jsonl"
 # same exit entry, live pid, stale tape: pid alive wins, never finished
 cp fixtures/f2-muse-exit.log fixtures/f2-muse-live.log
 touch -t 202001010000 fixtures/f2-muse-live.log
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-muse-live\",\"harness\":\"muse-code\",\"quest\":\"toy\",\"pid\":$F2LIVE,\"tape_path\":\"$work/repo/fixtures/f2-muse-live.log\"}" > "$store/R-f2-muse-live.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-muse-live\",\"harness\":\"muse-code\",\"graph\":\"toy\",\"pid\":$F2LIVE,\"tape_path\":\"$work/repo/fixtures/f2-muse-live.log\"}" > "$store/R-f2-muse-live.jsonl"
 # pi clean exit: final assistant entry stopped, pid dead
 printf '%s\n' '{"type":"session","version":3,"id":"S-f2-pi","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}' '{"type":"message","id":"p1","message":{"role":"user","content":"work"}}' '{"type":"message","id":"p2","message":{"role":"assistant","stopReason":"stop","content":[]}}' > fixtures/f2-pi-exit.log
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-pi-exit\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-pi-exit.log\"}" > "$store/R-f2-pi-exit.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-pi-exit\",\"harness\":\"pi\",\"graph\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-pi-exit.log\"}" > "$store/R-f2-pi-exit.jsonl"
 # pi died mid-work: final entry is a tool call, stale, pid dead
 printf '%s\n' '{"type":"session","version":3,"id":"S-f2-pic","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}' '{"type":"message","id":"q1","message":{"role":"assistant","stopReason":"toolUse","content":[]}}' > fixtures/f2-pi-crash.log
 touch -t 202001010000 fixtures/f2-pi-crash.log
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-pi-crash\",\"harness\":\"pi\",\"quest\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-pi-crash.log\"}" > "$store/R-f2-pi-crash.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-pi-crash\",\"harness\":\"pi\",\"graph\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-pi-crash.log\"}" > "$store/R-f2-pi-crash.jsonl"
 # truncated mid-entry: torn final entry finishes nothing
 printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' > fixtures/f2-torn.log
 printf '%s' '{"payload_type":"session.end","payl' >> fixtures/f2-torn.log
 touch -t 202001010000 fixtures/f2-torn.log
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-torn\",\"harness\":\"muse-code\",\"quest\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-torn.log\"}" > "$store/R-f2-torn.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-torn\",\"harness\":\"muse-code\",\"graph\":\"toy\",\"pid\":999999,\"tape_path\":\"$work/repo/fixtures/f2-torn.log\"}" > "$store/R-f2-torn.jsonl"
 
 set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
 last=$(echo "$out" | tail -1)
@@ -499,7 +499,7 @@ kill $F2LIVE 2>/dev/null || true
 # watch settles a muse child tape on its exit entry, no close marker
 printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' '{"payload_type":"runtime.session","payload":{"kind":"run","run_id":"y","event":{"kind":"terminal","terminal":"completed"}}}' > fixtures/watch/f2-muse.log
 sleep 1 & F2WPID=$!
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-watch-muse\",\"harness\":\"muse-code\",\"pid\":$F2WPID,\"tape_path\":\"$work/repo/fixtures/watch/f2-muse.log\",\"quest\":\"toy\"}" > "$store/R-f2-watch-muse.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f2-watch-muse\",\"harness\":\"muse-code\",\"pid\":$F2WPID,\"tape_path\":\"$work/repo/fixtures/watch/f2-muse.log\",\"graph\":\"toy\"}" > "$store/R-f2-watch-muse.jsonl"
 out=$(h watch --run-id R-f2-watch-muse --timeout-seconds 5) || fail "followup.2 watch muse exit: $out"
 echo "$out" | tail -1 | jq -e '.outcome == "settled" and .settled == true and .lifecycle == "finished"' >/dev/null || fail "followup.2 watch muse verdict: $out"
 wait "$F2WPID" 2>/dev/null || true
@@ -534,13 +534,13 @@ printf '%s' '{"payload_type":"session.end","payl' >> fixtures/f3-torn.log
 touch -t 202001010000 fixtures/f3-torn.log
 printf '%s\n' '{"payload_type":"runtime.session","payload":{"kind":"run","run_id":"x","event":{"kind":"terminal","terminal":"completed"}}}' '{"oops' > fixtures/f3-bad.log
 touch -t 202001010000 fixtures/f3-bad.log
-printf '%s\n' '{"kind":"init_record","run_id":"R-f3-bound","harness":"muse-code","quest":"toy"}' > "$store/R-f3-bound.jsonl"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f3-live\",\"harness\":\"muse-code\",\"quest\":\"toy\",\"pid\":$F3LIVE}" > "$store/R-f3-live.jsonl"
-printf '%s\n' '{"kind":"init_record","run_id":"R-f3-mid","harness":"muse-code","quest":"toy","pid":999999}' > "$store/R-f3-mid.jsonl"
-printf '%s\n' '{"kind":"init_record","run_id":"R-f3-torn","harness":"muse-code","quest":"toy","pid":999999}' > "$store/R-f3-torn.jsonl"
-printf '%s\n' '{"kind":"init_record","run_id":"R-f3-bad","harness":"muse-code","quest":"toy","pid":999999}' > "$store/R-f3-bad.jsonl"
-printf '%s\n' '{"kind":"init_record","run_id":"R-f3-rebind","harness":"muse-code","quest":"toy"}' > "$store/R-f3-rebind.jsonl"
-printf '%s\n' '{"kind":"init_record","run_id":"R-f3-other","harness":"muse-code","quest":"toy"}' > "$store/R-f3-other.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-f3-bound","harness":"muse-code","graph":"toy"}' > "$store/R-f3-bound.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-f3-live\",\"harness\":\"muse-code\",\"graph\":\"toy\",\"pid\":$F3LIVE}" > "$store/R-f3-live.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-f3-mid","harness":"muse-code","graph":"toy","pid":999999}' > "$store/R-f3-mid.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-f3-torn","harness":"muse-code","graph":"toy","pid":999999}' > "$store/R-f3-torn.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-f3-bad","harness":"muse-code","graph":"toy","pid":999999}' > "$store/R-f3-bad.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-f3-rebind","harness":"muse-code","graph":"toy"}' > "$store/R-f3-rebind.jsonl"
+printf '%s\n' '{"kind":"init_record","run_id":"R-f3-other","harness":"muse-code","graph":"toy"}' > "$store/R-f3-other.jsonl"
 cp fixtures/f3-bound.log fixtures/f3-live.log
 cp fixtures/f3-mid.log fixtures/f3-rebind-a.log
 cp fixtures/f3-bound.log fixtures/f3-rebind-b.log
@@ -603,11 +603,11 @@ echo "$out" | grep -q "E_EXISTS" || fail "bind-tape help E_EXISTS: $out"
 # their own verbs, the conductor quotes the author's invocation
 # but started before the InitRecord, the author carries it after
 F4RUN="20260101T000000Z-handoff-pi-test-model-c1"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4RUN\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4RUN.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4RUN\",\"harness\":\"pi\",\"graph\":\"toy\",\"node\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4RUN.jsonl"
 printf '%s\n' '{"type":"session","version":3,"id":"S-f4-init","timestamp":"2026-01-01T00:00:10Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"i1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 harness record-init --run-id $F4RUN\"}}" > fixtures/pi-store/f4-init.jsonl
 printf '%s\n' '{"type":"session","version":3,"id":"S-f4-resolve","timestamp":"2026-01-01T00:00:20Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"v1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 harness find-tape --run-id $F4RUN\"}}" > fixtures/pi-store/f4-resolve.jsonl
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-conductor","timestamp":"2025-12-31T23:59:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"brief: BP3_RUN_ID=$F4RUN bp3 q toy u e1 handoff --commit abc --reason work\"}}" "{\"run_id\":\"$F4RUN\",\"note\":\"conductor quotes the run\"}" > fixtures/pi-store/f4-conductor.jsonl
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-author","timestamp":"2026-01-01T00:01:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 q toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-author.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-conductor","timestamp":"2025-12-31T23:59:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"brief: BP3_RUN_ID=$F4RUN bp3 g toy u e1 handoff --commit abc --reason work\"}}" "{\"run_id\":\"$F4RUN\",\"note\":\"conductor quotes the run\"}" > fixtures/pi-store/f4-conductor.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-author","timestamp":"2026-01-01T00:01:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 g toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-author.jsonl
 out=$(h find-tape --run-id "$F4RUN") || fail "followup.4 find-tape exit: $out"
 echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/f4-author.jsonl" '.ok == true and .wal == $w' >/dev/null || fail "followup.4 own engine-fsm-edge resolves author: $out"
 set +e; out=$(h watch --run-id "$F4RUN" --timeout-seconds 1); set -e
@@ -615,7 +615,7 @@ echo "$out" | tail -1 | jq -e --arg w "$work/repo/fixtures/pi-store/f4-author.js
 
 # no own engine-fsm-edge tape among several references: typed refusal
 F4NONE="20260101T000000Z-handoff-pi-test-model-c2"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4NONE\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4NONE.jsonl"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4NONE\",\"harness\":\"pi\",\"graph\":\"toy\",\"node\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4NONE.jsonl"
 printf '%s\n' '{"type":"session","version":3,"id":"S-f4-none-init","timestamp":"2026-01-01T00:00:10Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"i1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4NONE bp3 harness record-init --run-id $F4NONE\"}}" > fixtures/pi-store/f4-none-init.jsonl
 printf '%s\n' '{"type":"session","version":3,"id":"S-f4-none-resolve","timestamp":"2026-01-01T00:00:20Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"v1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4NONE bp3 harness find-tape --run-id $F4NONE\"}}" > fixtures/pi-store/f4-none-resolve.jsonl
 if out=$(h find-tape --run-id "$F4NONE" 2>&1); then fail "followup.4 no-own-edge accepted"; fi
@@ -625,9 +625,9 @@ echo "$out" | grep -q "f4-none-resolve" || fail "followup.4 no-own-edge names re
 
 # two own engine-fsm-edge tapes started at the same time: tie refuses
 F4TWO="20260101T000000Z-handoff-pi-test-model-c3"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4TWO\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4TWO.jsonl"
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-two-a","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-two-a.jsonl
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-two-b","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 handoff --commit def --reason work\"}}" > fixtures/pi-store/f4-two-b.jsonl
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4TWO\",\"harness\":\"pi\",\"graph\":\"toy\",\"node\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4TWO.jsonl"
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-two-a","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 g toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-two-a.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-two-b","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 g toy u e1 handoff --commit def --reason work\"}}" > fixtures/pi-store/f4-two-b.jsonl
 if out=$(h find-tape --run-id "$F4TWO" 2>&1); then fail "followup.4 tied own-edge accepted"; fi
 echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 tied own-edge code: $out"
 if out=$(h watch --run-id "$F4TWO" --timeout-seconds 1 2>&1); then fail "followup.4 watch tied own-edge accepted"; fi
@@ -635,16 +635,16 @@ echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.
 
 # two viable own engine-fsm-edge tapes: the earliest session wins
 F4EARLY="20260101T000000Z-handoff-pi-test-model-c4"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4EARLY\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4EARLY.jsonl"
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-a","timestamp":"2026-01-01T00:03:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4EARLY bp3 q toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-early-a.jsonl
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-b","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4EARLY bp3 q toy u e1 handoff --commit def --reason work\"}}" > fixtures/pi-store/f4-early-b.jsonl
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4EARLY\",\"harness\":\"pi\",\"graph\":\"toy\",\"node\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4EARLY.jsonl"
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-a","timestamp":"2026-01-01T00:03:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4EARLY bp3 g toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-early-a.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-b","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4EARLY bp3 g toy u e1 handoff --commit def --reason work\"}}" > fixtures/pi-store/f4-early-b.jsonl
 out=$(h find-tape --run-id "$F4EARLY") || fail "followup.4 earliest exit: $out"
 echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/f4-early-b.jsonl" '.ok == true and .wal == $w' >/dev/null || fail "followup.4 earliest session wins: $out"
 
 # the only own engine-fsm-edge tape started before the InitRecord
 F4OLD="20260101T000000Z-handoff-pi-test-model-c5"
-printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4OLD\",\"harness\":\"pi\",\"quest\":\"toy\",\"exp\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4OLD.jsonl"
-printf '%s\n' '{"type":"session","version":3,"id":"S-f4-old-quote","timestamp":"2025-12-31T23:59:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"brief: BP3_RUN_ID=$F4OLD bp3 q toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-old-quote.jsonl
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4OLD\",\"harness\":\"pi\",\"graph\":\"toy\",\"node\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4OLD.jsonl"
+printf '%s\n' '{"type":"session","version":3,"id":"S-f4-old-quote","timestamp":"2025-12-31T23:59:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"brief: BP3_RUN_ID=$F4OLD bp3 g toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-old-quote.jsonl
 printf '%s\n' '{"type":"session","version":3,"id":"S-f4-old-resolve","timestamp":"2026-01-01T00:00:20Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"v1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4OLD bp3 harness find-tape --run-id $F4OLD\"}}" > fixtures/pi-store/f4-old-resolve.jsonl
 if out=$(h find-tape --run-id "$F4OLD" 2>&1); then fail "followup.4 pre-init own-edge accepted"; fi
 echo "$out" | jq -e '.error.code == "E_AMBIGUOUS"' >/dev/null || fail "followup.4 pre-init own-edge code: $out"
@@ -656,7 +656,7 @@ echo "$out" | grep -q "backtest" || fail "backtest help: $out"
 out=$(h b -h) || fail "alias b -h exit"
 echo "$out" | grep -q "backtest" || fail "alias b help: $out"
 mkdir -p fixtures/bt
-printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' 'BP3_RUN_ID=R-bt-1 bp3 q toy u e1 handoff --commit 0123456789abcdef0123456789abcdef01234567' '{"payload_type":"session.end","payload":{}}' > fixtures/bt/good.jsonl
+printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' 'BP3_RUN_ID=R-bt-1 bp3 g toy u e1 handoff --commit 0123456789abcdef0123456789abcdef01234567' '{"payload_type":"session.end","payload":{}}' > fixtures/bt/good.jsonl
 printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' 'BP3_RUN_ID=R-bt-2 error E_BINDING_REFUSED' > fixtures/bt/refused.jsonl
 printf '%s' '{"payload_type":"session.end","payl' > fixtures/bt/torn.jsonl
 printf '%s\n' 'hello foreign tape' > fixtures/bt/foreign.jsonl
@@ -697,13 +697,13 @@ echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "backtest bad 
 
 # --- naming gate: retired spellings stay out of the new code ---
 retired="Spawn""Record|spawn""ed|run""ning"
-if grep -E "$retired" "$root/src/quest/harness.ml" >/dev/null; then fail "retired lifecycle spelling in harness.ml"; fi
-if grep -q "bp3-run-registry" "$root/src/quest/harness.ml"; then fail "mvp.5 retired registry spelling in harness.ml"; fi
-if grep -q "bp3-run-events" "$root/src/quest/harness.ml"; then fail "mvp.5 retired events spelling in harness.ml"; fi
-if grep -q "legacy_views" "$root/src/quest/harness.ml"; then fail "mvp.5 legacy import still in harness.ml"; fi
-grep -q "init_record" "$root/src/quest/harness.ml" || fail "init_record missing"
+if grep -E "$retired" "$root/src/graph/harness.ml" >/dev/null; then fail "retired lifecycle spelling in harness.ml"; fi
+if grep -q "bp3-run-registry" "$root/src/graph/harness.ml"; then fail "mvp.5 retired registry spelling in harness.ml"; fi
+if grep -q "bp3-run-events" "$root/src/graph/harness.ml"; then fail "mvp.5 retired events spelling in harness.ml"; fi
+if grep -q "legacy_views" "$root/src/graph/harness.ml"; then fail "mvp.5 legacy import still in harness.ml"; fi
+grep -q "init_record" "$root/src/graph/harness.ml" || fail "init_record missing"
 for w in '"init"' '"active"' '"finished"' '"orphaned"'; do
-  grep -q "$w" "$root/src/quest/harness.ml" || fail "lifecycle word missing: $w"
+  grep -q "$w" "$root/src/graph/harness.ml" || fail "lifecycle word missing: $w"
 done
 
 echo "harness.sh: all checks passed"

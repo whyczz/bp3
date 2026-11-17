@@ -11,7 +11,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root/_build/default/src/graph/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
 cd "$work/repo"
 git init -q -b master
@@ -19,33 +19,33 @@ git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
-q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
-lk() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
+q() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
+lk() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness link "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 now_ms() { node -e 'process.stdout.write(String(Date.now()))'; }
-es() { MUSE_SESSION_ID="$1" BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 e "${@:2}"; }
+es() { MUSE_SESSION_ID="$1" BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 e "${@:2}"; }
 
-commit_file_on_exp() { # <exp> <path> <file> -> new exp-branch tip
-  local exp=$1 path=$2 file=$3 branch="refs/heads/bp3/exp/par/$1"
+commit_file_on_node() { # <node> <path> <file> -> new node-branch tip
+  local node=$1 path=$2 file=$3 branch="refs/heads/bp3/exp/par/$1"
   local tip blob tree new_tip idx="$work/idx-$1"
   tip=$(git rev-parse "$branch"); rm -f "$idx"
   blob=$(git hash-object -w "$file")
   GIT_INDEX_FILE="$idx" git read-tree "$tip"
   GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$path"
   tree=$(GIT_INDEX_FILE="$idx" git write-tree)
-  new_tip=$(printf 'work %s\n' "$exp" | git commit-tree "$tree" -p "$tip")
+  new_tip=$(printf 'work %s\n' "$node" | git commit-tree "$tree" -p "$tip")
   git update-ref "$branch" "$new_tip" "$tip"; rm -f "$idx"
   printf '%s' "$new_tip"
 }
-commit_on_graph() { # <graph> <exp> <path> <content> -> new exp-branch tip
-  local graph=$1 exp=$2 path=$3 content=$4
-  local branch="refs/heads/bp3/exp/$graph/$exp" tip blob tree new_tip idx="$work/idx-$graph-$exp"
+commit_on_graph() { # <graph> <node> <path> <content> -> new node-branch tip
+  local graph=$1 node=$2 path=$3 content=$4
+  local branch="refs/heads/bp3/exp/$graph/$node" tip blob tree new_tip idx="$work/idx-$graph-$node"
   tip=$(git rev-parse "$branch"); rm -f "$idx"
   blob=$(printf '%s' "$content" | git hash-object -w --stdin)
   GIT_INDEX_FILE="$idx" git read-tree "$tip"
   GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$path"
   tree=$(GIT_INDEX_FILE="$idx" git write-tree)
-  new_tip=$(printf 'work %s\n' "$exp" | git commit-tree "$tree" -p "$tip")
+  new_tip=$(printf 'work %s\n' "$node" | git commit-tree "$tree" -p "$tip")
   git update-ref "$branch" "$new_tip" "$tip"; rm -f "$idx"
   printf '%s' "$new_tip"
 }
@@ -103,7 +103,7 @@ author_worker() { # <node> <session> <variant> <sky>
   MUSE_SESSION_ID="$session" lk claim "$tok" > "$work/$node.claim.json"
   flappy_write "$desk/$node.html" "$variant" "$sky"
   sleep 2
-  commit=$(commit_file_on_exp "$node" "$node.html" "$desk/$node.html")
+  commit=$(commit_file_on_node "$node" "$node.html" "$desk/$node.html")
   printf '%s' "$commit" > "$work/$node.commit"
   es "$session" handoff --commit "$commit" --reason "flappy $variant" > "$work/$node.handoff.json"
   es "$session" grade --verdict ship --reason "artifact checked" > "$work/$node.grade.json"
@@ -127,7 +127,7 @@ day_rid=$(cat "$work/flappy-day.run_id"); night_rid=$(cat "$work/flappy-night.ru
 jq -e '.ok == true and .node == "flappy-day"' "$work/flappy-day.claim.json" >/dev/null || fail "day claim"
 jq -e '.ok == true and .node == "flappy-night"' "$work/flappy-night.claim.json" >/dev/null || fail "night claim"
 
-# isolation: each desk and each exp branch holds only its variant
+# isolation: each desk and each node branch holds only its variant
 [ -f "$work/desk-flappy-day/flappy-day.html" ] && [ ! -e "$work/desk-flappy-day/flappy-night.html" ] \
   || fail "day desk bleed"
 [ -f "$work/desk-flappy-night/flappy-night.html" ] && [ ! -e "$work/desk-flappy-night/flappy-day.html" ] \
@@ -166,8 +166,8 @@ echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "night land: $out"
 git merge-base --is-ancestor "$tip1" bp3/quest/par || fail "second land did not build on first tip"
 git merge-base --is-ancestor "$(cat "$work/flappy-day.commit")" bp3/quest/par || fail "day commit not landed"
 git merge-base --is-ancestor "$(cat "$work/flappy-night.commit")" bp3/quest/par || fail "night commit not landed"
-[ "$(git show bp3/quest/par:flappy-day.html | grep -c 'Flappy — day')" = 1 ] || fail "quest tip day file"
-[ "$(git show bp3/quest/par:flappy-night.html | grep -c 'Flappy — night')" = 1 ] || fail "quest tip night file"
+[ "$(git show bp3/quest/par:flappy-day.html | grep -c 'Flappy — day')" = 1 ] || fail "graph tip day file"
+[ "$(git show bp3/quest/par:flappy-night.html | grep -c 'Flappy — night')" = 1 ] || fail "graph tip night file"
 
 # --- scorecard: wall from the run itself, timing from the rollup ---
 ready_wall_ms=$(( (day_end > night_end ? day_end : night_end) - (day_start < night_start ? day_start : night_start) ))
@@ -175,13 +175,13 @@ serial_sum_ms=$(( (day_end - day_start) + (night_end - night_start) ))
 (( ready_wall_ms < serial_sum_ms )) \
   || fail "ready-set wall $ready_wall_ms not below serial sum $serial_sum_ms"
 out=$(q r par)
-echo "$out" | jq -e '(.exps[] | select(.exp == "flappy-day") | .state == "landed" and (.timing.wall_s | type == "number"))
-  and (.exps[] | select(.exp == "flappy-night") | .state == "landed" and (.timing.wall_s | type == "number"))
+echo "$out" | jq -e '(.nodes[] | select(.node == "flappy-day") | .state == "landed" and (.timing.wall_s | type == "number"))
+  and (.nodes[] | select(.node == "flappy-night") | .state == "landed" and (.timing.wall_s | type == "number"))
   and (.setup | map(select(.node == "flappy-day" or .node == "flappy-night")) | length >= 2)' >/dev/null \
   || fail "rollup scorecard fields: $out"
 jq -n --argjson ready_wall_ms "$ready_wall_ms" --argjson serial_sum_ms "$serial_sum_ms" \
-  --arg day_wall_s "$(echo "$out" | jq -r '.exps[] | select(.exp == "flappy-day") | .timing.wall_s')" \
-  --arg night_wall_s "$(echo "$out" | jq -r '.exps[] | select(.exp == "flappy-night") | .timing.wall_s')" \
+  --arg day_wall_s "$(echo "$out" | jq -r '.nodes[] | select(.node == "flappy-day") | .timing.wall_s')" \
+  --arg night_wall_s "$(echo "$out" | jq -r '.nodes[] | select(.node == "flappy-night") | .timing.wall_s')" \
   '{ready_wall_ms: $ready_wall_ms, serial_sum_ms: $serial_sum_ms,
     wall_saved_ms: ($serial_sum_ms - $ready_wall_ms),
     nodes: {"flappy-day": {wall_s: ($day_wall_s | tonumber)},
@@ -225,7 +225,7 @@ echo "$out" | jq -e '.ready == ["bw"] and .starved == [{"blocked":"bx","starved"
 # Pi form: real OS processes (edge worker dies, node worker
 # records blocked and exits, exactly one bubble, no descendant
 # process remains; resume + a fresh Pi tree continues it).
-# Muse form: the real induct-node workflow returns the same
+# Muse form: the real bp3g-node workflow returns the same
 # terminal blocked bubble and exits; revival is a fresh
 # workflow, never a resume of the old run's agents. Evidence
 # is timestamps and the process table, not state inference.
@@ -245,7 +245,7 @@ async function waitDead(pid, ms = 5000) {
   while (Date.now() < end) { if (!alive(pid)) return true; await new Promise((r) => setTimeout(r, 50)); }
   return !alive(pid);
 }
-const env = { ...process.env, BP3_HARNESS: "muse-code", BP3_MODEL: "test-model", BP3_Q_BIN: path.join(repo, "q-bin") };
+const env = { ...process.env, BP3_HARNESS: "muse-code", BP3_MODEL: "test-model", BP3_G_BIN: path.join(repo, "g-bin") };
 function bp3(args, extra = {}) {
   const out = execFileSync(path.join(repo, "bin", "bp3"), args, { cwd: repo, encoding: "utf8", env: { ...env, ...extra } });
   return JSON.parse(out.trim().split("\n").pop() ?? "{}");
@@ -287,11 +287,11 @@ fs.writeFileSync(nodeWorker, [
   'let er = null; try { er = JSON.parse(fs.readFileSync(resultFile, "utf8")); } catch {}',
   'const chain = [myRun, minted.run_id];',
   'if (er && er.ok === false) {',
-  '  bp3(["q", graph, "u", node, "block", "--reason", er.reason]);',
+  '  bp3(["g", graph, "u", node, "block", "--reason", er.reason]);',
   '  fs.appendFileSync(bubblePath, JSON.stringify({ graph, node, state: "blocked", reason: er.reason, last_edge: "handoff", run_chain: chain, desk: process.cwd(), inbox_key: graph + "/" + node }) + "\\n");',
   '  process.exit(0);',
   '}',
-  'const after = bp3(["q", graph, "r", node]);',
+  'const after = bp3(["g", graph, "r", node]);',
   'fs.appendFileSync(bubblePath, JSON.stringify({ graph, node, state: after.state, reason: null, last_edge: "handoff", run_chain: chain, desk: process.cwd(), inbox_key: graph + "/" + node }) + "\\n");',
   'process.exit(0);',
   "",
@@ -317,7 +317,7 @@ fs.writeFileSync(edgeWorker, [
   '  const tree = execFileSync("git", ["write-tree"], { encoding: "utf8", env: ge }).trim();',
   '  const nt = execFileSync("git", ["commit-tree", tree, "-p", tip], { encoding: "utf8", input: "fresh " + node + "\\n" }).trim();',
   '  execFileSync("git", ["update-ref", branch, nt, tip], { env: ge });',
-  '  bp3(["q", graph, "u", node, "handoff", "--commit", nt, "--reason", "fresh tree work"]);',
+  '  bp3(["g", graph, "u", node, "handoff", "--commit", nt, "--reason", "fresh tree work"]);',
   '  fs.writeFileSync(resultFile, JSON.stringify({ ok: true }));',
   '}',
   "",
@@ -336,7 +336,7 @@ fs.writeFileSync(path.join(repo, ".gitignore"), ".bp3-context.json\n");
 execFileSync("git", ["add", ".gitignore"], { cwd: repo, env });
 execFileSync("git", ["commit", "-qm", "ignore bp3 context"], { cwd: repo, env });
 // --- Pi form in parallel: seeded blocks, sibling lands handed_off ---
-bp3(["q", "c", "bubpi"]); bp3(["q", "bubpi", "c", "seeded-pi"]); bp3(["q", "bubpi", "c", "sib-pi"]);
+bp3(["g", "c", "bubpi"]); bp3(["g", "bubpi", "c", "seeded-pi"]); bp3(["g", "bubpi", "c", "sib-pi"]);
 const piBubbles = path.join(work, "pi-bubbles.jsonl");
 const piT0 = Date.now();
 const piSeed = spawnPi("block-fail", "bubpi", "seeded-pi", piBubbles, path.join(work, "pi-seed"));
@@ -353,23 +353,23 @@ assert(await waitDead(piSeed.pid), "Pi node worker pid dead after bubble");
 const piEdgePid = Number(fs.readFileSync(path.join(work, "pi-seed.edge.pid"), "utf8"));
 assert(await waitDead(piEdgePid), "Pi edge worker pid dead after bubble (process table)");
 assert(await waitDead(piSib.pid), "Pi sibling tree dead after its bubble");
-assert(bp3(["q", "bubpi", "r", "seeded-pi"]).state === "blocked", "Pi seeded rests blocked");
-assert(bp3(["q", "bubpi", "r", "sib-pi"]).state === "handed_off", "Pi sibling unaffected: handed_off while seeded blocked");
-assert(bp3(["q", "r", "bubpi"]).inbox.filter((i) => i.exp === "seeded-pi").length === 1, "Pi exactly one inbox entry");
-const piResumed = bp3(["q", "bubpi", "u", "seeded-pi", "resume", "--reason", "use localStorage"], { BP3_DECIDER: "human" });
+assert(bp3(["g", "bubpi", "r", "seeded-pi"]).state === "blocked", "Pi seeded rests blocked");
+assert(bp3(["g", "bubpi", "r", "sib-pi"]).state === "handed_off", "Pi sibling unaffected: handed_off while seeded blocked");
+assert(bp3(["g", "r", "bubpi"]).inbox.filter((i) => i.node === "seeded-pi").length === 1, "Pi exactly one inbox entry");
+const piResumed = bp3(["g", "bubpi", "u", "seeded-pi", "resume", "--reason", "use localStorage"], { BP3_DECIDER: "human" });
 assert(piResumed.ok === true && piResumed.state === "todo", "Pi resume revives to todo");
 const piFresh = spawnPi("handoff", "bubpi", "seeded-pi", piBubbles, path.join(work, "pi-seed2"));
 assert((await exitOf(piFresh.child)) === 0, "Pi fresh tree exits 0");
 assert(piFresh.runId !== piSeed.runId && piFresh.pid !== piSeed.pid, "Pi revival is a fresh tree: new run-id and pid");
 assert(await waitDead(piFresh.pid), "Pi fresh tree dead after revival bubble");
-assert(bp3(["q", "bubpi", "r", "seeded-pi"]).state === "handed_off", "Pi fresh tree continues node to handed_off");
-assert(bp3(["q", "bubpi", "r", "sib-pi"]).state === "handed_off", "Pi sibling still unaffected after revival");
-// --- Muse form in parallel: real induct-node workflow, same bubble ---
-const workflow = (await import(pathToFileURL(path.join(root, "skills/traverse/workflows/induct-node.js")).href)).default;
-bp3(["q", "c", "bubcl"]); bp3(["q", "bubcl", "c", "seeded-cl"]); bp3(["q", "bubcl", "c", "sib-cl"]);
+assert(bp3(["g", "bubpi", "r", "seeded-pi"]).state === "handed_off", "Pi fresh tree continues node to handed_off");
+assert(bp3(["g", "bubpi", "r", "sib-pi"]).state === "handed_off", "Pi sibling still unaffected after revival");
+// --- Muse form in parallel: real bp3g-node workflow, same bubble ---
+const workflow = (await import(pathToFileURL(path.join(root, "skills/bp3g/workflows/bp3g-node.js")).href)).default;
+bp3(["g", "c", "bubcl"]); bp3(["g", "bubcl", "c", "seeded-cl"]); bp3(["g", "bubcl", "c", "sib-cl"]);
 function extractCmd(input) { const i = input.indexOf("Run exactly `"); if (i < 0) return ""; const s = i + "Run exactly `".length; const e = input.indexOf("`", s); return e < 0 ? "" : input.slice(s, e); }
 function makeClaudeHost(node, blockMode) {
-  const host = { calls: 0, edgeCalls: {}, blockCalls: 0, args: { quest: "bubcl", exp: node, ts: "20261117T000000Z", harness: "muse-code", model: "test-model", desk: repo },
+  const host = { calls: 0, edgeCalls: {}, blockCalls: 0, args: { graph: "bubcl", node: node, ts: "20261117T000000Z", harness: "muse-code", model: "test-model", desk: repo },
     async agent({ label, input }) {
       host.calls++;
       const kind = label.split(" ")[0];
@@ -410,17 +410,17 @@ const [clSeed, clSib] = await Promise.all([workflow(clSeedHost), workflow(clSibH
 assert(clSeed.outcome === "blocked" && clSeed.reason === "choose storage shape" && clSeed.last_edge === "handoff" && clSeed.graph === "bubcl" && clSeed.inbox_key === "bubcl/seeded-cl", "Muse parity bubble same terminal facts: " + JSON.stringify(clSeed));
 assert(clSib.outcome === "landed", "Muse sibling landed unaffected, got " + clSib.outcome);
 assert((clSeedHost.edgeCalls.handoff || 0) === 1 && clSeedHost.blockCalls === 1, "Muse failed edge never retried, exactly one block");
-assert(bp3(["q", "bubcl", "r", "seeded-cl"]).state === "blocked", "Muse seeded rests blocked");
-assert(bp3(["q", "bubcl", "r", "sib-cl"]).state === "landed", "Muse sibling state landed");
+assert(bp3(["g", "bubcl", "r", "seeded-cl"]).state === "blocked", "Muse seeded rests blocked");
+assert(bp3(["g", "bubcl", "r", "sib-cl"]).state === "landed", "Muse sibling state landed");
 const clOldCalls = clSeedHost.calls;
-const clResumed = bp3(["q", "bubcl", "u", "seeded-cl", "resume", "--reason", "use localStorage"], { BP3_DECIDER: "human" });
+const clResumed = bp3(["g", "bubcl", "u", "seeded-cl", "resume", "--reason", "use localStorage"], { BP3_DECIDER: "human" });
 assert(clResumed.ok === true && clResumed.state === "todo", "Muse resume revives to todo");
 const clFreshHost = makeClaudeHost("seeded-cl", false);
 const clFresh = await workflow(clFreshHost);
 assert(clFresh.outcome === "landed", "Muse fresh workflow lands seeded, got " + clFresh.outcome);
 assert(clSeedHost.calls === clOldCalls, "Muse revival never resumes old workflow agents");
 assert(clFresh.run_ids.every((r) => !clSeed.run_ids.includes(r)), "Muse revival run-ids are fresh, disjoint from blocked run");
-assert(bp3(["q", "bubcl", "r", "sib-cl"]).state === "landed", "Muse sibling still landed after revival");
+assert(bp3(["g", "bubcl", "r", "sib-cl"]).state === "landed", "Muse sibling still landed after revival");
 if (failures > 0) process.exit(1);
 console.log(JSON.stringify({ pi_bubble: pb.state, pi_fresh_run: piFresh.runId, pi_wall_ms: piT1 - piT0, claude_bubble: clSeed.outcome, claude_fresh: clFresh.outcome, sibling_pi: "handed_off", sibling_claude: clSib.outcome }));
 BUBBLE_JS

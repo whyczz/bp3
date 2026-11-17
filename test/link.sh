@@ -5,7 +5,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root/_build/default/src/graph/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
 cd "$work/repo"
 git init -q -b master
@@ -13,12 +13,12 @@ git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
-q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
-h() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness "$@"; }
-lk() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
+q() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
+h() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness "$@"; }
+lk() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness link "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 store=".git/bp3"
-lku() { env -u MUSE_SESSION_ID -u MUSE_THREAD_ID -u BP3_SESSION_ID -u PI_SESSION_ID -u PI_SESSION_FILE BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
+lku() { env -u MUSE_SESSION_ID -u MUSE_THREAD_ID -u BP3_SESSION_ID -u PI_SESSION_ID -u PI_SESSION_FILE BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness link "$@"; }
 
 # --- help: every link verb documented, exit 0, no store created ---
 out=$(lk -h) || fail "link -h exit"
@@ -83,7 +83,7 @@ rm -f .bp3-context.json brief.txt
 out=$(lk lookup --session-id sess-a) || fail "lookup exit: $out"
 echo "$out" | jq -e --arg r "$RID" '.ok == true and .run_id == $r and .graph == "g1"
   and .node == "n1" and .edge == "handoff"' >/dev/null || fail "by-session join: $out"
-out=$(BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 config) || fail "config view exit"
+out=$(BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 config) || fail "config view exit"
 echo "$out" | jq -e --arg r "$RID" '(.contexts[] | select(.run_id == $r) | .session_id == "sess-a"
   and .parent_run_id == "root-1" and .depth == 2)' >/dev/null || fail "config context join: $out"
 
@@ -121,7 +121,7 @@ lk cleanup --graph g1 >/dev/null
 # --- pi shape: the dispatcher's session file identity ---
 out=$(lk mint --kind edge --graph g1 --node n1 --edge grade --depth 2 --parent-run-id "$RID2" --harness pi --model fake-model)
 TOK3=$(echo "$out" | jq -r .token); RID3=$(echo "$out" | jq -r .run_id)
-out=$(env -u MUSE_SESSION_ID -u MUSE_THREAD_ID -u BP3_SESSION_ID -u PI_SESSION_ID PI_SESSION_FILE="$work/sess-pi-1.jsonl" BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link claim "$TOK3") || fail "pi claim exit: $out"
+out=$(env -u MUSE_SESSION_ID -u MUSE_THREAD_ID -u BP3_SESSION_ID -u PI_SESSION_ID PI_SESSION_FILE="$work/sess-pi-1.jsonl" BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness link claim "$TOK3") || fail "pi claim exit: $out"
 echo "$out" | jq -e '.session_id == "sess-pi-1" and .parent_run_id != "" and .depth == 2' >/dev/null || fail "pi claim: $out"
 out=$(lk lookup --session-id sess-pi-1) || fail "pi lookup exit: $out"
 echo "$out" | jq -e --arg r "$RID3" '.run_id == $r and .edge == "grade"' >/dev/null || fail "pi join: $out"
@@ -156,7 +156,7 @@ mv "$store/config.json.tmp" "$store/config.json"
 
 # --- torn run config is never read as valid ---
 echo '{not json' > "$store/runs/z-torn.json"
-out=$(BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 config) || fail "config view with torn exit"
+out=$(BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 config) || fail "config view with torn exit"
 echo "$out" | jq -e '[.contexts[] | select(.run_id == "z-torn")] | length == 0' >/dev/null || fail "torn folded: $out"
 rm "$store/runs/z-torn.json"
 

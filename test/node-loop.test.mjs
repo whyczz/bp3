@@ -1,16 +1,16 @@
-// Mock-host test for skills/traverse/workflows/node-loop.js.
-// Covers the exp Acceptance table for the slimmed build-only
+// Mock-host test for skills/bp3g/workflows/node-loop.js.
+// Covers the node Acceptance table for the slimmed build-only
 // step: the launcher's link mint precedes the author
-// child on a todo exp (mvp.1; a refused mint spawns nothing),
-// only the author child spawns on a todo exp, the launcher's
+// child on a todo node (mvp.1; a refused mint spawns nothing),
+// only the author child spawns on a todo node, the launcher's
 // bind step follows the author (followup.3: find-tape resolves
 // the session tape, bind-tape binds it; a refused resolution
 // binds nothing), the file carries no other stage's edge
-// commands, a handed_off exp is refused with zero stage
+// commands, a handed_off node is refused with zero stage
 // children (state untouched), and the env-set run-id still
 // holds for the author.
 import { readFileSync } from "node:fs";
-import workflow from "../skills/traverse/workflows/node-loop.js";
+import workflow from "../skills/bp3g/workflows/node-loop.js";
 
 const TS = "20260101T000000Z";
 let failures = 0;
@@ -25,7 +25,7 @@ function mockHost({ reads, initFails, bindFails }) {
   const inits = [];
   const binds = [];
   const host = {
-    args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model" },
+    args: { graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" },
     async agent({ label, input }) {
       if (input.includes("harness link mint")) {
         labels.push("init");
@@ -102,8 +102,8 @@ const handedOff = { state: "handed_off", cycle: 1, commit: "abc1234", legal_edge
   const input = inputs.author;
   assert(input.includes("link claim bp3link_test-handoff"), "author brief carries its claim token");
   assert(input.includes("BP3_RUN_ID=<that run_id>"), "author is told to stamp the claimed run-id");
-  assert(input.includes("BP3_QUEST=toy") && input.includes("BP3_EXP=fx"),
-    "author prefix carries quest/exp");
+  assert(input.includes("BP3_GRAPH=toy") && input.includes("BP3_NODE=fx"),
+    "author prefix carries graph/node");
   assert(input.includes("runs/" + TS + "-handoff-muse-code-test-model-c1"),
     "handoff run folder matches the minted run-id");
   assert(!input.includes("Prefix your FIRST"),
@@ -118,7 +118,7 @@ const handedOff = { state: "handed_off", cycle: 1, commit: "abc1234", legal_edge
 {
   const { host, labels } = mockHost({ reads: [handedOff] });
   const result = await workflow(host);
-  assert(result.outcome === "refused", "handed_off exp is refused, got " + result.outcome);
+  assert(result.outcome === "refused", "handed_off node is refused, got " + result.outcome);
   assert(labels.length === 0, "no stage child spawns for handed_off");
   assert(result.refusals.some((r) => r.includes("handed_off")), "refusal names the state");
 }
@@ -144,7 +144,7 @@ for (const state of ["approved", "landed", "blocked"]) {
 {
   const { host, labels, binds } = mockHost({ reads: [todo, handedOff], bindFails: true });
   const result = await workflow(host);
-  assert(result.outcome === "handed_off", "bind refusal does not unhand the exp, got " + result.outcome);
+  assert(result.outcome === "handed_off", "bind refusal does not unhand the node, got " + result.outcome);
   assert(labels.join(",") === "init,author,resolve", "no bind child after a refused resolution, got " + labels.join(","));
   assert(binds.length === 0, "a refused resolution binds nothing, got " + binds.join(","));
   assert(result.refusals.some((r) => r.includes("bind-tape")), "refusal names bind-tape");
@@ -162,7 +162,7 @@ for (const state of ["approved", "landed", "blocked"]) {
 // --- missing args refuse without spawning anything ---
 {
   const host = {
-    args: { quest: "toy" },
+    args: { graph: "toy" },
     async agent() { throw new Error("must not spawn"); },
     async parallel() { throw new Error("must not spawn"); },
   };
@@ -172,7 +172,7 @@ for (const state of ["approved", "landed", "blocked"]) {
 
 // --- stage set is finite: no other stage's prompts in the file ---
 {
-  const src = readFileSync(new URL("../skills/traverse/workflows/node-loop.js", import.meta.url), "utf8");
+  const src = readFileSync(new URL("../skills/bp3g/workflows/node-loop.js", import.meta.url), "utf8");
   assert(!src.includes("host.parallel"), "no parallel stage fan-out in the file");
   assert(!src.includes("grade --verdict"), "no grade prompt in the file");
   assert(!src.includes("verify --verdict"), "no verify prompt in the file");
