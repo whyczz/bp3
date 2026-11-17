@@ -99,3 +99,23 @@ the full wall-clock suite per cycle
 make check takes a while, is there a way to
 test only the changes?" — this node is the
 answer, with fail-safe defaults.
+
+## Amendment (owner, 2026-11-17): retired-term sweep in the fast tier
+
+Why followup.3 kept shipping stale terms: the rename
+swept paths and code, prose inventories are hand-kept
+second copies, and the grade's grep hunted `quest`
+with `skills/naming/SKILL.md` exempted — detection
+only at the most expensive rung, ~20 min in.
+
+Acceptance adds:
+
+| Case | Expected |
+|---|---|
+| retired-term sweep | fast tier (`check-changed`/`check-fast`) greps live surfaces **including `skills/**`** for the repo's retired spellings, declared in one list (post-rename: `GOAL.md`, `QUEST.md`, `EXPERIMENT.md` outside fossil paths); exemptions named per path with a reason, never a blanket per-file exemption |
+| planted stale term | a fixture planting a retired spelling in a skills file fails the fast tier in under 5s, naming file:line — before any suite runs |
+| fossil stays legal | ledger lines, dated amendments, run notes, and migration rename tables quoting old spellings do not fail the sweep (named fossil paths) |
+
+Done-when extends: an author cycle's pre-handoff
+fast run catches a planted stale term, so grade
+never spends a cycle on vocabulary again.

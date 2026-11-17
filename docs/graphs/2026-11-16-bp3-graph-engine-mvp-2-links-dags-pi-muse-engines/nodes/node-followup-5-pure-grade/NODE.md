@@ -118,3 +118,27 @@ no prior evidence is executed by the audit as
 today; (3) reused evidence is quoted with its
 source (log path / run folder), never as a
 fresh run.
+
+## Amendment (owner, 2026-11-17): a named mechanical fix never blocks
+
+Owner, after followup.3 cycle 3 blocked on a one-word
+stale term: "we should not block and bubble up to me,
+this should be fixed by the grader, etc." Grade stays
+pure; the looper applies. The classification rule:
+
+| Fix class | Outcome | Owner paged? |
+|---|---|---|
+| named mechanical fix: verdict names exact file/line/text change, no scope or judgment call (e.g. stale term, broken pointer) | `needs_fix` at any cycle count; looper auto-dispatches the author cycle with the fix verbatim | never |
+| owner-only calls: scope change, `delete`, ambiguity the record cannot settle, empty fix text | `blocked` (existing pushbacks) | yes |
+| disagreement: the same acceptance row fails again after its named fix was applied | counts toward the cycle cap; cap reached → `blocked` | at cap |
+
+The cycle cap counts disagreement cycles only; a
+first-failure mechanical fix does not consume it.
+Acceptance adds: (1) fixture grade at cycle ≥ cap
+failing only on a named mechanical row casts
+`needs_fix`, state returns to `todo`, no `blocked`
+line written; (2) fixture where the same row fails
+after its named fix was applied counts one
+disagreement cycle and blocks at cap; (3) one live
+mechanical cycle (planted stale term) rides
+grade → author → grade with zero owner contact.
