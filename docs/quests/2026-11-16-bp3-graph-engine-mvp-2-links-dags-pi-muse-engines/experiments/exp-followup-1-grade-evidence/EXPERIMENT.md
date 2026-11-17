@@ -139,6 +139,30 @@ mvp.3's re-grade depends on the fixed grader.
 | regression: mvp.3 empty-stdout trap | a fixture reproducing the mvp.3 row (`git status --porcelain` clean, empty output) grades on merits with quote `"(empty stdout, exit 0)"`; no `missing` downgrade, no `blocked` page |
 | verdict race named | when one verdict child moves state first, the other child's refused cast is reported as an expected verdict race in the outcome/refusals, never as an unexplained failure |
 
+## Cycle 2 fix (owner A, 2026-11-17)
+
+Cycle-1 grade on `5cce4cc`: the validations
+pipeline worked for git-clean (pass, quote
+`"(empty stdout, exit 0)"`), the verdict race
+read as expected, and all acceptance rows
+passed. One validation false-failed:
+`adherence: run folder present` quoted
+"no run folder with tape.log and notes.md"
+while `runs/20261117T033939Z-handoff-.../`
+on disk holds exactly `tape.log` + `notes.md`.
+Named fix, verbatim for cycle 2: make
+`validate_run_folder_present` trustworthy —
+the observation transport must emit canonical
+`<folder> tape=yes|no notes=yes|no` lines
+(one shell one-liner, not free-form prose)
+and/or the validation must parse the transport
+variants tolerantly; add a regression test
+feeding transport variants (canonical lines,
+prose-shaped lines, empty list) and proving
+the existing handoff folder passes. Do not
+weaken the fail case: a folder missing
+`tape.log` or `notes.md` still fails.
+
 ## Acceptance test (goal block)
 
 - **Objective:** missing evidence is a grader
