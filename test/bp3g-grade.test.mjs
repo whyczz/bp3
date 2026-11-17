@@ -38,7 +38,7 @@ function deferredRow(name) {
     case: name,
     evidence: {
       kind: "file",
-      ref: "docs/goals/toy/experiments/fx/EXPERIMENT.md:57",
+      ref: "docs/graphs/toy/nodes/fx/NODE.md:57",
       quote: "| " + name + " | NOT gated by this node |",
     },
     verdict: "deferred",

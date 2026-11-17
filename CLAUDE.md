@@ -3,7 +3,7 @@
 bp3 is a graph state engine. Work moves as clean git commits;
 a small OCaml binary (the `bp3 g` door) is the only writer of
 graph state. Read this before touching anything under the
-goal storage tree (`docs/goals/`; the goal is the container, its DAG is the graph).
+goal storage tree (`docs/graphs/`; the goal is the container, its DAG is the graph).
 
 ## The one rule
 
@@ -15,7 +15,7 @@ run `bp3 g r <graph>` and read its JSON verdict.
 ## Layout
 
 ```text
-docs/goals/<graph>/     one folder per graph, flat, never moved
+docs/graphs/<graph>/     one folder per graph, flat, never moved
   GOAL.md               authored: goal, scope, nodes, status field
   fsm.yaml               authored: the plan (from plans/ at init)
   state.yaml             GENERATED: stage, commit, cycle (a cache)

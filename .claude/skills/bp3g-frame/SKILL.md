@@ -1,6 +1,6 @@
 ---
 name: bp3g-frame
-description: Turn a known intent into a bp3 Graph file at docs/goals/<date>-<slug>.md with nodes, acceptance checks, and human touchpoints.
+description: Turn a known intent into a bp3 Graph file at docs/graphs/<date>-<slug>.md with nodes, acceptance checks, and human touchpoints.
 ---
 <!-- GENERATED from skills/bp3g-frame/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->
 
@@ -12,7 +12,7 @@ known intent
     v
  sync -> research -> names -> nodes -> red chair
     |                                   |
-    +-------> docs/goals/<date>-<slug>.md
+    +-------> docs/graphs/<date>-<slug>.md
                         |
                  human approves
                         |
@@ -68,10 +68,10 @@ because a gate that starts green certifies nothing.
 | # | Step | Gate before moving on |
 |---|---|---|
 | 1 | Sync: play the intent back (iiuc) when it can be read two ways | human confirms the read |
-| 2 | Research the ground: MVP doc, home repo state, prior Graphs in `docs/goals/` | every claim traces to a file read this session |
+| 2 | Research the ground: MVP doc, home repo state, prior Graphs in `docs/graphs/` | every claim traces to a file read this session |
 | 3 | Ask questions whose answers change the shape: home repo, success picture, lane, first node | the rest become assumptions or open questions in the file |
 | 4 | Names first, under a Concepts/Terms header, with `naming` | every term defined in one line before any node spends it |
-| 5 | Draft `docs/goals/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) | one Graph per file |
+| 5 | Draft `docs/graphs/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) | one Graph per file |
 | 6 | Break into nodes with failing-today acceptance | a check that cannot fail gets rewritten |
 | 6.5 | Diligence gate per node: design settled (no open questions), acceptance fails today, demo defined up front | an node with open design questions is not ready for `bp3g`; settle it with `red-ink` first — Node 4 of the MVP graph shipped unsettled design and the landing review caught it late |
 | 6.6 | Skill changes ride as their own node | if the Graph's changes touch any skill (bp3 `skills/`, yap skills, installed copies), name a skill-change node with its own acceptance (skill tests, render/install assertions); never edit a skill inline during framing, and never fold a skill change into a code node — skills are how children behave, so they get the same gate as code |
@@ -136,7 +136,7 @@ restarts inside each milestone; never use a bare global
 not bare numbers.
 
 Full Output, Acceptance, and Substeps live in
-`nodes/node-<milestone>-<number>-<slug>/EXPERIMENT.md`
+`nodes/node-<milestone>-<number>-<slug>/NODE.md`
 inside the graph folder — the same folder that later holds
 the node's generated ledger, state, and runs.
 
@@ -257,7 +257,7 @@ nodes, dependencies, cohorts — in one ASCII picture.
 | `canceled` | stopped, terminal | disposition: why, each node's fate, frozen evidence |
 
 Transitions: `proposed -> active -> landed`; `proposed | active -> canceled`.
-Files stay in `docs/goals/` for life — node records point at them.
+Files stay in `docs/graphs/` for life — node records point at them.
 
 At `landed`, run `red-ink-bp3g-landing-demo` and record its Landing IIUC
 (decision record, demo traces, verification, open items) under

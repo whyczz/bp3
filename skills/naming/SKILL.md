@@ -32,7 +32,7 @@ ordinary code identifiers with no bp3 meaning.
   handoff, grade, verify, land, block, resume. A dep links
   nodes; a dep is not an edge. Stages: author, grade, fix,
   ready, landed, blocked, canceled.
-- Goal and graph: the container of work is a **goal** (`docs/goals/<goal>/GOAL.md`, `goal/<slug>` branch, finish word `goal_fin`); its DAG of nodes is the **graph** (`bp3 g` unchanged). Graph id/slug unchanged by the goal rename.
+- Goal and graph: the container of work is a **goal** (`docs/graphs/<goal>/GRAPH.md`, `goal/<slug>` branch, finish word `goal_fin`); its DAG of nodes is the **graph** (`bp3 g` unchanged). Graph id/slug unchanged by the goal rename.
 - Dimensions: `goal_type` (the plan: default is implemented;
   design, mvp, refactor, frontend, backend are proposed), `engine` (who executes: single,
   master-subagents, panes, workflows).

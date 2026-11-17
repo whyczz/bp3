@@ -22,8 +22,8 @@ Fastest honest player wins; lying about being finished loses.
 
 ## Goal and why
 
-The [bp3-mvp-engine-core Quest](../2026-11-07-bp3-mvp-engine-core/GOAL.md) proves the
-commit-state FSM; [bp3-mvp-muse-workflows](2026-11-07-bp3-mvp-muse-workflows/GOAL.md) proves Muse as first executor. Pi is
+The [bp3-mvp-engine-core Quest](../2026-11-07-bp3-mvp-engine-core/GRAPH.md) proves the
+commit-state FSM; [bp3-mvp-muse-workflows](2026-11-07-bp3-mvp-muse-workflows/GRAPH.md) proves Muse as first executor. Pi is
 where the human already lives day to day, and the
 [Pi basics dossier](../dossiers/bp3-pi-basics.md) shows the
 subagent field is crowded and fast-moving: oh-my-pi (hard fork,
@@ -149,4 +149,4 @@ claims are stated as claims until a fixture confirms them.
 
 ## Disposition (2026-11-15)
 
-Canceled by the owner at the framing of the pi-engine-conductor quest. Superseded by docs/goals/2026-11-15-pi-engine-conductor/GOAL.md. Frozen evidence: this file, unchanged since framing.
+Canceled by the owner at the framing of the pi-engine-conductor quest. Superseded by docs/graphs/2026-11-15-pi-engine-conductor/GRAPH.md. Frozen evidence: this file, unchanged since framing.

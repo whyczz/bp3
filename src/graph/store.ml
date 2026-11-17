@@ -263,9 +263,9 @@ let graph_ledger_path q = graph_dir q ^ "/ledger.jsonl"
 let node_dir q e = graph_dir q ^ "/nodes/" ^ canon_node_id e
 let node_ledger_path q e = node_dir q e ^ "/ledger.jsonl"
 let node_state_path q e = node_dir q e ^ "/state.yaml"
-let legacy_graph_ledger_path q = "docs/goals/" ^ q ^ "/ledger.jsonl"
+let legacy_graph_ledger_path q = "docs/graphs/" ^ q ^ "/ledger.jsonl"
 let legacy_node_ledger_path q e =
-  "docs/goals/" ^ q ^ "/experiments/" ^ legacy_node_id e ^ "/ledger.jsonl"
+  "docs/graphs/" ^ q ^ "/nodes/" ^ legacy_node_id e ^ "/ledger.jsonl"
 
 (* Read a ledger at its canonical path, falling back to the
    pre-rename path on the same branch; the third component

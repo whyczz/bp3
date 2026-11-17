@@ -23,7 +23,7 @@ General coding in this repo does not need this skill.
    `./bin/bp3 g list` for active graphs, `--all` for every graph). Never read `state.yaml`,
    `ledger.jsonl`, or `fsm.yaml` by hand to decide anything.
 2. Start graphs with `./bin/bp3 g create <name> --type <graph_type>
-   --engine <engine>`. It scaffolds `docs/goals/<name>/`
+   --engine <engine>`. It scaffolds `docs/graphs/<name>/`
    (GOAL.md, fsm.yaml, state.yaml, ledger.jsonl, runs/).
    Two independent dimensions: `graph_type` is the plan in
    `plans/` (default: one grade round), `engine` is who
