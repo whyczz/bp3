@@ -151,6 +151,35 @@ let do_quest_delete quest fl id =
          ~files:[(quest_ledger_path quest, new_text)] ~msg:("bp3: delete quest " ^ quest)));
   with_warnings id true [("ok", `Bool true); ("quest", json_str quest); ("state", json_str "deleted")]
 
+(* Node deps (mvp.3): declared at exp create, editable
+   through the dep verb, always read back from ledger
+   records. A dep cycle refuses at write time naming
+   the cycle; deps stay mutable-but-logged. *)
+let parse_dep_list = function
+  | Some s when s <> "" ->
+      List.fold_right (fun d acc ->
+        let d = String.trim d in if d = "" || List.mem d acc then acc else d :: acc)
+        (String.split_on_char ',' s) []
+  | _ -> []
+
+let dep_graph quest =
+  List.map (fun e ->
+    match fold_exp quest e with
+    | Some (_, _, text) -> (e, deps_of_text text)
+    | None -> (e, [])) (list_exps quest)
+
+let validate_deps quest self deps =
+  List.iter check_slug deps;
+  List.iter (fun d ->
+    if fold_exp quest d = None then not_found "exp" d) deps;
+  let graph = (self, deps) :: List.filter (fun (e, _) -> e <> self) (dep_graph quest) in
+  match dep_cycle_through graph self with
+  | Some cyc ->
+      err "E_DEP_CYCLE" (`Assoc [("quest", json_str quest); ("exp", json_str self);
+        ("cycle", `List (List.map json_str cyc))])
+        "Dep cycle refused at write time; break the named cycle." 1
+  | None -> ()
+
 let do_exp_create quest exp fl id =
   check_slug quest; check_creatable exp;
   (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
@@ -161,18 +190,45 @@ let do_exp_create quest exp fl id =
    | None -> ());
   if ref_tip (exp_branch quest exp) <> None then
     err "E_EXISTS" (`Assoc [("quest", json_str quest); ("exp", json_str exp)]) "Exp already exists." 1;
+  let deps = parse_dep_list fl.depends_on in
+  validate_deps quest exp deps;
   let qtip = (match ref_tip (quest_branch quest) with Some t -> t | None -> not_found "quest" quest) in
   let st = fresh_state () in
   let line = ledger_line ~edge:"create" ~from:"" ~to_:"todo" ~cycle:1
     ~commit:None ~verdict:None ~reason:"" ~id
-    ~extra:[("exp_type", json_str etype)] () in
+    ~extra:[("exp_type", json_str etype);
+            ("depends_on", `List (List.map json_str deps))] () in
   let _ = create_branch_commit ~branch:(exp_branch quest exp) ~base_tip:qtip
     ~files:[(exp_ledger_path quest exp, line ^ "\n");
             (exp_state_path quest exp, state_yaml quest exp st)]
     ~msg:("bp3: create exp " ^ exp) in
   with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
     ("exp", json_str exp); ("state", json_str "todo"); ("cycle", `Int 1);
+    ("deps", `List (List.map json_str deps));
     ("legal_edges", `List (List.map json_str (legal_edges "todo")))]
+
+let do_exp_dep quest exp fl id =
+  check_slug quest; check_slug exp;
+  let reason = require_reason fl in
+  let deps = match fl.depends_on with
+    | Some _ -> parse_dep_list fl.depends_on
+    | None -> usage "dep needs --depends-on <a,b> (empty clears)" in
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  (match fold_exp quest exp with
+   | None -> not_found "exp" exp
+   | Some (_, s, _) ->
+       validate_deps quest exp deps;
+       let line = ledger_line ~edge:"dep" ~from:s.st ~to_:s.st ~cycle:s.cycle
+         ~commit:s.last_commit ~verdict:None ~reason ~id
+         ~extra:[("depends_on", `List (List.map json_str deps))] () in
+       ignore (append_exp_line quest exp line s));
+  (match fold_exp quest exp with
+   | Some (_, s, text) ->
+       with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+         ("exp", json_str exp); ("state", json_str s.st); ("cycle", `Int s.cycle);
+         ("deps", `List (List.map json_str (deps_of_text text)));
+         ("legal_edges", `List (List.map json_str (legal_edges s.st)))]
+   | None -> not_found "exp" exp)
 
 let do_exp_delete quest exp fl id =
   check_slug quest; check_slug exp;
@@ -220,6 +276,15 @@ let do_update quest exp edge fl id =
       if blocked_by <> [] then
         err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str blocked_by))])
           "Dependencies are not landed yet." 1;
+      let node_deps = (match fold_exp quest exp with
+        | Some (_, _, text) -> deps_of_text text | None -> []) in
+      let node_blocked = List.filter (fun d ->
+        match fold_exp quest d with
+        | Some (_, ds, _) -> ds.st <> "landed" && ds.st <> "deleted"
+        | None -> true) node_deps in
+      if node_blocked <> [] then
+        err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str node_blocked))])
+          "Node deps are not landed yet." 1;
       let approved_now = (not knobs.grade_required) && (not knobs.verify_required) in
       let ns = { s with st = (if approved_now then "approved" else "handed_off");
                  bound = Some full; has_bound = true; last_commit = Some full;
@@ -444,11 +509,17 @@ let help_quest_door = "bp3 q <quest door> - verbs:\n\
 Long forms: create, read, delete. Example: bp3 q c my-quest --type default\n"
 
 let help_exp_door = "bp3 q <quest> <exp door> - verbs:\n\
-  bp3 q <quest> c <exp> [--type <exp_type>]                    create an exp\n\
+  bp3 q <quest> c <exp> [--type <exp_type>] [--depends-on <a,b>]   create an exp, deps name exps in the same quest\n\
   bp3 q <quest> r [<exp>] [--format json|table|tree]           read the quest, or one exp\n\
   bp3 q <quest> u <exp> <edge> [flags]                         take an FSM edge (see u -h)\n\
   bp3 q <quest> d <exp> --reason <why>                         delete an exp\n\
+  bp3 q <quest> dep <exp> --depends-on <a,b> --reason <why>    redeclare an exp's deps (mutable-but-logged)\n\
 Long forms: create, read, update, delete. Example: bp3 q my-quest r exp-1\n"
+
+let help_dep = "bp3 q <quest> dep <exp> - redeclare an exp's node deps (mvp.3):\n\
+  bp3 q <quest> dep <exp> --depends-on <a,b> --reason <why>   set deps; --depends-on \"\" clears them\n\
+  Deps name exps in the same quest, are read back from the exp ledger, and a cycle refuses at write time (E_DEP_CYCLE) naming the cycle. The dep line is logged with the exp state and cycle, so a mid-flight edit stays on the record.\n\
+Example: bp3 q my-quest dep exp-2 --depends-on exp-1 --reason \"needs exp-1 first\"\n"
 
 let help_update = "bp3 q <quest> u <exp> <edge> - edges and their flags:\n\
   edges: handoff grade verify land block resume\n\
@@ -480,7 +551,7 @@ Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
 
 let help_config = "bp3 config - view the machine-local bp3 config store (<git-common-dir>/bp3/, never committed):\n\
   bp3 config [--source] [--format json|table]   thresholds plus contexts folded from runs/<run_id>.json\n\
-  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. The depth cap is enforced at link mint (mvp.1, E_DEPTH); W_SETUP_SLOW enforcement lands with mvp.3. First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
+  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. The depth cap is enforced at link mint (mvp.1, E_DEPTH); W_SETUP_SLOW fires on the quest rollup when a claimed Run's setup_wall_s exceeds setup_slow_s (mvp.3, local only). First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
 Example: bp3 config --source\n"
 
 let is_help = function "-h" | "--help" -> true | _ -> false
@@ -616,6 +687,11 @@ let run argv =
            let v = do_quest_delete quest fl id in print_verdict ~fmt:fl.fmt v; 0
        | "d", [] -> usage "quest delete needs a quest name"
        | _ -> usage "quest door verbs are c, r, d")
+  | _q :: "dep" :: (h :: _) when is_help h -> print_string help_dep; 0
+  | quest :: "dep" :: exp :: tail ->
+      let (pos, fl) = split_flags tail in
+      if pos <> [] then usage "stray positional in dep";
+      let v = do_exp_dep quest exp fl id in print_verdict ~fmt:fl.fmt v; 0
   | quest :: verb_raw :: rest when is_verb verb_raw ->
       let verb = normalize_verb verb_raw in
       (match verb, rest with
@@ -632,7 +708,7 @@ let run argv =
            (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
            (match fold_exp quest exp with
             | None -> not_found "exp" exp
-            | Some (_, s, _) -> print_verdict ~fmt:"json" (exp_verdict quest exp s); 0)
+            | Some (_, s, text) -> print_verdict ~fmt:"json" (exp_verdict quest exp s (deps_of_text text) (timing_of_text text)); 0)
        | "r", exp :: tail ->
            let (pos, fl) = split_flags (exp :: tail) in
            (match pos with
@@ -640,7 +716,7 @@ let run argv =
                 (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
                 (match fold_exp quest e with
                  | None -> not_found "exp" e
-                 | Some (_, s, _) -> print_verdict ~fmt:fl.fmt (exp_verdict quest e s); 0)
+                 | Some (_, s, text) -> print_verdict ~fmt:fl.fmt (exp_verdict quest e s (deps_of_text text) (timing_of_text text)); 0)
             | _ -> usage "exp read takes at most one exp")
        | "u", exp :: edge :: tail ->
            let (pos, fl) = split_flags tail in

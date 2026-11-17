@@ -3,6 +3,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 node test/node-loop.test.mjs
+node test/induct-node.test.mjs
 node test/induct-grade.test.mjs
 node test/quest-land.test.mjs
 node test/traverse-conduct.test.mjs

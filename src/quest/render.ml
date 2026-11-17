@@ -26,27 +26,63 @@ let commit_changes = function
 (* Report word for an exp finish line: state stays [landed]. *)
 let exp_fin s = if s.st = "landed" then `String "exp_fin" else `Null
 
-let exp_json _q e s =
+let opt_int = function Some n -> `Int n | None -> `Null
+
+let exp_json _q e s deps (t : timing) =
   `Assoc [
     ("exp", json_str e); ("state", json_str s.st); ("fin", exp_fin s); ("cycle", `Int s.cycle);
     ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
+    ("deps", `List (List.map json_str deps));
+    ("timing", `Assoc [("wall_s", opt_int t.t_wall); ("wait_s", opt_int t.t_wait);
+                       ("dwell_s", `Assoc (List.map (fun (st, secs) -> (st, `Int secs)) t.t_dwell));
+                       ("cycles", `Int s.cycle)]);
     ("legal_edges", `List (List.map json_str (legal_edges s.st)));
     ("changes", (match commit_changes s.last_commit with
        | Some xs -> `List xs | None -> `Null)); (* null = unsure *)
   ]
 
-let exp_verdict quest e s =
-  match exp_json quest e s with
+let exp_verdict quest e s deps t =
+  match exp_json quest e s deps t with
   | `Assoc fs -> `Assoc (("ok", `Bool true) :: ("quest", json_str quest) :: fs)
   | other -> other
+
+(* Setup per dispatched Run (mvp.3): desk-side mint to the
+   first bp3 answer (the claim), from machine-local run
+   configs only; never a committed field. *)
+let setup_json q =
+  match Config.config_dir () with
+  | None -> ([], false)
+  | Some dir ->
+      let thresholds = Config.load_thresholds dir in
+      let entries = List.filter_map (fun (rc : Config.run_config) ->
+        if rc.Config.rc_graph <> q then None
+        else match ts_epoch rc.Config.rc_minted_at, ts_epoch rc.Config.rc_claimed_at with
+          | Some m, Some c ->
+              Some (`Assoc [("run_id", json_str rc.Config.rc_id);
+                            ("node", json_str rc.Config.rc_node);
+                            ("edge", (match rc.Config.rc_edge with Some e -> json_str e | None -> `Null));
+                            ("setup_wall_s", `Int (c - m))], c - m)
+          | _ -> None) (Config.list_run_configs dir) in
+      (List.map fst entries,
+       List.exists (fun (_, secs) -> secs > thresholds.Config.setup_slow_s) entries)
 
 let quest_view q =
   match fold_quest q with
   | None -> not_found "quest" q
   | Some (_, qs, _qt, _deps, _) ->
       let exps = list_exps q in
-      let exp_states = List.map (fun e ->
-        match fold_exp q e with Some (_, s, _) -> (e, s) | None -> (e, fresh_state ())) exps in
+      let exp_infos = List.map (fun e ->
+        match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+        | Some (_, text) ->
+            let (s, _, deps) = fold_ledger text in (e, s, deps, timing_of_text text)
+        | None -> (e, fresh_state (), [], timing_of_text "")) exps in
+      let exp_states = List.map (fun (e, s, _, _) -> (e, s)) exp_infos in
+      let sched = List.map (fun (e, s, deps, _) ->
+        { n_id = e; n_state = s.st; n_deps = deps }) exp_infos in
+      let waves = sched_waves sched in
+      let ready = match waves with w :: _ -> w | [] -> [] in
+      let starved = sched_starved sched in
+      let (setup, setup_slow) = setup_json q in
       let inbox = List.filter_map (fun (e, s) ->
         if s.st = "blocked" then Some (`Assoc [
           ("quest", json_str q); ("exp", json_str e);
@@ -62,11 +98,17 @@ let quest_view q =
       (* Report word for the quest finish line: rollup stays [landed];
          [quest_fin] names promotion of that rollup to master. *)
       let fin = if rollup = "landed" then `String "quest_fin" else `Null in
-      (`Assoc [
+      (`Assoc ([
         ("quest", json_str q); ("state", json_str qs.st);
-        ("exps", `List (List.map (fun (e, s) -> exp_json q e s) exp_states));
+        ("exps", `List (List.map (fun (e, s, deps, t) -> exp_json q e s deps t) exp_infos));
+        ("ready_set_waves", `List (List.map (fun w -> `List (List.map json_str w)) waves));
+        ("ready", `List (List.map json_str ready));
+        ("starved", `List (List.map (fun (b, ids) ->
+           `Assoc [("blocked", json_str b); ("starved", `List (List.map json_str ids))]) starved));
+        ("setup", `List setup);
         ("rollup", json_str rollup); ("fin", fin); ("inbox", `List inbox);
-      ], inbox, rollup, qs)
+      ] @ (if setup_slow then [("warnings", `List [json_str "W_SETUP_SLOW"])] else [])),
+       inbox, rollup, qs)
 
 let tree_marker = function
   | "todo" -> "+"
@@ -123,8 +165,13 @@ let file_leaves_open prefix = function
 let render_tree fields =
   let get k = List.assoc_opt k fields in
   let str k = match get k with Some (`String s) -> s | _ -> "?" in
-  Printf.printf "%s [%s] rollup: %s%s\n" (str "quest") (str "state") (str "rollup")
-    (match get "fin" with Some (`String f) -> " (" ^ f ^ ")" | _ -> "");
+  Printf.printf "%s [%s] rollup: %s%s%s\n" (str "quest") (str "state") (str "rollup")
+    (match get "fin" with Some (`String f) -> " (" ^ f ^ ")" | _ -> "")
+    (match get "ready" with
+     | Some (`List (_ :: _ as xs)) ->
+         " ready: " ^ String.concat ", "
+           (List.map (function `String x -> x | o -> Yojson.Safe.to_string o) xs)
+     | _ -> "");
   let exps = match get "exps" with Some (`List xs) -> xs | _ -> [] in
   let n = List.length exps in
   List.iteri (fun i item ->
@@ -230,7 +277,12 @@ let cell_changes fs =
 let render_table_quest fields =
   let get k = List.assoc_opt k fields in
   let str k = match get k with Some (`String s) -> s | _ -> "?" in
-  Printf.printf "quest %s [%s] rollup: %s\n" (str "quest") (str "state") (str "rollup");
+  Printf.printf "quest %s [%s] rollup: %s%s\n" (str "quest") (str "state") (str "rollup")
+    (match get "ready" with
+     | Some (`List (_ :: _ as xs)) ->
+         " ready: " ^ String.concat ", "
+           (List.map (function `String x -> x | o -> Yojson.Safe.to_string o) xs)
+     | _ -> "");
   let exps = match get "exps" with Some (`List xs) -> xs | _ -> [] in
   let rows = List.filter_map (fun item ->
     match item with

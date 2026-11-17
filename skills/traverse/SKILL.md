@@ -88,6 +88,23 @@ above stays the one conductor procedure.
    | `blocked` | human gate (step 4) | — |
    | `landed` / `deleted` | none | advance to the next exp, or report at terminal (`landed` is reported as `exp_fin`) |
 
+   Ready-set dispatch (mvp.3): the rollup read reports
+   `ready_set_waves`, `ready`, `starved`, per-exp `deps`
+   and `timing` (wall/wait/dwell derived from ledger
+   timestamps), and per-Run `setup` (`W_SETUP_SLOW` when a
+   setup exceeds the local threshold). Dispatch one
+   `induct-node` workflow run per node in `ready`, in
+   parallel desks: it owns that node's whole FSM loop
+   (author, grade+verify, and land as phases inside it)
+   and returns exactly one terminal outcome (`landed`,
+   `blocked`, or `deleted`). The state-step workflows in
+   the table above remain the phases' shapes and the
+   fallback when `induct-node` is not installed. Landing
+   stays serial: one node's land at a time, each land
+   re-checked against the new quest tip. A blocked node
+   starves only the dependents named in `starved`; the
+   rest of the ready set keeps moving.
+
    `ts` is a UTC compact timestamp (for example
    `20261107T143022Z`) supplied in args because workflow
    scripts cannot read the clock; `harness` and `model` carry

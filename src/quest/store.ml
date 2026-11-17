@@ -16,7 +16,7 @@ let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
    addressed again (the token would parse as the door or
    verb instead), so creation refuses it; reads stay total. *)
 let reserved_slugs =
-  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo"; "config"; "e";
+  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo"; "config"; "e"; "dep";
     "supervisor"; "init-check"; "find-tape"; "watch"; "desk"; "backtest"; "b";
     "c"; "create"; "r"; "read"; "u"; "update"; "d"; "delete";
     "s"; "i"; "f"; "w";
@@ -182,9 +182,11 @@ let fold_ledger text =
         let edge = fold_edge (get_str j "edge" "") in
         let to_ = fold_state_name (get_str j "to" "") in
         let cyc = get_int j "cycle" s.cycle in
-        if edge = "create" then begin
-          s.exp_type <- get_str j "exp_type" (get_str j "quest_type" "default");
-          quest_type := get_str j "quest_type" !quest_type;
+        if edge = "create" || edge = "dep" then begin
+          if edge = "create" then begin
+            s.exp_type <- get_str j "exp_type" (get_str j "quest_type" "default");
+            quest_type := get_str j "quest_type" !quest_type
+          end;
           (try match Yojson.Safe.Util.member "depends_on" j with
              | `List xs -> depends_on := List.map (function `String x -> x | _ -> "") xs
              | _ -> () with _ -> ())
@@ -347,6 +349,114 @@ let dep_satisfied dep =
         let exps = list_exps dep in
         exps <> [] && List.for_all (fun e ->
           match fold_exp dep e with Some (_, s, _) -> s.st = "landed" || s.st = "deleted" | None -> false) exps
+
+(* ---------- schedule and timing (mvp.3) ---------- *)
+(* Node deps live in exp ledger records (create and dep
+   lines); ready-set waves, the ready set, starved sets,
+   and per-node timing are derived on read from ledger
+   timestamps and never written to any committed file. *)
+let days_from_civil y m d =
+  let y = if m <= 2 then y - 1 else y in
+  let era = (if y >= 0 then y else y - 399) / 400 in
+  let yoe = y - era * 400 in
+  let mp = if m > 2 then m - 3 else m + 9 in
+  let doy = (153 * mp + 2) / 5 + d - 1 in
+  let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy in
+  era * 146097 + doe - 719468
+
+let ts_epoch s =
+  try
+    if String.length s <> 20 || s.[4] <> '-' || s.[7] <> '-' || s.[10] <> 'T'
+       || s.[13] <> ':' || s.[16] <> ':' || s.[19] <> 'Z' then None
+    else
+      let num a b = int_of_string (String.sub s a b) in
+      let days = days_from_civil (num 0 4) (num 5 2) (num 8 2) in
+      Some (days * 86400 + (num 11 2) * 3600 + (num 14 2) * 60 + (num 17 2))
+  with _ -> None
+
+let deps_of_text text = let (_, _, deps) = fold_ledger text in deps
+
+type timing = { t_wall : int option; t_wait : int option;
+                t_dwell : (string * int) list }
+
+let timing_of_text text =
+  let created = ref None and first_handoff = ref None and landed = ref None in
+  let dwell : (string, int) Hashtbl.t = Hashtbl.create 8 in
+  let order = ref [] in
+  let cur = ref "" and since = ref None in
+  let add_dwell st secs =
+    if not (Hashtbl.mem dwell st) then order := !order @ [st];
+    Hashtbl.replace dwell st ((try Hashtbl.find dwell st with _ -> 0) + secs) in
+  String.split_on_char '\n' text |> List.iter (fun ln ->
+    let ln = String.trim ln in
+    if ln <> "" then
+      try
+        let j = Yojson.Safe.from_string ln in
+        let edge = fold_edge (get_str j "edge" "") in
+        let to_ = fold_state_name (get_str j "to" "") in
+        (match ts_epoch (get_str j "ts" "") with
+         | None -> ()
+         | Some t ->
+             if edge = "create" && !created = None then created := Some t;
+             if edge = "handoff" && !first_handoff = None then first_handoff := Some t;
+             if to_ = "landed" && !landed = None then landed := Some t;
+             if to_ <> "" then begin
+               (match !since with
+                | Some t0 when !cur <> "" -> add_dwell !cur (t - t0)
+                | _ -> ());
+               cur := to_; since := Some t
+             end)
+      with _ -> ());
+  let sub a b = match a, b with Some x, Some y -> Some (x - y) | _ -> None in
+  { t_wall = sub !landed !first_handoff; t_wait = sub !first_handoff !created;
+    t_dwell = List.sort compare
+      (List.map (fun st -> (st, Hashtbl.find dwell st)) !order) }
+
+let dep_cycle_through graph start =
+  let deps_of n = match List.assoc_opt n graph with Some ds -> ds | None -> [] in
+  let rec visit path n =
+    if n = start && path <> [] then Some (List.rev (n :: path))
+    else if List.mem n path then None
+    else List.fold_left (fun acc d ->
+      match acc with Some _ -> acc | None -> visit (n :: path) d) None (deps_of n) in
+  (match visit [] start with
+   | Some (_ :: _ :: _ as cyc) -> Some cyc
+   | _ -> None)
+
+type sched_node = { n_id : string; n_state : string; n_deps : string list }
+
+let sched_waves nodes =
+  let done0 = List.filter_map (fun n ->
+    if n.n_state = "landed" || n.n_state = "deleted" then Some n.n_id else None) nodes in
+  let todo = List.filter (fun n -> n.n_state = "todo") nodes in
+  let rec loop finished acc =
+    let layer = List.filter (fun n ->
+      not (List.mem n.n_id finished)
+      && List.for_all (fun d -> List.mem d finished) n.n_deps) todo in
+    match layer with
+    | [] -> List.rev acc
+    | _ -> loop (finished @ List.map (fun n -> n.n_id) layer)
+             ((List.sort String.compare (List.map (fun n -> n.n_id) layer)) :: acc) in
+  loop done0 []
+
+let sched_starved nodes =
+  let dependents d =
+    List.filter_map (fun n -> if List.mem d n.n_deps then Some n.n_id else None) nodes in
+  List.filter_map (fun b ->
+    if b.n_state <> "blocked" then None
+    else
+      let seen = ref [b.n_id] and frontier = ref [b.n_id] in
+      while !frontier <> [] do
+        let next = List.concat_map dependents !frontier in
+        frontier := List.filter (fun x -> not (List.mem x !seen)) next;
+        seen := !seen @ !frontier
+      done;
+      let starved = List.sort String.compare
+        (List.filter (fun id ->
+           id <> b.n_id
+           && (match List.find_opt (fun n -> n.n_id = id) nodes with
+               | Some n -> n.n_state = "todo" | None -> false)) !seen) in
+      if starved = [] then None else Some (b.n_id, starved)) nodes
 
 (* ---------- icebox reader ---------- *)
 (* Frozen entries are plain files, not state: read-only, dumb

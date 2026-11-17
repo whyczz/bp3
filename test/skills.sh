@@ -74,6 +74,8 @@ for h in .pi .agents .claude; do
 done
 assert test -f "$root/.agents/workflows/node-loop.js"
 assert cmp "$root/skills/traverse/workflows/node-loop.js" "$root/.agents/workflows/node-loop.js"
+assert test -f "$root/.agents/workflows/induct-node.js"
+assert cmp "$root/skills/traverse/workflows/induct-node.js" "$root/.agents/workflows/induct-node.js"
 assert test ! -e "$root/.agents/workflows/induct-exp.js"
 assert test -f "$root/.agents/workflows/induct-grade.js"
 assert cmp "$root/skills/traverse/workflows/induct-grade.js" "$root/.agents/workflows/induct-grade.js"
