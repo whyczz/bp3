@@ -155,3 +155,14 @@ makes the freshness structural so the next
 workflow-source migration (mvp.3's node-loop
 generalization is the obvious candidate) cannot
 repeat it.
+
+## Cycle 2 (owner A at blocked gate, grade of 6f124a6)
+
+Missing row: "full conduct (node -> grade -> land) from a foreign-dialect
+conductor root, zero read refusals". Cycle 2 must run a REAL conduct, not
+mock-host fixtures: create a fixture graph (one trivial node), then from
+the repository root (whose bin/bp3 speaks the old dialect; the desk bin/bp3
+is the only correct voice) launch the desk renders of node-loop,
+bp3g-grade, bp3g-land in sequence; pass iff the node reaches landed with
+zero read refusals. Record the proof (commands, refusal count) in the run
+notes.md.
