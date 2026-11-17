@@ -162,6 +162,10 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
     "validations transport writes the .git/bp3 validations log");
   assert(inputs.validations.includes("git show --stat " + COMMIT + " | head -3"),
     "validations transport bounds git_show to its head for the JSON return");
+  assert(inputs.validations.includes("git show bp3/node/toy/fx:docs/graphs/toy/nodes/fx/ledger.jsonl"),
+    "validations probe resolves the handoff ledger via the post-migration node branch");
+  assert(!inputs.validations.includes("bp3/exp/"),
+    "validations probe carries no retired bp3/exp hardcode");
   for (const name of ["adherence: no hand-edited state", "adherence: clean commit", "adherence: run folder present", "adherence: handoff by child", "adherence: env run-id stamped"]) {
     assert(rowNamed(result, name) && rowNamed(result, name).verdict === "pass",
       "validations minted " + name);

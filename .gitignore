@@ -2,3 +2,5 @@ _build/
 bp3.install
 .bp3/
 dist/
+.bp3-context.json
+**/runs/*/tape.log

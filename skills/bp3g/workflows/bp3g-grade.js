@@ -557,7 +557,7 @@ export default async function workflow(host) {
       "-validations.log\" && { echo '=== git_clean ==='; " +
       "git status --porcelain; echo '=== git_show ==='; " +
       "git show --stat " + commit + "; echo '=== handoff_line ==='; " +
-      "git show bp3/exp/" + graph + "/" + node + ":" + nodeDir +
+      "git show bp3/node/" + graph + "/" + node + ":" + nodeDir +
       "/ledger.jsonl | tail -1; } > \"$LOG\" 2>&1; echo \"$LOG\"`. " +
       "Then return only a JSON object {log_path, git_clean: {stdout, " +
       "exit}, git_show: {stdout, exit}, run_folders, handoff_line} " +
@@ -576,7 +576,7 @@ export default async function workflow(host) {
       "if [ -f \"$d/notes.md\" ]; then u=yes; else u=no; fi; " +
       "echo \"$n tape=$t notes=$u\"; done`; (4) for " +
       "handoff_line, the verbatim last handoff line of `" + nodeDir +
-      "/ledger.jsonl` on the node branch (`git show bp3/exp/" + graph +
+      "/ledger.jsonl` on the node branch (`git show bp3/node/" + graph +
       "/" + node + ":" + nodeDir + "/ledger.jsonl`), or an empty string " +
       "when there is none. Quote an empty stdout as an empty string; " +
       "the validations pipeline mints its token in code.",
@@ -610,7 +610,7 @@ export default async function workflow(host) {
       deskNote + "You are the audit child for node `" + node + "` of graph `" +
       graph + "`, bound to commit `" + commit + "`. " +
       tapePreamble("audit", before.cycle) +
-      " Read the node's EXPERIMENT.md first. Build the evidence " +
+      " Read the node's NODE.md first. Build the evidence " +
       "matrix: one row per Acceptance case (acceptance rows only). " +
       "Adherence rows are minted by the grade validations pipeline " +
       "before you spawn (adherence: no hand-edited state, " +
@@ -633,11 +633,11 @@ export default async function workflow(host) {
       "evidence verbatim; a gated case with no artifact is verdict " +
       "missing, never pass, and free-string evidence is not a row. " +
       "Deferred is a disposition, not a failure: when an " +
-      "Acceptance case's own text in EXPERIMENT.md says it is NOT " +
+      "Acceptance case's own text in NODE.md says it is NOT " +
       "gated by this node and defers it to a named owning node (for " +
       "example `deferred to Node 3`), emit verdict deferred for " +
       "that row with the deferral text itself as typed evidence " +
-      "({kind: file, ref: the EXPERIMENT.md line, quote: the " +
+      "({kind: file, ref: the NODE.md line, quote: the " +
       "deferral line verbatim}); never mark such a case missing " +
       "or pass for lacking this node's artifact. A deferral that " +
       "names no owning node is not deferred: emit missing. When a " +
@@ -760,7 +760,7 @@ export default async function workflow(host) {
     String(before.cycle) + ", bound to commit `" + commit + "`. " +
     gradeLoad + tapePreamble("grade", before.cycle) + gate +
     " Review the work at the bound commit against the node's " +
-    "own Acceptance cases in its EXPERIMENT.md (read it first): " +
+    "own Acceptance cases in its NODE.md (read it first): " +
     "every gated case needs observed evidence (a case deferred " +
     "to a named successor node is not gated here), and any open " +
     "design question in the node means it was not done properly. Judge " +
