@@ -660,6 +660,13 @@ and keeps the old edge words.
 ### Milestone: followup — papercuts found live
 
 ### followup.1 - grade-evidence — [record](experiments/exp-followup-1-grade-evidence/EXPERIMENT.md)
+
+### followup.2 - workflow-birth — [record](experiments/exp-followup-2-workflow-birth/EXPERIMENT.md)
+Renders must track workflow sources: a dispatch
+never launches a desk render older than its
+source (re-render or `E_RENDER_STALE`). mvp.1's
+grade died on a stale render calling the retired
+`record-init`; owner fix path A formalized.
 Missing evidence is not a defect: grade-audit
 rows must carry typed evidence or the audit
 re-collects internally. Evidence gaps never burn
@@ -693,6 +700,6 @@ config.1 ─► mvp.1 ─► mvp.2 ─┬─► mvp.3 ─► mvp.4
                             mvp.3 ────────────┘ (and mvp.5, dogfood.1 feed it)
 
 ready-set waves: [mig.1, config.1] -> [mig.2, mvp.1] -> [mvp.2] -> [mvp.3, dogfood.1]
-         -> [mvp.4, mvp.5] -> [dogfood.2] -> [rename.1] -> [followup.1] -> [landing.1]
+         -> [mvp.4, mvp.5] -> [dogfood.2] -> [rename.1] -> [followup.1, followup.2] -> [landing.1]
 rename.1 = nouns/doors/skills only; verbs already migrated in mig.1
 ```
