@@ -1,0 +1,639 @@
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T213403Z-grade-muse-code-muse-wonder-1.0-c1
+=== ls exp ===
+EXPERIMENT.md
+runs
+=== git log ===
+229a6ba feat(config.1): add bp3 config store and view door
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+886e1af docs(icebox): kill engine fan-out, addressed by graph-engine quest
+1fdb11e docs(icebox): freeze lint, portable dogfood, engine fan-out sketches
+3478ac1 docs(quest): rename graph-link to bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+13ebfdb fix(skills-test): expect red-ink in pi settings exclusions
+=== diff stat HEAD ===
+commit 229a6bacc7d044c1d35745ca88e3138d024117d1
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 16:32:46 2026 -0500
+
+    feat(config.1): add bp3 config store and view door
+
+ Makefile              |   3 +-
+ bin/bp3               |   6 +-
+ completions/_bp3      |   4 +-
+ completions/bp3.bash  |   4 +-
+ src/quest/config.ml   | 265 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/quest/harness.ml  |   1 +
+ src/quest/main.ml     |  29 ++++++
+ src/quest/store.ml    |   2 +-
+ src/quest/worktree.ml |   2 +
+ test/completion.sh    |   4 +-
+ test/config.sh        | 134 +++++++++++++++++++++++++
+ 11 files changed, 448 insertions(+), 6 deletions(-)
+=== QUEST head ===
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+| tape | tape | the harness session recording (unchanged) |
+
+States rest in the root worker's read. Edges are
+subagents. A child holds nothing across edges;
+context is claimed, never remembered.
+
+Edge names (settled red-ink names round, owner —
+option A; rides rename.1, old ledgers keep old
+words and the rename table maps them):
+
+| Coded today | Settled name | Caller does |
+|---|---|---|
+| `submit` | `handoff` | author binds the finished commit |
+| `review` | `grade` | reviewer grades the exact commit (`ship\|needs_fix`) |
+| `check` | `verify` | machine checks (`pass\|fail`) |
+| `land` | `land` | merge into the graph branch |
+| state `submitted` | state `handed_off` | verb/state rhyme: `handoff` hands off, node rests `handed_off` |
+| `block` | `block` | park for a human decision |
+| `resume` | `resume` | human answer re-enters (`BP3_DECIDER=human`) |
+
+Link mint/claim are verbs, not flags:
+`bp3 harness link mint --kind node|edge …` and
+`bp3 harness link claim <token>`. A node link
+carries no edge name — the node worker executes
+no transition when it claims.
+
+Door letter settled: `bp3 g`, not `bp3 t`.
+Nodes form a DAG (shared deps, diamonds — a tree
+allows one parent), scheduled by BFS ready-set
+waves; the *execution* is a tree of workers.
+Tree survives as a view (`--format tree`) and as
+the worker-tree shape, never as the addressed
+noun.
+
+## Success picture
+=== git show HEAD diff (code) ===
+commit 229a6bacc7d044c1d35745ca88e3138d024117d1
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 16:32:46 2026 -0500
+
+    feat(config.1): add bp3 config store and view door
+
+diff --git a/Makefile b/Makefile
+index 2bd846f..72f5ae0 100644
+--- a/Makefile
++++ b/Makefile
+@@ -12,6 +12,7 @@ check: lint
+ 	$(DUNE_BUILD) src/quest/main.exe
+ 	./test/q.sh
+ 	./test/harness.sh
++	./test/config.sh
+ 	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+ 	./test/worktree.sh
+ 	./test/tape.sh
+@@ -22,7 +23,7 @@ check: lint
+ 	./test/install.sh
+ 
+ lint:
+-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
++	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/config.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+ 	node --check skills/traverse/workflows/node-loop.js
+ 	node --check skills/traverse/workflows/induct-grade.js
+ 	node --check skills/traverse/workflows/quest-land.js
+diff --git a/bin/bp3 b/bin/bp3
+index 03a1197..ce2e2d3 100755
+--- a/bin/bp3
++++ b/bin/bp3
+@@ -167,7 +167,7 @@ HOOKS_JSON
+   fi
+ }
+ 
+-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk)'
++usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+ case "${1:-}" in
+   -h|--help) printf '%s\n' "$usage_text"; printf '%s\n' '  bp3 q -h for quest/exp doors'; exit 0 ;;
+   q|quest) shift
+@@ -178,6 +178,10 @@ case "${1:-}" in
+     q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+     [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+     BP3_ROOT="$root" exec "$q_bin" harness "$@" ;;
++  config) shift
++    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
++    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
++    BP3_ROOT="$root" exec "$q_bin" config "$@" ;;
+   worktree) shift
+     q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+     [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+diff --git a/src/quest/config.ml b/src/quest/config.ml
+new file mode 100644
+index 0000000..a9f0322
+--- /dev/null
++++ b/src/quest/config.ml
+@@ -0,0 +1,265 @@
++(* config — the machine-local bp3 config store (config.1):
++   <git-common-dir>/bp3/ holding config.json (machine
++   settings only: local thresholds and gates), the per-run
++   configs runs/<run_id>.json (one canonical record per
++   Run, created at link mint), links/, the derived
++   by-session index, desks/, and the supervisor's
++   run-lifecycle-derivations. Written only by bp3 verbs,
++   never hand-edited, never committed; every worktree of
++   the repo resolves the same tree through the git common
++   dir, while contexts stay per-session. bp3 config views
++   the store; contexts are folded from runs/, never stored
++   in config.json. *)
++open Gitx
++
++(* ---------- layout ---------- *)
++let config_dir () =
++  let out, code = git_out ["rev-parse"; "--git-common-dir"] in
++  if code <> 0 || String.trim out = "" then None
++  else
++    let common = String.trim out in
++    let abs =
++      if Filename.is_relative common then Filename.concat root common
++      else common in
++    (* one spelling per store: /var and /private/var are the
++       same tree on this host, and worktrees must agree *)
++    let canon = try Unix.realpath abs with _ -> abs in
++    Some (Filename.concat canon "bp3")
++
++let runs_dir dir = Filename.concat dir "runs"
++let links_dir dir = Filename.concat dir "links"
++let by_session_dir dir = Filename.concat dir "by-session"
++let desks_dir dir = Filename.concat dir "desks"
++let derivations_dir_of dir = Filename.concat dir "run-lifecycle-derivations"
++let config_file dir = Filename.concat dir "config.json"
++
++let ensure_dir dir =
++  let parent = Filename.dirname dir in
++  (try Unix.mkdir parent 0o755
++   with Unix.Unix_error (Unix.EEXIST, _, _) -> () | _ -> ());
++  (try Unix.mkdir dir 0o755
++   with Unix.Unix_error (Unix.EEXIST, _, _) -> () | _ -> ())
++
++(* Single-write temp file in the same directory, fsynced,
++   then renamed over the target (followup.1 discipline):
++   a reader sees the old snapshot or the new one, never a
++   torn one. *)
++let write_counter = ref 0
++
++let write_file_atomic path content =
++  incr write_counter;
++  let tmp = Printf.sprintf "%s.tmp.%d.%d" path (Unix.getpid ()) !write_counter in
++  let fd = Unix.openfile tmp [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC] 0o644 in
++  (try
++     let n = Unix.write_substring fd content 0 (String.length content) in
++     if n <> String.length content then
++       raise (Unix.Unix_error (Unix.EIO, "write", path));
++     Unix.fsync fd
++   with e ->
++     (try Unix.close fd with _ -> ());
++     (try Unix.unlink tmp with _ -> ());
++     raise e);
++  Unix.close fd;
++  Sys.rename tmp path
++
++(* ---------- thresholds (machine settings only) ---------- *)
++type thresholds = { setup_slow_s : int; depth_cap : int }
++
++let default_thresholds = { setup_slow_s = 180; depth_cap = 3 }
++
++let thresholds_json t =
++  `Assoc [("setup_slow_s", `Int t.setup_slow_s); ("depth_cap", `Int t.depth_cap)]
++
++let default_config_json = `Assoc [("thresholds", thresholds_json default_thresholds)]
++
++let jstr j key default =
++  try match Yojson.Safe.Util.member key j with `String s -> s | _ -> default
++  with _ -> default
++
++let jopt j key =
++  try match Yojson.Safe.Util.member key j with
++    | `String s when s <> "" -> Some s | _ -> None
++  with _ -> None
++
++let jint j key default =
++  try match Yojson.Safe.Util.member key j with `Int n -> n | _ -> default
++  with _ -> default
++
++let jobj j key =
++  try match Yojson.Safe.Util.member key j with `Assoc _ as o -> Some o | _ -> None
++  with _ -> None
++
++let load_thresholds dir =
++  let path = config_file dir in
++  if not (Sys.file_exists path) then default_thresholds
++  else
++    try
++      let j = Yojson.Safe.from_string (read_file_or path "") in
++      let scope = match jobj j "thresholds" with Some t -> t | None -> j in
++      { setup_slow_s = jint scope "setup_slow_s" default_thresholds.setup_slow_s;
++        depth_cap = jint scope "depth_cap" default_thresholds.depth_cap }
++    with _ -> default_thresholds
++
++(* Effective thresholds for any caller: the store's values
++   when a store exists, defaults otherwise (fails open to
++   today's behavior; no committed file ever requires one). *)
++let thresholds () =
++  match config_dir () with
++  | Some dir -> load_thresholds dir
++  | None -> default_thresholds
++
++(* Zero setup: the first bp3 write on a fresh repo creates
++   the whole tree with defaults; an existing config.json is
++   never overwritten. Outside a git repo there is no store
++   and the caller refuses. Returns the config dir. *)
++let ensure_config () =
++  match config_dir () with
++  | None ->
++      err "E_NOT_FOUND" (`Assoc [])
++        "No bp3 config store: not inside a git repository." 1
++  | Some dir ->
++      List.iter ensure_dir
++        [dir; runs_dir dir; links_dir dir; by_session_dir dir;
++         desks_dir dir; derivations_dir_of dir];
++      let cf = config_file dir in
++      if not (Sys.file_exists cf) then
++        write_file_atomic cf (Yojson.Safe.to_string default_config_json ^ "\n");
++      dir
++
++(* ---------- run configs: the contexts ---------- *)
++type run_config = {
++  rc_id : string;
++  rc_kind : string;
++  rc_graph : string;
++  rc_node : string;
++  rc_edge : string option;
++  rc_state : string;
++  rc_desk : string;
++  rc_session : string option;
++  rc_minted_at : string;
++  rc_claimed_at : string;
++}
++
++let run_config_of_file path =
++  try
++    let j = Yojson.Safe.from_string (read_file_or path "") in
++    let creator = jobj j "creator" in
++    let claim = jobj j "claim" in
++    let nested o key = match o with Some x -> jstr x key "" | None -> "" in
++    let nested_opt o key = match o with Some x -> jopt x key | None -> None in
++    let id = match jopt j "run_id" with
++      | Some r -> r
++      | None -> Filename.remove_extension (Filename.basename path) in
++    if id = "" then None
++    else
++      Some { rc_id = id;
++             rc_kind = jstr j "kind" "";
++             rc_graph = jstr j "graph" "";
++             rc_node = jstr j "node" "";
++             rc_edge = jopt j "edge";
++             rc_state = jstr j "state" "";
++             rc_desk = jstr j "desk" "";
++             rc_session = nested_opt claim "session_id";
++             rc_minted_at = nested creator "minted_at";
++             rc_claimed_at = nested claim "claimed_at" }
++  with _ -> None
++
++(* A torn or foreign file under runs/ is never read as a
++   valid run config; it is skipped, not folded. *)
++let list_run_configs dir =
++  let rd = runs_dir dir in
++  if not (Sys.file_exists rd) then []
++  else
++    try
++      Sys.readdir rd |> Array.to_list
++      |> List.filter (fun n -> Filename.check_suffix n ".json")
++      |> List.sort String.compare
++      |> List.filter_map (fun n -> run_config_of_file (Filename.concat rd n))
++      |> List.sort (fun a b -> String.compare a.rc_id b.rc_id)
++    with _ -> []
++
++let opt_json = function Some s -> json_str s | None -> `Null
++
++let context_json rc =
++  `Assoc [("graph", json_str rc.rc_graph); ("node", json_str rc.rc_node);
++          ("edge", opt_json rc.rc_edge); ("run_id", json_str rc.rc_id);
++          ("session_id", opt_json rc.rc_session);
++          ("desk", json_str rc.rc_desk); ("state", json_str rc.rc_state);
++          ("kind", json_str rc.rc_kind)]
++
++(* Provenance: which verb wrote this context, and when.
++   A claimed run config was last written by link claim; a
++   minted one only by link mint. *)
++let source_context_json rc =
++  let (verb, ts) =
++    if rc.rc_claimed_at <> "" || rc.rc_session <> None then
++      ("link claim", rc.rc_claimed_at)
++    else if rc.rc_minted_at <> "" then ("link mint", rc.rc_minted_at)
++    else ("run config", "") in
++  match context_json rc with
++  | `Assoc fs ->
++      `Assoc (fs @ [("source", `Assoc [("verb", json_str verb);
++                                       ("ts", json_str ts)])])
++  | other -> other
++
++let desks_json rcs =
++  let desks =
++    List.sort_uniq String.compare
++      (List.filter_map
++         (fun rc -> if rc.rc_desk = "" then None else Some rc.rc_desk) rcs) in
++  List.map (fun d ->
++    `Assoc [("desk", json_str d);
++            ("run_ids", `List (List.map json_str
++              (List.map (fun rc -> rc.rc_id)
++                 (List.filter (fun rc -> rc.rc_desk = d) rcs))))]) desks
++
++(* ---------- by-session index (derived, rebuildable) ---------- *)
++let contains_sub s sub =
++  let n = String.length s and m = String.length sub in
++  let rec loop i = i + m <= n && (String.sub s i m = sub || loop (i + 1)) in
++  m = 0 || loop 0
++
++let valid_index_key s =
++  s <> "" && s <> "." && s <> ".."
++  && not (contains_sub s "/") && not (contains_sub s "\\")
++  && not (contains_sub s "..") && s.[0] <> '.'
++
++(* Rebuilt from runs/ on every view: deleting by-session/
++   loses nothing. Stale entries for sessions no run config
++   claims any more are removed. Returns the entry count. *)
++let rebuild_by_session dir rcs =
++  let bd = by_session_dir dir in
++  ensure_dir bd;
++  let wanted =
++    List.filter_map (fun rc ->
++      match rc.rc_session with
++      | Some s when valid_index_key s -> Some (s, rc.rc_id)
++      | _ -> None) rcs in
++  (try
++     Sys.readdir bd |> Array.iter (fun name ->
++       if not (List.mem_assoc name wanted) then
++         (try Unix.unlink (Filename.concat bd name) with _ -> ()))
++   with _ -> ());
++  List.iter (fun (s, run_id) ->
++    write_file_atomic (Filename.concat bd s) (run_id ^ "\n")) wanted;
++  List.length wanted
++
++let derivations_count dir =
++  let dd = derivations_dir_of dir in
++  if not (Sys.file_exists dd) then 0
++  else (try Array.length (Sys.readdir dd) with _ -> 0)
++
++(* ---------- the view ---------- *)
++let view ~source =
++  let dir = ensure_config () in
++  let t = load_thresholds dir in
++  let rcs = list_run_configs dir in
++  let n_by = rebuild_by_session dir rcs in
++  let contexts =
++    List.map (if source then source_context_json else context_json) rcs in
++  `Assoc [("ok", `Bool true); ("config_dir", json_str dir);
++          ("thresholds", thresholds_json t);
++          ("contexts", `List contexts);
++          ("desks", `List (desks_json rcs));
++          ("by_session_entries", `Int n_by);
++          ("derivations", `Int (derivations_count dir))]
+diff --git a/src/quest/harness.ml b/src/quest/harness.ml
+index 41418bc..d475d12 100644
+--- a/src/quest/harness.ml
++++ b/src/quest/harness.ml
+@@ -1711,6 +1711,7 @@ let do_record_init args =
+                                  ("path", json_str path)])
+            "An InitRecord already exists for that run-id; refusing to overwrite." 1;
+        ensure_dir dir;
++       ignore (Config.ensure_config ());
+        let opt_fields = List.filter_map (fun x -> x) [
+          (match fl.ri_session with Some s -> Some ("session_id", json_str s) | None -> None);
+          (match fl.ri_pid with Some p -> Some ("pid", `Int p) | None -> None);
+diff --git a/src/quest/main.ml b/src/quest/main.ml
+index 396a902..79d3aac 100644
+--- a/src/quest/main.ml
++++ b/src/quest/main.ml
+@@ -71,6 +71,25 @@ let split_flags args =
+ let require_reason fl =
+   match fl.reason with Some r when r <> "" -> r | _ -> usage "--reason is required"
+ 
++(* ---------- config door (config.1) ---------- *)
++let parse_config_flags args =
++  let rec loop source fmt fmt_set = function
++    | [] -> (source, fmt)
++    | "--source" :: rest ->
++        if source then usage "duplicate flag --source";
++        loop true fmt fmt_set rest
++    | "--format" :: v :: rest ->
++        if fmt_set then usage "duplicate flag --format";
++        if v <> "json" && v <> "table" then usage "--format must be json or table";
++        loop source v true rest
++    | ["--format"] -> usage "--format needs a value"
++    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
++        (match String.index_opt f '=' with
++         | Some _ -> usage ("unknown flag form: " ^ f)
++         | None -> usage ("unknown flag: " ^ f))
++    | stray :: _ -> usage ("stray positional: " ^ stray) in
++  loop false "json" false args
++
+ let with_warnings id is_write fields =
+   match warnings_of id is_write with
+   | [] -> `Assoc fields
+@@ -351,6 +370,7 @@ let help_q = "bp3 q - quest/exp state. Doors:\n\
+   bp3 q <quest> c|r|u|d ...    exp door for one quest\n\
+   bp3 q icebox r [term...]     search frozen icebox entries (read-only)\n\
+   bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias\n\
++  bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)\n\
+   bp3 q hooks                  harness hook emitter (fail-open)\n\
+ Run bp3 q <door> -h for that door's verbs, edges, and flags.\n"
+ 
+@@ -389,6 +409,11 @@ let help_worktree = "bp3 worktree - documented alias of bp3 harness desk, machin
+   bp3 harness desk list [--quest <quest>]\n\
+ Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
+ 
++let help_config = "bp3 config - view the machine-local bp3 config store (<git-common-dir>/bp3/, never committed):\n\
++  bp3 config [--source] [--format json|table]   thresholds plus contexts folded from runs/<run_id>.json\n\
++  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
++Example: bp3 config --source\n"
++
+ let is_help = function "-h" | "--help" -> true | _ -> false
+ 
+ (* Exp 5 guard: an older-MAJOR binary never writes in a newer repo.
+@@ -413,6 +438,10 @@ let run argv =
+   | "-h" :: _ | "--help" :: _ -> print_string help_q; 0
+   | "--version" :: _ -> print_endline bp3_version; 0
+   | "harness" :: rest -> Harness.run rest
++  | "config" :: (h :: _) when is_help h -> print_string help_config; 0
++  | "config" :: rest ->
++      let (source, fmt) = parse_config_flags rest in
++      print_verdict ~fmt (Config.view ~source); 0
+   | "worktree" :: (h :: _) when is_help h -> print_string help_worktree; 0
+   | "icebox" :: (h :: _) when is_help h -> print_string help_icebox; 0
+   | "icebox" :: ("r" | "read") :: (h :: _) when is_help h -> print_string help_icebox; 0
+diff --git a/src/quest/store.ml b/src/quest/store.ml
+index e2689cb..7295195 100644
+--- a/src/quest/store.ml
++++ b/src/quest/store.ml
+@@ -16,7 +16,7 @@ let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
+=== thresholds consumers ===
+src/quest/worktree.ml:282:  ignore (Config.ensure_config ());
+src/quest/worktree.ml:314:  ignore (Config.ensure_config ());
+src/quest/main.ml:413:  bp3 config [--source] [--format json|table]   thresholds plus contexts folded from runs/<run_id>.json\n\
+src/quest/main.ml:414:  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
+src/quest/main.ml:444:      print_verdict ~fmt (Config.view ~source); 0
+src/quest/harness.ml:1714:       ignore (Config.ensure_config ());
+=== ensure_config callers ===
+src/quest/worktree.ml:282:  ignore (Config.ensure_config ());
+src/quest/worktree.ml:314:  ignore (Config.ensure_config ());
+src/quest/config.ml:115:let ensure_config () =
+src/quest/config.ml:254:  let dir = ensure_config () in
+src/quest/harness.ml:1714:       ignore (Config.ensure_config ());
+=== diff rest ===
+commit 229a6bacc7d044c1d35745ca88e3138d024117d1
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 16:32:46 2026 -0500
+
+    feat(config.1): add bp3 config store and view door
+
+diff --git a/completions/_bp3 b/completions/_bp3
+index 2b41751..c89aa9a 100644
+--- a/completions/_bp3
++++ b/completions/_bp3
+@@ -100,7 +100,9 @@ _bp3_candidates() {
+ 
+   if [ "$has_q" -eq 0 ]; then
+     if [ "${#a[@]}" -eq 0 ]; then
+-      printf '%s\n' q quest init skills harness worktree | _bp3_filter "$cur"
++      printf '%s\n' q quest init skills harness worktree config | _bp3_filter "$cur"
++    elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'config' ]; then
++      printf '%s\n' --source --format -h --help | _bp3_filter "$cur"
+     elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'skills' ]; then
+       printf '%s\n' install | _bp3_filter "$cur"
+     elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'harness' ]; then
+diff --git a/completions/bp3.bash b/completions/bp3.bash
+index 0c9a965..e997e5d 100755
+--- a/completions/bp3.bash
++++ b/completions/bp3.bash
+@@ -104,7 +104,9 @@ _bp3_candidates() {
+ 
+   if [ "$has_q" -eq 0 ]; then
+     if [ "${#a[@]}" -eq 0 ]; then
+-      printf '%s\n' q quest init skills harness worktree | _bp3_filter "$cur"
++      printf '%s\n' q quest init skills harness worktree config | _bp3_filter "$cur"
++    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'config' ]; then
++      printf '%s\n' --source --format -h --help | _bp3_filter "$cur"
+     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'skills' ]; then
+       printf '%s\n' install | _bp3_filter "$cur"
+     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'harness' ]; then
+diff --git a/src/quest/store.ml b/src/quest/store.ml
+index e2689cb..7295195 100644
+--- a/src/quest/store.ml
++++ b/src/quest/store.ml
+@@ -16,7 +16,7 @@ let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
+    addressed again (the token would parse as the door or
+    verb instead), so creation refuses it; reads stay total. *)
+ let reserved_slugs =
+-  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo";
++  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo"; "config";
+     "supervisor"; "init-check"; "find-tape"; "watch"; "desk"; "backtest"; "b";
+     "c"; "create"; "r"; "read"; "u"; "update"; "d"; "delete";
+     "s"; "i"; "f"; "w";
+diff --git a/src/quest/worktree.ml b/src/quest/worktree.ml
+index 90de385..20eca37 100644
+--- a/src/quest/worktree.ml
++++ b/src/quest/worktree.ml
+@@ -279,6 +279,7 @@ let prepare_verdict r existing =
+ let do_prepare quest exp run_id commit path_override =
+   Store.check_creatable quest;
+   Store.check_creatable exp;
++  ignore (Config.ensure_config ());
+   let default_path = derive_path quest exp run_id in
+   match load_record run_id with
+   | Some r ->
+@@ -310,6 +311,7 @@ let quest_run_id quest = "quest-" ^ quest
+ 
+ let do_prepare_quest quest =
+   Store.check_creatable quest;
++  ignore (Config.ensure_config ());
+   let run_id = quest_run_id quest in
+   match load_record run_id with
+   | Some r ->
+diff --git a/test/completion.sh b/test/completion.sh
+index f3b1e67..22ae184 100755
+--- a/test/completion.sh
++++ b/test/completion.sh
+@@ -84,7 +84,9 @@ has "$out" json; has "$out" table; has "$out" tree
+ out=$(_bp3_candidates q toy-drive "")
+ has "$out" r; has "$out" u
+ out=$(_bp3_candidates "")
+-has "$out" harness; has "$out" worktree
++has "$out" harness; has "$out" worktree; has "$out" config
++out=$(_bp3_candidates config "")
++has "$out" --source; has "$out" --format
+ out=$(_bp3_candidates harness "")
+ has "$out" desk; has "$out" supervisor; has "$out" find-tape
+ out=$(_bp3_candidates harness desk "")
+=== rung3: build ===
+Entering directory '/Users/whycz/m/bp3'
+Error: Don't know how to build src/quest/main.exe
+Leaving directory '/Users/whycz/m/bp3'
+=== rung3: ./test/config.sh ===
+config tests: ok
+exit=0
+=== rung3: live view ===
+{"ok":true,"config_dir":"/Users/whycz/m/bp3/.git/bp3","thresholds":{"setup_slow_s":180,"depth_cap":3},"contexts":[],"desks":[],"by_session_entries":0,"derivations":258}
+
+=== rung3: git status ===
+229a6bacc7d044c1d35745ca88e3138d024117d1
+(clean if empty above)
+7:DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
+12:	$(DUNE_BUILD) src/quest/main.exe
+42:	$(DUNE_BUILD) src/quest/main.exe
+_build/default/src/quest/main.exe
+completion tests: ok
+completion exit=0
+shellcheck ok
+build exit=0
+config tests: ok
+(clean if empty)
+{"ok":false,"error":{"code":"E_ILLEGAL_EDGE","facts":{"state":"blocked","edge":"grade","legal_edges":["resume","delete"]},"guidance":"Pick a legal edge from legal_edges for the current state."},"run_id":"20261116T213403Z-grade-muse-code-muse-wonder-1.0-c1"}
+grade exit=1
+notes.md
+tape.log

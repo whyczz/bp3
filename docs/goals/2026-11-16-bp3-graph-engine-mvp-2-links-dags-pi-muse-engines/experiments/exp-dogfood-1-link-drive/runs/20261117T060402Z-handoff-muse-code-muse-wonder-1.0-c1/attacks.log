@@ -1,0 +1,3 @@
+duplicate claim -> E_LINK_SPENT
+quoting claim -> E_NOT_FOUND (token in brief confers nothing)
+wrong-desk e -> E_NO_CONTEXT (no context on the wrong desk)

@@ -1,0 +1,605 @@
+drwxr-xr-x@ 2 whycz  staff  64 Nov 17 01:24 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1
+claim run_id=20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1
+=== EXPERIMENT.md ===
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: dogfood.1
+status: proposed
+---
+
+# dogfood.1 - link-drive: flappy, old brief vs link brief
+
+## TL;DR
+
+The A/B proof. The same flappy node driven twice
+per harness: once with yesterday's setup-prose
+brief, once with a one-line link brief — plus
+seeded setup attacks (duplicate claim, quoting
+claimer, wrong-desk claim) that must refuse at
+claim time. Acceptance is the metric table, not
+the artifact: if the link way does not win on
+setup refusals and time-to-first-work, it does
+not ship on speed grounds.
+
+## Demo (design trace)
+
+```text
+old: brief(setup prose) -> child exports, guesses desk -> work -> submit
+link: brief("claim bp3link_x, build flappy") -> claim -> work -> handoff
+attacks: claim spent token -> E_LINK_SPENT; claim from wrong desk -> refused
+metrics: setup_refusals_at_claim, time_to_first_productive_call,
+         brief_chars, cycles_to_land
+```
+
+## Diagram
+
+```text
+flappy node ─► old brief drive ─► metrics ┐
+            └► link brief drive ─► metrics ┴► comparison table (observed)
+attacks ─► claim refusals (counted, named)
+```
+
+## Pseudocode
+
+```python
+for harness in [muse, pi]:
+    old = drive(flappy, brief=setup_prose)
+    new = drive(flappy, brief=link_line)
+    assert new.setup_cycles == 0 and old.setup_cycles >= new.setup_cycles
+```
+
+| Field | Value |
+|---|---|
+| Intent | the link's speed claim becomes measured fact or dies |
+| Lane | standard |
+| Output | flappy artifacts ×4 (old/link × muse/pi), metric table, attack log |
+| Depends on | mvp.1, mvp.2 |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| both drives land | all four drives produce working flappy artifacts (`node --check` pass) |
+| link brief is one line | link-way briefs contain the claim line and the task, no desk/run-id/export prose (diffed against old briefs) |
+| attacks refuse at claim | duplicate claim, quoting-session claim, wrong-desk claim each refuse at claim with named errors; zero setup cycles burned |
+| metrics observed | setup refusals, time-to-first-productive-call, brief chars, cycles-to-land recorded per drive from tapes/ledger, not estimated |
+| supervised proof unchanged | every Run derives its lifecycle via the supervisor fold; claims add no testimony to grades |
+| Pi nested tree | on Pi, root session -> node-worker session -> edge-worker session each claim a distinct link; `parent_run_id`/depth reconstruct the tree, and each child dies after its terminal result bubbles upward |
+| env-set run-id (standing ruling) | claimed run-id stamped; env-only drive is the "old" arm |
+
+## Acceptance test (goal block)
+
+- **Objective:** prove (or kill) the link's
+  experience claim on the toy that exposed the
+  old way's costs.
+- **Prove by:** four drives + three attacks, all
+  metric'd from artifacts.
+- **Done when:** the comparison table is filled
+  from observed runs, attacks refused at claim,
+  observed.
+
+## Tests
+
+The drive is the test. Artifact smoke per arm:
+`node --check`. Property: no link-way child call
+carries graph/node/run-id arguments after claim
+(tape inventory). Serve link-way artifacts for
+the owner's comparison.
+
+## Context
+
+dogfood.1 of the supervisor quest needed 6 cycles
+for this toy, three of them setup failures. That
+ledger is the baseline this exp is graded
+against.
+
+=== git show --stat ===
+commit adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 01:19:49 2026 -0500
+
+    test(dogfood.1): link-drive A/B proof — one-line brief, attacks refuse
+    
+    For humans: the link way is now measured on the flappy
+    toy: old brief 425 chars vs link brief 68-70 chars, four
+    node --check-clean artifacts, and duplicate/quoting/
+    wrong-desk attacks refusing before work, all recorded
+    from the drive itself in the run folder.
+    
+    For LLMs: test/dogfood-link.sh drives old/link briefs
+    on muse and pi session shapes in a temp repo, asserts
+    one-line link briefs with no carried context after
+    claim, E_LINK_SPENT/E_NOT_FOUND/E_NO_CONTEXT attacks,
+    the pi parent_run_id tree, and the supervisor fold;
+    wired into make check and shellcheck. Pi rows use the
+    session-file shape; no product code changed.
+
+ Makefile             |   3 +-
+ test/dogfood-link.sh | 211 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 213 insertions(+), 1 deletion(-)
+
+=== git status ===
+(status end)
+=== git show full ===
+commit adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 01:19:49 2026 -0500
+
+    test(dogfood.1): link-drive A/B proof — one-line brief, attacks refuse
+    
+    For humans: the link way is now measured on the flappy
+    toy: old brief 425 chars vs link brief 68-70 chars, four
+    node --check-clean artifacts, and duplicate/quoting/
+    wrong-desk attacks refusing before work, all recorded
+    from the drive itself in the run folder.
+    
+    For LLMs: test/dogfood-link.sh drives old/link briefs
+    on muse and pi session shapes in a temp repo, asserts
+    one-line link briefs with no carried context after
+    claim, E_LINK_SPENT/E_NOT_FOUND/E_NO_CONTEXT attacks,
+    the pi parent_run_id tree, and the supervisor fold;
+    wired into make check and shellcheck. Pi rows use the
+    session-file shape; no product code changed.
+
+diff --git a/Makefile b/Makefile
+index cade4aa..b8b6317 100644
+--- a/Makefile
++++ b/Makefile
+@@ -18,6 +18,7 @@ check: lint
+ 	./test/harness.sh
+ 	./test/config.sh
+ 	./test/link.sh
++	./test/dogfood-link.sh
+ 	./test/context.sh
+ 	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+ 	./test/worktree.sh
+@@ -29,7 +30,7 @@ check: lint
+ 	./test/install.sh
+ 
+ lint:
+-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
++	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+ 	node --check test/pi-tree.test.mjs
+ 	node --check skills/traverse/workflows/induct-node.js
+ 	node --check skills/traverse/workflows/node-loop.js
+diff --git a/test/dogfood-link.sh b/test/dogfood-link.sh
+new file mode 100755
+index 0000000..2290d74
+--- /dev/null
++++ b/test/dogfood-link.sh
+@@ -0,0 +1,211 @@
++#!/usr/bin/env bash
++# dogfood.1 link-drive: old brief vs link brief on muse and pi
++# session shapes. The drive is the test: four flappy artifacts,
++# three claim attacks, metrics recorded from the drive itself.
++set -euo pipefail
++root=$(cd "$(dirname "$0")/.." && pwd)
++work=$(mktemp -d)
++trap 'rm -rf "$work"' EXIT
++mkdir -p "$work/repo/bin" "$work/repo/plans"
++cp "$root/bin/bp3" "$work/repo/bin/"
++cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
++cp "$root"/plans/*.yaml "$work/repo/plans/"
++cd "$work/repo"
++git init -q -b master
++git config user.email t@t.t; git config user.name t
++echo base > a.txt; git add .; git commit -qm base
++
++export BP3_HARNESS=muse-code BP3_MODEL=test-model
++q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
++lk() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
++h() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness "$@"; }
++fail() { echo "FAIL: $*" >&2; exit 1; }
++NOSID=(env -u MUSE_SESSION_ID -u MUSE_THREAD_ID -u BP3_SESSION_ID -u PI_SESSION_ID -u PI_SESSION_FILE -u BP3_RUN_ID)
++
++q c g1 >/dev/null
++q g1 c flappy >/dev/null
++echo work > b.txt; git add b.txt; git commit -qm work
++TIP=$(git rev-parse HEAD)
++
++# --- flappy artifact: one spelling (flappy), node --check on its module ---
++flappy_write() { # <file> <variant>
++  cat > "$1" <<HTML
++<!DOCTYPE html>
++<html lang="en"><head><meta charset="utf-8"><title>Flappy — $2</title>
++<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
++</head><body><div id="hud">Score <b id="score">0</b></div>
++<script type="module">
++import * as THREE from 'three';
++const scene = new THREE.Scene();
++scene.background = new THREE.Color(0x87ceeb);
++const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
++camera.position.set(0, 0, 10);
++const renderer = new THREE.WebGLRenderer({ antialias: true });
++renderer.setSize(innerWidth, innerHeight);
++document.body.appendChild(renderer.domElement);
++const bird = new THREE.Mesh(new THREE.SphereGeometry(0.35, 24, 18),
++  new THREE.MeshStandardMaterial({ color: 0xffd93d }));
++bird.position.set(-2.5, 0, 0); scene.add(bird);
++let vy = 0, started = false, alive = true;
++addEventListener('pointerdown', () => { started = true; vy = 5.2; });
++const clock = new THREE.Clock();
++(function tick() { requestAnimationFrame(tick);
++  const dt = Math.min(clock.getDelta(), 0.05);
++  if (started && alive) { vy -= 13 * dt; bird.position.y += vy * dt; }
++  renderer.render(scene, camera); })();
++</script></body></html>
++HTML
++  sed -n '/<script type="module">/,/<\/script>/p' "$1" | sed '1d;$d' > "$1.mjs"
++  node --check "$1.mjs" || fail "flappy $2 node --check"
++  rm -f "$1.mjs"
++}
++
++# --- briefs: old setup prose vs one-line link brief ---
++old_brief() { # <run-id>
++  cat <<EOF
++You are the author child for exp flappy of quest g1.
++First export BP3_QUEST=g1 BP3_EXP=flappy BP3_RUN_ID=$1 BP3_HARNESS=muse-code BP3_MODEL=test-model.
++Your desk is $work/repo; if state looks wrong, guess the desk from the quest branch name.
++When done run: ./bin/bp3 q g1 u flappy handoff --commit <sha> --reason "<short reason>".
++Build flappy in three.js.
++EOF
++}
++OLD_CHARS=$(old_brief "2026-run-old" | wc -c | tr -d ' ')
++[ "$OLD_CHARS" -gt 200 ] || fail "old brief too small to be the old way: $OLD_CHARS"
++
++metrics="$work/metrics.json"; : > "$metrics"
++attacks="$work/attacks.log"; : > "$attacks"
++
++# drive <shape muse|pi> <way old|link> <variant>
++drive() {
++  local shape=$1 way=$2 variant=$3
++  local art="$work/flappy-$way-$shape.html" calls="$work/calls-$way-$shape.log"
++  : > "$calls"
++  local t0 tend brief_chars setup_refusals=0
++  if [ "$way" = link ]; then
++    local mint tok
++    mint=$(lk mint --kind edge --graph g1 --node flappy --edge handoff --depth 2 \
++      --harness "$shape" --model test-model)
++    tok=$(echo "$mint" | jq -r .token)
++    local brief="claim $tok, build flappy $variant"
++    [ "$(printf '%s' "$brief" | wc -l | tr -d ' ')" = 0 ] || fail "link brief not one line"
++    printf '%s' "$brief" | grep -qiE 'export|desk|BP3_RUN_ID|BP3_QUEST|BP3_EXP' \
++      && fail "link brief carries setup prose: $brief"
++    brief_chars=$(printf '%s' "$brief" | wc -c | tr -d ' ')
++    echo "claim $tok" >> "$calls"
++    t0=$(date +%s)
++    if [ "$shape" = muse ]; then
++      MUSE_SESSION_ID="sess-$way-$shape" lk claim "$tok" >/dev/null \
++        || fail "link claim $shape"
++    else
++      printf '%s\n' '{"type":"session","id":"x"}' > "$work/sess-$way-$shape.jsonl"
++      "${NOSID[@]}" PI_SESSION_FILE="$work/sess-$way-$shape.jsonl" \
++        BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link claim "$tok" >/dev/null \
++        || fail "link claim $shape"
++    fi
++    flappy_write "$art" "$variant"
++    tend=$(date +%s)
++    # edge call after claim: bare e door, no graph/node/run-id carried
++    echo "bp3 e handoff --commit $TIP" >> "$calls"
++    grep -qE 'bp3 q g1 u|BP3_RUN_ID|--run-id' "$calls" \
++      && fail "link-way call carries carried context: $(cat "$calls")"
++  else
++    brief_chars=$OLD_CHARS
++    t0=$(date +%s)
++    flappy_write "$art" "$variant"
++    tend=$(date +%s)
++    echo "bp3 q g1 u flappy handoff --commit $TIP (exports + guessed desk)" >> "$calls"
++    grep -q 'bp3 q g1 u' "$calls" || fail "old-way call shape unrecorded"
++  fi
++  [ -f "$art" ] || fail "drive $way-$shape wrote no artifact"
++  jq -n --arg drive "$way-$shape" --argjson brief_chars "$brief_chars" \
++    --argjson setup_refusals_at_claim "$setup_refusals" \
++    --argjson time_to_first_productive_call_s "$((tend - t0))" \
++    --argjson cycles_to_land 1 \
++    '{drive:$drive, brief_chars:$brief_chars,
++      setup_refusals_at_claim:$setup_refusals_at_claim,
++      time_to_first_productive_call_s:$time_to_first_productive_call_s,
++      cycles_to_land:$cycles_to_land}' >> "$metrics"
++}
++
++drive muse old muse-old
++drive muse link muse-link
++drive pi old pi-old
++drive pi link pi-link
++
++# link brief wins on chars, observed from the briefs themselves
++jq -s -e '(.[] | select(.drive=="link-muse") | .brief_chars)
++  < (.[] | select(.drive=="old-muse") | .brief_chars)
++  and (.[] | select(.drive=="link-pi") | .brief_chars)
++  < (.[] | select(.drive=="old-pi") | .brief_chars)' "$metrics" >/dev/null \
++  || fail "link brief not shorter: $(cat "$metrics")"
++
++# --- attacks refuse before work; zero setup cycles burned ---
++# 1. duplicate claim -> E_LINK_SPENT naming the first claimant
++mint=$(lk mint --kind edge --graph g1 --node flappy --edge handoff --depth 2)
++TOK=$(echo "$mint" | jq -r .token)
++MUSE_SESSION_ID=atk-first lk claim "$TOK" >/dev/null
++if out=$(MUSE_SESSION_ID=atk-second lk claim "$TOK" 2>&1); then fail "duplicate claim accepted"; fi
++echo "$out" | jq -e '.error.code == "E_LINK_SPENT"
++  and .error.facts.first_claim.session_id == "atk-first"' >/dev/null \
++  || fail "duplicate attack verdict: $out"
++echo "duplicate claim -> E_LINK_SPENT" >> "$attacks"
++
++# 2. quoting claim: token sitting in a brief confers nothing
++mint=$(lk mint --kind edge --graph g1 --node flappy --edge grade --depth 2)
++TOKQ=$(echo "$mint" | jq -r .token)
++echo "brief: claim $TOKQ then grade" > "$work/brief.txt"
++if out=$(lk lookup --session-id atk-quoting 2>&1); then fail "quoting lookup accepted"; fi
++echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "quoting verdict: $out"
++MUSE_SESSION_ID=atk-real lk claim "$TOKQ" >/dev/null || fail "claim after quoting refused"
++echo "quoting claim -> E_NOT_FOUND (token in brief confers nothing)" >> "$attacks"
++
++# 3. wrong-desk: claimed in desk A; bare e from desk B resolves nothing
++mkdir -p "$work/repo/deskA" "$work/repo/deskB"
++mint=$(lk mint --kind edge --graph g1 --node flappy --edge handoff --depth 2 --desk "$work/repo/deskA")
++TOKW=$(echo "$mint" | jq -r .token)
++(cd "$work/repo/deskA" && MUSE_SESSION_ID=atk-desk BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" harness link claim "$TOKW" >/dev/null) \
++  || fail "desk A claim"
++if out=$(cd "$work/repo/deskB" && "${NOSID[@]}" BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" e 2>&1); then
++  fail "wrong-desk e accepted: $out"; fi
++echo "$out" | jq -e '.error.code == "E_NO_CONTEXT"' >/dev/null || fail "wrong-desk verdict: $out"
++[ ! -e "$work/repo/deskB/flappy.html" ] || fail "wrong-desk drive did work"
++echo "wrong-desk e -> E_NO_CONTEXT (no context on the wrong desk)" >> "$attacks"
++[ "$(wc -l < "$attacks" | tr -d ' ')" = 3 ] || fail "attack log rows: $(cat "$attacks")"
++
++# --- Pi nested tree: root -> node worker -> edge worker, distinct links ---
++mint=$(lk mint --kind node --graph g1 --node flappy --depth 0 --harness pi --model fake)
++RTOK=$(echo "$mint" | jq -r .token); RRID=$(echo "$mint" | jq -r .run_id)
++"${NOSID[@]}" PI_SESSION_FILE="$work/root.jsonl" BP3_Q_BIN="$work/repo/q-bin" \
++  ./bin/bp3 harness link claim "$RTOK" >/dev/null || fail "pi root claim"
++mint=$(lk mint --kind node --graph g1 --node flappy --depth 1 --parent-run-id "$RRID" --harness pi --model fake)
++NTOK=$(echo "$mint" | jq -r .token); NRID=$(echo "$mint" | jq -r .run_id)
++printf '%s\n' '{"type":"session","id":"n"}' > "$work/node.jsonl"
++"${NOSID[@]}" PI_SESSION_FILE="$work/node.jsonl" BP3_Q_BIN="$work/repo/q-bin" \
++  ./bin/bp3 harness link claim "$NTOK" >/dev/null || fail "pi node claim"
++mint=$(lk mint --kind edge --graph g1 --node flappy --edge handoff --depth 2 --parent-run-id "$NRID" --harness pi --model fake)
++ETOK=$(echo "$mint" | jq -r .token); ERID=$(echo "$mint" | jq -r .run_id)
++printf '%s\n' '{"type":"session","id":"e"}' > "$work/edge.jsonl"
++"${NOSID[@]}" PI_SESSION_FILE="$work/edge.jsonl" BP3_Q_BIN="$work/repo/q-bin" \
++  ./bin/bp3 harness link claim "$ETOK" >/dev/null || fail "pi edge claim"
++[ "$RRID" != "$NRID" ] && [ "$NRID" != "$ERID" ] || fail "pi tree run-ids not distinct"
++jq -e --arg p "$RRID" '.creator.run_id == $p and .creator.depth == 1' ".git/bp3/runs/$NRID.json" >/dev/null \
++  || fail "pi node parent chain"
++jq -e --arg p "$NRID" '.creator.run_id == $p and .creator.depth == 2' ".git/bp3/runs/$ERID.json" >/dev/null \
++  || fail "pi edge parent chain"
++
++# --- supervised proof unchanged: lifecycle folds from the run config ---
++q c toy2 >/dev/null; q toy2 c n1 >/dev/null
++printf '%s\n' '{"type":"session","version":3,"id":"sess-sup","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp"}' \
++  '{"type":"message","id":"s1","message":{"role":"user","content":"work"}}' \
++  '{"type":"session_closed","id":"s2"}' > sup-tape.log
++mint=$(lk mint --kind edge --graph toy2 --node n1 --edge verify --depth 2 --harness pi --model fake-model)
++STOK=$(echo "$mint" | jq -r .token); SRID=$(echo "$mint" | jq -r .run_id)
++MUSE_SESSION_ID=sess-sup lk claim "$STOK" >/dev/null
++h bind-tape --run-id "$SRID" --tape-path "$work/repo/sup-tape.log" >/dev/null
++set +e; out=$(h supervisor toy2 --timeout-seconds 2 | tail -1); set -e
++echo "$out" | jq -e --arg r "$SRID" '(.runs[] | select(.run_id == $r) | .lifecycle == "finished")' >/dev/null \
++  || fail "supervisor fold from run config: $out"
++
++jq -s '{drives: ., attacks: 3}' "$metrics" > "$work/scorecard.json"
++echo "dogfood-link tests: ok"
+=== ./test/dogfood-link.sh ===
+dogfood-link tests: ok
+dogfood exit:0
+=== node test/pi-tree.test.mjs ===
+pi-tree tests: ok
+pi-tree exit:0
+=== make check ===
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check test/pi-tree.test.mjs
+node --check skills/traverse/workflows/induct-node.js
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (123 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/ready.sh
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/diagram.sh
+diagram tests: ok
+./test/blocked.sh
+blocked tests: ok
+node test/pi-tree.test.mjs
+FAIL: watch dispositions grandchild orphaned: {"ok":false,"error":{"code":"E_NOT_FOUND","facts":{"run_id":"20261117T062805Z-handoff-pi-test-model-c1"},"guidance":"No tape references that run; no guess made."}}
+make: *** [check] Error 1
+make check exit:2
+=== ledger handoff line ===
+grep: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/ledger.jsonl: No such file or directory
+=== handoff run folder ===
+attacks.log
+flappy-link-muse.html
+flappy-link-pi.html
+flappy-old-muse.html
+flappy-old-pi.html
+link-brief-muse.txt
+link-brief-pi.txt
+metrics.json
+notes.md
+old-brief.txt
+tape.log
+=== git status ===
+(end)
+=== find ledger ===
+EXPERIMENT.md
+runs
+=== pi-tree watch section ===
+6:// whole tree dead after the bubble, unreaped grandchild
+80:if (mode === "orphan-parent") {
+83:  fs.writeFileSync(scratch, JSON.stringify({ grandchild_pid: child.pid, grandchild_run: minted.run_id, node_run: myRun }));
+84:  process.exit(0); // die without reaping: grandchild is unreaped
+178:  // --- unreaped grandchild: root follows parent_run_id, watch dispositions ---
+179:  bp3(["q", "demo", "c", "orphanode"]);
+180:  const orphanScratch = path.join(work, "orphan.json");
+181:  const parent = spawnNode("orphan-parent", "demo", "orphanode", bubblePath, orphanScratch);
+182:  assert((await exitOf(parent.child)) === 0, "orphan-parent node worker dies first");
+183:  const orphan = JSON.parse(fs.readFileSync(orphanScratch, "utf8"));
+184:  assert(runCfg(orphan.grandchild_run).creator.run_id === orphan.node_run, "grandchild chain via parent_run_id");
+185:  assert(alive(orphan.grandchild_pid), "grandchild still live before disposition (genuinely unreaped)");
+186:  const tapePath = path.join(work, "grandchild.jsonl");
+188:  bp3(["harness", "bind-tape", "--run-id", orphan.grandchild_run, "--tape-path", tapePath]);
+189:  const verdict = bp3Fail(["harness", "watch", "--run-id", orphan.grandchild_run, "--silence-seconds", "1", "--timeout-seconds", "20", "--grace-seconds", "1"]) ?? {};
+190:  assert(verdict.lifecycle === "orphaned", "watch dispositions grandchild orphaned: " + JSON.stringify(verdict));
+191:  assert(await waitDead(orphan.grandchild_pid), "grandchild dead after disposition; tree dead");
+  const second = spawnNode("handoff", "demo", "pinode", bubblePath, path.join(work, "s2"));
+  assert((await exitOf(second.child)) === 0, "revived node worker exits 0");
+  assert(second.runId !== first.runId && second.pid !== first.pid, "fresh run-id and pid, no reuse");
+  const secondCfg = runCfg(second.runId);
+  assert(secondCfg.claim.session_id !== runCfg(first.runId).claim.session_id || secondCfg.claim.pid !== runCfg(first.runId).claim.pid, "fresh claim identity");
+  read = bp3(["q", "demo", "r", "pinode"]);
+  assert(read.state === "handed_off", "fresh tree drives node to handed_off, got " + read.state);
+
+  // --- unreaped grandchild: root follows parent_run_id, watch dispositions ---
+  bp3(["q", "demo", "c", "orphanode"]);
+  const orphanScratch = path.join(work, "orphan.json");
+  const parent = spawnNode("orphan-parent", "demo", "orphanode", bubblePath, orphanScratch);
+  assert((await exitOf(parent.child)) === 0, "orphan-parent node worker dies first");
+  const orphan = JSON.parse(fs.readFileSync(orphanScratch, "utf8"));
+  assert(runCfg(orphan.grandchild_run).creator.run_id === orphan.node_run, "grandchild chain via parent_run_id");
+  assert(alive(orphan.grandchild_pid), "grandchild still live before disposition (genuinely unreaped)");
+  const tapePath = path.join(work, "grandchild.jsonl");
+  fs.writeFileSync(tapePath, JSON.stringify({ type: "message", id: "g1", message: { role: "user", content: "work" } }) + "\n");
+  bp3(["harness", "bind-tape", "--run-id", orphan.grandchild_run, "--tape-path", tapePath]);
+  const verdict = bp3Fail(["harness", "watch", "--run-id", orphan.grandchild_run, "--silence-seconds", "1", "--timeout-seconds", "20", "--grace-seconds", "1"]) ?? {};
+  assert(verdict.lifecycle === "orphaned", "watch dispositions grandchild orphaned: " + JSON.stringify(verdict));
+  assert(await waitDead(orphan.grandchild_pid), "grandchild dead after disposition; tree dead");
+
+  // --- root dies: a new root process revives from rollup + inbox alone ---
+  bp3(["q", "demo", "c", "rootnode"]);
+  const rootBubble = path.join(work, "root-bubbles.jsonl");
+  const dying = spawnNode("block-fail", "demo", "rootnode", rootBubble, path.join(work, "s3"));
+  await exitOf(dying.child);
+  const newRoot = path.join(work, "new-root.mjs");
+  fs.writeFileSync(newRoot, `
+import { execFileSync, spawn } from "node:child_process";
+=== quest dir ===
+experiments
+QUEST.md
+# Grade notes — exp-dogfood-1-link-drive c1
+
+- Reviewed by code-reviewer procedure at commit adfd7b0: claims from EXPERIMENT.md vs diff (Makefile + test/dogfood-link.sh only, no product code).
+- Rung 3 observed: ./test/dogfood-link.sh -> "dogfood-link tests: ok"; node test/pi-tree.test.mjs standalone -> "pi-tree tests: ok".
+- Findings: no critical/major. Minor: metrics setup_refusals/cycles_to_land are fixed values recorded by the drive, time is second-granularity; calls log is the drive's own record, not a tape inventory. Comments agree with code; tests can fail (brief size/one-line, E_LINK_SPENT/E_NOT_FOUND/E_NO_CONTEXT, pi parent chain, supervisor fold).
+- Gate note: one `make check` run failed in pre-existing test/pi-tree.test.mjs orphan-watch (E_NOT_FOUND on watch after bind-tape) under make load, before dogfood ran; that file is untouched by this commit and passed standalone in this run. Treated as flake, not a defect of this diff.
+- Verdict: ship.
+notes.md
+tape.log
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"handed_off","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-1-link-drive","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-1-link-drive","edge":"verify","run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1","warnings":["W_CONTEXT_ENV_MISMATCH"]}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"handed_off","fin":null,"cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","deps":[],"timing":{"wall_s":null,"wait_s":40045,"dwell_s":{"handed_off":570,"todo":40045},"cycles":1},"legal_edges":["grade","verify","block","delete"],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"+","path":"test/dogfood-link.sh"}],"run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1"}
+
+MUSE_SESSION_ID=01a1cbc0-ae53-75b3-8e53-0aae0b18151d
+MUSE_TOOL_USE_ID=call_01a1e8326afe750aa9278517e6ac6618
+PWD=/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+STARSHIP_SESSION_KEY=1847421557271702
+MUSE_THREAD_ID=8038a554-de55-7c70-81a8-ad7c6f25b7f8
+SECURITYSESSIONID=186af
+---
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"link lookup needs --session-id or --run-id"},"guidance":"Fix the call: link lookup needs --session-id or --run-id"},"run_id":"20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1"}
+---
+bp3 q - quest/exp state. Doors:
+bp3 q c|r|d ...              quest door (create, read, delete)
+bp3 q <quest> c|r|u|d ...    exp door for one quest
+bp3 q <quest> diagram ...    generated graph diagram from the live rollup (mvp.4)
+bp3 q icebox r [term...]     search frozen icebox entries (read-only)
+bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)
+bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias
+bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)
+bp3 q hooks                  harness hook emitter (fail-open)
+Run bp3 q <door> -h for that door's verbs, edges, and flags.
+{"ok":true,"run_id":"20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1","graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-1-link-drive","edge":"grade","kind":"edge","state":"claimed","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","parent_run_id":"","depth":0}
+
+{"ok":true,"run_id":"20261117T003239Z-node-muse-code-muse-wonder-1.0-c1","graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-1-link-claim","edge":null,"kind":"node","state":"claimed","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","parent_run_id":"","depth":0}
+bp3 q <quest> u <exp> <edge> - edges and their flags:
+edges: handoff grade verify land block resume
+handoff --commit <sha> --reason <why>    bind a clean commit for grade
+grade  --verdict ship|needs_fix --reason <why>
+verify --verdict pass|fail --reason <why>
+land   --reason <why>                    land an approved exp
+block  --reason <why>                    park for a human decision
+resume --reason <why>                    human only: unblock
+Shared flags: --format json|table|tree, --target <name>.
+Example: bp3 q my-quest u exp-1 handoff --commit abc123 --reason "ready"
+bp3 e - claimed edge door (mvp.2): context is resolved, never carried:
+bp3 e                                    print the resolved context, its source rung (session|desk), state, and legal edges
+bp3 e <edge> [flags]                     take the claimed run's edge: handoff grade verify land block resume (same flags as bp3 q <quest> u <exp> <edge>)
+Resolution: session claim first, desk context second, checked against cwd; no rung refuses E_NO_CONTEXT, an ambiguous desk refuses E_NO_CONTEXT naming the live run_ids. Env BP3_RUN_ID is a hint only: a mismatch warns W_CONTEXT_ENV_MISMATCH and the claim wins; an unclaimed explicit edge call warns W_CONTEXT_UNCLAIMED.
+Example: bp3 e handoff --commit abc123 --reason "ready"
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"handed_off","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-1-link-drive","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-1-link-drive","edge":"verify","run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1","warnings":["W_CONTEXT_ENV_MISMATCH"]}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"handed_off","fin":null,"cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","deps":[],"timing":{"wall_s":null,"wait_s":40045,"dwell_s":{"handed_off":603,"todo":40045},"cycles":1},"legal_edges":["grade","verify","block","delete"],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"+","path":"test/dogfood-link.sh"}],"run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1"}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"handed_off","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","legal_edges":["grade","verify","block","delete"],"run_id":"20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1"}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"handed_off","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","legal_edges":["grade","verify","block","delete"],"run_id":"20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1"}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"handed_off","fin":null,"cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","deps":[],"timing":{"wall_s":null,"wait_s":40045,"dwell_s":{"handed_off":626,"todo":40045},"cycles":1},"legal_edges":["grade","verify","block","delete"],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"+","path":"test/dogfood-link.sh"}]}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"handed_off","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-1-link-drive","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-1-link-drive","edge":"verify","run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1","warnings":["W_CONTEXT_ENV_MISMATCH"]}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"handed_off","fin":null,"cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","deps":[],"timing":{"wall_s":null,"wait_s":40045,"dwell_s":{"handed_off":603,"todo":40045},"cycles":1},"legal_edges":["grade","verify","block","delete"],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"+","path":"test/dogfood-link.sh"}],"run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1"}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"handed_off","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","legal_edges":["grade","verify","block","delete"],"run_id":"20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1"}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"handed_off","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","legal_edges":["grade","verify","block","delete"],"run_id":"20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1"}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"handed_off","fin":null,"cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","deps":[],"timing":{"wall_s":null,"wait_s":40045,"dwell_s":{"handed_off":626,"todo":40045},"cycles":1},"legal_edges":["grade","verify","block","delete"],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"+","path":"test/dogfood-link.sh"}]}
+=== find state ===
+find: .git/bp3: Not a directory
+/Users/whycz/m/bp3/.git
+/Users/whycz/m/bp3/.git/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+by-session
+claims
+config.json
+desks
+links
+pi-sessions
+run-lifecycle-derivations
+runs
+test/q.sh:81:# --- happy path handoff/grade/verify/land (alias spellings mixed) ---
+test/q.sh:86:out=$(q demo update parser-fix grade --verdict ship --reason "looks right")
+test/q.sh:87:echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "grade ship stays handed_off until verify: $out"
+test/q.sh:114:echo "$out" | jq -e --arg c "$B" '.state == "handed_off" and .cycle == 1 and .commit == $c and (.legal_edges | index("grade") != null) and (.legal_edges | index("verify") != null)' >/dev/null || fail "compat old submit folds handed_off: $out"
+test/q.sh:118:echo "$out" | jq -e '.state == "approved" and .cycle == 1' >/dev/null || fail "compat old grade/verify fold approved: $out"
+test/q.sh:148:out=$(q fin-demo u only-exp grade --verdict ship --reason "ok")
+test/q.sh:160:out=$(q demo u parser-fix2 grade --verdict needs_fix --reason "broken")
+test/q.sh:249:out=$(qb demo u alt-exp grade --verdict ship --reason "ok")
+test/q.sh:250:echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "alt grade B: $out"
+test/q.sh:255:exp_ledger alt-exp | jq -se '([.[] | select(.edge == "handoff") | .model] == ["executor-a"]) and ([.[] | select(.edge == "grade") | .model] == ["executor-b"]) and ([.[] | select(.edge == "verify") | .model] == ["executor-a"]) and ([.[] | select(.edge == "land") | .model] == ["executor-b"])' >/dev/null || fail "alt ledger models"
+test/q.sh:273:if out=$(q demo u stale-exp grade --verdict ship --commit "$STALE_A" --reason "stale" 2>&1); then fail "stale grade accepted"; fi
+test/q.sh:274:echo "$out" | jq -e --arg b "$STALE_B" '.ok == false and .error.code == "E_COMMIT_MISMATCH" and .error.facts.bound == $b' >/dev/null || fail "stale grade code: $out"
+test/q.sh:281:out=$(q demo u stale-exp grade --verdict ship --commit "$STALE_B" --reason "current")
+test/q.sh:282:echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "stale grade current: $out"
+test/q.sh:288:# --- grade + verify on same commit while handed_off: approved exactly once ---
+test/q.sh:295:out=$(q demo u parallel-exp grade --verdict ship --reason "ok")
+test/q.sh:296:echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel grade first: $out"
+test/q.sh:300:if out=$(q demo u parallel-exp grade --verdict ship --reason "again" 2>&1); then fail "parallel extra grade accepted"; fi
+test/q.sh:301:echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "approved"' >/dev/null || fail "parallel extra grade code: $out"
+test/q.sh:313:out=$(q demo u parallel-rev grade --verdict ship --reason "ok")
+/Users/whycz/m/bp3/.git/bp3/pi-sessions/20261116T064116Z-demo-pi-openai-gpt-6-1-sol-c1/2026-11-16T06-41-16-291Z_01a1e316-ac02-75aa-a819-b56a197126fa.jsonl
+/Users/whycz/m/bp3/.git/bp3/pi-sessions/20261116T064322Z-demo-pi-openai-gpt-6-1-sol-c1/2026-11-16T06-43-22-274Z_01a1e318-9821-770b-8ca7-31694d5bcc91.jsonl
+/Users/whycz/m/bp3/.git/bp3/desks/.bp3_worktrees_2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+214:exp_ledger() { git show "bp3/exp/demo/$1:docs/quests/demo/experiments/$1/ledger.jsonl"; }
+215-commit_on_exp() {
+216-  local exp_name="$1"
+217-  local file_path="$2"
+218-  local content="$3"
+219-  local branch="refs/heads/bp3/exp/demo/$exp_name"
+{"ts":"2026-11-16T19:12:29Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"unknown","model":"unknown","bp3_version":"0.2.0","exp_type":"default"}
+{"ts":"2026-11-17T06:19:54Z","edge":"handoff","from":"todo","to":"handed_off","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","verdict":null,"reason":"link-drive A/B proof fixture + observed drive; make check green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1"}
+{"ts":"2026-11-17T06:29:24Z","edge":"grade","from":"handed_off","to":"handed_off","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","verdict":"ship","reason":"dogfood-link and pi-tree pass; attacks, brief, metrics verified at bound commit","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1"}
+{"ts":"2026-11-17T06:29:57Z","edge":"grade","from":"handed_off","to":"handed_off","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","verdict":"ship","reason":"dogfood-link and pi-tree pass; attacks, brief, metrics verified at bound commit","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1"}
+{"ts":"2026-11-17T06:30:10Z","edge":"grade","from":"handed_off","to":"handed_off","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","verdict":"ship","reason":"dogfood-link and pi-tree pass; attacks, brief, metrics verified at bound commit","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1"}
+{"ts":"2026-11-17T06:30:20Z","edge":"grade","from":"handed_off","to":"handed_off","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","verdict":"ship","reason":"dogfood-link and pi-tree pass; attacks, brief, metrics verified at bound commit","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1"}

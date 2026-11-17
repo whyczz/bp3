@@ -324,7 +324,7 @@ bp3/
   plugins/cron-*/           future: obligation/timer sources only
   skills/          project skill sources (graph + Board-coupled control skills)
   docs/            this MVP, the historical sketch, imported provenance
-  docs/quests/     one file per Graph: <date>-<slug>.md
+  docs/goals/     one file per Graph: <date>-<slug>.md
 ```
 
 **Project skills install, explicit when working in bp3:** skill sources
@@ -338,7 +338,7 @@ project skill and ships this way; the generic bp3-yap-skills library
 remains the separate personal layer.
 
 **Graph file convention, explicit when working in bp3:** every Graph gets
-exactly one human-facing file at `docs/quests/<date>-<slug>.md` in its home
+exactly one human-facing file at `docs/goals/<date>-<slug>.md` in its home
 repo (`<date>` as `YYYY-MM-DD`, `<slug>` short lowercase kebab-case), written
 with the `$graph` skill — TL;DR, ELI5, goal, success picture, scope, human
 touchpoints, nodes with acceptance checks, scorecard, red chair. The file is

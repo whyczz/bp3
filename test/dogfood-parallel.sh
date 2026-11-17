@@ -149,7 +149,7 @@ for n in flappy-day flappy-night; do
   jq -e '.state == "approved"' "$work/$n.verify.json" >/dev/null || fail "$n verify state"
   out=$(q par r "$n")
   echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "$n approved read: $out"
-  git show "bp3/exp/par/$n:docs/quests/par/experiments/$n/ledger.jsonl" \
+  git show "bp3/exp/par/$n:docs/goals/par/experiments/$n/ledger.jsonl" \
     | jq -s -e '([.[] | select(.edge == "grade" and .verdict == "ship")] | length == 1)
       and ([.[] | select(.edge == "verify" and .verdict == "pass")] | length == 1)' >/dev/null \
     || fail "$n grade matrix ledger"
@@ -158,16 +158,16 @@ done
 # --- serial land: one at a time, second re-checks the new tip ---
 out=$(q par u flappy-day land --reason "serial land 1")
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "day land: $out"
-tip1=$(git rev-parse bp3/quest/par)
+tip1=$(git rev-parse bp3/goal/par)
 out=$(q par r flappy-night)
 echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "night still approved: $out"
 out=$(q par u flappy-night land --reason "serial land 2")
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "night land: $out"
-git merge-base --is-ancestor "$tip1" bp3/quest/par || fail "second land did not build on first tip"
-git merge-base --is-ancestor "$(cat "$work/flappy-day.commit")" bp3/quest/par || fail "day commit not landed"
-git merge-base --is-ancestor "$(cat "$work/flappy-night.commit")" bp3/quest/par || fail "night commit not landed"
-[ "$(git show bp3/quest/par:flappy-day.html | grep -c 'Flappy — day')" = 1 ] || fail "graph tip day file"
-[ "$(git show bp3/quest/par:flappy-night.html | grep -c 'Flappy — night')" = 1 ] || fail "graph tip night file"
+git merge-base --is-ancestor "$tip1" bp3/goal/par || fail "second land did not build on first tip"
+git merge-base --is-ancestor "$(cat "$work/flappy-day.commit")" bp3/goal/par || fail "day commit not landed"
+git merge-base --is-ancestor "$(cat "$work/flappy-night.commit")" bp3/goal/par || fail "night commit not landed"
+[ "$(git show bp3/goal/par:flappy-day.html | grep -c 'Flappy — day')" = 1 ] || fail "graph tip day file"
+[ "$(git show bp3/goal/par:flappy-night.html | grep -c 'Flappy — night')" = 1 ] || fail "graph tip night file"
 
 # --- scorecard: wall from the run itself, timing from the rollup ---
 ready_wall_ms=$(( (day_end > night_end ? day_end : night_end) - (day_start < night_start ? day_start : night_start) ))
@@ -208,7 +208,7 @@ echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "touch-a land: $out"
 out=$(q conf u touch-b land --reason second)
 echo "$out" | jq -e '.ok == true and .state == "todo" and .facts.land_conflict == true' >/dev/null \
   || fail "touch-b conflict named: $out"
-[ "$(git show bp3/quest/conf:shared.txt)" = "A-side" ] || fail "conflict silently overwrote shared.txt"
+[ "$(git show bp3/goal/conf:shared.txt)" = "A-side" ] || fail "conflict silently overwrote shared.txt"
 
 # --- blocked variant starves only its dependents ---
 q c parblk >/dev/null

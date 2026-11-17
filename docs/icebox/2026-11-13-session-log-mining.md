@@ -9,7 +9,7 @@ promoted: null
 ## Context
 
 Frozen during the Exp 4 (tape and hooks) red-ink reopen of
-[bp3-mvp-engine-core](../quests/2026-11-07-bp3-mvp-engine-core/QUEST.md),
+[bp3-mvp-engine-core](../quests/2026-11-07-bp3-mvp-engine-core/GOAL.md),
 2026-11-13. Exp 4 settled that hooks emit deliberate facts
 (`run_started`, `run_settled`, usage) as event lines, while
 tape stays verbatim and unparsed. That leaves a second,

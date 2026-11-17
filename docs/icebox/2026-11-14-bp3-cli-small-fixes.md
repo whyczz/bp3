@@ -1,7 +1,7 @@
 ---
 status: frozen
 date: 2026-11-14
-promoted: docs/quests/2026-11-14-bp3-cli-small-fixes/QUEST.md
+promoted: docs/goals/2026-11-14-bp3-cli-small-fixes/GOAL.md
 ---
 
 # bp3 CLI small fixes (rendered tables, tab completion)
@@ -9,7 +9,7 @@ promoted: docs/quests/2026-11-14-bp3-cli-small-fixes/QUEST.md
 ## Context
 
 Frozen at the landing of
-[bp3-mvp-engine-core](../quests/2026-11-07-bp3-mvp-engine-core/QUEST.md),
+[bp3-mvp-engine-core](../quests/2026-11-07-bp3-mvp-engine-core/GOAL.md),
 2026-11-14, when the owner ran the quest's commands by hand
 and hit two papercuts in the human-facing surface. The JSON
 verdicts (the LLM surface) are fine; these are human-surface

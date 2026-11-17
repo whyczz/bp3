@@ -93,7 +93,7 @@ export default async function workflow(host) {
   }
 
   const nodeDir =
-    "docs/quests/" + graph + "/experiments/" + node;
+    "docs/goals/" + graph + "/experiments/" + node;
 
   async function readState() {
     const result = await host.agent({

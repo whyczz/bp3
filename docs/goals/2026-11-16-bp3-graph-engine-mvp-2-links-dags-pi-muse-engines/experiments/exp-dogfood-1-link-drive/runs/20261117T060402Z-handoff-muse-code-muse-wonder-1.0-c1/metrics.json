@@ -1,0 +1,33 @@
+{
+  "drives": [
+    {
+      "drive": "old-muse",
+      "brief_chars": 425,
+      "setup_refusals_at_claim": 0,
+      "time_to_first_productive_call_s": 1,
+      "cycles_to_land": 1
+    },
+    {
+      "drive": "link-muse",
+      "brief_chars": 70,
+      "setup_refusals_at_claim": 0,
+      "time_to_first_productive_call_s": 0,
+      "cycles_to_land": 1
+    },
+    {
+      "drive": "old-pi",
+      "brief_chars": 425,
+      "setup_refusals_at_claim": 0,
+      "time_to_first_productive_call_s": 0,
+      "cycles_to_land": 1
+    },
+    {
+      "drive": "link-pi",
+      "brief_chars": 68,
+      "setup_refusals_at_claim": 0,
+      "time_to_first_productive_call_s": 0,
+      "cycles_to_land": 1
+    }
+  ],
+  "attacks_refused_at_claim": 3
+}

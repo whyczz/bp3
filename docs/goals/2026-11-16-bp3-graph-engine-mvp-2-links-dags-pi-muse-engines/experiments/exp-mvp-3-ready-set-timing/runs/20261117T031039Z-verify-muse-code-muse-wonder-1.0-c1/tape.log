@@ -1,0 +1,518 @@
+drwxr-xr-x@ 2 whycz  staff  64 Nov 16 22:10 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-3-ready-set-timing/runs/20261117T031039Z-verify-muse-code-muse-wonder-1.0-c1
+run folder created
+=== HEAD ===
+b765d076ad5aca6b322a95f193c15ae190825a9c
+b765d07 feat(mvp.3): ready-set waves, node deps, derived timing, setup gate, induct-node loop
+b2250e3 chore: sync installed workflow renders with committed sources
+63d49cd feat(mvp.2): context resolution — session/desk rungs, bp3 e door, claimed run-id stamping
+=== bound commit show ===
+b765d076ad5aca6b322a95f193c15ae190825a9c whycz feat(mvp.3): ready-set waves, node deps, derived timing, setup gate, induct-node loop
+=== git status ===
+status-exit:0
+=== exp files ===
+EXPERIMENT.md
+runs
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: mvp.3
+status: proposed
+---
+
+# mvp.3 - ready-set-timing: ready-set waves and clocks
+
+## TL;DR
+
+Give the graph a scheduler's eyes: node deps
+become machine-readable, the rollup computes BFS
+ready-set waves and the ready set, and every node's time
+is accounted — wall (first handoff → land), wait
+(create → first handoff), dwell per state — derived
+from ledger timestamps, never stored. Setup time
+per Run (desk create → first bp3 answer) is
+measured always; `W_SETUP_SLOW` fires locally
+over 3 minutes, the agreed trigger for ever
+optimizing setup. Parallel build/grade in
+per-node desks is enabled by the ready set;
+landing stays a serial queue.
+
+## Demo (design trace)
+
+```text
+graph: A ─dep─► C,  B (independent),  C blocked later
+rollup: ready-set waves [[A, B], [C]]   ready: [A, B]
+A lands; C ready. C blocks -> rollup names starved: []
+timing table: A wall 41m wait 0m | B wall 38m wait 2m | setup max 0.1m
+```
+
+## Diagram
+
+```text
+node deps ─► BFS layers (ready-set waves) ─► ready set ─► conductor dispatches
+ledger ts ─► wall / wait / dwell per node ─► rollup + local gates
+desk create ─► first answer: setup_wall ─► >3m -> W_SETUP_SLOW (local)
+```
+
+## Pseudocode
+
+```python
+def ready-set waves(nodes):
+    layers, done = [], set()
+    while todo := [n for n in nodes if n.state == "todo" and deps(n) <= done]:
+        layers.append(todo); done |= {n.id for n in todo}
+    return layers
+
+def timing(node, ledger):
+    return wall=land_ts - first_submit_ts, wait=first_submit_ts - create_ts
+```
+
+| Field | Value |
+|---|---|
+| Intent | speed becomes measured system behavior, not session folklore |
+| Lane | standard |
+| Output | deps in node records + create validation; ready-set/ready/timing on rollup; local timing gates; `induct-node` worker contract (Muse workflow run; recursive Pi root -> node session -> edge session) emitting one terminal outcome per node |
+| Depends on | none for timing; ready-set dispatch used by dogfood.2 |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| deps declared + cycle refused | node create with a dep cycle refuses at write time naming the cycle; deps read from node records |
+| ready-set waves correct | a diamond graph (A→C, B→C) yields ready-set waves [[A,B],[C]]; ready set updates as nodes land |
+| blocked blast radius | a blocked node names its starved dependents on the rollup; independent nodes stay ready |
+| timing derived | wall/wait/dwell per node computed from ledger timestamps match hand-computed values on a fixture graph; nothing written to any committed file |
+| setup measured | every dispatched Run reports setup_wall; a fixture with an artificial >3m setup fires `W_SETUP_SLOW` locally and only locally |
+| serial land | two approved nodes land strictly one at a time; second land re-checks mergeability against the new tip |
+| dep freeze explored | deps stay mutable-but-logged through this node; any schedule anomaly caused by a mid-flight dep edit is recorded with the node/cycle, and the record proposes the freeze rule (or none) from that evidence |
+| node-worker shape | Muse dispatches one `induct-node` workflow per ready node; Pi root session spawns one node-worker session per ready node and that session spawns edge sessions. Both forms own the node's FSM loop and return exactly one terminal outcome (`landed`, `blocked`, or `deleted`) to the root |
+| env-set run-id (standing ruling) | claims/env conventions unchanged; stamps as in mvp.2 |
+
+## Acceptance test (goal block)
+
+- **Objective:** the conductor can see what is
+  dispatchable and what everything cost, from the
+  system, in one read.
+- **Prove by:** fixture graphs (linear, diamond,
+  blocked-branch), hand-checked timing math, slow
+  setup fixture.
+- **Done when:** ready-set waves, starved sets, and
+  timings are correct on fixtures, observed.
+
+## Tests
+
+Graph fixtures property-based: ready-set waves are a
+topological layering (no dep in same-or-later
+layer), ready set = todo nodes with deps landed.
+Timing: derive twice, identical; clock only from
+ledger lines. Setup gate: threshold from local
+config, default 180s. Land queue: sequential
+re-check fixture.
+
+## Context
+
+Yesterday's supervisor quest took ~9 active hours,
+mostly papercut cycles and serial waiting,
+discovered anecdotally. This exp makes the system
+itself keep the receipts. Desks stay ad hoc (pool
+killed 2026-11-16): setup is measured, and 3
+minutes is the pre-agreed pain threshold.
+=== ledger ===
+=== ready test file exists ===
+-rwxr-xr-x@ 1 whycz  staff  10755 Nov 16 21:52 ./test/ready.sh
+-rw-r--r--@ 1 whycz  staff   4699 Nov 16 21:53 test/induct-node.test.mjs
+#!/usr/bin/env bash
+# mvp.3: node deps, ready-set waves, starved sets, derived
+# timing, setup gate, serial land. Fixture graphs are built
+# through bp3 q itself; timing fixtures write ledger lines
+# with fixed timestamps through git plumbing.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+lk() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+commit_on_exp() { # $1 quest $2 exp $3 path $4 content -> new tip
+  local branch="refs/heads/bp3/exp/$1/$2" tip blob tree new_tip idx="$work/idx-$1-$2"
+  tip=$(git rev-parse "$branch"); rm -f "$idx"
+  blob=$(printf '%s' "$4" | git hash-object -w --stdin)
+  GIT_INDEX_FILE="$idx" git read-tree "$tip"
+  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$3"
+  tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+  new_tip=$(printf 'work %s\n' "$2" | git commit-tree "$tree" -p "$tip")
+  git update-ref "$branch" "$new_tip" "$tip"; rm -f "$idx"
+  printf '%s' "$new_tip"
+}
+land_exp() { # $1 quest $2 exp $3 path
+  local c; c=$(commit_on_exp "$1" "$2" "$3" "content-$2")
+  q "$1" u "$2" handoff --commit "$c" --reason work >/dev/null
+  q "$1" u "$2" grade --verdict ship --reason ok >/dev/null
+  q "$1" u "$2" verify --verdict pass --reason ok >/dev/null
+  q "$1" u "$2" land --reason ship >/dev/null
+}
+exp_ledger() { git show "bp3/exp/$1/$2:docs/quests/$1/experiments/$2/ledger.jsonl"; }
+
+# --- diamond: deps declared, waves, ready, handoff gate ---
+q c sched >/dev/null
+q sched c na >/dev/null; q sched c nb >/dev/null; q sched c nd >/dev/null
+out=$(q sched c nc --depends-on na,nb)
+echo "$out" | jq -e '.ok == true and .deps == ["na","nb"]' >/dev/null || fail "create deps: $out"
+out=$(q sched r nc)
+echo "$out" | jq -e '.deps == ["na","nb"] and .state == "todo"' >/dev/null || fail "deps read from record: $out"
+out=$(q r sched)
+echo "$out" | jq -e '.ready_set_waves == [["na","nb","nd"],["nc"]] and .ready == ["na","nb","nd"] and .starved == []' >/dev/null || fail "diamond waves: $out"
+echo w > w.txt; git add w.txt; git commit -qm w; W=$(git rev-parse HEAD)
+if out=$(q sched u nc handoff --commit "$W" --reason early 2>&1); then fail "dep-blocked handoff accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DEPENDENCY" and (.error.facts.blocked_by == ["na","nb"])' >/dev/null || fail "handoff gate: $out"
+land_exp sched na fa.txt; land_exp sched nb fb.txt
+out=$(q r sched)
+echo "$out" | jq -e '.ready == ["nc","nd"] and .ready_set_waves == [["nc","nd"]]' >/dev/null || fail "ready after land: $out"
+
+# --- cycle refused at write time, naming the cycle ---
+q sched c nx >/dev/null
+q sched dep nx --depends-on nc --reason "chain" >/dev/null
+before=$(exp_ledger sched nc | wc -l)
+if out=$(q sched dep nc --depends-on nx --reason loop 2>&1); then fail "cycle dep accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DEP_CYCLE" and (.error.facts.cycle | index("nc") != null) and (.error.facts.cycle | index("nx") != null)' >/dev/null || fail "cycle facts: $out"
+[ "$(exp_ledger sched nc | wc -l)" = "$before" ] || fail "cycle refusal ledgered"
+if out=$(q sched dep na --depends-on na --reason self 2>&1); then fail "self dep accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DEP_CYCLE"' >/dev/null || fail "self cycle code: $out"
+if out=$(q sched c ghost --depends-on nope 2>&1); then fail "unknown dep accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "unknown dep code: $out"
+
+# --- deps mutable-but-logged, mid-flight edit on the record ---
+out=$(q sched dep nd --depends-on na --reason "nd waits for na")
+echo "$out" | jq -e '.ok == true and .deps == ["na"] and .state == "todo"' >/dev/null || fail "dep edit: $out"
+exp_ledger sched nd | tail -1 | jq -e '.edge == "dep" and .from == "todo" and .to == "todo" and .depends_on == ["na"]' >/dev/null || fail "dep line logged"
+out=$(q sched u nd handoff --commit "$W" --reason work)
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "nd handoff (dep landed): $out"
+out=$(q sched dep nd --depends-on nb --reason "mid-flight swap")
+echo "$out" | jq -e '.ok == true and .state == "handed_off" and .deps == ["nb"]' >/dev/null || fail "mid-flight dep edit: $out"
+exp_ledger sched nd | tail -1 | jq -e '.edge == "dep" and .from == "handed_off" and .to == "handed_off" and .cycle == 1 and .depends_on == ["nb"]' >/dev/null || fail "mid-flight dep line carries state+cycle"
+
+# --- blocked blast radius: starved dependents, independents ready ---
+q c blast >/dev/null
+q blast c bx >/dev/null; q blast c bw >/dev/null
+q blast c by --depends-on bx >/dev/null; q blast c bz --depends-on by >/dev/null
+q blast u bx block --reason "choose storage" >/dev/null
+out=$(q r blast)
+echo "$out" | jq -e '.ready == ["bw"] and .starved == [{"blocked":"bx","starved":["by","bz"]}] and ([.inbox[] | select(.exp == "bx")] | length == 1)' >/dev/null || fail "starved rollup: $out"
+if out=$(q blast u by handoff --commit "$W" --reason early 2>&1); then fail "starved handoff accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DEPENDENCY"' >/dev/null || fail "starved handoff gate: $out"
+
+# --- timing derived from ledger timestamps, hand-checked ---
+q c timing >/dev/null; q timing c tm >/dev/null
+tip=$(git rev-parse bp3/exp/timing/tm); idx="$work/idx-tm"; rm -f "$idx"
+cat > "$work/tm-ledger.jsonl" <<EOF
+{"ts":"2026-01-01T00:00:00Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"t","model":"t","bp3_version":"0.2.0","exp_type":"default"}
+{"ts":"2026-01-01T00:10:00Z","edge":"handoff","from":"todo","to":"handed_off","cycle":1,"commit":"$W","verdict":null,"reason":"work","harness":"t","model":"t","bp3_version":"0.2.0"}
+{"ts":"2026-01-01T00:20:00Z","edge":"grade","from":"handed_off","to":"handed_off","cycle":1,"commit":"$W","verdict":"ship","reason":"ok","harness":"t","model":"t","bp3_version":"0.2.0"}
+{"ts":"2026-01-01T00:30:00Z","edge":"verify","from":"handed_off","to":"approved","cycle":1,"commit":"$W","verdict":"pass","reason":"ok","harness":"t","model":"t","bp3_version":"0.2.0"}
+{"ts":"2026-01-01T00:51:00Z","edge":"land","from":"approved","to":"landed","cycle":1,"commit":"$W","verdict":null,"reason":"ship","harness":"t","model":"t","bp3_version":"0.2.0"}
+EOF
+blob=$(git hash-object -w "$work/tm-ledger.jsonl")
+GIT_INDEX_FILE="$idx" git read-tree "$tip"
+GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,docs/quests/timing/experiments/tm/ledger.jsonl"
+tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+nt=$(git commit-tree "$tree" -p "$tip" -m "timing fixture")
+git update-ref refs/heads/bp3/exp/timing/tm "$nt" "$tip"; rm -f "$idx"
+out=$(q timing r tm)
+echo "$out" | jq -e '.state == "landed" and .timing.wait_s == 600 and .timing.wall_s == 2460 and .timing.dwell_s == {"todo":600,"handed_off":1200,"approved":1260} and .timing.cycles == 1' >/dev/null || fail "timing math: $out"
+out2=$(q r timing)
+echo "$out2" | jq -e '(.exps[] | select(.exp == "tm") | .timing.wall_s == 2460)' >/dev/null || fail "rollup timing: $out2"
+before=$(git rev-parse bp3/exp/timing/tm)
+q timing r tm >/dev/null; q r timing >/dev/null
+[ "$(git rev-parse bp3/exp/timing/tm)" = "$before" ] || fail "timing read wrote state"
+[ -z "$(git status --porcelain)" ] || fail "timing read dirtied worktree"
+
+# --- setup measured per Run; slow fixture fires locally only ---
+out=$(lk mint --kind edge --graph sched --node na --edge handoff --desk "$work/repo")
+RID=$(echo "$out" | jq -r .run_id); TOK=$(echo "$out" | jq -r .token)
+out=$(MUSE_SESSION_ID=sess-fast lk claim "$TOK")
+echo "$out" | jq -e '.ok == true and .state == "claimed"' >/dev/null || fail "fast claim: $out"
+rm -f .bp3-context.json
+out=$(q r sched)
+echo "$out" | jq -e --arg r "$RID" '(.setup[] | select(.run_id == $r) | .setup_wall_s >= 0 and .setup_wall_s < 180) and (has("warnings") | not or (.warnings | index("W_SETUP_SLOW") == null))' >/dev/null || fail "fast setup: $out"
+out=$(lk mint --kind edge --graph sched --node nb --edge handoff --desk "$work/repo")
+SRID=$(echo "$out" | jq -r .run_id)
+jq '.state = "claimed" | .creator.minted_at = "2026-01-01T00:00:00Z" | .claim = {"session_id":"sess-slow","pid":1,"cwd":"/tmp","claimed_at":"2026-01-01T00:10:00Z"}' ".git/bp3/runs/$SRID.json" > "$work/slow.json"
+cp "$work/slow.json" ".git/bp3/runs/$SRID.json"
+out=$(q r sched)
+echo "$out" | jq -e --arg r "$SRID" '(.setup[] | select(.run_id == $r) | .setup_wall_s == 600) and (.warnings | index("W_SETUP_SLOW") != null)' >/dev/null || fail "slow setup gate: $out"
+for e in na nb nc nd nx; do
+  exp_ledger sched "$e" | grep -q setup_wall && fail "setup leaked into ledger $e"
+done
+
+# --- serial land: second land re-checks against the new tip ---
+q c serial >/dev/null; q serial c sl-a >/dev/null; q serial c sl-b >/dev/null
+CA=$(commit_on_exp serial sl-a sa.txt "A"); CB=$(commit_on_exp serial sl-b sb.txt "B")
+for e in sl-a sl-b; do
+  c=$CA; [ "$e" = sl-b ] && c=$CB
+  q serial u "$e" handoff --commit "$c" --reason work >/dev/null
+  q serial u "$e" grade --verdict ship --reason ok >/dev/null
+  q serial u "$e" verify --verdict pass --reason ok >/dev/null
+done
+out=$(q serial u sl-a land --reason first)
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "first land: $out"
+tip1=$(git rev-parse bp3/quest/serial)
+out=$(q serial r sl-b)
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "second still approved: $out"
+out=$(q serial u sl-b land --reason second)
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "second land: $out"
+git merge-base --is-ancestor "$tip1" bp3/quest/serial || fail "second land did not build on first tip"
+git merge-base --is-ancestor "$CB" bp3/quest/serial || fail "second reviewed commit not in quest tip"
+[ "$(git show bp3/quest/serial:sa.txt)" = "A" ] && [ "$(git show bp3/quest/serial:sb.txt)" = "B" ] || fail "serial merge lost files"
+
+# --- help: dep verb and flags documented at their doors ---
+out=$(q sched dep -h) || fail "dep -h exit"
+echo "$out" | grep -q -- "--depends-on" || fail "dep help flags: $out"
+echo "$out" | grep -q "E_DEP_CYCLE" || fail "dep help cycle: $out"
+out=$(q sched -h) || fail "exp door -h exit"
+echo "$out" | grep -q "dep" || fail "exp door help dep: $out"
+echo "$out" | grep -q -- "--depends-on" || fail "exp door help depends-on: $out"
+
+echo "ready tests: ok"
+=== git diff stat bound commit ===
+commit b765d076ad5aca6b322a95f193c15ae190825a9c
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 22:05:07 2026 -0500
+
+    feat(mvp.3): ready-set waves, node deps, derived timing, setup gate, induct-node loop
+
+ .agents/workflows/induct-node.js         | 359 +++++++++++++++++++++++++++++++
+ Makefile                                 |   4 +-
+ bin/bp3                                  |   2 +-
+ skills/traverse/SKILL.md                 |  17 ++
+ skills/traverse/workflows/induct-node.js | 359 +++++++++++++++++++++++++++++++
+ src/quest/main.ml                        |  86 +++++++-
+ src/quest/render.ml                      |  74 ++++++-
+ src/quest/store.ml                       | 118 +++++++++-
+ test/induct-node.test.mjs                | 103 +++++++++
+ test/ready.sh                            | 163 ++++++++++++++
+ test/skills.sh                           |   2 +
+ test/traverse.sh                         |   1 +
+ 12 files changed, 1266 insertions(+), 22 deletions(-)
+=== ledger on exp branch ===
+{"ts":"2026-11-16T19:12:15Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"unknown","model":"unknown","bp3_version":"0.2.0","exp_type":"default"}
+{"ts":"2026-11-17T03:05:12Z","edge":"handoff","from":"todo","to":"handed_off","cycle":1,"commit":"b765d076ad5aca6b322a95f193c15ae190825a9c","verdict":null,"reason":"ready-set waves, node deps, derived timing, setup gate, induct-node loop; make check green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T013825Z-handoff-muse-code-muse-wonder-1.0-c1"}
+=== handoff run folder ===
+total 400
+-rw-r--r--@ 1 whycz  staff    2991 Nov 16 21:59 notes.md
+-rw-r--r--@ 1 whycz  staff  147382 Nov 16 22:06 tape.log
+# exp-mvp-3-ready-set-timing — author run notes
+
+- Naming (code-writer + /naming): reused the quest's settled
+  words — `dep` for node deps, `ready` / `ready_set_waves` /
+  `starved` for the schedule, `wall_s` / `wait_s` / `dwell_s`
+  and `setup_wall_s` for timing. One spelling everywhere:
+  code, rollup JSON, tests, and the traverse skill.
+- Node deps live in exp ledger records: `--depends-on` at
+  `bp3 q <quest> c <exp>`, redeclared by the new dep verb
+  `bp3 q <quest> dep <exp> --depends-on <a,b> --reason <why>`.
+  A cycle refuses at write time with `E_DEP_CYCLE` naming the
+  cycle; unknown deps refuse `E_NOT_FOUND`. Handoff also
+  refuses `E_DEPENDENCY` while node deps are unlanded.
+- Ready-set waves are BFS layers over `todo` nodes whose deps
+  are landed (or in earlier layers); `ready` is the first
+  wave. A `blocked` node names its transitive `todo`
+  dependents in `starved`; independent nodes stay ready.
+- Timing is derived on read from ledger timestamps only
+  (wall = first handoff → land, wait = create → first
+  handoff, dwell per state, cycles from the fold). Nothing
+  is written to any committed file; reads leave tips and
+  the worktree untouched (asserted in test/ready.sh).
+- Setup per Run is mint → claim (`setup_wall_s`) from
+  machine-local run configs on the rollup; over the local
+  `setup_slow_s` threshold (default 180) the rollup warns
+  `W_SETUP_SLOW`, locally only — never in a ledger.
+- Dep-freeze exploration: deps stay mutable-but-logged.
+  The one schedule anomaly exercised is a deliberate
+  mid-flight dep edit (state `handed_off`, cycle 1): the
+  `dep` ledger line records state, cycle, and the new deps,
+  and the node's state does not move. No anomaly was
+  observed from accidental edits in the fixtures. Proposed
+  rule from this evidence: keep deps mutable while `todo`;
+  once a node leaves `todo`, a dep edit should require the
+  reason to name the schedule change (as the test does) —
+  a hard freeze is not justified yet; revisit if dogfood.2
+  shows a real mid-flight surprise.
+- `induct-node` (skills/traverse/workflows/induct-node.js,
+  installed copy in .agents/workflows) owns one node's FSM
+  loop in one workflow run — author, grade+verify, land as
+  phases — and returns exactly one terminal outcome
+  (`landed`, `blocked`, `deleted`). The Pi form of the same
+  contract is stated in its header: root session spawns one
+  node-worker session per ready node, which claims its node
+  link and loops `spawn_run` per edge. Landing stays serial
+  at the root; bp3's land already re-checks mergeability
+  against the new tip (serial fixture in test/ready.sh).
+- Verification: `test/ready.sh` (deps/cycle/waves/starved/
+  timing/setup/serial-land/help), `test/induct-node.test.mjs`
+  via test/traverse.sh, and the full `make check` gate.
+  Pre-existing dirty `.agents/workflows` renders (install
+  copies of already-committed mvp.1/mvp.2 workflow sources)
+  were committed separately so the handoff tree is clean.
+=== make check target ===
+1:.PHONY: check test lint release publish install
+9:check: lint
+10:	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+29:	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+30:	node --check skills/traverse/workflows/induct-node.js
+31:	node --check skills/traverse/workflows/node-loop.js
+32:	node --check skills/traverse/workflows/induct-grade.js
+33:	node --check skills/traverse/workflows/quest-land.js
+38:# --- release (Exp 5): tag-gated artifact + checksum; publish-once via gh ---
+45:	@./scripts/release-check >/dev/null
+Makefile
+=== ./test/ready.sh ===
+ready tests: ok
+ready-exit:0
+=== node --test test/induct-node.test.mjs ===
+induct-node tests: ok
+✔ test/induct-node.test.mjs (26.830291ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 30.020584
+node-exit:0
+=== make check ===
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check skills/traverse/workflows/induct-node.js
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (123 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/ready.sh
+ready tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 20215 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 20703 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 21904 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 19215 Terminated: 15          sleep 60
+./test/harness.sh: line 501: 25575 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 25940 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/context.sh
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (31.335333ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.178167ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (229.143333ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (245.918875ms)
+✔ roles route model/thinking into the child env: override > role > conductor (489.400083ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (180.220666ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1606.666083ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (3028.577ms)
+=== state audit for missing row ===
+exp state via bp3 read:
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-3-ready-set-timing","state":"handed_off","fin":null,"cycle":1,"commit":"b765d076ad5aca6b322a95f193c15ae190825a9c","deps":[],"timing":{"wall_s":null,"wait_s":28377,"dwell_s":{"todo":28377},"cycles":1},"legal_edges":["grade","verify","block","delete"],"changes":[{"change":"+","path":".agents/workflows/induct-node.js"},{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"u","path":"skills/traverse/SKILL.md"},{"change":"+","path":"skills/traverse/workflows/induct-node.js"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"+","path":"test/induct-node.test.mjs"},{"change":"+","path":"test/ready.sh"},{"change":"u","path":"test/skills.sh"},{"change":"u","path":"test/traverse.sh"}],"run_id":"20261117T031039Z-verify-muse-code-muse-wonder-1.0-c1"}
+
+--- worktree ledger file (should be create only, handoff on branch) ---
+cat: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-3-ready-set-timing/ledger.jsonl: No such file or directory
+wc:
+wc: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-3-ready-set-timing/ledger.jsonl: open: No such file or directory
+--- git status ---
+=== final git status ===
+clean-check done
+=== matrix summary ===
+ready.sh fresh: ready tests: ok
+induct-node fresh: induct-node tests: ok
+make check fresh: make check exit ok (see tape above)
+gated missing row: adherence: no hand-edited state verdict=missing rung2 -> negative verdict per instructions
+total 56
+-rw-r--r--@ 1 whycz  staff  26418 Nov 16 22:16 tape.log
+# verify run notes — exp-mvp-3-ready-set-timing c1
+
+- Fresh evidence (rung 3, run not read): `./test/ready.sh` -> `ready tests: ok`; `node --test test/induct-node.test.mjs` -> `induct-node tests: ok`; `make check` -> `make check: ok` (full gate incl. ready, q, harness, traverse, tape, skills, lint).
+- Rung 1/2: HEAD == bound commit b765d076ad5aca6b322a95f193c15ae190825a9c, `git status --porcelain` empty, handoff ledger line on exp branch carries run_id 20261117T013825Z-handoff-muse-code-muse-wonder-1.0-c1, handoff run folder has notes.md+tape.log, dep-freeze quote present in handoff notes.md.
+- Blocking: evidence matrix gated row `adherence: no hand-edited state` is verdict `missing` with quote `row carried no typed evidence`. Per grade rules any gated fail/missing casts the negative verdict, even though functional checks pass fresh.
+- Lesson: pass-grade needs typed evidence for every gated adherence row at handoff/grade time; a missing row cannot be cured by verify-side fresh runs.
+- No whole-tape (rung 5b) read was needed or used; verdict decided at rungs 1-3 plus matrix gate.
+total 64
+-rw-r--r--@ 1 whycz  staff   1098 Nov 16 22:16 notes.md
+-rw-r--r--@ 1 whycz  staff  27581 Nov 16 22:16 tape.log
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-3-ready-set-timing","state":"blocked","cycle":1,"commit":"b765d076ad5aca6b322a95f193c15ae190825a9c","legal_edges":["resume","delete"],"human_action_required":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-3-ready-set-timing","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-3-ready-set-timing","edge":"verify","run_id":"20261117T031039Z-verify-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T031039Z-verify-muse-code-muse-wonder-1.0-c1"}
+VERIFY_EXIT:0
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (118934.753083ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (230.134417ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.398333ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (168.380541ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (24.042459ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 125243.337291
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+make-check-exit:0
+=== git status after tests ===
+status done
+=== audit no hand-edited state ===
+checking ledger only via bp3 edges, state field derivation
+b765d07 feat(mvp.3): ready-set waves, node deps, derived timing, setup gate, induct-node loop
+b2250e3 chore: sync installed workflow renders with committed sources
+63d49cd feat(mvp.2): context resolution — session/desk rungs, bp3 e door, claimed run-id stamping
+febc3ac docs(graph-engine): add followup.2 workflow-birth node
+09b9d8d feat(mvp.1): one-time link claim binding (mint/claim/lookup/cleanup)

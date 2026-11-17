@@ -13,9 +13,9 @@ blocks. One graph per bp3g. One output: step dispatches
 through `bp3 g`, ending in a bp3g report — what reached
 `node_fin`, what is blocked, and what human decision is owed
 next. Finish lines have report words: `node_fin` names an node
-whose state is `landed` (its `land` edge taken); `graph_fin`
+whose state is `landed` (its `land` edge taken); `goal_fin`
 names graph promotion to master, the only owner-gated finish
-line. The FSM states stay `landed`; `node_fin`/`graph_fin`
+line. The FSM states stay `landed`; `node_fin`/`goal_fin`
 name the finish lines in reports, never new edges.
 
 Use `graph` instead to frame a new graph. Use `using-bp3`
@@ -51,7 +51,7 @@ blocked work parks in the inbox instead of paging, a
 stated Run budget stops the queue, and the run ends in
 the dawn report. No-human never attests (`BP3_DECIDER`
 stays unset), never takes `resume` or `delete`, and
-never promotes — `graph_fin` stays the owner gate. The
+never promotes — `goal_fin` stays the owner gate. The
 rails live in `skills/bp3g-no-human/SKILL.md`;
 this section names the variant only, so the procedure
 above stays the one conductor procedure.
@@ -76,7 +76,7 @@ above stays the one conductor procedure.
    bp3gs and the owner's own work cannot collide with the
    Run. If the desk cannot be prepared, stop and say so —
    never fall back to the shared tree. Release it only at
-   `graph_fin` or on the owner's word (`bp3 harness desk
+   `goal_fin` or on the owner's word (`bp3 harness desk
    release --graph <graph>`; a dirty desk refuses and is
    preserved).
 3. Dispatch exactly one step per read, by state only:
@@ -195,7 +195,7 @@ above stays the one conductor procedure.
    `deleted`) or a human decision is owed that this session
    cannot get. Name each `landed` node `node_fin` in the
    report; when the graph is promoted to master, name that
-   finish line `graph_fin` (owner gate, demo first). Report: dispatches per node with their ledger
+   finish line `goal_fin` (owner gate, demo first). Report: dispatches per node with their ledger
    evidence, the grade matrices quoted verbatim, Runs and
    tapes left behind, scorecard fields (wall time, context
    tokens, human-active minutes — or "unmeasured", never

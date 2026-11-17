@@ -1,0 +1,95 @@
+created docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-2-workflow-birth/runs/20261117T155359Z-land-muse-code-muse-wonder-1.0-c2
+total 8
+drwxr-xr-x@  3 whycz  staff   96 Nov 17 10:54 .
+drwxr-xr-x@ 11 whycz  staff  352 Nov 17 10:54 ..
+-rw-r--r--@  1 whycz  staff  179 Nov 17 10:54 tape.log
+# Verify c2 — exp-followup-2-workflow-birth @ e37190a
+
+Fresh evidence (this session, tee'd to tape.log):
+- `git status --porcelain` (excl. harness `.bp3-context.json`): empty, exit 0. The one untracked file is harness-written (`BP3_G_BIN` context stamp from the parallel grade child), not hand-edited state.
+- `git show e37190a`: clean commit, 1 file (conduct-cycle2.md, +59).
+- `./bin/bp3 skills check`: `{"ok":true,"fresh":["node-loop","bp3g-grade","bp3g-land","bp3g-node"]}`.
+- `node test/bp3g-grade.test.mjs test/bp3g-land.test.mjs test/bp3g-node.test.mjs test/node-loop.test.mjs test/bp3g-conduct.test.mjs`: `bp3g-grade tests: ok`, exit 0.
+- `bash test/skills.sh`: `skills tests: ok (134 assertions)` — backdated-render fixtures (E_RENDER_STALE) pass.
+- `bash test/harness.sh`: `harness.sh: all checks passed`.
+- conduct-cycle2.md (committed at bound commit) records the real foreign-dialect conduct: fixture `2026-11-17-followup2-fixture` node->grade->land to landed, 0/7 read refusals; matrix quote commit fafcc14 matches.
+
+Lessons: harness `.bp3-context.json` churns between parallel children — judge hand-edited state excluding harness artifacts, never by raw porcelain alone.
+
+## Verdict cast outcome
+All evidence checks PASS (above). The verify state-edge cast was refused:
+`E_ILLEGAL_EDGE {state:"approved", edge:"verify", legal_edges:["land","block","delete"]}`.
+Cause: parallel dispatch race — the grade child cast grade (handed_off -> approved)
+while this verify child was still running its fresh test suite; verify is only
+legal from handed_off. First cast attempt also resolved to the grade claim
+(session rung beats BP3_RUN_ID env hint; all parallel children share one host
+session_id) with W_CONTEXT_ENV_MISMATCH. No state was hand-edited to force it.
+---GRADE NOTES---
+# Grade notes — exp-followup-2-workflow-birth cycle 2 (bound e37190a)
+
+Verdict: ship (code-reviewer procedure; correctness, design, tests, comments).
+
+- Rung 1-2: EXPERIMENT.md acceptance (stale render, mvp.1 replay, fresh render,
+  all workflows; amendment: desk reads, context threading, claim-session tape,
+  regression fixtures, foreign-dialect conduct) all gated here; cycle-2 adds the
+  real-conduct row. Bound commit adds conduct-cycle2.md; implementation at
+  6f124a6 reviewed in full diff.
+- Rung 3 (run, not read): skills check fresh ok; backdated bp3g-grade render
+  refuses E_RENDER_STALE naming render+source, restored fresh; all five workflow
+  test files pass individually; harness.sh all checks passed; skills.sh ok
+  (134 assertions). Fixture graph 2026-11-17-followup2-fixture read back landed,
+  commit fafcc14, matching the conduct record (0 read refusals).
+- Rung 4: comments agree with code (freshness=byte equality, context never
+  silently dropped, claim-session tape resolves first); no lying comments, no
+  hand-edited renders (all four renders byte-identical to sources).
+- Conduct caveat (non-blocking): single sequential session stamped the fixture
+  grade cast with the verify run-id (W_CONTEXT_ENV_MISMATCH); verdicts, bound
+  commit, and state sequence exact, and the acceptance gates on landed state
+  with zero read refusals.
+- Tree note: only untracked file is harness-written .bp3-context.json.
+- No whole-tape (rung 5) reads were needed or used.
+---GIT STATUS---
+?? .bp3-context.json
+---GIT LOG---
+e37190a test(followup.2): cycle-2 real foreign-dialect conduct — fixture landed, zero read refusals
+de97538 followup.2: cycle-2 real foreign-dialect conduct task (owner A)
+6f124a6 feat(followup.2): workflow-birth — desk reads, context, claim-session tape, render freshness
+afd0d80 docs(followup.2): pull forward with workflow-birth defect list
+4e0f1bd feat(rename.1): bp3g rename — bp3 g/n doors, bp3g skill family, graph/node vocabulary
+{"ok":true,"run_id":"20261117T155359Z-land-muse-code-muse-wonder-1.0-c2","kind":"edge","graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-2-workflow-birth","edge":"land","state":"claimed","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","pid":13440,"cwd":"/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","desk":"/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","parent_run_id":"","depth":0,"claimed_at":"2026-11-17T15:54:12Z"}
+CLAIM_EXIT:0
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"expected: bp3 g c|r|d ... or bp3 g <graph> c|r|u|d ... (see bp3 g -h)"},"guidance":"Fix the call: expected: bp3 g c|r|d ... or bp3 g <graph> c|r|u|d ... (see bp3 g -h)"},"run_id":"20261117T155359Z-land-muse-code-muse-wonder-1.0-c2"}
+SHOW_EXIT:0
+e37190aad4bb73183af2f433a92ff325eef6c3ec
+?? .bp3-context.json
+{"ok":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-2-workflow-birth","state":"approved","fin":null,"cycle":2,"commit":"e37190aad4bb73183af2f433a92ff325eef6c3ec","deps":[],"timing":{"wall_s":null,"wait_s":34983,"dwell_s":{"blocked":18997,"handed_off":769,"todo":35439},"cycles":2},"legal_edges":["land","block","delete"],"blocked":null,"changes":[{"change":"+","path":"docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-2-workflow-birth/conduct-cycle2.md"}],"run_id":"20261117T155359Z-land-muse-code-muse-wonder-1.0-c2"}
+---
+bp3 g - graph/node state. Doors:
+bp3 g c|r|d ...              graph door (create, read, delete)
+bp3 g <graph> c|r|u|d ...    node door for one graph
+bp3 g <graph> n <node> r     read one node (canonical nested address)
+bp3 g <graph> n <node> e <edge> [flags]   take one node's edge (canonical nested address)
+bp3 g <graph> diagram ...    generated graph diagram from the live rollup (mvp.4)
+bp3 g icebox r [term...]     search frozen icebox entries (read-only)
+bp3 n [r]                    claimed node door: read the claimed run's node (rename.1)
+bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)
+bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias
+bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)
+bp3 g hooks                  harness hook emitter (fail-open)
+Run bp3 g <door> -h for that door's verbs, edges, and flags.
+# Land c2 — exp-followup-2-workflow-birth @ e37190a
+
+- Claimed link bp3link_a30a673e00b7e4faa1d64b1407c1943a -> run_id 20261117T155359Z-land-muse-code-muse-wonder-1.0-c2 (matches expected).
+- Pre-land read: state=approved, cycle=2, commit=e37190aad4bb73183af2f433a92ff325eef6c3ec, legal_edges=[land,block,delete].
+- Grade c2 verdict ship, verify c2 evidence PASS (skills check fresh, workflow tests, harness.sh, skills.sh 134 assertions); verify edge refusal was parallel race, not evidence failure.
+- Tree clean except harness-written .bp3-context.json (untracked, not hand-edited).
+
+Lessons: judge tree cleanliness excluding harness .bp3-context.json; session-rung context beats BP3_RUN_ID env hint in parallel children — claim first, then cast with explicit BP3_RUN_ID.
+total 24
+-rw-r--r--@ 1 whycz  staff   777B Nov 17 10:54 notes.md
+-rw-r--r--@ 1 whycz  staff   7.2K Nov 17 10:54 tape.log
+{"ok":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-2-workflow-birth","state":"landed","fin":"node_fin","cycle":2,"commit":"e37190aad4bb73183af2f433a92ff325eef6c3ec","legal_edges":[],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-2-workflow-birth","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-2-workflow-birth","edge":"land","run_id":"20261117T155359Z-land-muse-code-muse-wonder-1.0-c2","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":"/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T155359Z-land-muse-code-muse-wonder-1.0-c2"}
+LAND_EXIT:0
+---POST LAND READ---
+{"ok":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-2-workflow-birth","state":"landed","fin":"node_fin","cycle":2,"commit":"e37190aad4bb73183af2f433a92ff325eef6c3ec","deps":[],"timing":{"wall_s":20335,"wait_s":34983,"dwell_s":{"approved":113,"blocked":18997,"handed_off":769,"todo":35439},"cycles":2},"legal_edges":[],"blocked":null,"changes":[{"change":"+","path":"docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-2-workflow-birth/conduct-cycle2.md"}],"run_id":"20261117T155359Z-land-muse-code-muse-wonder-1.0-c2"}
+e37190aad4bb73183af2f433a92ff325eef6c3ec

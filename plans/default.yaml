@@ -1,4 +1,4 @@
-graph_type: default
+goal_type: default
 max_cycles: 1
 grade:
   required: true

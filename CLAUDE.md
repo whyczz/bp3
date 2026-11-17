@@ -3,7 +3,7 @@
 bp3 is a graph state engine. Work moves as clean git commits;
 a small OCaml binary (the `bp3 g` door) is the only writer of
 graph state. Read this before touching anything under the
-graph storage tree (`docs/quests/`, a frozen path spelling).
+goal storage tree (`docs/goals/`; the goal is the container, its DAG is the graph).
 
 ## The one rule
 
@@ -15,19 +15,19 @@ run `bp3 g r <graph>` and read its JSON verdict.
 ## Layout
 
 ```text
-docs/quests/<graph>/     one folder per graph, flat, never moved
-  GRAPH.md               authored: goal, scope, nodes, status field
+docs/goals/<graph>/     one folder per graph, flat, never moved
+  GOAL.md               authored: goal, scope, nodes, status field
   fsm.yaml               authored: the plan (from plans/ at init)
   state.yaml             GENERATED: stage, commit, cycle (a cache)
   ledger.jsonl           GENERATED: every move, append-only (truth)
   runs/<id>/             tape.log (verbatim), notes.md (lessons)
-plans/<type>.yaml        graph_type plans (default: one review round)
+plans/<type>.yaml        goal_type plans (default: one review round)
 src/graph/main.ml        the state engine (OCaml, yojson + unix)
 docs/dossiers/           research records; they inform, never decide
 nodes/ inside each graph folder: one record per node
 ```
 
-Status is a frontmatter field in `GRAPH.md`
+Status is a frontmatter field in `GOAL.md`
 (`proposed | active | landed | canceled`), never a folder.
 A graph's path must survive its whole life: node records and
 other repos point at it.
@@ -48,7 +48,7 @@ dune build src/graph/main.exe          # (make check does this)
 make check                             # lint, skills, CLI fixture tests
 ```
 
-Two independent dimensions: `graph_type` is the plan (stages and
+Two independent dimensions: `goal_type` is the plan (stages and
 gates, YAML in `plans/`), `engine` is who executes (single,
 master-subagents, panes, workflows). A reviewer who refactors
 takes a fix edge and produces a new commit; verdicts always bind

@@ -1,0 +1,5 @@
+You are the author child for exp flappy of quest g1.
+First export BP3_QUEST=g1 BP3_EXP=flappy BP3_RUN_ID=2026-run-old BP3_HARNESS=muse-code BP3_MODEL=test-model.
+Your desk is /var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/tmp.P2kCxppJLi/repo; if state looks wrong, guess the desk from the quest branch name.
+When done run: ./bin/bp3 q g1 u flappy handoff --commit <sha> --reason "<short reason>".
+Build flappy in three.js.

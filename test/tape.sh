@@ -20,8 +20,8 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 q c demo >/dev/null
 q demo c parser-fix >/dev/null
-node_ledger() { git show "bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl"; }
-runs_dir="docs/quests/demo/experiments/parser-fix/runs"
+node_ledger() { git show "bp3/exp/demo/parser-fix:docs/goals/demo/experiments/parser-fix/ledger.jsonl"; }
+runs_dir="docs/goals/demo/experiments/parser-fix/runs"
 
 # (a) executor killed mid-output: tape keeps partial content.
 mkdir -p "$runs_dir/killed-run"

@@ -1,0 +1,282 @@
+created
+f5b434d04e91e4160ea8f36522822e90effa1cc0
+f5b434d test(mvp.5): Pi process-tree proof — bubble once, tree dead, fresh revival
+3ce9c2d docs(mvp.5): name cycle-2 Pi process-tree proof fix
+4d00100 feat(mvp.5): blocked-fail-fast — typed failure blocks once, orphans replaced, bubble carries facts
+fe6efe7 feat(mvp.4): diagram verb — generated ascii/mermaid from live rollup
+8411e0a fix(followup.1): make run-folder validation trustworthy
+commit f5b434d04e91e4160ea8f36522822e90effa1cc0
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 00:52:20 2026 -0500
+
+    test(mvp.5): Pi process-tree proof — bubble once, tree dead, fresh revival
+    
+    For humans: the five Pi acceptance rows now have a real
+    root -> node-worker -> edge-worker process-tree drive:
+    one facts-only blocked bubble, process-table death,
+    parent_run_id grandchild disposition, fresh-tree revival.
+    
+    For LLMs: test/pi-tree.test.mjs spawns real OS worker
+    processes claiming real bp3 links against a fixture repo,
+    asserts bubble/run-chain/inbox facts, kill(pid,0) death,
+    watch orphaned disposition, and new-root revival from
+    rollup+inbox. Wired into make check and node --check lint.
+
+ Makefile              |   2 +
+ test/pi-tree.test.mjs | 217 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 219 insertions(+)
+commit 4d00100df1ae03d273af85cb5065f73db0a71d54
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 00:31:25 2026 -0500
+
+    feat(mvp.5): blocked-fail-fast — typed failure blocks once, orphans replaced, bubble carries facts
+
+ .agents/workflows/induct-node.js         | 169 ++++++++++++++++++++++++++++++-
+ Makefile                                 |   3 +-
+ skills/traverse/SKILL.md                 |  15 +++
+ skills/traverse/workflows/induct-node.js | 169 ++++++++++++++++++++++++++++++-
+ src/quest/render.ml                      |   9 ++
+ test/blocked.sh                          |  84 +++++++++++++++
+ test/induct-node.test.mjs                |  62 +++++++++++-
+ 7 files changed, 499 insertions(+), 12 deletions(-)
+---
+blocked.sh
+completion.sh
+config.sh
+context.sh
+diagram.sh
+harness.sh
+hooks.sh
+induct-grade.test.mjs
+induct-node.test.mjs
+install.sh
+link.sh
+node-loop.test.mjs
+pi-discovery.mjs
+pi-tree.test.mjs
+q.sh
+quest-land.test.mjs
+ready.sh
+release.sh
+skills.sh
+tape.sh
+traverse-conduct.test.mjs
+traverse.sh
+worktree.sh
+---
+Makefile:16:	./test/blocked.sh
+Makefile:32:	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+test/induct-node.test.mjs:3:// exactly one terminal outcome (landed, blocked, deleted).
+test/induct-node.test.mjs:38:        return JSON.stringify({ ok: true, state: "blocked" });
+test/induct-node.test.mjs:83:// --- needs_fix rides the loop: fix carried verbatim to the next author ---
+test/induct-node.test.mjs:94:for (const state of ["blocked", "deleted", "landed"]) {
+test/induct-node.test.mjs:101:// --- typed failure fails fast: one block, verbatim reason, exit (mvp.5) ---
+test/induct-node.test.mjs:103:  const blockedRead = { state: "blocked", cycle: 1, commit: "abc1234", legal_edges: ["resume", "delete"], blocked: { reason: "choose storage shape", checkpoint: null, since: "2026-01-01T00:00:00Z" } };
+test/induct-node.test.mjs:104:  const reads = [st("todo"), blockedRead];
+test/induct-node.test.mjs:108:  assert(result.outcome === "blocked", "typed failure blocks, got " + result.outcome);
+test/induct-node.test.mjs:109:  assert(result.reason === "choose storage shape", "bubble reason verbatim, got " + result.reason);
+test/induct-node.test.mjs:110:  assert(result.last_edge === "handoff", "bubble last edge, got " + result.last_edge);
+test/induct-node.test.mjs:111:  assert(result.graph === "toy" && result.inbox_key === "toy/fx", "bubble graph + inbox key");
+test/induct-node.test.mjs:117:// --- silent death is orphaned: one fresh link, one replacement, no block ---
+test/induct-node.test.mjs:122:  assert(result.outcome === "landed", "orphan replacement lands, got " + result.outcome);
+test/induct-node.test.mjs:124:  assert(labels.filter((l) => l === "block").length === 0, "orphan never blocks, got " + labels.join(","));
+test/induct-node.test.mjs:125:  assert(result.refusals.some((r) => r.includes("orphaned")), "orphan named in refusals");
+test/induct-node.test.mjs:128:// --- typed grade failure blocks before any verify spawns ---
+test/induct-node.test.mjs:130:  const blockedRead = { state: "blocked", cycle: 1, commit: "abc1234", legal_edges: ["resume", "delete"], blocked: { reason: "pick a schema", checkpoint: null, since: "2026-01-01T00:00:00Z" } };
+test/induct-node.test.mjs:131:  const reads = [st("handed_off"), blockedRead];
+test/induct-node.test.mjs:135:  assert(result.outcome === "blocked" && result.last_edge === "grade", "grade failure blocks, got " + result.outcome);
+test/induct-node.test.mjs:140:// --- cycle cap: bp3 already blocked; bubble carries its reason, no re-block ---
+test/induct-node.test.mjs:142:  const blockedRead = { state: "blocked", cycle: 1, commit: "abc1234", legal_edges: ["resume", "delete"], blocked: { reason: "fix the parser", checkpoint: null, since: "2026-01-01T00:00:00Z" } };
+test/induct-node.test.mjs:143:  const reads = [st("handed_off"), blockedRead];
+test/induct-node.test.mjs:146:  assert(result.outcome === "blocked", "cap outcome blocked, got " + result.outcome);
+test/induct-node.test.mjs:147:  assert(result.reason === "fix the parser", "cap bubble reason, got " + result.reason);
+test/node-loop.test.mjs:127:for (const state of ["approved", "landed", "blocked"]) {
+test/node-loop.test.mjs:143:// --- tape resolution refuses: nothing is bound, refusal is typed ---
+.agents/workflows/induct-node.js:7:// blocked, or deleted, then returns exactly one terminal
+.agents/workflows/induct-node.js:21:// returns a typed failure, or dies. A typed failure makes
+.agents/workflows/induct-node.js:25:// for the human, or pages anyone (paging is the root
+.agents/workflows/induct-node.js:26:// worker's job, off the blocked bubble). A worker that
+.agents/workflows/induct-node.js:27:// dies with no parseable verdict is an orphaned Run: the
+.agents/workflows/induct-node.js:28:// node is not blocked, and the next loop iteration mints
+.agents/workflows/induct-node.js:29:// one fresh link and dispatches one replacement. The
+.agents/workflows/induct-node.js:30:// terminal bubble carries facts only — graph, node,
+.agents/workflows/induct-node.js:32:// inbox key — so revival after resume is a fresh run
+.agents/workflows/induct-node.js:133:      // blocked node's own read, so a fresh worker — or a
+.agents/workflows/induct-node.js:136:      reason: (v.blocked && typeof v.blocked.reason === "string" && v.blocked.reason)
+.agents/workflows/induct-node.js:137:        ? v.blocked.reason
+.agents/workflows/induct-node.js:138:        : (typeof v.blocked_reason === "string" && v.blocked_reason ? v.blocked_reason : null),
+.agents/workflows/induct-node.js:266:  // typed failure (a parseable refusal — the child's own
+.agents/workflows/induct-node.js:269:  // its Run is derived orphaned by the supervisor fold).
+.agents/workflows/induct-node.js:271:    if (!v) return { kind: "orphaned" };
+.agents/workflows/induct-node.js:274:      return { kind: "typed", reason: failureReason(v, inner) };
+.agents/workflows/induct-node.js:286:    return "edge worker returned a typed failure with no reason";
+.agents/workflows/induct-node.js:289:  // The one terminal bubble (mvp.5): facts only, never a
+.agents/workflows/induct-node.js:290:  // live handle. The root worker pages the human off a
+.agents/workflows/induct-node.js:291:  // blocked bubble's reason and inbox key, and revives
+.agents/workflows/induct-node.js:292:  // the node after resume by minting a fresh node link —
+.agents/workflows/induct-node.js:294:  function bubble(state, commit, reason, lastEdge) {
+.agents/workflows/induct-node.js:304:      inbox_key: quest + "/" + exp,
+.agents/workflows/induct-node.js:310:  // exactly once for a typed failure, after the failed
+.agents/workflows/induct-node.js:313:  // the node worker exits on blocked. The reason rides
+.agents/workflows/induct-node.js:336:  // one re-read, one blocked bubble. A block refused
+.agents/workflows/induct-node.js:337:  // because the node already rests blocked (a race with
+.agents/workflows/induct-node.js:338:  // the cycle cap) still exits blocked — the re-read is
+.agents/workflows/induct-node.js:343:    if (after.state === "blocked") {
+.agents/workflows/induct-node.js:344:      return bubble("blocked", after.commit, after.reason || reason, lastEdge);
+.agents/workflows/induct-node.js:347:      return bubble(bv.state, commit, reason, lastEdge);
+.agents/workflows/induct-node.js:411:      const verdicts = edge === "grade" ? "ship|needs_fix" : "pass|fail";
+.agents/workflows/induct-node.js:443:  // own across edges. Terminal means landed, blocked, or
+.agents/workflows/induct-node.js:444:  // deleted, and exactly one such bubble returns. Fail-fast
+.agents/workflows/induct-node.js:445:  // (mvp.5): a typed failure blocks at once through this
+.agents/workflows/induct-node.js:446:  // loop's own block call; an orphaned worker is replaced
+.agents/workflows/induct-node.js:447:  // by the next iteration's fresh link; neither path ever
+.agents/workflows/induct-node.js:457:    if (state.state === "landed" || state.state === "blocked" || state.state === "deleted") {
+.agents/workflows/induct-node.js:458:      return bubble(state.state, state.commit,
+.agents/workflows/induct-node.js:459:        state.state === "blocked" ? (state.reason || fix) : null, lastEdge);
+.agents/workflows/induct-node.js:466:      if (c.kind === "typed") return blockAndExit(c.reason, "handoff", state.commit);
+.agents/workflows/induct-node.js:467:      if (c.kind === "orphaned") {
+.agents/workflows/induct-node.js:469:          "handoff worker orphaned (no verdict); next loop mints a replacement link");
+.agents/workflows/induct-node.js:475:      if (gc.kind === "typed") return blockAndExit(gc.reason, "grade", state.commit);
+.agents/workflows/induct-node.js:476:      if (gc.kind === "orphaned") {
+.agents/workflows/induct-node.js:478:          "grade worker orphaned (no verdict); next loop mints a replacement link");
+.agents/workflows/induct-node.js:486:        if (vc.kind === "typed") return blockAndExit(vc.reason, "verify", mid.commit);
+.agents/workflows/induct-node.js:487:        if (vc.kind === "orphaned") {
+.agents/workflows/induct-node.js:489:            "verify worker orphaned (no verdict); next loop mints a replacement link");
+.agents/workflows/induct-node.js:492:        // needs_fix below the cap rides the next author
+.agents/workflows/induct-node.js:494:        // the recorded blocked reason.
+.agents/workflows/induct-node.js:501:      if (c.kind === "typed") return blockAndExit(c.reason, "land", state.commit);
+.agents/workflows/induct-node.js:502:      if (c.kind === "orphaned") {
+.agents/workflows/induct-node.js:504:          "land worker orphaned (no verdict); next loop mints a replacement link");
+_build/default/src/quest/main.exe
+.PHONY: check test lint release publish install
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/ready.sh
+	./test/diagram.sh
+	./test/blocked.sh
+	node test/pi-tree.test.mjs
+	./test/harness.sh
+	./test/config.sh
+	./test/link.sh
+	./test/context.sh
+	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/traverse.sh
+	./test/completion.sh
+	./test/release.sh
+	./test/install.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	node --check test/pi-tree.test.mjs
+	node --check skills/traverse/workflows/induct-node.js
+	node --check skills/traverse/workflows/node-loop.js
+	node --check skills/traverse/workflows/induct-grade.js
+	node --check skills/traverse/workflows/quest-land.js
+
+test:
+	./test/skills.sh
+
+# --- release (Exp 5): tag-gated artifact + checksum; publish-once via gh ---
+RELEASE_VERSION := $(shell sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' src/quest/gitx.ml | head -1)
+RELEASE_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+RELEASE_ARCH := $(shell uname -m)
+RELEASE_ARTIFACT := dist/bp3-q-v$(RELEASE_VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
+
+release:
+	@./scripts/release-check >/dev/null
+	$(DUNE_BUILD) src/quest/main.exe
+	mkdir -p dist
+	cp _build/default/src/quest/main.exe $(RELEASE_ARTIFACT)
+	cd dist && shasum -a 256 $$(basename $(RELEASE_ARTIFACT)) > $$(basename $(RELEASE_ARTIFACT)).sha256
+	@echo "released $(RELEASE_ARTIFACT)"
+
+publish: release
+	./scripts/release-publish $(RELEASE_ARTIFACT) $(RELEASE_ARTIFACT).sha256
+
+PREFIX ?= $(HOME)/.local
+install:
+	PREFIX="$(PREFIX)" ./scripts/install-bp3.sh
+blocked tests: ok
+blocked_exit:0
+induct-node tests: ok
+induct_exit:0
+FAIL: watch dispositions grandchild orphaned: {"ok":false,"error":{"code":"E_NOT_FOUND","facts":{"run_id":"20261117T055520Z-handoff-pi-test-model-c1"},"guidance":"No tape references that run; no guess made."}}
+pi_exit:1
+src/quest/config.ml:6:   mint/claim and bind-tape in mvp.1), links/, claims/, the
+src/quest/harness.ml:39:   launcher's bind-tape appends one pointer-only
+src/quest/harness.ml:54:   and bind-tape refuses a second, different tape. *)
+src/quest/harness.ml:1384:             err "E_NOT_FOUND" facts "No tape references that run; no guess made." 1
+src/quest/harness.ml:1566:                err "E_NOT_FOUND" facts "No tape references that run; no guess made." 1)
+src/quest/harness.ml:1722:(* ---------- bind-tape (followup.3: the launcher's bind step) ---------- *)
+src/quest/harness.ml:1762:    | _ -> usage "bind-tape needs --run-id <id>" in
+src/quest/harness.ml:1768:    | _ -> usage "bind-tape needs --tape-path <path>" in
+src/quest/harness.ml:2583:  bp3 harness bind-tape --run-id <id> --tape-path <p>   launcher binds a finished child's session tape (into the run config when claimed)\n\
+src/quest/harness.ml:2585:Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init, t=bind-tape, b=backtest, l=link. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
+src/quest/harness.ml:2626:let help_bind_tape = "bp3 harness bind-tape - bind a finished child's session tape to its Run (the launcher's bind step):\n\
+src/quest/harness.ml:2627:  bp3 harness bind-tape --run-id <id> --tape-path <p>\n\
+src/quest/harness.ml:2629:Example: bp3 harness bind-tape --run-id 20261115T000000Z-handoff-muse-code-model-c1 --tape-path ~/.local/share/muse/sessions/2026/11/15/<session>/session.jsonl\n"
+src/quest/harness.ml:2632:  bp3 harness record-init ... refuses E_RETIRED. The run config replaces the InitRecord: mint with bp3 harness link mint, the child claims with bp3 harness link claim, and bind-tape writes tape_path into the run config.\n\
+src/quest/harness.ml:2658:  | "t" | "bind-tape" -> "bind-tape"
+src/quest/harness.ml:2663:  | [] -> usage "harness needs a verb: supervisor, init-check, find-tape, watch, desk, link, record-init, bind-tape, or backtest"
+src/quest/harness.ml:2673:        | "bind-tape" -> help_bind_tape
+src/quest/harness.ml:2688:       | "bind-tape" -> do_bind_tape rest
+pi-tree tests: ok
+pi2_exit:0
+skills/traverse/workflows/induct-grade.js:15:// FSM verdict: it burns no author cycle and pages no human.
+skills/traverse/workflows/induct-node.js:25:// for the human, or pages anyone (paging is the root
+skills/traverse/workflows/induct-node.js:32:// inbox key — so revival after resume is a fresh run
+skills/traverse/workflows/induct-node.js:290:  // live handle. The root worker pages the human off a
+skills/traverse/workflows/induct-node.js:291:  // blocked bubble's reason and inbox key, and revives
+skills/traverse/workflows/induct-node.js:304:      inbox_key: quest + "/" + exp,
+.agents/workflows/induct-grade.js:15:// FSM verdict: it burns no author cycle and pages no human.
+.agents/workflows/induct-node.js:25:// for the human, or pages anyone (paging is the root
+.agents/workflows/induct-node.js:32:// inbox key — so revival after resume is a fresh run
+.agents/workflows/induct-node.js:290:  // live handle. The root worker pages the human off a
+.agents/workflows/induct-node.js:291:  // blocked bubble's reason and inbox key, and revives
+.agents/workflows/induct-node.js:304:      inbox_key: quest + "/" + exp,
+.agents/workflows/:
+induct-grade.js
+induct-node.js
+node-loop.js
+quest-land.js
+
+skills/traverse/workflows/:
+induct-grade.js
+induct-node.js
+node-loop.js
+quest-land.js
+skills/traverse/SKILL.md:13:`exp_fin`, what is blocked, and what human decision is owed
+skills/traverse/SKILL.md:39:it (Procedure step 3) without paging the owner. `blocked` is
+skills/traverse/SKILL.md:49:blocked work parks in the inbox instead of paging, a
+skills/traverse/SKILL.md:65:   the railway order, and the blocked inbox. Trust only this
+skills/traverse/SKILL.md:88:   | `blocked` | human gate (step 4) | — |
+skills/traverse/SKILL.md:100:   `blocked`, or `deleted`). The state-step workflows in
+skills/traverse/SKILL.md:104:   re-checked against the new quest tip. A blocked node
+skills/traverse/SKILL.md:115:   is not blocked, and the run mints one fresh link and
+skills/traverse/SKILL.md:164:   leaves the cycle (`landed`, `blocked`, or `deleted`) or
+skills/traverse/SKILL.md:166:   reached (the exp in `blocked` at the cap), the conductor
+skills/traverse/SKILL.md:168:   blocked gate instead of dispatching another cycle.
+skills/traverse/SKILL.md:174:   and never supplies a commit. A blocked Run is never
+skills/traverse/SKILL.md:197:  called by step children (and at the blocked gate, by this
+skills/traverse/SKILL.md:205:  Attestation is owed at the blocked gate only; a
+skills/traverse/workflows/induct-grade.js
+skills/traverse/workflows/induct-node.js
+.agents/workflows/induct-grade.js
+.agents/workflows/induct-node.js
+/Users/whycz/m/bp3/.git
+ls: /Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261117T055441Z-node-muse-code-muse-wonder-1.0-c2.jsonl: No such file or directory
+cat: /Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261117T055441Z-node-muse-code-muse-wonder-1.0-c2.jsonl: No such file or directory
+

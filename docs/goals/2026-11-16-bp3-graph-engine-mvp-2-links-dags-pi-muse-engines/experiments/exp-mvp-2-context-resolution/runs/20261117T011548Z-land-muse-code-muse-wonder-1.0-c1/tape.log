@@ -1,0 +1,1983 @@
+total 8
+drwxr-xr-x@  4 whycz  staff   128 Nov 16 19:43 .
+drwxr-xr-x@ 16 whycz  staff   512 Nov 16 19:41 ..
+-rw-r--r--@  1 whycz  staff  3684 Nov 16 14:15 EXPERIMENT.md
+drwxr-xr-x@  7 whycz  staff   224 Nov 16 20:16 runs
+cat: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/README.md: No such file or directory
+---NODES---
+20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1
+20261117T010557Z-node-muse-code-muse-wonder-1.0-c1
+20261117T010735Z-grade-muse-code-muse-wonder-1.0-c1
+20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1
+20261117T011548Z-land-muse-code-muse-wonder-1.0-c1
+cat: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/state.json: No such file or directory
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: mvp.2
+status: proposed
+---
+
+# mvp.2 - context-resolution: bp3 knows where it is
+
+## TL;DR
+
+After a claim (mvp.1), every bp3 call resolves its
+context from the claim store — session-id first,
+desk (cwd) second — and stamps graph, node, edge,
+and run-id into verdicts and ledger lines. The
+child types no quest, no exp, no export ritual.
+Env vars survive only as hints that bp3 may
+cross-check, never as the store. Unclaimed
+invocations behave exactly as today, plus
+`W_CONTEXT_UNCLAIMED`.
+
+## Demo (design trace)
+
+```text
+child (claimed session): bp3 e handoff --commit …
+  -> resolves session -> run-id/edge; ledger line stamped
+child (claimed, in desk): bp3 e
+  -> prints resolved context + source rung + legal edges, no names typed
+stranger shell: bp3 q …
+  -> behaves as today + W_CONTEXT_UNCLAIMED
+```
+
+## Diagram
+
+```text
+bp3 call ─► session-id? ─► by-session index ─► claim {graph,node,edge,run}
+              └─► cwd desk? ─► desk context file ─► claim
+              └─► none ─► today's behavior + W_CONTEXT_UNCLAIMED
+env: hint only, cross-checked, mismatch -> W_CONTEXT_ENV_MISMATCH
+```
+
+## Pseudocode
+
+```python
+def resolve_context(env, cwd, session_id):
+    claim = by_session(session_id) or desk_context(cwd)
+    if claim and env.get("BP3_RUN_ID") not in (None, claim.run_id):
+        warn("W_CONTEXT_ENV_MISMATCH")
+    return claim  # stamps every verdict + ledger line
+```
+
+| Field | Value |
+|---|---|
+| Intent | context is resolved, never carried; the export ritual dies |
+| Lane | standard |
+| Output | context resolution in the CLI doors; stamped verdicts/ledger |
+| Depends on | mvp.1 |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| claimed session | `bp3` calls with no graph/node arguments resolve and stamp the claimed run-id + edge on verdicts and the handoff ledger line |
+| claimed desk, new shell | a fresh shell in the desk (no session-id) resolves via desk context |
+| bare `bp3 e` after claim | prints resolved context, source rung, and legal edges; the worker never types graph/node/run-id or exports on any call |
+| unclaimed | legacy behavior unchanged, one `W_CONTEXT_UNCLAIMED` warning |
+| env disagreement | env naming a different run-id warns `W_CONTEXT_ENV_MISMATCH` and the claim wins |
+| desk rung never guesses (red-chair) | when a desk holds more than one live claimed run config and no session rung resolves, resolution refuses (`E_NO_CONTEXT`, facts naming the live run_ids) instead of picking the latest claim |
+| no false claim | a session in an unclaimed desk never inherits a sibling node's context (desk context is per-claim, checked against cwd) |
+| env-set run-id (standing ruling) | the stamped run-id on grade evidence is the claimed one; hooks witness does not gate |
+
+## Acceptance test (goal block)
+
+- **Objective:** a claimed child drives a full
+  edge touching zero context flags and zero
+  exports, and the ledger proves it.
+- **Prove by:** handoff drive from a claimed
+  session + fresh desk shell; ledger line stamps;
+  mismatch and unclaimed warning cases.
+- **Done when:** the handoff ledger line carries
+  the claimed run-id with no env set, observed.
+
+## Tests
+
+Resolution precedence fixtures (session > desk >
+none), mismatch warnings, cross-node isolation in
+one repo (two desks, two claims, no bleed),
+regression: every existing CLI test unchanged in
+behavior for unclaimed callers.
+
+## Context
+
+The mvp.1-era ruling made run-id env-set because
+flags were worse; env was always a transport, not
+a home. The claim store is the home. This exp is
+where the brief shrinks to one line in practice:
+after claim, the child just works.
+===GRAPH STATE===
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/QUEST.md
+===BIN===
+bp3
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"expected: q c|r|d ... or q <quest> c|r|u|d ..."},"guidance":"Fix the call: expected: q c|r|d ... or q <quest> c|r|u|d ..."},"run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1"}
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+| tape | tape | the harness session recording (unchanged) |
+
+States rest in the root worker's read. Edges are
+subagents. A child holds nothing across edges;
+context is claimed, never remembered.
+
+Edge names (settled red-ink names round, owner —
+option A; rides rename.1, old ledgers keep old
+words and the rename table maps them):
+
+| Coded today | Settled name | Caller does |
+|---|---|---|
+| `submit` | `handoff` | author binds the finished commit |
+| `review` | `grade` | reviewer grades the exact commit (`ship\|needs_fix`) |
+| `check` | `verify` | machine checks (`pass\|fail`) |
+| `land` | `land` | merge into the graph branch |
+| state `submitted` | state `handed_off` | verb/state rhyme: `handoff` hands off, node rests `handed_off` |
+| `block` | `block` | park for a human decision |
+| `resume` | `resume` | human answer re-enters (`BP3_DECIDER=human`) |
+
+Link mint/claim are verbs, not flags:
+`bp3 harness link mint --kind node|edge …` and
+`bp3 harness link claim <token>`. A node link
+carries no edge name — the node worker executes
+no transition when it claims.
+
+Door letter settled: `bp3 g`, not `bp3 t`.
+Nodes form a DAG (shared deps, diamonds — a tree
+allows one parent), scheduled by BFS ready-set
+waves; the *execution* is a tree of workers.
+Tree survives as a view (`--format tree`) and as
+the worker-tree shape, never as the addressed
+noun.
+
+## Success picture
+
+A root worker dispatches a node with a one-line
+brief: "claim this link, do this edge." The child
+claims, works, calls its own edge, dies. Ready
+nodes in a ready-set build and grade in parallel
+desks; landing is a serial queue. The rollup
+shows every node's wall, wait, and dwell time.
+The grader joins any tape's session-id to run-id
+in one lookup. At the end, everything on live
+surfaces — CLI, skills, workflows, records —
+speaks graph/node/state/edge and answers to
+`bp3 g` and `/bp3g`.
+
+## Scope
+
+| In | Out |
+|---|---|
+| `bp3 harness link` mint/claim, CAS claim store, by-session index, context resolution; run config replaces InitRecord (`creator:{}`/`claim:{}`/`tape_path`), `record-init` retires, lifecycle fold reads the run config | rewriting landed quests' ledger history text |
+| ready-set scheduling, per-node timing derived from ledger + derivations, local thresholds | anything committed for metrics; timing judgments stay in `<git-common-dir>/bp3/` |
+| setup timing measured always; optimize only when setup > 3 min (`W_SETUP_SLOW`) | desk pools (killed 2026-11-16; ad hoc desks, measured) |
+| generated ASCII/mermaid diagram from live rollup | writing into harness session logs (tapes stay harness-written) |
+| rename last: `bp3 g`, `bp3g` skills, graph terms on live surfaces | rewriting landed quests' ledger history text |
+| session-id discovery: muse, pi; graceful floor (pid+cwd+window) | adversarial threat model (links are for confused children, not attackers) |
+
+## Timing gates (in-system, local)
+
+- Per node: `wall` (first handoff → land), `wait`
+  (create → first handoff), `dwell` per state,
+  cycles. Derived from ledger timestamps, shown
+  on read, thresholds local, never committed.
+- Per Run setup: desk create → first bp3 answer;
+  `W_SETUP_SLOW` when > 3 minutes.
+- Scorecards report wall minutes AND tokens per
+  node. Visibility, not caps.
+
+## Context layer (kubectl pattern, settled red-ink round 1)
+
+One door per noun, nested as the canonical address:
+`bp3 g <graph> n <node> e <edge>`. Bare `bp3 e …`
+is the claimed shorthand. A context layer resolves
+which graph/node an unqualified call means, with
+kubectl's precedence — explicit always beats
+ambient:
+
+```text
+1. nested address in the call     bp3 g G n N e handoff
+2. session claim (mvp.1)          by-session index -> claim
+3. desk context (cwd)             desk context file from claim
+4. nothing                        E_NO_CONTEXT (post-rename)
+```
+
+| kubectl | bp3 |
+|---|---|
+| kubeconfig | claim store in `<git-common-dir>/bp3/` (machine-local, never committed) |
+| context | one claim: {graph, node, edge, run-id, session-id, desk} |
+| current-context | per-session, never global: parallel children hold different contexts, keyed by session-id, desk as fallback |
+| `-n` / explicit flags | the nested `g … n … e …` address; always wins, always printed in verdicts |
+
+`bp3 e` with no edge prints the resolved context
+and legal edges. Doors settled (owner, red-ink
+round 2): `bp3 g | bp3 n | bp3 e` — one door per
+noun, nested address canonical. Configuration
+surface: `bp3 config` views the whole store;
+bare `bp3 e` is the quick view — resolved context,
+its source rung, legal edges, and the config
+values in force for that context (thresholds,
+desk), so a child can self-diagnose in one call. Context is resolved, never
+carried: env vars are hints the layer may
+cross-check (`W_CONTEXT_ENV_MISMATCH`), never the
+store. This layer is what mvp.2 builds; the doors
+above are its surface.
+
+Locked (owner, data round): after claiming, an
+edge worker calls only `bp3 e …` — no graph, node,
+run-id, or exports — and bp3 resolves the context
+from the claim (session rung, then desk rung).
+Bare `bp3 e` prints the resolved context, its
+source rung, and legal edges. No rung resolving
+means refuse `E_NO_CONTEXT` (post-rename), never
+a guess at a sibling's context.
+
+## Data (settled red-ink data round, owner)
+
+One canonical record per execution: the **run
+config**, keyed by `run_id`, created at
+`link mint` — before any worker exists. Claim
+completes it; everything else is an index or a
+view folded from run configs.
+
+```text
+<git-common-dir>/bp3/
+  config.json            machine settings ONLY (thresholds, gates)
+  runs/<run_id>.json     the run config (canonical, one per Run)
+  links/<token_hash>     -> run_id     (written at mint; claim finds its run config by key)
+  by-session/<session-id> -> run_id     (derived index, rebuildable)
+  desks/<desk>/context   -> run_id      (derived pointer, fallback rung)
+  run-lifecycle-derivations/            (existing supervisor fold)
+```
+
+Run config shape — facts grouped by who knew
+them when. This replaces the supervisor's
+InitRecord (settled, functions round, owner):
+one birth record per Run, and `record-init`
+retires.
+
+```json
+{
+  "run_id": "2026...-handoff-pi-...-c1",
+  "kind": "edge",                    // node | edge
+  "graph": "G", "node": "N", "edge": "handoff",
+  "state": "claimed",                // minted -> claimed (CAS)
+  "desk": ".bp3/worktrees/...",
+  "creator": {                       // parent side, known at mint
+    "run_id": "...",                 // who minted this Run
+    "depth": 2,
+    "harness": "pi", "model": "...", "thinking": "high",
+    "minted_at": "...", "token_hash": "sha256:..."
+  },
+  "claim": {                         // worker side, known at claim
+    "session_id": "...", "pid": 48151, "cwd": "...",
+    "claimed_at": "..."
+  },
+  "tape_path": "..."                 // supervisor side, at bind-tape
+}
+```
+
+The lifecycle fold reads this one file: birth
+from `creator`, presence from `claim.pid` + tape
+mtime, proof from `tape_path`. `bind-tape`
+writes `tape_path` into the run config instead
+of a derivation row. Node-kind configs carry no
+`edge`.
+
+Trees have roots here, as in the supervisor's
+derivations: the root worker's run config is the
+tree root — `creator.run_id` empty, `depth` 0 —
+and every other run config hangs off it through
+`creator.run_id`. The supervisor folds a subtree
+from its root; cleanup and revival anchor at the
+root the same way.
+
+Found, not configured: from any cwd, bp3 runs
+`git rev-parse --git-common-dir` (already the
+resolution in `harness.ml` and the pi dispatcher)
+and appends `bp3/` — one store per repo, shared
+by every worktree/desk of that repo. Lookup is
+by key: `runs/<run_id>.json` directly, or
+session-id -> run_id via the derived index; no
+scanning on the hot path. Outside a git repo
+there is no store and bp3 refuses — there is
+nothing to find.
+
+Stale mints (settled, state round — option C):
+a worker that dies between mint and claim leaves
+a `minted` run config with no pid to pronounce
+orphaned. No TTL: when a graph is done, the graph
+worker runs `bp3 harness link cleanup --graph
+<graph>` and every still-`minted` run config of
+that graph is removed and reported. Claimed run
+configs are never touched — their lifecycle is
+the supervisor's derived fold, not cleanup's.
+
+Rules: `config.json` never holds contexts — `bp3
+config` *views* contexts by folding `runs/`.
+Per-session context is just “the run config your
+session claimed,” so two edge workers on one node
+hold different edges without collision. A run
+config is written by bp3 verbs only, never
+hand-edited, never committed. Terminal lifecycle
+(finished/orphaned) stays derived by the
+supervisor fold, not written into the run config.
+
+## Demo (design trace)
+
+One node, end to end — claim to land, then the
+same node blocked and revived:
+
+```text
+# happy path
+root:  bp3 g flappy-graph r
+         -> ready-set: [flappy-day, flappy-night]  (one wave)
+root:  bp3 harness link mint --kind node --graph flappy-graph --node flappy-day \
+         --parent-run-id root-… --depth 1
+         -> bp3link_7f3a…   (one-line brief to the node worker)
+node:  bp3 harness link claim bp3link_7f3a…        # claimed; session <> node bound
+node:  bp3 harness link mint --kind edge … --edge handoff --parent-run-id … --depth 2
+edge:  bp3 harness link claim bp3link_91bc…        # claimed; session-id <> run-id
+edge:  …builds flappy…
+edge:  bp3 e handoff --commit 4fc0cc4 --reason "flappy day variant"
+         -> {state: handed_off, run_id: …, source: session claim}
+node:  re-reads: handed_off -> mints grade link
+edge2: bp3 e grade --verdict ship --reason "artifact + checks verified"
+node:  re-reads: approved -> mints land link
+edge3: bp3 e land --reason "serial land queue, tip re-checked"
+         -> {state: landed}
+node:  bubble {node: flappy-day, state: landed} -> root; tree dead
+
+# blocked path (same node, different day)
+edge:  …needs a storage choice only the human can make…
+         -> typed failure, dies (no bp3 call)
+node:  bp3 g flappy-graph n flappy-day e block --reason "choose storage shape"
+         -> {state: blocked}; node worker EXITS; tree dead
+root:  bubble {node: flappy-day, state: blocked, reason, run chain, inbox key}
+         -> human paged (live + inbox); human answers in conversation
+root:  BP3_DECIDER=human bp3 g flappy-graph n flappy-day e resume \
+         --reason "localStorage, per owner"
+         -> fresh node link minted; NEW node worker spawns, re-reads, continues
+```
+
+Nothing in either trace parks. Every arrow is a
+bp3 verdict or a worker death.
+
+## Worker topology (settled red-ink round 2, owner)
+
+Same logical contract on both harnesses — claim a
+link, execute one edge, emit a verdict, die —
+different physical shape per harness:
+
+| Layer | Pi | Muse |
+|---|---|---|
+| root worker | pi session | main session |
+| node worker | child pi session (spawn_run) | one workflow run (induct-node script) |
+| edge worker | grandchild pi session | agent inside the workflow run |
+
+Pi nests for real: sessions are processes, so a
+node-worker session loaded with `bp3-pi` calls
+`spawn_run` for its edge workers. Muse flattens:
+a workflow cannot launch a workflow and agents
+cannot spawn agents, so the node worker is the
+workflow script's loop and edge workers are its
+agents. Every mint/claim records `parent_run_id`
+and depth, so the chain tape→run→node→graph is
+one lookup and recursive fan-out stays auditable
+and capped. Current Pi wiring does not yet load
+the extension into spawned children explicitly;
+proving that is part of mvp.1/dogfood.1 scope.
+
+Pi engine MVP v2 tree law: the root Pi session
+faces the human and spawns node workers; a node
+worker spawns edge workers. Terminal results
+bubble edge -> node -> root, then that branch of
+the process tree is dead. A node worker may exit
+on `blocked` only after all its edge Runs are
+terminal in bp3; the root gets one factual bubble
+(graph, node, state, reason, last edge, run chain,
+desk, inbox key), never a live process to babysit.
+Revival after `resume` is a fresh Pi tree with a
+new claim/run chain. If the root itself dies, the
+next main session revives from bp3 rollup + inbox.
+
+## Worker lifecycle — who does what
+
+Three workers, one rule each: the root worker
+schedules, the node worker loops one node's FSM,
+the edge worker executes exactly one edge. bp3
+holds all state; no worker's memory is load-bearing.
+
+```text
+human
+  │  answers blocked gates / promotes at graph_fin
+  ▼
+ROOT WORKER (main session / root pi session)
+  │  reads rollup -> ready-set
+  │  per ready node: mint node link, spawn node worker
+  │  collects terminal bubbles; pages human on blocked
+  ▼
+NODE WORKER (workflow run / child pi session)   ×N in parallel
+  │  claims node link (first action)
+  │  loop: read node state -> mint edge link -> spawn edge worker
+  │        -> await verdict -> re-read state
+  │  exits on landed | blocked | deleted (one terminal bubble)
+  ▼
+EDGE WORKER (agent / grandchild pi session)     ×1 per edge
+     claims edge link (first action)
+     does the work (build, grade, land, …)
+     calls its own edge via bp3, or returns typed failure
+     dies
+```
+
+### Root worker
+
+| Phase | Does |
+|---|---|
+| wake | reads rollup: graph state, ready-set, inbox |
+| dispatch | for each ready node: mint node link, spawn one node worker (parallel across the ready-set) |
+| collect | awaits terminal bubbles; never reaches inside a live node |
+| gate | on `blocked`: page human (live + inbox); on answer, attest + `resume`, then spawn a *fresh* node worker |
+| finish | when all nodes are terminal: present scorecard/demo; `graph_fin` promotion is the human's call |
+
+Never does: execute an edge, hold a node's loop,
+resume an old worker process.
+
+### Node worker
+
+| Phase | Does |
+|---|---|
+| claim | first action: claim the node link; context now resolves from bp3, not the brief |
+| loop | read node state → choose next legal edge → mint edge link → spawn one edge worker → await its verdict → re-read state |
+| ride | `needs_fix` under cycle cap: loop again with the reviewer's named fix verbatim; no human involved |
+| replace | edge worker died/orphaned: mint a fresh link, spawn a replacement edge worker |
+| exit | exactly one terminal bubble to the root worker: `landed`, `blocked` (with reason + run chain), or `deleted`; on `blocked`, exit only after every spawned edge Run is terminal in bp3 |
+
+Never does: talk to the human, park waiting for an
+answer, spawn a second worker for the same edge,
+remember state across edges (re-reads bp3 instead).
+
+### Edge worker
+
+| Phase | Does |
+|---|---|
+| claim | first action: claim the edge link; this binds session-id <> run-id |
+| work | the one job the edge names: write code for `handoff`, grade one exact commit, merge for land |
+| report | success: call its own edge via bp3 (`bp3 e …`), which stamps the verdict; failure: return a typed failure (code, facts, guidance) immediately |
+| die | exits after its verdict/failure; holds nothing for the next edge |
+
+Never does: call a second edge, wait for a human,
+mint links for anyone, write proof about itself
+(supervisor derives lifecycle from tape + pid).
+
+### Proposed bp3 CLI calls (target spelling)
+
+Target spelling below is post-rename
+(`bp3 g | bp3 n | bp3 e`); before rename.1 ships,
+the same calls ride today's `bp3 q …` /
+`bp3 harness …` equivalents. `bp3 harness link`
+and `bp3 config` keep their names.
+
+Root worker calls:
+
+```sh
+bp3 g <graph> r                       # rollup: ready-set, inbox, timing
+bp3 harness desk prepare <graph> <node> --run <run_id>   # positional, as today
+bp3 harness link mint --kind node --graph <graph> --node <node> \
+  --parent-run-id <root_run_id> --depth 1 --desk <desk>
+# -> returns one-line node link for the node worker's brief
+BP3_DECIDER=human bp3 g <graph> n <node> e resume --reason "<human answer>"
+bp3 harness link cleanup --graph <graph>   # at graph end: remove its minted leftovers (claimed: never)
+bp3 g <graph> r                       # re-read after bubbles; scorecard at graph_fin
+```
+
+Node worker calls:
+
+```sh
+bp3 harness link claim <node_link>          # FIRST ACTION: claim; binds session/workflow <> node
+bp3 g <graph> n <node> r              # read own node (canonical address)
+bp3 n r                               # same read via claimed shorthand
+bp3 harness link mint --kind edge --graph <graph> --node <node> --edge <edge> \
+  --parent-run-id <node_run_id> --depth 2 --desk <desk>
+# -> returns one-line edge link for the edge worker's brief
+bp3 harness watch --run-id <edge_run_id>   # await/disposition a dead edge Run
+bp3 g <graph> n <node> e block --reason "<specific reason>"   # human required; then EXIT
+bp3 config --source                   # debug only: why context resolved this way
+```
+
+Edge worker calls (exactly these, then dies):
+
+```sh
+bp3 harness link claim <edge_link>          # FIRST ACTION: claim; binds session-id <> run-id
+bp3 e                                 # self-diagnosis: context, source rung, legal edges
+bp3 e handoff --commit <sha> --reason "<what changed>"        # build edge
+bp3 e grade --verdict ship|needs_fix --reason "<grade>"     # grade edge (binds the recorded commit)
+bp3 e verify --verdict pass|fail --reason "<evidence>"        # verify edge, where the node has one
+bp3 e land --reason "<why this lands>"                       # land edge
+# canonical equivalents: bp3 g <graph> n <node> e handoff|grade|land …
+# failure path: NO bp3 call — return typed failure to the node worker, die
+```
+
+Supervisor-side calls (workflow script / pi
+dispatcher only — never the edge worker):
+
+```sh
+bp3 harness bind-tape --run-id <run_id> --tape-path <tape>   # after child exit
+bp3 harness watch --run-id <run_id>                          # sole killer / orphan disposition
+bp3 harness find-tape --run-id <run_id>                      # grader join: run -> tape
+bp3 harness find-tape --session-id <session_id>              # grader join: session -> run
+```
+
+No other bp3 calls are part of a worker's job.
+In particular: edge workers never call
+`record-init`, `bind-tape`, or `block`; node
+workers never call `resume`; only the root
+worker calls `resume`, and only with
+`BP3_DECIDER=human` from the human's actual words.
+
+### Lifecycle walk (one node, happy path + one block)
+
+```python
+# root worker
+for node in ready_set(graph):
+    spawn_node_worker(mint(node=node, by=root))     # parallel
+bubble = await_any()
+if bubble.state == "blocked":
+    page_human(bubble); answer = human_input()
+    bp3.resume(bubble.node, answer, decider="human")
+    spawn_node_worker(mint(node=bubble.node))       # fresh tree, new claim
+
+# node worker
+ctx = claim(node_link)                              # first action
+while (s := bp3.read(ctx.node)).state not in TERMINAL:
+    r = spawn_edge_worker(mint(node=ctx.node, edge=next_edge(s),
+                               parent_run_id=ctx.run_id))
+    if r.failed and r.needs_human:
+        bp3.block(reason=r.reason); return bubble("blocked", r)
+    # else: verdict already moved state; loop re-reads
+return bubble(s.state)
+
+# edge worker
+ctx = claim(edge_link)                              # first action
+result = do_work(ctx)                               # build / grade / land
+bp3.call_edge(ctx, result) if result.ok else fail_fast(result)
+# die
+```
+
+The tree dies with every bubble: edge worker after
+its edge, node worker after its terminal bubble.
+Revival is always a fresh spawn from bp3 state —
+the root worker (or a new main session, reading
+rollup + inbox) re-mints and re-spawns; nothing is
+ever resumed in place.
+
+## Deliberately open (explored in-graph)
+
+Not pre-decided; each is measured or decided by
+its owning node during the graph, from evidence:
+
+| Question | Explored by | How it closes |
+|---|---|---|
+| session-id exposure per harness — which resolution rung do muse/pi claims actually land on? | dogfood.1 | measured rung distribution in the A/B drive; a third rung is designed only if session+desk both fail routinely |
+| dep freeze rule — may deps change after a node leaves `todo`? | mvp.3 | scheduler built with deps mutable-but-logged; anomalies (or their absence) in dogfood.2 propose the freeze rule to the root worker |
+| Pi extension loading into spawned children — does a child pi session get `bp3-pi` tools without explicit loading? | mvp.1, proven in dogfood.1 | nested Pi claim drive either passes as-is or mvp.1 adds explicit extension loading to the spawn |
+
+## Human touchpoints
+
+- Blocked gates only, per root-worker rails.
+- graph_fin promotion — owner, after demo.
+
+## Fail-fast and blocked handling (settled red-ink round 2, owner)
+
+Failure is a state transition, never a waiting
+process. Workers fail fast: complete the edge,
+return a typed failure, or exit through `block`.
+No worker parks, polls for the human, retries
+forever, or carries the decision in memory.
+
+Blocked is a node state, not a parked process:
+
+```text
+edge worker fails / needs a decision
+  -> node worker calls `block` (commits WIP iff the
+     human needs the diff to decide), returns blocked
+  -> node workflow EXITS; nothing waits or parks
+  -> root worker pages the human (live + inbox)
+  -> human answers in conversation; root worker
+     attests BP3_DECIDER=human, calls `resume`
+  -> root worker relaunches induct-node for that node;
+     it re-reads state and continues
+```
+
+`needs_fix` under the cycle cap never blocks: the
+node worker rides it, carrying the reviewer's named
+fix verbatim. Exceeding the cap escalates to
+blocked. A blocked node starves only its
+dependents; the rest of the ready-set keeps moving.
+Workers are cattle: blocked kills the run, and the
+ledger — never the dead worker's memory — is what
+the relaunch resumes from.
+
+The entire worker tree dies with the bubble. On
+Pi: edge session terminates, node session records
+`blocked` and exits, root main session receives
+the facts and can revive the node after `resume`
+by spawning a fresh tree. On Muse: all agents in
+the node workflow return, the workflow exits, and
+revival launches a fresh workflow. The human can
+revive from the root because bp3 — not any worker
+process — holds the node, reason, run chain, and
+next legal move.
+
+## Exps
+
+Exp display names are `<milestone>.<number> - <slug>`.
+Folders and bp3 exp IDs use the dotless spelling
+`exp-<milestone>-<number>-<slug>`.
+
+### Milestone: migration — words first
+
+### mig.1 - handoff-verbs — [record](experiments/exp-mig-1-handoff-verbs/EXPERIMENT.md)
+First node. FSM verbs/state take settled names
+(`submit -> handoff`, `review -> grade`,
+`check -> verify`, `submitted -> handed_off`) in
+code, workflow briefs, and tests. Old quest files
+never move; the fold maps old ledger strings on
+read, new lines write new words.
+
+### mig.2 - traverse-rename — [record](experiments/exp-mig-2-traverse-rename/EXPERIMENT.md)
+Conducting skills take graph names early:
+`/induct` + `/induct-quest` -> `/traverse`,
+`/induct-quest-no-human` -> `/traverse-no-human`,
+and the `induct-exp` workflow becomes `node-loop`
+(the node worker's loop; mvp.3 generalizes it).
+
+### Milestone: config — the local store
+
+### config.1 - bp3-config — [record](experiments/exp-config-1-bp3-config/EXPERIMENT.md)
+The machine-local hard store, named: `bp3 config`
+tree under the git common dir (contexts, desks,
+local thresholds, claims, by-session index,
+derivations). Written only by bp3 verbs, viewed
+via `bp3 config`, never committed, zero setup.
+
+### Milestone: mvp — link, context, schedule, diagram
+
+### mvp.1 - link-claim — [record](experiments/exp-mvp-1-link-claim/EXPERIMENT.md)
+`bp3 harness link`: mint a one-time link for one
+edge execution; child claims as first action. CAS
+in the common-dir store (one winner,
+`E_LINK_SPENT` names the first claimant). Claim
+records caller facts and the by-session index.
+
+### mvp.2 - context-resolution — [record](experiments/exp-mvp-2-context-resolution/EXPERIMENT.md)
+bp3 resolves graph/node/edge/run from the claim
+store (session, then desk) and stamps verdicts
+and ledger lines. No env ritual, no retyped
+context. Env is a hint only.
+
+### mvp.3 - ready-set-timing — [record](experiments/exp-mvp-3-ready-set-timing/EXPERIMENT.md)
+BFS ready-set waves from node deps; rollup emits ready
+nodes and per-node wall/wait/dwell; setup timing
+per Run with the 3-minute `W_SETUP_SLOW` gate.
+Parallel build/grade in per-node desks, serial
+land queue semantics stated and readied. Named
+deliverable: `induct-node` — one workflow run per
+node owning the whole FSM loop (the old
+induct-exp / induct-grade / quest-land become
+phases inside it); the root worker dispatches
+ready-set waves and handles blocked + graph_fin only.
+
+### mvp.4 - diagram-emit — [record](experiments/exp-mvp-4-diagram-emit/EXPERIMENT.md)
+Generated ASCII + mermaid from a live rollup:
+nodes with state/cycle, deps as ready-set waves, blocked
+nodes naming what they starve.
+
+### mvp.5 - blocked-fail-fast — [record](experiments/exp-mvp-5-blocked-fail-fast/EXPERIMENT.md)
+No parked workers. An edge worker completes its
+edge or fails it immediately; the node worker
+records the decision point through `block` and
+exits when a human is required. `needs_fix` below
+the cycle cap rides automatically, a dead edge
+worker is replaced from derived `orphaned`, and a
+fresh node worker resumes from bp3 after `resume`.
+
+### Milestone: dogfood — use it ourselves
+
+### dogfood.1 - link-drive — [record](experiments/exp-dogfood-1-link-drive/EXPERIMENT.md)
+A/B proof on the flappy node: old brief vs link
+brief on both harnesses, seeded setup attacks
+refusing at claim. Metrics are the acceptance.
+
+### dogfood.2 - parallel-drive — [record](experiments/exp-dogfood-2-parallel-drive/EXPERIMENT.md)
+Two independent flappy-variant nodes, one ready-set,
+parallel desks, parallel build+grade, serial
+land. Scorecard: wall and tokens per node.
+
+### Milestone: rename — migrate everything, last
+
+### rename.1 - bp3g-rename — [record](experiments/exp-rename-1-bp3g-rename/EXPERIMENT.md)
+Full rename on live surfaces: `bp3 g` CLI door,
+graph/node/state/edge/dep vocabulary, skills
+become the `bp3g` family (`/bp3g` conducts,
+`bp3g` variants for framing/no-human), launcher
+workflows, templates. (Edge verbs and the
+`submitted -> handed_off` state already migrated
+in mig.1; this node is nouns, doors, and skills.)
+The rename table in Terms is the
+mapping, and every live surface takes the new
+verbs in this one change. Old terms grep to zero
+on live surfaces; landed ledger text is history
+and keeps the old edge words.
+
+### Milestone: followup — papercuts found live
+
+### followup.1 - grade-evidence — [record](experiments/exp-followup-1-grade-evidence/EXPERIMENT.md)
+
+### followup.2 - workflow-birth — [record](experiments/exp-followup-2-workflow-birth/EXPERIMENT.md)
+Renders must track workflow sources: a dispatch
+never launches a desk render older than its
+source (re-render or `E_RENDER_STALE`). mvp.1's
+grade died on a stale render calling the retired
+`record-init`; owner fix path A formalized.
+Missing evidence is not a defect: grade-audit
+rows must carry typed evidence or the audit
+re-collects internally. Evidence gaps never burn
+an author cycle or page the human (config.1
+cycle-1 papercut).
+
+### Milestone: landing
+
+### landing.1 - landing-wrapup — [record](experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md)
+Scorecard (timing included), findings
+disposition, landing walkthrough actually run
+(red-ink-quest-landing-demo diligence), for the
+owner's promotion review.
+
+## Scorecard
+
+Fields: claims observed (minted/claimed/spent),
+context resolutions, per-node wall/wait/dwell,
+setup wall per Run, ready-set wall vs serial estimate,
+tokens per node, drives observed per harness,
+human-active minutes — or "unmeasured", never zero.
+
+## Exp diagram
+
+```text
+mig.1 ──────────────┐ (verbs first; everything after speaks handoff/grade)
+config.1 ─► mvp.1 ─► mvp.2 ─┬─► mvp.3 ─► mvp.4
+                            ├─► mvp.5 ────────┐
+                            └─► dogfood.1 ─► dogfood.2 ─► rename.1 ─► landing.1
+                                              ▲
+                            mvp.3 ────────────┘ (and mvp.5, dogfood.1 feed it)
+
+ready-set waves: [mig.1, config.1] -> [mig.2, mvp.1] -> [mvp.2] -> [mvp.3, dogfood.1]
+         -> [mvp.4, mvp.5] -> [dogfood.2] -> [rename.1] -> [followup.1, followup.2] -> [landing.1]
+rename.1 = nouns/doors/skills only; verbs already migrated in mig.1
+```
+===RUN DETAILS===
+notes.md
+tape.log
+notes.md
+tape.log
+notes.md
+tape.log
+notes.md
+tape.log
+tape.log
+===GIT LOG===
+63d49cd feat(mvp.2): context resolution — session/desk rungs, bp3 e door, claimed run-id stamping
+febc3ac docs(graph-engine): add followup.2 workflow-birth node
+09b9d8d feat(mvp.1): one-time link claim binding (mint/claim/lookup/cleanup)
+c9a76eb docs(graph-engine): add followup.1 grade-evidence node
+3c47fe5 fix(config.1): attribute mkdir failures, scope thresholds claim
+229a6ba feat(config.1): add bp3 config store and view door
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+886e1af docs(icebox): kill engine fan-out, addressed by graph-engine quest
+1fdb11e docs(icebox): freeze lint, portable dogfood, engine fan-out sketches
+3478ac1 docs(quest): rename graph-link to bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+13ebfdb fix(skills-test): expect red-ink in pi settings exclusions
+0334cdf docs(graph-link): adopt red-inked design; 12 nodes framed
+7640168 docs(quest-skill): quest files end with the Exp diagram
+39ea614 feat(red-ink): move red-ink from yap skill to bp3 project skill
+fb08e9b docs(quest-skill): quest files carry Inputs, Outputs, then Demo
+86dee32 docs(graph-link): add config.1 bp3-config node (red-ink round 2)
+adc249b docs(quest): frame bp3-graph-link (link claims, cohorts, bp3g rename last)
+0fca9e6 chore(osx): script to relink CLT after macOS update breaks linking
+===GIT STATUS===
+ M .agents/workflows/induct-grade.js
+ M .agents/workflows/node-loop.js
+ M .agents/workflows/quest-land.js
+===== NOTES 20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1 =====
+# Run notes — exp-mvp-2-context-resolution (author, cycle 1)
+
+Claimed `bp3link_7daa…` as run
+`20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1`
+(session rung: this session's MUSE_SESSION_ID).
+
+## What landed
+
+Context resolution in the CLI doors (mvp.2):
+
+- `Config.resolve_context` in
+  [config.ml](../../../../../../../../src/quest/config.ml):
+  session rung first (latest claimed run for the observed
+  session-id), desk rung second (claimed runs whose stored
+  desk names cwd, corroborated by the claim's
+  `.bp3-context.json`, checked against cwd). Reads only;
+  never creates the store. Resolution refuses to guess:
+  more than one live claimed run at a desk with no session
+  rung is `Ambiguous`, surfaced as `E_NO_CONTEXT` naming
+  the live run_ids.
+- Session-id discovery moved to one spelling,
+  `Config.observed_session_id`; link claim reuses it.
+- `bp3 e` door ([main.ml](../../../../../../../../src/quest/main.ml),
+  routed in [bin/bp3](../../../../../../../../bin/bp3)):
+  bare `bp3 e` prints resolved context + source rung +
+  state + legal edges + thresholds; `bp3 e <edge>` takes
+  the claimed run's edge with no graph/node/run-id typed.
+  No rung, or an ambiguous desk, refuses `E_NO_CONTEXT`.
+- Stamping: the claimed run-id wins over the `BP3_RUN_ID`
+  env hint in verdicts (`Store.stamp_run_id`) and ledger
+  lines (`identity`); a disagreeing env warns
+  `W_CONTEXT_ENV_MISMATCH`. Unclaimed explicit edge calls
+  keep legacy behavior plus one `W_CONTEXT_UNCLAIMED`
+  (renders merge warnings once, in
+  [render.ml](../../../../../../../../src/quest/render.ml)).
+  Quest/exp creates and reads keep the exact legacy shape
+  (config.sh's no-new-warnings contract).
+- `e` added to reserved slugs, q/e help, and bash+zsh
+  completions; `test/context.sh` committed and wired into
+  `make check` + shellcheck.
+
+## Lessons
+
+- The same session-id can claim more than once in this
+  harness (a node claim and an edge claim shared one
+  MUSE_SESSION_ID here). The session rung must take the
+  latest claim, matching the by-session index the last
+  claim wrote; first-match resolved this run to the wrong
+  node run until fixed.
+- Stored desks arrive in mixed spellings (absolute at
+  mint, relative from the conductor). Desk matching has
+  to canonicalize as-stored, root-relative, and
+  common-dir-relative spellings before comparing to cwd.
+- A claimed desk writes `.bp3-context.json` into the
+  repo, which trips handoff's dirty-tree check; tests
+  (and children) must remove it before handing off.
+
+## Verification
+
+- `./test/context.sh`: ok (claimed session full
+  handoff→grade→verify→land drive with zero context
+  flags, desk-rung fresh shell, mismatch, ambiguity,
+  no-false-claim, unclaimed warning cases).
+- `make check`: full gate (lint, skills, dune build,
+  q/harness/config/link/context/worktree/tape/hooks/
+  traverse/completion/release/install, pi tests) — see
+  tape.log for the final exit line.
+- Live probe: `env -u BP3_RUN_ID ./bin/bp3 e` in this
+  desk resolved this run by session, state `todo`,
+  legal edges `[handoff, block, delete]`.
+
+Final: commit 63d49cd86c64452f10d64e0fa7c2c6f231e3db37, handoff handed_off, make check exit 0.
+
+===== NOTES 20261117T010557Z-node-muse-code-muse-wonder-1.0-c1 =====
+# Audit notes — exp-mvp-2-context-resolution (muse-wonder-1.0, cycle 1)
+
+Claimed bp3link_b326e571bd5d492d8605a8a69d665133 as run 20261117T010557Z-node-muse-code-muse-wonder-1.0-c1. Bound commit 63d49cd86c64452f10d64e0fa7c2c6f231e3db37 verified at HEAD. Ran ./test/context.sh in this desk: context tests: ok (rung 3). Live probe BP3_RUN_ID=20261117T010557Z-node-muse-code-muse-wonder-1.0-c1 ./bin/bp3 e resolved source session with claimed run-id, state handed_off, legal edges [grade,verify,block,delete]. Ledger handoff line on exp branch stamps run_id 20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1 (build Run) with commit 63d49cd. Build run folder 20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1 contains tape.log (8512 bytes) and notes.md (3181 bytes); commit touches only 10 mvp.2 files, no hand-edited state (exp branch head is bp3-generated). No rung 5b whole-tape read decided any row; all rows decided at rungs 2-3. Derivation log for build run absent under <git-common-dir>/bp3/run-lifecycle-derivations/ (checked /Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/), so ledger is primary witness per instruction; hooks witness does not gate. Lessons: session rung must pick latest claim for reused session-id; desk matching must canonicalize mixed spellings; .bp3-context.json must be removed before handoff dirty check.
+
+## Matrix
+
+```json
+[
+  {
+    "case": "claimed session",
+    "rung": 3,
+    "evidence": {
+      "kind": "ledger",
+      "ref": "bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-2-context-resolution:docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/ledger.jsonl handoff line",
+      "quote": "{\"ts\":\"2026-11-17T01:03:49Z\",\"edge\":\"handoff\",\"from\":\"todo\",\"to\":\"handed_off\",\"cycle\":1,\"commit\":\"63d49cd86c64452f10d64e0fa7c2c6f231e3db37\",\"verdict\":null,\"reason\":\"mvp.2 context resolution: session/desk rungs, bp3 e door, claimed run-id stamping; make check green\",\"harness\":\"muse-code\",\"model\":\"muse-wonder-1.0\",\"bp3_version\":\"0.2.0\",\"run_id\":\"20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1\"}"
+    },
+    "verdict": "pass"
+  },
+  {
+    "case": "claimed desk, new shell",
+    "rung": 3,
+    "evidence": {
+      "kind": "file",
+      "ref": "test/context.sh:89",
+      "quote": "echo \"$out\" | jq -e --arg r \"$RID3\" '.run_id == $r and .source == \"desk\" and .node == \"n3\"' >/dev/null || fail \"desk rung: $out\""
+    },
+    "verdict": "pass"
+  },
+  {
+    "case": "bare `bp3 e` after claim",
+    "rung": 3,
+    "evidence": {
+      "kind": "command",
+      "ref": "BP3_RUN_ID=20261117T010557Z-node-muse-code-muse-wonder-1.0-c1 ./bin/bp3 e",
+      "quote": "{\"ok\":true,\"graph\":\"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines\",\"node\":\"exp-mvp-2-context-resolution\",\"edge\":null,\"kind\":\"node\",\"source\":\"session\",\"source_rung\":\"session\",\"state\":\"handed_off\",\"legal_edges\":[\"grade\",\"verify\",\"block\",\"delete\"],\"run_id\":\"20261117T010557Z-node-muse-code-muse-wonder-1.0-c1\"}"
+    },
+    "verdict": "pass"
+  },
+  {
+    "case": "unclaimed",
+    "rung": 3,
+    "evidence": {
+      "kind": "file",
+      "ref": "test/context.sh:42",
+      "quote": "echo \"$out\" | jq -e '.ok == true and .warnings == [\"W_CONTEXT_UNCLAIMED\"] and (has(\"run_id\") | not)' >/dev/null || fail \"unclaimed explicit: $out\""
+    },
+    "verdict": "pass"
+  },
+  {
+    "case": "env disagreement",
+    "rung": 3,
+    "evidence": {
+      "kind": "file",
+      "ref": "test/context.sh:71",
+      "quote": "echo \"$out\" | jq -e --arg r \"$RID2\" '.ok == true and .run_id == $r and (.warnings | index(\"W_CONTEXT_ENV_MISMATCH\") != null)' >/dev/null || fail \"env mismatch, claim wins: $out\""
+    },
+    "verdict": "pass"
+  },
+  {
+    "case": "desk rung never guesses (red-chair)",
+    "rung": 3,
+    "evidence": {
+      "kind": "file",
+      "ref": "test/context.sh:108",
+      "quote": "echo \"$out\" | jq -e '.error.code == \"E_NO_CONTEXT\" and (.error.facts.live_run_ids | length) == 2' >/dev/null || fail \"ambiguous facts name live runs: $out\""
+    },
+    "verdict": "pass"
+  },
+  {
+    "case": "no false claim",
+    "rung": 3,
+    "evidence": {
+      "kind": "file",
+      "ref": "test/context.sh:96",
+      "quote": "echo \"$out\" | jq -e '.error.code == \"E_NO_CONTEXT\"' >/dev/null || fail \"no-false-claim code: $out\""
+    },
+    "verdict": "pass"
+  },
+  {
+    "case": "env-set run-id (standing ruling)",
+    "rung": 2,
+    "evidence": {
+      "kind": "ledger",
+      "ref": "bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-2-context-resolution:docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/ledger.jsonl handoff line",
+      "quote": "{\"ts\":\"2026-11-17T01:03:49Z\",\"edge\":\"handoff\",\"from\":\"todo\",\"to\":\"handed_off\",\"cycle\":1,\"commit\":\"63d49cd86c64452f10d64e0fa7c2c6f231e3db37\",\"verdict\":null,\"reason\":\"mvp.2 context resolution: session/desk rungs, bp3 e door, claimed run-id stamping; make check green\",\"harness\":\"muse-code\",\"model\":\"muse-wonder-1.0\",\"bp3_version\":\"0.2.0\",\"run_id\":\"20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1\"}"
+    },
+    "verdict": "pass"
+  },
+  {
+    "case": "adherence: handoff edge called by the child directly",
+    "rung": 2,
+    "evidence": {
+      "kind": "ledger",
+      "ref": "bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-2-context-resolution:docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/ledger.jsonl handoff line",
+      "quote": "{\"ts\":\"2026-11-17T01:03:49Z\",\"edge\":\"handoff\",\"from\":\"todo\",\"to\":\"handed_off\",\"cycle\":1,\"commit\":\"63d49cd86c64452f10d64e0fa7c2c6f231e3db37\",\"verdict\":null,\"reason\":\"mvp.2 context resolution: session/desk rungs, bp3 e door, claimed run-id stamping; make check green\",\"harness\":\"muse-code\",\"model\":\"muse-wonder-1.0\",\"bp3_version\":\"0.2.0\",\"run_id\":\"20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1\"}"
+    },
+    "verdict": "pass"
+  },
+  {
+    "case": "adherence: env-set run-id stamped by bp3",
+    "rung": 2,
+    "evidence": {
+      "kind": "ledger",
+      "ref": "bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-2-context-resolution:docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/ledger.jsonl handoff line",
+      "quote": "{\"ts\":\"2026-11-17T01:03:49Z\",\"edge\":\"handoff\",\"from\":\"todo\",\"to\":\"handed_off\",\"cycle\":1,\"commit\":\"63d49cd86c64452f10d64e0fa7c2c6f231e3db37\",\"verdict\":null,\"reason\":\"mvp.2 context resolution: session/desk rungs, bp3 e door, claimed run-id stamping; make check green\",\"harness\":\"muse-code\",\"model\":\"muse-wonder-1.0\",\"bp3_version\":\"0.2.0\",\"run_id\":\"20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1\"}"
+    },
+    "verdict": "pass"
+  },
+  {
+    "case": "adherence: clean commit",
+    "rung": 2,
+    "evidence": {
+      "kind": "command",
+      "ref": "git show --stat 63d49cd86c64452f10d64e0fa7c2c6f231e3db37",
+      "quote": "feat(mvp.2): context resolution \u2014 session/desk rungs, bp3 e door, claimed run-id stamping"
+    },
+    "verdict": "pass"
+  },
+  {
+    "case": "adherence: tape.log and notes.md present in its run folder",
+    "rung": 2,
+    "evidence": {
+      "kind": "command",
+      "ref": "ls -l docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/runs/20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1/",
+      "quote": "-rw-r--r--@ 1 whycz  staff  3181 Nov 16 20:03 notes.md"
+    },
+    "verdict": "pass"
+  },
+  {
+    "case": "adherence: no hand-edited state",
+    "rung": 2,
+    "evidence": {
+      "kind": "command",
+      "ref": "git log --oneline -5 bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-2-context-resolution",
+      "quote": "6d834f7 bp3: exp-mvp-2-context-resolution"
+    },
+    "verdict": "pass"
+  }
+]
+```
+
+===== NOTES 20261117T010735Z-grade-muse-code-muse-wonder-1.0-c1 =====
+# grade run notes — exp-mvp-2-context-resolution (cycle 1)
+
+- Reviewed bound commit 63d49cd by code-reviewer procedure (correctness, design, tests, comments) against EXPERIMENT.md acceptance.
+- Claims checked: session>desk resolution, claimed run-id stamping on verdicts+ledger, bare `bp3 e` context print, W_CONTEXT_UNCLAIMED, W_CONTEXT_ENV_MISMATCH (claim wins), ambiguous desk E_NO_CONTEXT with live_run_ids, no sibling inheritance, env-set run-id ruling.
+- Ran: dune build --root=. (green), ./test/context.sh (ok), ./test/q.sh (ok), ./test/link.sh (ok), shellcheck on new/changed shell (clean).
+- Minor non-blocking findings: (1) the `.bp3-context.json` fallback in resolve_desk is unreachable while the at_desk scan precedes it (same desk_matches gate); (2) `bp3 e` writes bypass guard_write's version-ahead check, consistent with other non-q doors. Neither gates an acceptance case.
+- Verdict: ship.
+
+===== NOTES 20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1 =====
+# verify notes — exp-mvp-2-context-resolution c1
+
+- Bound commit 63d49cd is HEAD; `git show --stat` = feat(mvp.2) 10 files, test/context.sh +113.
+- Fresh gate: `make check` exit 0 (tape.log). Includes shellcheck, skills ok, q/harness/config/link/context ok, pi tests 13 pass, worktree/tape/hooks/traverse/completion/release/install ok. Judged on this fresh output only, not handoff claim.
+- Live door check: `BP3_RUN_ID=<run_id> ./bin/bp3 e` resolved source=session, state=handed_off, legal_edges includes verify, run_id stamped — matches claimed-session / bare-e cases.
+- Context cases (unclaimed W_CONTEXT_UNCLAIMED, env mismatch claim wins, desk rung, ambiguous desk E_NO_CONTEXT with 2 live ids, no false claim) are exercised by test/context.sh inside make check; all passed.
+- Working tree shows 3 dirty .agents/workflows/*.js files not in bound commit and not gated by make check lint (which checks skills/traverse/workflows); did not affect gate. Not edited.
+- Lesson: verify from make check + one live `bp3 e` probe; desk/session precedence is fully covered by context.sh fixtures, no need for whole-tape rung.
+
+=== git branch ===
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-2-cli-scaffold                                          9bc6200 bp3: exp-2-cli-scaffold
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-3-fsm                                                   cea24df bp3: exp-3-fsm
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-4-tape-hooks                                            786244f bp3: exp-4-tape-hooks
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-5-muse-engine                                           eb73735 bp3: exp-5-muse-engine
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-6-hooks                                                 bcdf058 bp3: hooks
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-7-live-hooks                                            38a1951 bp3: hooks
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-1-rendered-tables                                       99ae6d4 bp3: hooks
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-2-tab-completion                                        972152e bp3: hooks
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-3-icebox-search                                         3063bfc bp3: exp-3-icebox-search
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-4-help                                                  e0f64b3 bp3: exp-4-help
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-5-release-pattern                                       b36da66 bp3: exp-5-release-pattern
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-6-installable-bp3                                       942d074 bp3: exp-6-installable-bp3
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-7-shared-release                                        452931c bp3: exp-7-shared-release
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-8-induct-worktree-default                               707f098 bp3: exp-8-induct-worktree-default
+  bp3/exp/2026-11-14-bp3-unit-tests/exp-1-test-split-standard                                        fd90914 bp3: exp-1-test-split-standard
+  bp3/exp/2026-11-14-bp3-unit-tests/exp-2-unit-backfill                                              a89ef51 bp3: create exp exp-2-unit-backfill
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-1-induct-grade                                             3e2e64a bp3: hooks
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-2-induct-exp-slim                                          08a7bb5 bp3: hooks
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-3-conductor                                                a50eecf bp3: hooks
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-4-desks                                                    b567cb4 bp3: hooks
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-5-grade-matrix-fix                                         93665d1 bp3: hooks
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-6-cycle-autonomy                                           8e1cfe3 bp3: hooks
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-7-landing-vocabulary                                       d79b090 bp3: hooks
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-8-induct-solo                                              e239400 bp3: hooks
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-9-parallel-quests                                          8173d23 bp3: hooks
+  bp3/exp/2026-11-14-bp3-worktrees/exp-1-util-layer                                                  c8163fa bp3: hooks
+  bp3/exp/2026-11-14-bp3-worktrees/exp-2-bookkeeping                                                 62b3523 bp3: hooks
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-backtest-1-muse                   32ee697 bp3: exp-backtest-1-muse
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-backtest-2-pi                     50e813f bp3: exp-backtest-2-pi
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-dogfood-1-muse-toy-quest          9535717 bp3: exp-dogfood-1-muse-toy-quest
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-dogfood-2-pi-supervisor-rethink   1ca9537 bp3: exp-dogfood-2-pi-supervisor-rethink
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-dogfood-3-pi-toy-quest            b2f79fb bp3: exp-dogfood-3-pi-toy-quest
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-dogfood-4-pi-extension-drive      34fce46 bp3: exp-dogfood-4-pi-extension-drive
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-followup-1-derivation-concurrency a6e64d8 bp3: exp-followup-1-derivation-concurrency
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-followup-2-finish-evidence        4e7f288 bp3: exp-followup-2-finish-evidence
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-followup-3-tape-binding           253525c bp3: exp-followup-3-tape-binding
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-followup-4-bind-resolution        e542fb9 bp3: exp-followup-4-bind-resolution
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-followup-5-pi-extension           160cc26 bp3: exp-followup-5-pi-extension
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-followup-6-pi-dispatcher-complete 09260f2 bp3: exp-followup-6-pi-dispatcher-complete
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-followup-7-pi-worktree-root       1d4e636 bp3: exp-followup-7-pi-worktree-root
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-landing-1-landing-wrapup          15fba5f bp3: exp-landing-1-landing-wrapup
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-landing-2-landing-wrapup-2        27ec792 bp3: exp-landing-2-landing-wrapup-2
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-mvp-1-supervisor-cli              680a4d2 bp3: exp-mvp-1-supervisor-cli
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-mvp-2-find-tape                   d5e7623 bp3: exp-mvp-2-find-tape
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-mvp-3-watch-run                   b5f5032 bp3: exp-mvp-3-watch-run
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-mvp-4-supervisor-mechanism        268f83c bp3: exp-mvp-4-supervisor-mechanism
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-mvp-5-delete-redundant            29e6f49 bp3: exp-mvp-5-delete-redundant
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-mvp-6-harness-desk-api            b5c8fc2 bp3: exp-mvp-6-harness-desk-api
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-mvp-7-grader-evidence-ladder      8441b56 bp3: exp-mvp-7-grader-evidence-ladder
+  bp3/exp/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/exp-mvp-8-muse-initrecord-writer      d631b83 bp3: exp-mvp-8-muse-initrecord-writer
+  bp3/exp/2026-11-15-pi-engine-conductor/exp-1-rename-run-event-log                                  66df75d bp3: exp-1-rename-run-event-log
+  bp3/exp/2026-11-15-pi-engine-conductor/exp-2-shared-conventions-pi-runner                          f075eca bp3: exp-2-shared-conventions-pi-runner
+  bp3/exp/2026-11-15-pi-engine-conductor/exp-2a-run-id-startup-binding                               a7f7d3c bp3: exp-2a-run-id-startup-binding
+  bp3/exp/2026-11-15-pi-engine-conductor/exp-2b-pi-await-watchdog                                    50e5a8b bp3: exp-2b-pi-await-watchdog
+  bp3/exp/2026-11-15-pi-engine-conductor/exp-3-pi-conductor                                          57d86b1 bp3: create exp exp-3-pi-conductor
+  bp3/exp/2026-11-15-pi-engine-conductor/exp-4-pi-event-log                                          0f83ff0 bp3: create exp exp-4-pi-event-log
+  bp3/exp/2026-11-15-pi-engine-conductor/exp-5-pi-context                                            75e09d4 bp3: create exp exp-5-pi-context
+  bp3/exp/2026-11-15-pi-engine-conductor/exp-6-pi-skills                                             aa40780 bp3: create exp exp-6-pi-skills
+  bp3/exp/2026-11-15-pi-engine-conductor/exp-7-pi-engine-demo                                        90da0d9 bp3: create exp exp-7-pi-engine-demo
+  bp3/exp/2026-11-15-pi-engine-conductor/exp-8-muse-event-log-per-run                                97d302e bp3: create exp exp-8-muse-event-log-per-run
+  bp3/exp/2026-11-15-toy-budget-stop/exp-1-hello                                                     e345bd9 bp3: hooks
+  bp3/exp/2026-11-15-toy-conductor-drive/exp-1-hello                                                 caf880e feat(induct): every step child works in a prepared worktree desk
+  bp3/exp/2026-11-15-toy-conductor-drive/exp-2-hello-monolith                                        8bb5067 bp3: hooks
+  bp3/exp/2026-11-15-toy-fleet-a/exp-1-hello                                                         28f6cd6 bp3: hooks
+  bp3/exp/2026-11-15-toy-fleet-b/exp-1-hello                                                         d698e29 bp3: hooks
+  bp3/exp/2026-11-15-toy-fleet-budget/exp-1-hello                                                    976b716 bp3: hooks
+  bp3/exp/2026-11-15-toy-fleet-overlap/exp-1-hello                                                   69e5fdb bp3: create exp exp-1-hello
+  bp3/exp/2026-11-15-toy-fleet-park-a/exp-1-decision                                                 7088dbb bp3: exp-1-decision
+  bp3/exp/2026-11-15-toy-fleet-park-a/exp-1-hello                                                    5ac457c bp3: exp-1-hello
+  bp3/exp/2026-11-15-toy-fleet-park-b/exp-1-decision                                                 39fae62 bp3: exp-1-decision
+  bp3/exp/2026-11-15-toy-fleet-park-b/exp-1-hello                                                    5c8dcf2 bp3: exp-1-hello
+  bp3/exp/2026-11-15-toy-nohuman-clean/exp-1-hello                                                   65ca069 bp3: hooks
+  bp3/exp/2026-11-15-toy-solo-clean/exp-1-hello                                                      93cca2a bp3: hooks
+  bp3/exp/2026-11-15-toy-solo-park/exp-1-decision                                                    18bf233 bp3: exp-1-decision
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-config-1-bp3-config       9e7d649 bp3: exp-config-1-bp3-config
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-dogfood-1-link-drive      9c487ea bp3: create exp exp-dogfood-1-link-drive
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-dogfood-2-parallel-drive  cb643d2 bp3: create exp exp-dogfood-2-parallel-drive
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-followup-1-grade-evidence 7e4a66b bp3: create exp exp-followup-1-grade-evidence
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-followup-2-workflow-birth 73e50c1 bp3: create exp exp-followup-2-workflow-birth
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-landing-1-landing-wrapup  be4b0db bp3: create exp exp-landing-1-landing-wrapup
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mig-1-handoff-verbs       d688ae2 bp3: exp-mig-1-handoff-verbs
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mig-2-traverse-rename     e04bdc6 bp3: exp-mig-2-traverse-rename
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-1-link-claim          0295188 bp3: exp-mvp-1-link-claim
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-2-context-resolution  f9fecfb bp3: exp-mvp-2-context-resolution
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-3-ready-set-timing    b3d3730 bp3: create exp exp-mvp-3-ready-set-timing
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-4-diagram-emit        a41825f bp3: create exp exp-mvp-4-diagram-emit
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-5-blocked-fail-fast   9e963ea bp3: create exp exp-mvp-5-blocked-fail-fast
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-rename-1-bp3g-rename      92d575b bp3: create exp exp-rename-1-bp3g-rename
+  bp3/exp/2026-11-16-bp3-graph-link/exp-config-1-bp3-config                                          14be5b3 bp3: create exp exp-config-1-bp3-config
+  bp3/exp/2026-11-16-bp3-graph-link/exp-dogfood-1-link-drive                                         a17170b bp3: create exp exp-dogfood-1-link-drive
+  bp3/exp/2026-11-16-bp3-graph-link/exp-dogfood-2-parallel-drive                                     384b08e bp3: create exp exp-dogfood-2-parallel-drive
+  bp3/exp/2026-11-16-bp3-graph-link/exp-landing-1-landing-wrapup                                     2c4aace bp3: create exp exp-landing-1-landing-wrapup
+  bp3/exp/2026-11-16-bp3-graph-link/exp-mig-1-handoff-verbs                                          13cf63e bp3: create exp exp-mig-1-handoff-verbs
+  bp3/exp/2026-11-16-bp3-graph-link/exp-mig-2-traverse-rename                                        7369547 bp3: create exp exp-mig-2-traverse-rename
+  bp3/exp/2026-11-16-bp3-graph-link/exp-mvp-1-link-claim                                             fb445ce bp3: create exp exp-mvp-1-link-claim
+  bp3/exp/2026-11-16-bp3-graph-link/exp-mvp-2-context-resolution                                     49dbd7f bp3: create exp exp-mvp-2-context-resolution
+  bp3/exp/2026-11-16-bp3-graph-link/exp-mvp-3-ready-set-timing                                       51fe011 bp3: create exp exp-mvp-3-ready-set-timing
+  bp3/exp/2026-11-16-bp3-graph-link/exp-mvp-4-diagram-emit                                           fd98cbc bp3: create exp exp-mvp-4-diagram-emit
+  bp3/exp/2026-11-16-bp3-graph-link/exp-mvp-5-blocked-fail-fast                                      c594ed3 bp3: create exp exp-mvp-5-blocked-fail-fast
+  bp3/exp/2026-11-16-bp3-graph-link/exp-rename-1-bp3g-rename                                         6ee9c51 bp3: create exp exp-rename-1-bp3g-rename
+  bp3/exp/demo-induct-a/exp-1-marker                                                                 29be493 bp3: exp-1-marker
+  bp3/exp/demo-induct-b/exp-1-marker                                                                 0ceaa77 bp3: exp-1-marker
+  bp3/exp/demo-routes/exp-a-marker                                                                   9b8d3fc bp3: exp-a-marker
+  bp3/exp/demo-routes/exp-b-marker                                                                   833697a bp3: exp-b-marker
+  bp3/exp/toy-drive/blocked-demo                                                                     22a29bb bp3: blocked-demo
+  bp3/exp/toy-drive/identity-check                                                                   c3db532 bp3: identity-check
+  bp3/exp/toy-drive/parser-fix                                                                       5fe7663 docs(quest): record observed demos, exps landed through bp3 q
+  bp3/exp/toy-drive/skill-check                                                                      44c1d2a bp3: skill-check
+  bp3/exp2-astra-author                                                                              e512fe5 Record exact-build live verification, failures and remaining acceptance gates
+  bp3/exp2-author                                                                                    e442374 docs(exp): pin Exp 2 schema v3 and operation homes
+  bp3/exp7-fork-author                                                                               7263287 Add guarded author context-fork launcher and installed-Pi regressions
+  bp3/quest/2026-11-07-bp3-mvp-engine-core                                                           e920335 bp3: exp-7-live-hooks
+  bp3/quest/2026-11-14-bp3-cli-small-fixes                                                           faa61b8 bp3: land exp-8-induct-worktree-default
+  bp3/quest/2026-11-14-bp3-unit-tests                                                                a936860 bp3: delete quest 2026-11-14-bp3-unit-tests
+  bp3/quest/2026-11-14-bp3-workflows-v2                                                              e6bb96c docs(exp-9): end-of-quest report and human log close-out
+  bp3/quest/2026-11-14-bp3-worktrees                                                                 4c30e5e bp3: land exp-2-bookkeeping
+  bp3/quest/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement                                     1d4e636 bp3: exp-followup-7-pi-worktree-root
+  bp3/quest/2026-11-15-pi-engine-conductor                                                           9a7156e bp3: delete quest 2026-11-15-pi-engine-conductor
+  bp3/quest/2026-11-15-toy-budget-stop                                                               9f7c3f0 bp3: create quest 2026-11-15-toy-budget-stop
+  bp3/quest/2026-11-15-toy-conductor-drive                                                           78f0cb8 bp3: exp-2-hello-monolith
+  bp3/quest/2026-11-15-toy-fleet-a                                                                   9438533 bp3: exp-1-hello
+  bp3/quest/2026-11-15-toy-fleet-b                                                                   adcc567 bp3: exp-1-hello
+  bp3/quest/2026-11-15-toy-fleet-budget                                                              d09de0f bp3: create quest 2026-11-15-toy-fleet-budget
+  bp3/quest/2026-11-15-toy-fleet-overlap                                                             7391525 bp3: create quest 2026-11-15-toy-fleet-overlap
+  bp3/quest/2026-11-15-toy-fleet-park-a                                                              efce73d bp3: create quest 2026-11-15-toy-fleet-park-a
+  bp3/quest/2026-11-15-toy-fleet-park-b                                                              de00d08 bp3: create quest 2026-11-15-toy-fleet-park-b
+  bp3/quest/2026-11-15-toy-nohuman-clean                                                             c218e79 bp3: exp-1-hello
+  bp3/quest/2026-11-15-toy-solo-clean                                                                a464497 bp3: create quest 2026-11-15-toy-solo-clean
+  bp3/quest/2026-11-15-toy-solo-park                                                                 ef4a2dd bp3: create quest 2026-11-15-toy-solo-park
+  bp3/quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines                             2f6e536 bp3: land exp-mvp-1-link-claim
+  bp3/quest/2026-11-16-bp3-graph-link                                                                00ce984 bp3: delete quest 2026-11-16-bp3-graph-link
+  bp3/quest/demo-induct-a                                                                            29be493 bp3: exp-1-marker
+  bp3/quest/demo-induct-b                                                                            0ceaa77 bp3: exp-1-marker
+  bp3/quest/demo-routes                                                                              b50f33d bp3: land exp-b-marker
+  bp3/quest/test-probe                                                                               cbd9f71 bp3: create quest test-probe
+  bp3/quest/toy-drive                                                                                44c1d2a bp3: skill-check
++ master                                                                                             886e1af (/Users/whycz/m/bp3) [origin/master: ahead 81] docs(icebox): kill engine fan-out, addressed by graph-engine quest
+  quest/2026-11-14-bp3-unit-tests                                                                    3b54f48 test(quest): assert Tape, fake-clock, fixture-level phrases of the split standard
+  quest/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement                                         59f77ee docs(quest): landing IIUC recorded, status landed (owner promotion)
++ quest/2026-11-15-pi-engine-conductor                                                               4cc6c2d (/Users/whycz/m/bp3/.bp3/worktrees/2026-11-15-pi-engine-conductor) docs(exp-2a): tape residue (c1 submit append, c2 first submit refusal)
+* quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines                                 63d49cd feat(mvp.2): context resolution — session/desk rungs, bp3 e door, claimed run-id stamping
+  quest/2026-11-16-bp3-graph-link                                                                    adc249b docs(quest): frame bp3-graph-link (link claims, cohorts, bp3g rename last)
+  quest/bp3-mvp-engine                                                                               48eccce [origin/quest/bp3-mvp-engine: ahead 36] docs(quest): record MVP landing, status landed
+  quest/demo-induct-a                                                                                3a7a8c7 demo A marker
+  quest/demo-induct-b                                                                                3d9bd93 demo B marker
+* f9fecfb bp3: exp-mvp-2-context-resolution
+* 0b172be bp3: exp-mvp-2-context-resolution
+* 6d834f7 bp3: exp-mvp-2-context-resolution
+* f2b270b bp3: create exp exp-mvp-2-context-resolution
+| * 63d49cd feat(mvp.2): context resolution — session/desk rungs, bp3 e door, claimed run-id stamping
+| * febc3ac docs(graph-engine): add followup.2 workflow-birth node
+| * 09b9d8d feat(mvp.1): one-time link claim binding (mint/claim/lookup/cleanup)
+| * c9a76eb docs(graph-engine): add followup.1 grade-evidence node
+| * 3c47fe5 fix(config.1): attribute mkdir failures, scope thresholds claim
+| * 229a6ba feat(config.1): add bp3 config store and view door
+| * 321b965 test(mig.2): add traverse conduction smoke drive
+| * 65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+| * 4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+| * 886e1af docs(icebox): kill engine fan-out, addressed by graph-engine quest
+| * 1fdb11e docs(icebox): freeze lint, portable dogfood, engine fan-out sketches
+=== diff stat ===
+ .agents/workflows/induct-grade.js | 81 ++++++++++++++++++++++---------------
+ .agents/workflows/node-loop.js    | 85 ++++++++++++++++++++++-----------------
+ .agents/workflows/quest-land.js   | 69 ++++++++++++++++++-------------
+ 3 files changed, 139 insertions(+), 96 deletions(-)
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"proposed","exps":[{"exp":"exp-config-1-bp3-config","state":"landed","fin":"exp_fin","cycle":2,"commit":"3c47fe532642369348656be958eb577fc662881d","legal_edges":[],"changes":[{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"}]},{"exp":"exp-dogfood-1-link-drive","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-dogfood-2-parallel-drive","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-followup-1-grade-evidence","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-followup-2-workflow-birth","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-landing-1-landing-wrapup","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mig-1-handoff-verbs","state":"landed","fin":"exp_fin","cycle":1,"commit":"44196725860125de048415ff6a4be350a90c033b","legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"u","path":".agents/skills/naming/SKILL.md"},{"change":"u","path":".agents/skills/quest/SKILL.md"},{"change":"u","path":".agents/skills/red-ink/SKILL.md"},{"change":"u","path":".agents/skills/using-bp3/SKILL.md"},{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".claude/skills/naming/SKILL.md"},{"change":"u","path":".claude/skills/quest/SKILL.md"},{"change":"u","path":".claude/skills/red-ink/SKILL.md"},{"change":"u","path":".claude/skills/using-bp3/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/naming/SKILL.md"},{"change":"u","path":".pi/skills/quest/SKILL.md"},{"change":"u","path":".pi/skills/red-ink/SKILL.md"},{"change":"u","path":".pi/skills/using-bp3/SKILL.md"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/roles/author.md"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"skills/naming/SKILL.md"},{"change":"u","path":"skills/quest/SKILL.md"},{"change":"u","path":"skills/red-ink/SKILL.md"},{"change":"u","path":"skills/using-bp3/SKILL.md"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"u","path":"test/completion.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/hooks.sh"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/install.sh"},{"change":"u","path":"test/q.sh"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/tape.sh"},{"change":"u","path":"test/worktree.sh"}]},{"exp":"exp-mig-2-traverse-rename","state":"landed","fin":"exp_fin","cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","legal_edges":[],"changes":[{"change":"+","path":"test/traverse-conduct.test.mjs"},{"change":"u","path":"test/traverse.sh"}]},{"exp":"exp-mvp-1-link-claim","state":"landed","fin":"exp_fin","cycle":1,"commit":"09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3","legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"extensions/bp3-pi/README.md"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/src/contract.ts"},{"change":"u","path":"extensions/bp3-pi/src/dispatcher.ts"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"skills/traverse/workflows/induct-grade.js"},{"change":"u","path":"skills/traverse/workflows/node-loop.js"},{"change":"u","path":"skills/traverse/workflows/quest-land.js"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"+","path":"test/link.sh"},{"change":"u","path":"test/node-loop.test.mjs"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/traverse-conduct.test.mjs"}]},{"exp":"exp-mvp-2-context-resolution","state":"approved","fin":null,"cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","legal_edges":["land","block","delete"],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"+","path":"test/context.sh"}]},{"exp":"exp-mvp-3-ready-set-timing","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mvp-4-diagram-emit","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mvp-5-blocked-fail-fast","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-rename-1-bp3g-rename","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null}],"rollup":"active","fin":null,"inbox":[],"run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1"}
+=== bp3 e probe ===
+{"ok":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-2-context-resolution","exp":"exp-mvp-2-context-resolution","edge":"land","kind":"edge","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","source":"session","source_rung":"session","state":"approved","legal_edges":["land","block","delete"],"context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-2-context-resolution","edge":"land","run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"thresholds":{"setup_slow_s":180,"depth_cap":3},"run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1"}
+=== exp r ===
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"--reason is required"},"guidance":"Fix the call: --reason is required"},"run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1"}
+285:  | "approved" -> ["land"; "block"; "delete"]
+349:          match fold_exp dep e with Some (_, s, _) -> s.st = "landed" || s.st = "deleted" | None -> false) exps
+--- main land ---
+109:  if ref_tip (quest_branch quest) <> None then
+127:  let _new_tip = create_branch_commit ~branch:(quest_branch quest) ~base_tip:head
+144:  (match ledger_text (quest_branch quest) (quest_ledger_path quest) with
+150:       ignore (commit_files ~branch:(quest_branch quest) ~base_tip:tip ~expect_tip:tip
+164:  let qtip = (match ref_tip (quest_branch quest) with Some t -> t | None -> not_found "quest" quest) in
+184:       if s.st = "landed" || s.st = "deleted" then illegal s.st "delete";
+198:  if not (List.mem edge ["handoff"; "grade"; "verify"; "land"; "block"; "resume"]) then
+222:          "Dependencies are not landed yet." 1;
+267:  | "land" ->
+277:      (* 1. landed line on exp branch *)
+278:      let ns = { s with st = "landed" } in
+279:      let line = ledger_line ~edge ~from:s.st ~to_:"landed" ~cycle:s.cycle
+283:      let qbranch = quest_branch quest in
+289:          ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+293:        let tree_out, code = git_out ["merge-tree"; "--write-tree"; qtip; exp_tip] in
+297:          let line2 = ledger_line ~edge:"land" ~from:"approved" ~to_:"todo" ~cycle:s.cycle
+302:            ("facts", `Assoc [("land_conflict", `Bool true)]);
+305:          let msgf = write_tmp ("bp3: land " ^ exp) in
+306:          let cf = tmp_path "merge-commit" in
+314:            ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+454:  edges: handoff grade verify land block resume\n\
+458:  land   --reason <why>                    land an approved exp\n\
+466:  bp3 e <edge> [flags]                     take the claimed run's edge: handoff grade verify land block resume (same flags as bp3 q <quest> u <exp> <edge>)\n\
+483:  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. The depth cap is enforced at link mint (mvp.1, E_DEPTH); W_SETUP_SLOW enforcement lands with mvp.3. First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
+   | Some (_, _, qt, _, _) -> ignore (effective_knobs ~quest_type:qt ~exp_type:etype)
+   | None -> ());
+  if ref_tip (exp_branch quest exp) <> None then
+    err "E_EXISTS" (`Assoc [("quest", json_str quest); ("exp", json_str exp)]) "Exp already exists." 1;
+  let qtip = (match ref_tip (quest_branch quest) with Some t -> t | None -> not_found "quest" quest) in
+  let st = fresh_state () in
+  let line = ledger_line ~edge:"create" ~from:"" ~to_:"todo" ~cycle:1
+    ~commit:None ~verdict:None ~reason:"" ~id
+    ~extra:[("exp_type", json_str etype)] () in
+  let _ = create_branch_commit ~branch:(exp_branch quest exp) ~base_tip:qtip
+    ~files:[(exp_ledger_path quest exp, line ^ "\n");
+            (exp_state_path quest exp, state_yaml quest exp st)]
+    ~msg:("bp3: create exp " ^ exp) in
+  with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+    ("exp", json_str exp); ("state", json_str "todo"); ("cycle", `Int 1);
+    ("legal_edges", `List (List.map json_str (legal_edges "todo")))]
+
+let do_exp_delete quest exp fl id =
+  check_slug quest; check_slug exp;
+  let reason = require_reason fl in
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  (match fold_exp quest exp with
+   | None -> not_found "exp" exp
+   | Some (_, s, _) ->
+       if s.st = "landed" || s.st = "deleted" then illegal s.st "delete";
+       if s.st = "blocked" && not id.decider_human then
+         err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest); ("exp", json_str exp)])
+           "Deleting a blocked exp requires a human (BP3_DECIDER=human)." 1;
+       let ns = { s with st = "deleted" } in
+       let line = ledger_line ~edge:"delete" ~from:s.st ~to_:"deleted" ~cycle:s.cycle
+         ~commit:s.last_commit ~verdict:None ~reason ~id () in
+       ignore (append_exp_line quest exp line ns));
+  with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+    ("exp", json_str exp); ("state", json_str "deleted")]
+
+let do_update quest exp edge fl id =
+  check_slug quest; check_slug exp;
+  let reason = require_reason fl in
+  if not (List.mem edge ["handoff"; "grade"; "verify"; "land"; "block"; "resume"]) then
+    usage ("unknown edge: " ^ edge);
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  let (_, s, _) = (match fold_exp quest exp with Some v -> v | None -> not_found "exp" exp) in
+  let (_, qt, deps) = (match fold_quest quest with Some (_, _, a, b, _) -> ((), a, b) | None -> not_found "quest" quest) in
+  let knobs = effective_knobs ~quest_type:qt ~exp_type:s.exp_type in
+  let finish ns line =
+    ignore (append_exp_line quest exp line ns);
+    with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+      ("exp", json_str exp); ("state", json_str ns.st); ("cycle", `Int ns.cycle);
+      ("commit", (match ns.last_commit with Some c -> json_str c | None -> `Null));
+      ("legal_edges", `List (List.map json_str (legal_edges ns.st)))] in
+  match edge with
+  | "handoff" ->
+      if s.st <> "todo" then illegal s.st edge;
+      let raw = (match fl.commit with Some c -> c | None -> usage "--commit is required for handoff") in
+      let full = (match resolve_commit raw with Some f -> f
+        | None -> err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str raw)])
+            "Commit does not exist; bind an existing commit." 1) in
+      if worktree_dirty () then
+        err "E_DIRTY_TREE" (`Assoc []) "Worktree is dirty; clean it and retry." 1;
+      let blocked_by = List.filter (fun d -> not (dep_satisfied d)) deps in
+      if blocked_by <> [] then
+        err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str blocked_by))])
+          "Dependencies are not landed yet." 1;
+      let approved_now = (not knobs.grade_required) && (not knobs.verify_required) in
+      let ns = { s with st = (if approved_now then "approved" else "handed_off");
+                 bound = Some full; has_bound = true; last_commit = Some full;
+                 grade_ok = false; verify_ok = false } in
+      let line = ledger_line ~edge ~from:s.st ~to_:ns.st ~cycle:s.cycle
+        ~commit:(Some full) ~verdict:None ~reason ~id () in
+      finish ns line
+  | "grade" | "verify" ->
+      if s.st <> "handed_off" then illegal s.st edge;
+      let v = (match fl.verdict with Some v -> v | None -> usage "--verdict is required") in
+      let valid = if edge = "grade" then (v = "ship" || v = "needs_fix") else (v = "pass" || v = "fail") in
+      if not valid then usage ("invalid verdict for " ^ edge ^ ": " ^ v);
+      (match fl.commit with
+       | Some c ->
+           let rc = (match resolve_commit c with Some f -> f | None -> c) in
+           let bound = (match s.bound with Some b -> b | None -> "") in
+           if rc <> bound then
+             err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str c); ("bound", json_str bound)])
+               "Verdict must bind the exact current commit; re-read and retry." 1
+       | None -> ());
+      let positive = (v = "ship" || v = "pass") in
+      if not positive then begin
+        let (nst, ncyc) =
+          if s.cycle >= knobs.max_cycles then ("blocked", s.cycle) else ("todo", s.cycle + 1) in
+        let ns = { s with st = nst; cycle = ncyc; grade_ok = false; verify_ok = false } in
+        if nst = "blocked" then begin ns.blocked_reason <- reason; ns.blocked_since <- now_ts () end;
+        let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:ncyc
+          ~commit:s.last_commit ~verdict:(Some v) ~reason ~id () in
+        let base = finish ns line in
+        if nst = "blocked" then
+          (match base with `Assoc fs -> `Assoc (fs @ [("human_action_required", `Bool true)]) | o -> o)
+        else base
+      end else begin
+        let ns = { s with grade_ok = (if edge = "grade" then true else s.grade_ok);
+                          verify_ok = (if edge = "verify" then true else s.verify_ok) } in
+        let now_approved =
+          ((not knobs.grade_required) || ns.grade_ok) &&
+          ((not knobs.verify_required) || ns.verify_ok) in
+        let nst = if now_approved then "approved" else "handed_off" in
+        let ns = { ns with st = nst } in
+        let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:s.cycle
+          ~commit:s.last_commit ~verdict:(Some v) ~reason ~id () in
+        finish ns line
+      end
+  | "land" ->
+      if s.st <> "approved" then illegal s.st edge;
+      (match fl.commit with
+       | Some c ->
+           let rc = (match resolve_commit c with Some f -> f | None -> c) in
+           let bound = (match s.bound with Some b -> b | None -> "") in
+           if rc <> bound then
+             err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str c)])
+               "Verdict must bind the exact current commit." 1
+       | None -> ());
+      (* 1. landed line on exp branch *)
+      let ns = { s with st = "landed" } in
+      let line = ledger_line ~edge ~from:s.st ~to_:"landed" ~cycle:s.cycle
+        ~commit:s.last_commit ~verdict:None ~reason ~id () in
+      ignore (append_exp_line quest exp line ns);
+      let exp_tip = (match ref_tip (exp_branch quest exp) with Some t -> t | None -> "") in
+      let qbranch = quest_branch quest in
+      let qtip = (match ref_tip qbranch with Some t -> t | None -> "") in
+      if is_ancestor qtip exp_tip then begin
+        if run_status (git ["update-ref"; qbranch; exp_tip; qtip]) <> 0 then
+          err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
+        with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+          ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+          ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
+          ("legal_edges", `List [])]
+      end else begin
+        let tree_out, code = git_out ["merge-tree"; "--write-tree"; qtip; exp_tip] in
+        let tree = (match String.split_on_char '\n' tree_out with t :: _ -> String.trim t | [] -> "") in
+        if code <> 0 || tree = "" then begin
+          let ns2 = { s with st = "todo" } in
+          let line2 = ledger_line ~edge:"land" ~from:"approved" ~to_:"todo" ~cycle:s.cycle
+            ~commit:s.last_commit ~verdict:None ~reason ~id () in
+          ignore (append_exp_line quest exp line2 ns2);
+          `Assoc [("ok", `Bool true); ("quest", json_str quest); ("exp", json_str exp);
+            ("state", json_str "todo"); ("cycle", `Int s.cycle);
+            ("facts", `Assoc [("land_conflict", `Bool true)]);
+            ("legal_edges", `List (List.map json_str (legal_edges "todo")))]
+        end else begin
+          let msgf = write_tmp ("bp3: land " ^ exp) in
+          let cf = tmp_path "merge-commit" in
+          ignore (Sys.command (String.concat " " (List.map Filename.quote
+              (git ["commit-tree"; tree; "-p"; qtip; "-p"; exp_tip]))
+            ^ " < " ^ Filename.quote msgf ^ " > " ^ Filename.quote cf ^ " 2>/dev/null"));
+          let mtip = String.trim (read_file_or cf "") in
+          if run_status (git ["update-ref"; qbranch; mtip; qtip]) <> 0 then
+            err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
+          with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+            ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+            ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
+            ("legal_edges", `List [])]
+        end
+      end
+  | "block" ->
+      if not (List.mem s.st ["todo"; "handed_off"; "approved"]) then illegal s.st edge;
+      let checkpoint = if worktree_dirty () then Some (make_checkpoint ()) else None in
+      let ns = { s with st = "blocked"; blocked_reason = reason;
+                 blocked_checkpoint = checkpoint; blocked_since = now_ts () } in
+      let line = ledger_line ~edge ~from:s.st ~to_:"blocked" ~cycle:s.cycle
+        ~commit:s.last_commit ~verdict:None ~reason ~id ?checkpoint () in
+      let base = finish ns line in
+      (match base with `Assoc fs -> `Assoc (fs @ [("human_action_required", `Bool true)]) | o -> o)
+  | "resume" ->
+      if s.st <> "blocked" then illegal s.st edge;
+      if not id.decider_human then
+        err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest); ("exp", json_str exp)])
+          "Resume requires a human decision (BP3_DECIDER=human)." 1;
+      let ncyc = if s.has_bound then s.cycle + 1 else s.cycle in
+      let ns = { s with st = "todo"; cycle = ncyc; bound = None; has_bound = false;
+                 grade_ok = false; verify_ok = false } in
+      let line = ledger_line ~edge ~from:s.st ~to_:"todo" ~cycle:ncyc
+        ~commit:None ~verdict:None ~reason ~id () in
+      finish ns line
+  | _ -> usage ("unknown edge: " ^ edge)
+
+(* ---------- context door (mvp.2: bp3 e) ---------- *)
+let no_context amb =
+  match amb with
+  | Some ids ->
+      err "E_NO_CONTEXT"
+        (`Assoc [("run_ids", `List (List.map json_str ids));
+                 ("live_run_ids", `List (List.map json_str ids));
+                 ("desk", json_str (Sys.getcwd ()));
+                 ("source", json_str "desk")])
+        "Desk holds more than one live claimed run and no session rung resolves; refusing to guess. Claim a link for one run, or address the call explicitly." 1
+  | None ->
+      err "E_NO_CONTEXT"
+        (`Assoc [("desk", json_str (Sys.getcwd ()))])
+        "No claimed context resolves for this call (no session claim, no desk context). Claim a link first, or address the call explicitly." 1
+
+let with_context v (rc : Config.run_config) source =
+  match v with
+  | `Assoc fs ->
+      `Assoc (fs @ [("graph", json_str rc.Config.rc_graph);
+                    ("node", json_str rc.Config.rc_node);
+                    ("source", json_str source);
+                    ("source_rung", json_str source);
+                    ("context", Config.resolved_context_json rc source)])
+  | other -> other
+
+let do_e_bare (rc : Config.run_config) source =
+  let graph = rc.Config.rc_graph and node = rc.Config.rc_node in
+  let (state, legal) =
+    match fold_exp graph node with
+    | Some (_, s, _) -> (json_str s.st, List.map json_str (legal_edges s.st))
+    | None -> (`Null, []) in
+  let thresholds =
+    match Config.config_dir () with
+    | Some dir -> Config.thresholds_json (Config.load_thresholds dir)
+    | None -> Config.thresholds_json Config.default_thresholds in
+  `Assoc [("ok", `Bool true);
+          ("graph", json_str graph); ("quest", json_str graph);
+          ("node", json_str node); ("exp", json_str node);
+          ("edge", (match rc.Config.rc_edge with Some e -> json_str e | None -> `Null));
+          ("run_id", json_str rc.Config.rc_id);
+=== HEAD ===
+quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+63d49cd86c64452f10d64e0fa7c2c6f231e3db37
+=== quest tip ===
+2f6e5361a594fc10aea022078007f89fed2ee6d8
+f9fecfbe1bd60d40a66093985ee565edaa0387de
+=== merge base ===
+a810450a73916b57b5728c29788f07597dfd8476
+quest_is_ancestor_of_exp:1
+exp_is_ancestor_of_quest:1
+=== exp ledger ===
+{"ts":"2026-11-16T19:12:11Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"unknown","model":"unknown","bp3_version":"0.2.0","exp_type":"default"}
+{"ts":"2026-11-17T01:03:49Z","edge":"handoff","from":"todo","to":"handed_off","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","verdict":null,"reason":"mvp.2 context resolution: session/desk rungs, bp3 e door, claimed run-id stamping; make check green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1"}
+{"ts":"2026-11-17T01:11:22Z","edge":"grade","from":"handed_off","to":"handed_off","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","verdict":"ship","reason":"context resolution verified: session/desk rungs, bp3 e door, claimed stamping; context+q+link tests green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1"}
+{"ts":"2026-11-17T01:15:04Z","edge":"verify","from":"handed_off","to":"approved","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","verdict":"pass","reason":"make check green at bound commit; context resolution verified","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1"}
+=== exp state ===
+quest: 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+exp: exp-mvp-2-context-resolution
+state: approved
+cycle: 1
+commit: 63d49cd86c64452f10d64e0fa7c2c6f231e3db37
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/ledger.jsonl
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/state.yaml
+218:let quest_branch q = "refs/heads/bp3/quest/" ^ q
+219:let exp_branch q e = "refs/heads/bp3/exp/" ^ q ^ "/" ^ e
+255:    let acc = match ledger_text (quest_branch q) (quest_ledger_path q) with
+258:      match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+272:  match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+277:  match ledger_text (quest_branch q) (quest_ledger_path q) with
+314:  let branch = exp_branch q e in
+(* store — identity, plans, ledger fold: the truth layer. *)
+open Gitx
+
+(* ---------- slugs / identity ---------- *)
+let valid_slug s =
+  let n = String.length s in
+  n >= 1 &&
+  (let ok c = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c = '-' in
+   let rec loop i = i >= n || (ok s.[i] && loop (i + 1)) in
+   ((s.[0] >= 'a' && s.[0] <= 'z') || (s.[0] >= '0' && s.[0] <= '9')) && loop 1)
+
+let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
+
+(* Door and verb spellings across every bp3 door. A created
+   quest or exp carrying one of these slugs could never be
+   addressed again (the token would parse as the door or
+   verb instead), so creation refuses it; reads stay total. *)
+let reserved_slugs =
+  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo"; "config"; "e";
+    "supervisor"; "init-check"; "find-tape"; "watch"; "desk"; "backtest"; "b";
+    "c"; "create"; "r"; "read"; "u"; "update"; "d"; "delete";
+    "s"; "i"; "f"; "w";
+    "derive"; "inspect"; "remove"; "prepare"; "check"; "exit";
+    "release"; "list" ]
+
+let check_creatable s =
+  check_slug s;
+  if List.mem s reserved_slugs then
+    usage ("reserved slug: " ^ s ^ " names a bp3 door or verb")
+
+type identity = { harness : string; model : string; decider_human : bool; incomplete : bool; run_id : string option }
+
+let run_id_of_env () =
+  match Sys.getenv_opt "BP3_RUN_ID" with Some v when v <> "" -> Some v | _ -> None
+
+(* The claimed run-id (mvp.2 context resolution), set by the
+   CLI door once per call when a rung resolves. The claim
+   wins over the env hint; env alone keeps the legacy
+   stamping for unclaimed callers. *)
+let resolved_run_id : string option ref = ref None
+let context_warnings : string list ref = ref []
+
+let effective_run_id () =
+  match !resolved_run_id with Some _ as r -> r | None -> run_id_of_env ()
+
+let stamp_run_id = function
+  | `Assoc fs ->
+      (match effective_run_id () with
+       | Some r ->
+           `Assoc (List.filter (fun (k, _) -> k <> "run_id") fs
+                   @ [("run_id", json_str r)])
+       | None -> `Assoc fs)
+  | v -> v
+
+let identity () =
+  let h = Sys.getenv_opt "BP3_HARNESS" in
+  (match h with
+   | Some v when v <> "" ->
+       if not (List.mem v ["muse-code"; "codex"; "muse"; "human"]) then
+         err "E_IDENTITY" (`Assoc [("harness", json_str v)])
+           "BP3_HARNESS must be one of muse-code, codex, muse, human." 2
+   | _ -> ());
+  let decider_human = (Sys.getenv_opt "BP3_DECIDER" = Some "human") in
+  let harness = match h with Some v when v <> "" -> v | _ -> "unknown" in
+  let model =
+    if decider_human then "none"
+    else match Sys.getenv_opt "BP3_MODEL" with Some v when v <> "" -> v | _ -> "unknown" in
+  let incomplete = harness = "unknown" || model = "unknown" in
+  { harness; model; decider_human; incomplete; run_id = run_id_of_env () }
+
+let parse_version s =
+  try List.map int_of_string (String.split_on_char '.' s) with _ -> [0]
+
+let rec version_cmp a b =
+  match a, b with
+  | [], [] -> 0
+  | [], _ -> version_cmp [0] b
+  | _, [] -> version_cmp a [0]
+  | x :: xs, y :: ys -> if x <> y then compare x y else version_cmp xs ys
+
+let version_major v = match parse_version v with m :: _ -> m | [] -> 0
+
+(* ---------- plans ---------- *)
+type knobs = { max_cycles : int; grade_required : bool; verify_required : bool }
+
+let contains_sub s sub =
+  let n = String.length s and m = String.length sub in
+  let rec loop i = i + m <= n && (String.sub s i m = sub || loop (i + 1)) in
+  m = 0 || loop 0
+
+let plan_knobs_from_text text =
+  (* reject stages:/edges: keys at line start (after spaces) *)
+  let lines = String.split_on_char '\n' text in
+  List.iter (fun ln ->
+    let t = String.trim ln in
+    if t = "stages:" || (String.length t > 7 && String.sub t 0 7 = "stages:") ||
+       t = "edges:" || (String.length t > 6 && String.sub t 0 6 = "edges:") then
+      err "E_INVALID_PLAN" (`Assoc []) "Plan contains stages:/edges: keys; plans carry knobs only." 1
+  ) lines;
+  let max_cycles =
+    try
+      let re = Str.regexp "max_cycles:[ \t]*\\([0-9]+\\)" in
+      ignore (Str.search_forward re text 0);
+      int_of_string (Str.matched_group 1 text)
+    with _ -> 1 in
+  let grade_required =
+    (* look at grade section: 'required: false' after 'grade:' *)
+    if contains_sub text "required: false" && contains_sub text "grade:" then false
+    else if contains_sub text "grade.required: false" then false
+    else true in
+  let grade_required =
+    if contains_sub text "required: false" then
+      (* only counts if a grade: key exists or grade_required spelling *)
+      grade_required else grade_required in
+  let verify_required =
+    not (contains_sub text "verify: optional" || contains_sub text "verify: none"
+         || contains_sub text "verify:optional" || contains_sub text "verify:none") in
+  { max_cycles; grade_required; verify_required }
+
+let load_plan_file path =
+=== refs ===
+9e7d64906ffbc987bb26f37916eb8fd49ff112f9 refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-config-1-bp3-config
+9c487eaba55059ab7dca748847bd7ef2fcb1ac3e refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-dogfood-1-link-drive
+cb643d2dc974f06b2d27cda132071965c8485ab6 refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-dogfood-2-parallel-drive
+7e4a66bc962e2c3215271c0d1389126a3ac7eea0 refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-followup-1-grade-evidence
+73e50c1e4cee80e7736f80254907f0447f7ebd0d refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-followup-2-workflow-birth
+be4b0dba9385c68622c3fe90f62e771c3791eeaf refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-landing-1-landing-wrapup
+d688ae26e9e1a6272b463b6e7383ed91d83276a1 refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mig-1-handoff-verbs
+e04bdc64dab2bfb82f6b4582ce7db3dce38d8eb0 refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mig-2-traverse-rename
+0295188b9f5a28110e8c139554ec5e8daabad49d refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-1-link-claim
+f9fecfbe1bd60d40a66093985ee565edaa0387de refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-2-context-resolution
+b3d3730415b3ac7202fd16635bfa793c3bbabb54 refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-3-ready-set-timing
+a41825f2457814318691f254af54d31edbda3469 refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-4-diagram-emit
+9e963eaf3112395efd8ef871fa222381081dfdde refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-mvp-5-blocked-fail-fast
+92d575bc586fc0fa59239d2e66b0f2813ba13ef7 refs/heads/bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-rename-1-bp3g-rename
+2f6e5361a594fc10aea022078007f89fed2ee6d8 refs/heads/bp3/quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+63d49cd86c64452f10d64e0fa7c2c6f231e3db37 refs/heads/quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+=== quest tip log ===
+2f6e536 bp3: land exp-mvp-1-link-claim
+0295188 bp3: exp-mvp-1-link-claim
+66072bb bp3: exp-mvp-1-link-claim
+0d47868 bp3: exp-mvp-1-link-claim
+08d49c1 bp3: exp-mvp-1-link-claim
+=== exp tip log ===
+f9fecfb bp3: exp-mvp-2-context-resolution
+0b172be bp3: exp-mvp-2-context-resolution
+6d834f7 bp3: exp-mvp-2-context-resolution
+f2b270b bp3: create exp exp-mvp-2-context-resolution
+a810450 bp3: create quest 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+0334cdf docs(graph-link): adopt red-inked design; 12 nodes framed
+7640168 docs(quest-skill): quest files end with the Exp diagram
+39ea614 feat(red-ink): move red-ink from yap skill to bp3 project skill
+=== ancestor check land path ===
+qtip_in_exp:1
+4d0013c0253fe60e71fb92329a24ec187bc9501c
+=== contains 63d49cd ===
+* quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+=== parents of 2f6e536 ===
+2f6e5361a594fc10aea022078007f89fed2ee6d8 4067b3afbf5a7fd20e7495cff22762f924c8c1b5 0295188b9f5a28110e8c139554ec5e8daabad49d bp3: land exp-mvp-1-link-claim
+commit 2f6e5361a594fc10aea022078007f89fed2ee6d8
+Merge: 4067b3a 0295188
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 19:40:47 2026 -0500
+
+    bp3: land exp-mvp-1-link-claim
+
+ .../experiments/exp-mvp-1-link-claim/ledger.jsonl                    | 5 +++++
+ .../experiments/exp-mvp-1-link-claim/state.yaml                      | 5 +++++
+ 2 files changed, 10 insertions(+)
+=== does quest tip have context.sh? ===
+100755 blob 0aa49343febb9fabac473f8b5fdffc61d9928eaa	test/context.sh
+=== diff quest-tip vs HEAD stat ===
+ .../SKILL.md                                       |  22 +-
+ skills/{induct => traverse}/SKILL.md               |  30 +-
+ .../{induct => traverse}/workflows/induct-grade.js | 135 ++--
+ .../traverse/workflows/node-loop.js                | 107 +--
+ .../{induct => traverse}/workflows/quest-land.js   |  71 +-
+ skills/using-bp3/SKILL.md                          |  10 +-
+ src/quest/config.ml                                | 408 +++++++++++
+ src/quest/harness.ml                               | 798 +++++++++++++++++----
+ src/quest/main.ml                                  | 190 ++++-
+ src/quest/render.ml                                |  24 +-
+ src/quest/store.ml                                 |  84 ++-
+ src/quest/worktree.ml                              |   4 +-
+ test/completion.sh                                 |  18 +-
+ test/config.sh                                     | 147 ++++
+ test/context.sh                                    | 113 +++
+ test/harness.sh                                    |  77 +-
+ test/hooks.sh                                      |  22 +-
+ test/induct-grade.test.mjs                         | 116 +--
+ test/induct.sh                                     |   7 -
+ test/install.sh                                    |   4 +-
+ test/link.sh                                       | 209 ++++++
+ test/{induct-exp.test.mjs => node-loop.test.mjs}   |  88 +--
+ test/q.sh                                          | 232 +++---
+ test/quest-land.test.mjs                           |  36 +-
+ test/skills.sh                                     | 113 +--
+ test/tape.sh                                       |  14 +-
+ test/traverse-conduct.test.mjs                     | 127 ++++
+ test/traverse.sh                                   |   8 +
+ test/worktree.sh                                   |   2 +-
+ 97 files changed, 4057 insertions(+), 1835 deletions(-)
+=== dirty diff head ===
+diff --git a/.agents/workflows/node-loop.js b/.agents/workflows/node-loop.js
+index 9568ace..ef264d7 100644
+--- a/.agents/workflows/node-loop.js
++++ b/.agents/workflows/node-loop.js
+@@ -6,13 +6,12 @@
+ // a different step; this file refuses it untouched. All state
+ // moves through `bp3 q u`, called directly by the author child;
+ // this script never writes state. Its one write is proof, not
+-// state: as the named InitRecord writer (mvp.8) it records the
+-// child's InitRecord via `bp3 harness record-init` before the
+-// child spawns; the child never writes its own proof. As the
+-// named tape binder (followup.3) it then binds the child's
+-// session tape via `bp3 harness bind-tape` after the child
+-// returns; the child writes no InitRecord, binding, or
+-// observation.
++// state: as the link minter (mvp.1) it mints a one-time link via
++// `bp3 harness link mint` before the child spawns; the
++// child's first action claims it, and the claim binds
++// session to run-id. As the named tape binder it then
++// binds the child's session tape via `bp3 harness
++// bind-tape` after the child returns.
+ // Args are supplied by the calling traverse skill as {quest, exp,
+ // ts, harness, model}; ts is a UTC compact timestamp from the
+ // caller, embedded by the child in its run-id because scripts
+@@ -124,45 +123,56 @@ export default async function workflow(host) {
+   }
+ 
+   function runFolder(edge, cycle, harnessNote) {
+-    return (
+-      expDir + "/runs/" + ts + "-" + edge + "-" + harnessNote +
+-      "-c" + String(cycle)
+-    );
++    void harnessNote;
++    return expDir + "/runs/" + runIdOf(edge, cycle);
+   }
+ 
+   function envPreset(edge, cycle) {
+-    // Env-set identity: BP3_RUN_ID carries the same id as this
+-    // stage's run folder. `bp3` reads it from the environment
+-    // and stamps it into verdicts and ledger lines, so no
+-    // first-command prefix binds the session.
++    // Identity arrives via the claim, never typed env: the
++    // child claims its link first and prefixes its edge call
++    // with BP3_RUN_ID=<run_id from the claim verdict>; bp3
++    // stamps it into verdicts and ledger lines.
++    void edge; void cycle;
++    return "BP3_QUEST=" + quest + " BP3_EXP=" + exp + " " + envPrefix;
++  }
++
++  const links = {};
++
++  function claimNote(edge) {
++    const link = links[edge];
++    if (!link) return "";
+     return (
+-      "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
+-      "-c" + String(cycle) + " BP3_QUEST=" + quest + " BP3_EXP=" +
+-      exp + " " + envPrefix
++      "Your first action claims your one-time link: run `" +
++      envPrefix + "./bin/bp3 harness link claim " + link.token +
++      "` and note the run_id it returns (expected " + link.run_id +
++      "). Prefix your state-edge call below with " +
++      "BP3_RUN_ID=<that run_id>. "
+     );
+   }
+ 
+   function runIdOf(edge, cycle) {
++    if (links[edge] && links[edge].run_id) return links[edge].run_id;
+     return ts + "-" + edge + "-" + harness + "-" + model +
+       "-c" + String(cycle);
+   }
+ 
+-  // The named InitRecord writer (mvp.8): this launcher, before
+-  // the child spawns. The child never writes its own proof; a
+-  // refused write means the child never starts. The record
+-  // names no tape (followup.3): the child's session tape does
+-  // not exist yet, so the launcher binds it after the child
++  // The link minter (mvp.1): this launcher, before the child
++  // spawns. A refused mint means the child never starts. The
++  // mint names no tape: the child's session tape does not
+=== run folder status ===
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/runs/20261117T011548Z-land-muse-code-muse-wonder-1.0-c1/tape.log
+_build/
+bp3.install
+.bp3/
+dist/
+=== bound commit ===
+commit 63d49cd86c64452f10d64e0fa7c2c6f231e3db37
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 20:03:39 2026 -0500
+
+    feat(mvp.2): context resolution — session/desk rungs, bp3 e door, claimed run-id stamping
+
+ Makefile             |   3 +-
+ bin/bp3              |   6 ++-
+ completions/_bp3     |   4 +-
+ completions/bp3.bash |   4 +-
+ src/quest/config.ml  | 110 +++++++++++++++++++++++++++++++++++++++++++++++++
+ src/quest/harness.ml |  17 +-------
+ src/quest/main.ml    | 113 ++++++++++++++++++++++++++++++++++++++++++++++++++-
+ src/quest/render.ml  |  22 +++++++---
+ src/quest/store.ml   |  23 ++++++++---
+ test/context.sh      | 113 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 10 files changed, 382 insertions(+), 33 deletions(-)
+=== quest tip first parent ===
+4067b3afbf5a7fd20e7495cff22762f924c8c1b5 bp3: land exp-config-1-bp3-config
+  bp3/exp/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/exp-followup-2-workflow-birth
+  bp3/quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+=== PRE-LAND VERIFY (land child) ===
+63d49cd86c64452f10d64e0fa7c2c6f231e3db37
+context tests: ok
+context.sh rc:0
+q tests: ok
+q.sh rc:0
+link tests: ok
+link.sh rc:0
+=== MAKE CHECK (land child, fresh) ===
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (121 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 48532 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 48685 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 49060 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 48023 Terminated: 15          sleep 60
+./test/harness.sh: line 501: 50822 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 51059 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/context.sh
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (31.855125ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.146791ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (213.514375ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (312.899917ms)
+✔ roles route model/thinking into the child env: override > role > conductor (512.02875ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (161.291833ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1351.395625ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (2974.096334ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (129545.385333ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (286.619833ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.434375ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (2506.112791ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (24.7585ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 137993.780541
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+MAKE_CHECK_RC:0
+# Land notes — exp-mvp-2-context-resolution (cycle 1)
+
+- Claimed bp3link_311bc5615ea025131d3732914eaec184 as run 20261117T011548Z-land-muse-code-muse-wonder-1.0-c1 (session rung).
+- Pre-land state: approved, cycle 1, bound commit 63d49cd86c64452f10d64e0fa7c2c6f231e3db37 == HEAD; legal edges [land, block, delete]. Ledger on exp branch shows handoff (63d49cd) -> grade ship -> verify pass.
+- Fresh checks in this desk: ./test/context.sh ok, ./test/q.sh ok, ./test/link.sh ok, make check RC 0 (shellcheck, skills, dune build, q/harness/config/link/context, pi 13 pass, worktree/tape/hooks/traverse/completion/release/install).
+- Live probe: BP3_RUN_ID=<this run> ./bin/bp3 e resolved source=session, state=approved — mvp.2 context resolution working on its own land edge.
+- Land merges the exp ledger branch into bp3/quest at ref level; the 3 dirty .agents/workflows/*.js renders are runtime-regenerated, not in the bound commit, and land has no dirty-tree check — left untouched, not committed.
+- Lesson: verify land by re-reading the rollup + exp ledger after the call, not by the verdict alone; merge-tree was clean (rc 0) before landing.
+=== LAND CALL ===
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-2-context-resolution","state":"landed","fin":"exp_fin","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","legal_edges":[],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-2-context-resolution","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-2-context-resolution","edge":"land","run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1"}
+LAND_RC:0
+=== POST-LAND ROLLUP ===
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"proposed","exps":[{"exp":"exp-config-1-bp3-config","state":"landed","fin":"exp_fin","cycle":2,"commit":"3c47fe532642369348656be958eb577fc662881d","legal_edges":[],"changes":[{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"}]},{"exp":"exp-dogfood-1-link-drive","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-dogfood-2-parallel-drive","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-followup-1-grade-evidence","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-followup-2-workflow-birth","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-landing-1-landing-wrapup","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mig-1-handoff-verbs","state":"landed","fin":"exp_fin","cycle":1,"commit":"44196725860125de048415ff6a4be350a90c033b","legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"u","path":".agents/skills/naming/SKILL.md"},{"change":"u","path":".agents/skills/quest/SKILL.md"},{"change":"u","path":".agents/skills/red-ink/SKILL.md"},{"change":"u","path":".agents/skills/using-bp3/SKILL.md"},{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".claude/skills/naming/SKILL.md"},{"change":"u","path":".claude/skills/quest/SKILL.md"},{"change":"u","path":".claude/skills/red-ink/SKILL.md"},{"change":"u","path":".claude/skills/using-bp3/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/naming/SKILL.md"},{"change":"u","path":".pi/skills/quest/SKILL.md"},{"change":"u","path":".pi/skills/red-ink/SKILL.md"},{"change":"u","path":".pi/skills/using-bp3/SKILL.md"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/roles/author.md"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"skills/naming/SKILL.md"},{"change":"u","path":"skills/quest/SKILL.md"},{"change":"u","path":"skills/red-ink/SKILL.md"},{"change":"u","path":"skills/using-bp3/SKILL.md"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"u","path":"test/completion.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/hooks.sh"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/install.sh"},{"change":"u","path":"test/q.sh"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/tape.sh"},{"change":"u","path":"test/worktree.sh"}]},{"exp":"exp-mig-2-traverse-rename","state":"landed","fin":"exp_fin","cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","legal_edges":[],"changes":[{"change":"+","path":"test/traverse-conduct.test.mjs"},{"change":"u","path":"test/traverse.sh"}]},{"exp":"exp-mvp-1-link-claim","state":"landed","fin":"exp_fin","cycle":1,"commit":"09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3","legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"extensions/bp3-pi/README.md"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/src/contract.ts"},{"change":"u","path":"extensions/bp3-pi/src/dispatcher.ts"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"skills/traverse/workflows/induct-grade.js"},{"change":"u","path":"skills/traverse/workflows/node-loop.js"},{"change":"u","path":"skills/traverse/workflows/quest-land.js"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"+","path":"test/link.sh"},{"change":"u","path":"test/node-loop.test.mjs"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/traverse-conduct.test.mjs"}]},{"exp":"exp-mvp-2-context-resolution","state":"landed","fin":"exp_fin","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"+","path":"test/context.sh"}]},{"exp":"exp-mvp-3-ready-set-timing","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mvp-4-diagram-emit","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mvp-5-blocked-fail-fast","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-rename-1-bp3g-rename","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null}],"rollup":"active","fin":null,"inbox":[],"run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1"}
+=== POST-LAND LEDGER (exp branch) ===
+{"ts":"2026-11-17T01:11:22Z","edge":"grade","from":"handed_off","to":"handed_off","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","verdict":"ship","reason":"context resolution verified: session/desk rungs, bp3 e door, claimed stamping; context+q+link tests green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1"}
+{"ts":"2026-11-17T01:15:04Z","edge":"verify","from":"handed_off","to":"approved","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","verdict":"pass","reason":"make check green at bound commit; context resolution verified","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1"}
+{"ts":"2026-11-17T01:36:59Z","edge":"land","from":"approved","to":"landed","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","verdict":null,"reason":"approved c1: context resolution verified (context/q/link + make check green), clean merge into quest branch","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1"}
+=== QUEST TIP ===
+a2ff3ed bp3: land exp-mvp-2-context-resolution
+2143ac6 bp3: exp-mvp-2-context-resolution
+f9fecfb bp3: exp-mvp-2-context-resolution
+quest: 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+exp: exp-mvp-2-context-resolution
+state: landed
+cycle: 1
+commit: 63d49cd86c64452f10d64e0fa7c2c6f231e3db37
+=== RUN FOLDER ===
+total 272
+drwxr-xr-x@ 4 whycz  staff     128 Nov 16 20:36 .
+drwxr-xr-x@ 7 whycz  staff     224 Nov 16 20:16 ..
+-rw-r--r--@ 1 whycz  staff    1147 Nov 16 20:36 notes.md
+-rw-r--r--@ 1 whycz  staff  127291 Nov 16 20:37 tape.log
+# Land notes — exp-mvp-2-context-resolution (cycle 1)
+
+- Claimed bp3link_311bc5615ea025131d3732914eaec184 as run 20261117T011548Z-land-muse-code-muse-wonder-1.0-c1 (session rung).
+- Pre-land state: approved, cycle 1, bound commit 63d49cd86c64452f10d64e0fa7c2c6f231e3db37 == HEAD; legal edges [land, block, delete]. Ledger on exp branch shows handoff (63d49cd) -> grade ship -> verify pass.
+- Fresh checks in this desk: ./test/context.sh ok, ./test/q.sh ok, ./test/link.sh ok, make check RC 0 (shellcheck, skills, dune build, q/harness/config/link/context, pi 13 pass, worktree/tape/hooks/traverse/completion/release/install).
+- Live probe: BP3_RUN_ID=<this run> ./bin/bp3 e resolved source=session, state=approved — mvp.2 context resolution working on its own land edge.
+- Land merges the exp ledger branch into bp3/quest at ref level; the 3 dirty .agents/workflows/*.js renders are runtime-regenerated, not in the bound commit, and land has no dirty-tree check — left untouched, not committed.
+- Lesson: verify land by re-reading the rollup + exp ledger after the call, not by the verdict alone; merge-tree was clean (rc 0) before landing.
+
+Land verdict: {"ok":true,"state":"landed","fin":"exp_fin","commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1"} — post-land rollup confirms landed.

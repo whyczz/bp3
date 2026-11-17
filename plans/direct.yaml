@@ -1,4 +1,4 @@
-graph_type: direct
+goal_type: direct
 max_cycles: 0
 grade:
   required: false

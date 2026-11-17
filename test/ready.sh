@@ -39,7 +39,7 @@ land_node() { # $1 graph $2 node $3 path
   q "$1" u "$2" verify --verdict pass --reason ok >/dev/null
   q "$1" u "$2" land --reason ship >/dev/null
 }
-node_ledger() { git show "bp3/exp/$1/$2:docs/quests/$1/experiments/$2/ledger.jsonl"; }
+node_ledger() { git show "bp3/exp/$1/$2:docs/goals/$1/experiments/$2/ledger.jsonl"; }
 
 # --- diamond: deps declared, waves, ready, handoff gate ---
 q c sched >/dev/null
@@ -101,7 +101,7 @@ cat > "$work/tm-ledger.jsonl" <<EOF
 EOF
 blob=$(git hash-object -w "$work/tm-ledger.jsonl")
 GIT_INDEX_FILE="$idx" git read-tree "$tip"
-GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,docs/quests/timing/experiments/tm/ledger.jsonl"
+GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,docs/goals/timing/experiments/tm/ledger.jsonl"
 tree=$(GIT_INDEX_FILE="$idx" git write-tree)
 nt=$(git commit-tree "$tree" -p "$tip" -m "timing fixture")
 git update-ref refs/heads/bp3/exp/timing/tm "$nt" "$tip"; rm -f "$idx"
@@ -151,14 +151,14 @@ for e in sl-a sl-b; do
 done
 out=$(q serial u sl-a land --reason first)
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "first land: $out"
-tip1=$(git rev-parse bp3/quest/serial)
+tip1=$(git rev-parse bp3/goal/serial)
 out=$(q serial r sl-b)
 echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "second still approved: $out"
 out=$(q serial u sl-b land --reason second)
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "second land: $out"
-git merge-base --is-ancestor "$tip1" bp3/quest/serial || fail "second land did not build on first tip"
-git merge-base --is-ancestor "$CB" bp3/quest/serial || fail "second reviewed commit not in graph tip"
-[ "$(git show bp3/quest/serial:sa.txt)" = "A" ] && [ "$(git show bp3/quest/serial:sb.txt)" = "B" ] || fail "serial merge lost files"
+git merge-base --is-ancestor "$tip1" bp3/goal/serial || fail "second land did not build on first tip"
+git merge-base --is-ancestor "$CB" bp3/goal/serial || fail "second reviewed commit not in graph tip"
+[ "$(git show bp3/goal/serial:sa.txt)" = "A" ] && [ "$(git show bp3/goal/serial:sb.txt)" = "B" ] || fail "serial merge lost files"
 
 # --- help: dep verb and flags documented at their doors ---
 out=$(q sched dep -h) || fail "dep -h exit"

@@ -53,7 +53,7 @@ Smallest version that would work, once thawed:
    `plans/direct.yaml` and refuses (`E_EXISTS`) to
    clobber differing plans
    ([main.ml](../../src/quest/main.ml) `init-repo`).
-   That, plus `docs/quests/<quest>/` from the first
+   That, plus `docs/goals/<quest>/` from the first
    quest, is the entire control-plane footprint inside
    the data-plane repo.
 3. First quest is this entry's namesake:
@@ -62,7 +62,7 @@ Smallest version that would work, once thawed:
    create → submit (`--commit`) → review → land.
    Success = esc3's first real, usable slice lands
    entirely through bp3's gates, ledger in
-   `esc3/docs/quests/` as the only record, and the
+   `esc3/docs/goals/` as the only record, and the
    friction list is written down (that list, not the
    slice, is the dogfood's real output).
 4. The install loop is already proven — but only on a
@@ -153,7 +153,7 @@ disk that day; no repo was edited by the review.
      strongest attack on the sketch as written.
 - **[major] Control plane lives inside the data
   plane.** `init-repo` + quest create write `plans/`,
-  `docs/quests/`, and `bp3/quest/*` refs *into* esc3
+  `docs/goals/`, and `bp3/goal/*` refs *into* esc3
   (the scratch test asserts exactly this, checking only
   that refs don't leak *home*). Accepted by the Quest 2
   history ("the esc3 Quest's file lives in esc3"), but
@@ -171,7 +171,7 @@ What would change the red-chair verdict: owner names
 esc3's path + first slice, `bp3-q --version` runs from
 PATH, the skills-into-esc3 question has an answer, and
 `init-repo` in the fresh repo diffs as only `plans/` +
-the first `docs/quests/` folder.
+the first `docs/goals/` folder.
 
 ## Promotion trigger
 

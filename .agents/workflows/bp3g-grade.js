@@ -243,7 +243,7 @@ function deferralNamesOwner(text) {
   return /defer/i.test(text) && /\bnode[\s-]*\d+\b/i.test(text);
 }
 
-// The evidence ladder (GRAPH.md contract, mvp.7), in order;
+// The evidence ladder (GOAL.md contract, mvp.7), in order;
 // each rung only when the ones above leave the verdict
 // undecided. Rung 5 splits: 5a resolves derivation pointers
 // one entry at a time, 5b reads the whole tape and is
@@ -392,7 +392,7 @@ export default async function workflow(host) {
   }
 
   const nodeDir =
-    "docs/quests/" + graph + "/experiments/" + node;
+    "docs/goals/" + graph + "/experiments/" + node;
 
   async function readState() {
     const result = await host.agent({

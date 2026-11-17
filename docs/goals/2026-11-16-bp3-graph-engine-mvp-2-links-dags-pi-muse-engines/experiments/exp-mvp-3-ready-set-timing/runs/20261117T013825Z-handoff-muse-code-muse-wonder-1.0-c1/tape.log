@@ -1,0 +1,2924 @@
+=== TAPE START 2026-11-17T01:39:07Z ===
+_build
+AGENTS.md
+bin
+Brewfile
+CLAUDE.md
+completions
+docs
+dune-project
+extensions
+Makefile
+plans
+readme.md
+release.conf
+scripts
+skills
+src
+test
+---
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+| tape | tape | the harness session recording (unchanged) |
+
+States rest in the root worker's read. Edges are
+subagents. A child holds nothing across edges;
+context is claimed, never remembered.
+
+Edge names (settled red-ink names round, owner —
+option A; rides rename.1, old ledgers keep old
+words and the rename table maps them):
+
+| Coded today | Settled name | Caller does |
+|---|---|---|
+| `submit` | `handoff` | author binds the finished commit |
+| `review` | `grade` | reviewer grades the exact commit (`ship\|needs_fix`) |
+| `check` | `verify` | machine checks (`pass\|fail`) |
+| `land` | `land` | merge into the graph branch |
+| state `submitted` | state `handed_off` | verb/state rhyme: `handoff` hands off, node rests `handed_off` |
+| `block` | `block` | park for a human decision |
+| `resume` | `resume` | human answer re-enters (`BP3_DECIDER=human`) |
+
+Link mint/claim are verbs, not flags:
+`bp3 harness link mint --kind node|edge …` and
+`bp3 harness link claim <token>`. A node link
+carries no edge name — the node worker executes
+no transition when it claims.
+
+Door letter settled: `bp3 g`, not `bp3 t`.
+Nodes form a DAG (shared deps, diamonds — a tree
+allows one parent), scheduled by BFS ready-set
+waves; the *execution* is a tree of workers.
+Tree survives as a view (`--format tree`) and as
+the worker-tree shape, never as the addressed
+noun.
+
+## Success picture
+
+A root worker dispatches a node with a one-line
+brief: "claim this link, do this edge." The child
+claims, works, calls its own edge, dies. Ready
+nodes in a ready-set build and grade in parallel
+desks; landing is a serial queue. The rollup
+shows every node's wall, wait, and dwell time.
+The grader joins any tape's session-id to run-id
+in one lookup. At the end, everything on live
+surfaces — CLI, skills, workflows, records —
+speaks graph/node/state/edge and answers to
+`bp3 g` and `/bp3g`.
+
+## Scope
+
+| In | Out |
+|---|---|
+| `bp3 harness link` mint/claim, CAS claim store, by-session index, context resolution; run config replaces InitRecord (`creator:{}`/`claim:{}`/`tape_path`), `record-init` retires, lifecycle fold reads the run config | rewriting landed quests' ledger history text |
+| ready-set scheduling, per-node timing derived from ledger + derivations, local thresholds | anything committed for metrics; timing judgments stay in `<git-common-dir>/bp3/` |
+| setup timing measured always; optimize only when setup > 3 min (`W_SETUP_SLOW`) | desk pools (killed 2026-11-16; ad hoc desks, measured) |
+| generated ASCII/mermaid diagram from live rollup | writing into harness session logs (tapes stay harness-written) |
+| rename last: `bp3 g`, `bp3g` skills, graph terms on live surfaces | rewriting landed quests' ledger history text |
+| session-id discovery: muse, pi; graceful floor (pid+cwd+window) | adversarial threat model (links are for confused children, not attackers) |
+
+## Timing gates (in-system, local)
+
+- Per node: `wall` (first handoff → land), `wait`
+  (create → first handoff), `dwell` per state,
+  cycles. Derived from ledger timestamps, shown
+  on read, thresholds local, never committed.
+- Per Run setup: desk create → first bp3 answer;
+  `W_SETUP_SLOW` when > 3 minutes.
+- Scorecards report wall minutes AND tokens per
+  node. Visibility, not caps.
+
+## Context layer (kubectl pattern, settled red-ink round 1)
+
+One door per noun, nested as the canonical address:
+`bp3 g <graph> n <node> e <edge>`. Bare `bp3 e …`
+is the claimed shorthand. A context layer resolves
+which graph/node an unqualified call means, with
+kubectl's precedence — explicit always beats
+ambient:
+
+```text
+1. nested address in the call     bp3 g G n N e handoff
+2. session claim (mvp.1)          by-session index -> claim
+3. desk context (cwd)             desk context file from claim
+4. nothing                        E_NO_CONTEXT (post-rename)
+```
+
+| kubectl | bp3 |
+|---|---|
+| kubeconfig | claim store in `<git-common-dir>/bp3/` (machine-local, never committed) |
+| context | one claim: {graph, node, edge, run-id, session-id, desk} |
+| current-context | per-session, never global: parallel children hold different contexts, keyed by session-id, desk as fallback |
+| `-n` / explicit flags | the nested `g … n … e …` address; always wins, always printed in verdicts |
+
+`bp3 e` with no edge prints the resolved context
+and legal edges. Doors settled (owner, red-ink
+round 2): `bp3 g | bp3 n | bp3 e` — one door per
+noun, nested address canonical. Configuration
+surface: `bp3 config` views the whole store;
+bare `bp3 e` is the quick view — resolved context,
+its source rung, legal edges, and the config
+values in force for that context (thresholds,
+desk), so a child can self-diagnose in one call. Context is resolved, never
+carried: env vars are hints the layer may
+cross-check (`W_CONTEXT_ENV_MISMATCH`), never the
+store. This layer is what mvp.2 builds; the doors
+above are its surface.
+
+Locked (owner, data round): after claiming, an
+edge worker calls only `bp3 e …` — no graph, node,
+run-id, or exports — and bp3 resolves the context
+from the claim (session rung, then desk rung).
+Bare `bp3 e` prints the resolved context, its
+source rung, and legal edges. No rung resolving
+means refuse `E_NO_CONTEXT` (post-rename), never
+a guess at a sibling's context.
+
+## Data (settled red-ink data round, owner)
+
+One canonical record per execution: the **run
+config**, keyed by `run_id`, created at
+`link mint` — before any worker exists. Claim
+completes it; everything else is an index or a
+view folded from run configs.
+
+```text
+<git-common-dir>/bp3/
+  config.json            machine settings ONLY (thresholds, gates)
+  runs/<run_id>.json     the run config (canonical, one per Run)
+  links/<token_hash>     -> run_id     (written at mint; claim finds its run config by key)
+  by-session/<session-id> -> run_id     (derived index, rebuildable)
+  desks/<desk>/context   -> run_id      (derived pointer, fallback rung)
+  run-lifecycle-derivations/            (existing supervisor fold)
+```
+
+Run config shape — facts grouped by who knew
+them when. This replaces the supervisor's
+InitRecord (settled, functions round, owner):
+one birth record per Run, and `record-init`
+retires.
+
+```json
+{
+  "run_id": "2026...-handoff-pi-...-c1",
+  "kind": "edge",                    // node | edge
+  "graph": "G", "node": "N", "edge": "handoff",
+  "state": "claimed",                // minted -> claimed (CAS)
+  "desk": ".bp3/worktrees/...",
+  "creator": {                       // parent side, known at mint
+    "run_id": "...",                 // who minted this Run
+    "depth": 2,
+    "harness": "pi", "model": "...", "thinking": "high",
+    "minted_at": "...", "token_hash": "sha256:..."
+  },
+  "claim": {                         // worker side, known at claim
+    "session_id": "...", "pid": 48151, "cwd": "...",
+    "claimed_at": "..."
+  },
+  "tape_path": "..."                 // supervisor side, at bind-tape
+}
+```
+
+The lifecycle fold reads this one file: birth
+from `creator`, presence from `claim.pid` + tape
+mtime, proof from `tape_path`. `bind-tape`
+writes `tape_path` into the run config instead
+of a derivation row. Node-kind configs carry no
+`edge`.
+
+Trees have roots here, as in the supervisor's
+derivations: the root worker's run config is the
+tree root — `creator.run_id` empty, `depth` 0 —
+and every other run config hangs off it through
+`creator.run_id`. The supervisor folds a subtree
+from its root; cleanup and revival anchor at the
+root the same way.
+
+Found, not configured: from any cwd, bp3 runs
+`git rev-parse --git-common-dir` (already the
+resolution in `harness.ml` and the pi dispatcher)
+and appends `bp3/` — one store per repo, shared
+by every worktree/desk of that repo. Lookup is
+by key: `runs/<run_id>.json` directly, or
+session-id -> run_id via the derived index; no
+scanning on the hot path. Outside a git repo
+there is no store and bp3 refuses — there is
+nothing to find.
+
+Stale mints (settled, state round — option C):
+a worker that dies between mint and claim leaves
+a `minted` run config with no pid to pronounce
+orphaned. No TTL: when a graph is done, the graph
+worker runs `bp3 harness link cleanup --graph
+<graph>` and every still-`minted` run config of
+that graph is removed and reported. Claimed run
+configs are never touched — their lifecycle is
+the supervisor's derived fold, not cleanup's.
+
+Rules: `config.json` never holds contexts — `bp3
+config` *views* contexts by folding `runs/`.
+Per-session context is just “the run config your
+session claimed,” so two edge workers on one node
+hold different edges without collision. A run
+config is written by bp3 verbs only, never
+hand-edited, never committed. Terminal lifecycle
+(finished/orphaned) stays derived by the
+supervisor fold, not written into the run config.
+
+## Demo (design trace)
+
+One node, end to end — claim to land, then the
+same node blocked and revived:
+
+```text
+# happy path
+root:  bp3 g flappy-graph r
+         -> ready-set: [flappy-day, flappy-night]  (one wave)
+root:  bp3 harness link mint --kind node --graph flappy-graph --node flappy-day \
+         --parent-run-id root-… --depth 1
+         -> bp3link_7f3a…   (one-line brief to the node worker)
+node:  bp3 harness link claim bp3link_7f3a…        # claimed; session <> node bound
+node:  bp3 harness link mint --kind edge … --edge handoff --parent-run-id … --depth 2
+edge:  bp3 harness link claim bp3link_91bc…        # claimed; session-id <> run-id
+edge:  …builds flappy…
+edge:  bp3 e handoff --commit 4fc0cc4 --reason "flappy day variant"
+         -> {state: handed_off, run_id: …, source: session claim}
+node:  re-reads: handed_off -> mints grade link
+edge2: bp3 e grade --verdict ship --reason "artifact + checks verified"
+node:  re-reads: approved -> mints land link
+edge3: bp3 e land --reason "serial land queue, tip re-checked"
+         -> {state: landed}
+node:  bubble {node: flappy-day, state: landed} -> root; tree dead
+
+# blocked path (same node, different day)
+edge:  …needs a storage choice only the human can make…
+         -> typed failure, dies (no bp3 call)
+node:  bp3 g flappy-graph n flappy-day e block --reason "choose storage shape"
+         -> {state: blocked}; node worker EXITS; tree dead
+root:  bubble {node: flappy-day, state: blocked, reason, run chain, inbox key}
+         -> human paged (live + inbox); human answers in conversation
+root:  BP3_DECIDER=human bp3 g flappy-graph n flappy-day e resume \
+         --reason "localStorage, per owner"
+         -> fresh node link minted; NEW node worker spawns, re-reads, continues
+```
+
+Nothing in either trace parks. Every arrow is a
+bp3 verdict or a worker death.
+
+## Worker topology (settled red-ink round 2, owner)
+
+Same logical contract on both harnesses — claim a
+link, execute one edge, emit a verdict, die —
+different physical shape per harness:
+
+| Layer | Pi | Muse |
+|---|---|---|
+| root worker | pi session | main session |
+| node worker | child pi session (spawn_run) | one workflow run (induct-node script) |
+| edge worker | grandchild pi session | agent inside the workflow run |
+
+Pi nests for real: sessions are processes, so a
+node-worker session loaded with `bp3-pi` calls
+`spawn_run` for its edge workers. Muse flattens:
+a workflow cannot launch a workflow and agents
+cannot spawn agents, so the node worker is the
+workflow script's loop and edge workers are its
+agents. Every mint/claim records `parent_run_id`
+and depth, so the chain tape→run→node→graph is
+one lookup and recursive fan-out stays auditable
+and capped. Current Pi wiring does not yet load
+the extension into spawned children explicitly;
+proving that is part of mvp.1/dogfood.1 scope.
+
+Pi engine MVP v2 tree law: the root Pi session
+faces the human and spawns node workers; a node
+worker spawns edge workers. Terminal results
+bubble edge -> node -> root, then that branch of
+the process tree is dead. A node worker may exit
+on `blocked` only after all its edge Runs are
+terminal in bp3; the root gets one factual bubble
+(graph, node, state, reason, last edge, run chain,
+desk, inbox key), never a live process to babysit.
+Revival after `resume` is a fresh Pi tree with a
+new claim/run chain. If the root itself dies, the
+next main session revives from bp3 rollup + inbox.
+
+## Worker lifecycle — who does what
+
+Three workers, one rule each: the root worker
+schedules, the node worker loops one node's FSM,
+the edge worker executes exactly one edge. bp3
+holds all state; no worker's memory is load-bearing.
+
+```text
+human
+  │  answers blocked gates / promotes at graph_fin
+  ▼
+ROOT WORKER (main session / root pi session)
+  │  reads rollup -> ready-set
+  │  per ready node: mint node link, spawn node worker
+  │  collects terminal bubbles; pages human on blocked
+  ▼
+NODE WORKER (workflow run / child pi session)   ×N in parallel
+  │  claims node link (first action)
+  │  loop: read node state -> mint edge link -> spawn edge worker
+  │        -> await verdict -> re-read state
+  │  exits on landed | blocked | deleted (one terminal bubble)
+  ▼
+EDGE WORKER (agent / grandchild pi session)     ×1 per edge
+     claims edge link (first action)
+     does the work (build, grade, land, …)
+     calls its own edge via bp3, or returns typed failure
+     dies
+```
+
+### Root worker
+
+| Phase | Does |
+|---|---|
+| wake | reads rollup: graph state, ready-set, inbox |
+| dispatch | for each ready node: mint node link, spawn one node worker (parallel across the ready-set) |
+| collect | awaits terminal bubbles; never reaches inside a live node |
+| gate | on `blocked`: page human (live + inbox); on answer, attest + `resume`, then spawn a *fresh* node worker |
+| finish | when all nodes are terminal: present scorecard/demo; `graph_fin` promotion is the human's call |
+
+Never does: execute an edge, hold a node's loop,
+resume an old worker process.
+
+### Node worker
+
+| Phase | Does |
+|---|---|
+| claim | first action: claim the node link; context now resolves from bp3, not the brief |
+| loop | read node state → choose next legal edge → mint edge link → spawn one edge worker → await its verdict → re-read state |
+| ride | `needs_fix` under cycle cap: loop again with the reviewer's named fix verbatim; no human involved |
+| replace | edge worker died/orphaned: mint a fresh link, spawn a replacement edge worker |
+| exit | exactly one terminal bubble to the root worker: `landed`, `blocked` (with reason + run chain), or `deleted`; on `blocked`, exit only after every spawned edge Run is terminal in bp3 |
+
+Never does: talk to the human, park waiting for an
+answer, spawn a second worker for the same edge,
+remember state across edges (re-reads bp3 instead).
+
+### Edge worker
+
+| Phase | Does |
+|---|---|
+| claim | first action: claim the edge link; this binds session-id <> run-id |
+| work | the one job the edge names: write code for `handoff`, grade one exact commit, merge for land |
+| report | success: call its own edge via bp3 (`bp3 e …`), which stamps the verdict; failure: return a typed failure (code, facts, guidance) immediately |
+| die | exits after its verdict/failure; holds nothing for the next edge |
+
+Never does: call a second edge, wait for a human,
+mint links for anyone, write proof about itself
+(supervisor derives lifecycle from tape + pid).
+
+### Proposed bp3 CLI calls (target spelling)
+
+Target spelling below is post-rename
+(`bp3 g | bp3 n | bp3 e`); before rename.1 ships,
+the same calls ride today's `bp3 q …` /
+`bp3 harness …` equivalents. `bp3 harness link`
+and `bp3 config` keep their names.
+
+Root worker calls:
+
+```sh
+bp3 g <graph> r                       # rollup: ready-set, inbox, timing
+bp3 harness desk prepare <graph> <node> --run <run_id>   # positional, as today
+bp3 harness link mint --kind node --graph <graph> --node <node> \
+  --parent-run-id <root_run_id> --depth 1 --desk <desk>
+# -> returns one-line node link for the node worker's brief
+BP3_DECIDER=human bp3 g <graph> n <node> e resume --reason "<human answer>"
+bp3 harness link cleanup --graph <graph>   # at graph end: remove its minted leftovers (claimed: never)
+bp3 g <graph> r                       # re-read after bubbles; scorecard at graph_fin
+```
+
+Node worker calls:
+
+```sh
+bp3 harness link claim <node_link>          # FIRST ACTION: claim; binds session/workflow <> node
+bp3 g <graph> n <node> r              # read own node (canonical address)
+bp3 n r                               # same read via claimed shorthand
+bp3 harness link mint --kind edge --graph <graph> --node <node> --edge <edge> \
+  --parent-run-id <node_run_id> --depth 2 --desk <desk>
+# -> returns one-line edge link for the edge worker's brief
+bp3 harness watch --run-id <edge_run_id>   # await/disposition a dead edge Run
+bp3 g <graph> n <node> e block --reason "<specific reason>"   # human required; then EXIT
+bp3 config --source                   # debug only: why context resolved this way
+```
+
+Edge worker calls (exactly these, then dies):
+
+```sh
+bp3 harness link claim <edge_link>          # FIRST ACTION: claim; binds session-id <> run-id
+bp3 e                                 # self-diagnosis: context, source rung, legal edges
+bp3 e handoff --commit <sha> --reason "<what changed>"        # build edge
+bp3 e grade --verdict ship|needs_fix --reason "<grade>"     # grade edge (binds the recorded commit)
+bp3 e verify --verdict pass|fail --reason "<evidence>"        # verify edge, where the node has one
+bp3 e land --reason "<why this lands>"                       # land edge
+# canonical equivalents: bp3 g <graph> n <node> e handoff|grade|land …
+# failure path: NO bp3 call — return typed failure to the node worker, die
+```
+
+Supervisor-side calls (workflow script / pi
+dispatcher only — never the edge worker):
+
+```sh
+bp3 harness bind-tape --run-id <run_id> --tape-path <tape>   # after child exit
+bp3 harness watch --run-id <run_id>                          # sole killer / orphan disposition
+bp3 harness find-tape --run-id <run_id>                      # grader join: run -> tape
+bp3 harness find-tape --session-id <session_id>              # grader join: session -> run
+```
+
+No other bp3 calls are part of a worker's job.
+In particular: edge workers never call
+`record-init`, `bind-tape`, or `block`; node
+workers never call `resume`; only the root
+worker calls `resume`, and only with
+`BP3_DECIDER=human` from the human's actual words.
+
+### Lifecycle walk (one node, happy path + one block)
+
+```python
+# root worker
+for node in ready_set(graph):
+    spawn_node_worker(mint(node=node, by=root))     # parallel
+bubble = await_any()
+if bubble.state == "blocked":
+    page_human(bubble); answer = human_input()
+    bp3.resume(bubble.node, answer, decider="human")
+    spawn_node_worker(mint(node=bubble.node))       # fresh tree, new claim
+
+# node worker
+ctx = claim(node_link)                              # first action
+while (s := bp3.read(ctx.node)).state not in TERMINAL:
+    r = spawn_edge_worker(mint(node=ctx.node, edge=next_edge(s),
+                               parent_run_id=ctx.run_id))
+    if r.failed and r.needs_human:
+        bp3.block(reason=r.reason); return bubble("blocked", r)
+    # else: verdict already moved state; loop re-reads
+return bubble(s.state)
+
+# edge worker
+ctx = claim(edge_link)                              # first action
+result = do_work(ctx)                               # build / grade / land
+bp3.call_edge(ctx, result) if result.ok else fail_fast(result)
+# die
+```
+
+The tree dies with every bubble: edge worker after
+its edge, node worker after its terminal bubble.
+Revival is always a fresh spawn from bp3 state —
+the root worker (or a new main session, reading
+rollup + inbox) re-mints and re-spawns; nothing is
+ever resumed in place.
+
+## Deliberately open (explored in-graph)
+
+Not pre-decided; each is measured or decided by
+its owning node during the graph, from evidence:
+
+| Question | Explored by | How it closes |
+|---|---|---|
+| session-id exposure per harness — which resolution rung do muse/pi claims actually land on? | dogfood.1 | measured rung distribution in the A/B drive; a third rung is designed only if session+desk both fail routinely |
+| dep freeze rule — may deps change after a node leaves `todo`? | mvp.3 | scheduler built with deps mutable-but-logged; anomalies (or their absence) in dogfood.2 propose the freeze rule to the root worker |
+| Pi extension loading into spawned children — does a child pi session get `bp3-pi` tools without explicit loading? | mvp.1, proven in dogfood.1 | nested Pi claim drive either passes as-is or mvp.1 adds explicit extension loading to the spawn |
+
+## Human touchpoints
+
+- Blocked gates only, per root-worker rails.
+- graph_fin promotion — owner, after demo.
+
+## Fail-fast and blocked handling (settled red-ink round 2, owner)
+
+Failure is a state transition, never a waiting
+process. Workers fail fast: complete the edge,
+return a typed failure, or exit through `block`.
+No worker parks, polls for the human, retries
+forever, or carries the decision in memory.
+
+Blocked is a node state, not a parked process:
+
+```text
+edge worker fails / needs a decision
+  -> node worker calls `block` (commits WIP iff the
+     human needs the diff to decide), returns blocked
+  -> node workflow EXITS; nothing waits or parks
+  -> root worker pages the human (live + inbox)
+  -> human answers in conversation; root worker
+     attests BP3_DECIDER=human, calls `resume`
+  -> root worker relaunches induct-node for that node;
+     it re-reads state and continues
+```
+
+`needs_fix` under the cycle cap never blocks: the
+node worker rides it, carrying the reviewer's named
+fix verbatim. Exceeding the cap escalates to
+blocked. A blocked node starves only its
+dependents; the rest of the ready-set keeps moving.
+Workers are cattle: blocked kills the run, and the
+ledger — never the dead worker's memory — is what
+the relaunch resumes from.
+
+The entire worker tree dies with the bubble. On
+Pi: edge session terminates, node session records
+`blocked` and exits, root main session receives
+the facts and can revive the node after `resume`
+by spawning a fresh tree. On Muse: all agents in
+the node workflow return, the workflow exits, and
+revival launches a fresh workflow. The human can
+revive from the root because bp3 — not any worker
+process — holds the node, reason, run chain, and
+next legal move.
+
+## Exps
+
+Exp display names are `<milestone>.<number> - <slug>`.
+Folders and bp3 exp IDs use the dotless spelling
+`exp-<milestone>-<number>-<slug>`.
+
+### Milestone: migration — words first
+
+### mig.1 - handoff-verbs — [record](experiments/exp-mig-1-handoff-verbs/EXPERIMENT.md)
+First node. FSM verbs/state take settled names
+(`submit -> handoff`, `review -> grade`,
+`check -> verify`, `submitted -> handed_off`) in
+code, workflow briefs, and tests. Old quest files
+never move; the fold maps old ledger strings on
+read, new lines write new words.
+
+### mig.2 - traverse-rename — [record](experiments/exp-mig-2-traverse-rename/EXPERIMENT.md)
+Conducting skills take graph names early:
+`/induct` + `/induct-quest` -> `/traverse`,
+`/induct-quest-no-human` -> `/traverse-no-human`,
+and the `induct-exp` workflow becomes `node-loop`
+(the node worker's loop; mvp.3 generalizes it).
+
+### Milestone: config — the local store
+
+### config.1 - bp3-config — [record](experiments/exp-config-1-bp3-config/EXPERIMENT.md)
+The machine-local hard store, named: `bp3 config`
+tree under the git common dir (contexts, desks,
+local thresholds, claims, by-session index,
+derivations). Written only by bp3 verbs, viewed
+via `bp3 config`, never committed, zero setup.
+
+### Milestone: mvp — link, context, schedule, diagram
+
+### mvp.1 - link-claim — [record](experiments/exp-mvp-1-link-claim/EXPERIMENT.md)
+`bp3 harness link`: mint a one-time link for one
+edge execution; child claims as first action. CAS
+in the common-dir store (one winner,
+`E_LINK_SPENT` names the first claimant). Claim
+records caller facts and the by-session index.
+
+### mvp.2 - context-resolution — [record](experiments/exp-mvp-2-context-resolution/EXPERIMENT.md)
+bp3 resolves graph/node/edge/run from the claim
+store (session, then desk) and stamps verdicts
+and ledger lines. No env ritual, no retyped
+context. Env is a hint only.
+
+### mvp.3 - ready-set-timing — [record](experiments/exp-mvp-3-ready-set-timing/EXPERIMENT.md)
+BFS ready-set waves from node deps; rollup emits ready
+nodes and per-node wall/wait/dwell; setup timing
+per Run with the 3-minute `W_SETUP_SLOW` gate.
+Parallel build/grade in per-node desks, serial
+land queue semantics stated and readied. Named
+deliverable: `induct-node` — one workflow run per
+node owning the whole FSM loop (the old
+induct-exp / induct-grade / quest-land become
+phases inside it); the root worker dispatches
+ready-set waves and handles blocked + graph_fin only.
+
+### mvp.4 - diagram-emit — [record](experiments/exp-mvp-4-diagram-emit/EXPERIMENT.md)
+Generated ASCII + mermaid from a live rollup:
+nodes with state/cycle, deps as ready-set waves, blocked
+nodes naming what they starve.
+
+### mvp.5 - blocked-fail-fast — [record](experiments/exp-mvp-5-blocked-fail-fast/EXPERIMENT.md)
+No parked workers. An edge worker completes its
+edge or fails it immediately; the node worker
+records the decision point through `block` and
+exits when a human is required. `needs_fix` below
+the cycle cap rides automatically, a dead edge
+worker is replaced from derived `orphaned`, and a
+fresh node worker resumes from bp3 after `resume`.
+
+### Milestone: dogfood — use it ourselves
+
+### dogfood.1 - link-drive — [record](experiments/exp-dogfood-1-link-drive/EXPERIMENT.md)
+A/B proof on the flappy node: old brief vs link
+brief on both harnesses, seeded setup attacks
+refusing at claim. Metrics are the acceptance.
+
+### dogfood.2 - parallel-drive — [record](experiments/exp-dogfood-2-parallel-drive/EXPERIMENT.md)
+Two independent flappy-variant nodes, one ready-set,
+parallel desks, parallel build+grade, serial
+land. Scorecard: wall and tokens per node.
+
+### Milestone: rename — migrate everything, last
+
+### rename.1 - bp3g-rename — [record](experiments/exp-rename-1-bp3g-rename/EXPERIMENT.md)
+Full rename on live surfaces: `bp3 g` CLI door,
+graph/node/state/edge/dep vocabulary, skills
+become the `bp3g` family (`/bp3g` conducts,
+`bp3g` variants for framing/no-human), launcher
+workflows, templates. (Edge verbs and the
+`submitted -> handed_off` state already migrated
+in mig.1; this node is nouns, doors, and skills.)
+The rename table in Terms is the
+mapping, and every live surface takes the new
+verbs in this one change. Old terms grep to zero
+on live surfaces; landed ledger text is history
+and keeps the old edge words.
+
+### Milestone: followup — papercuts found live
+
+### followup.1 - grade-evidence — [record](experiments/exp-followup-1-grade-evidence/EXPERIMENT.md)
+
+### followup.2 - workflow-birth — [record](experiments/exp-followup-2-workflow-birth/EXPERIMENT.md)
+Renders must track workflow sources: a dispatch
+never launches a desk render older than its
+source (re-render or `E_RENDER_STALE`). mvp.1's
+grade died on a stale render calling the retired
+`record-init`; owner fix path A formalized.
+Missing evidence is not a defect: grade-audit
+rows must carry typed evidence or the audit
+re-collects internally. Evidence gaps never burn
+an author cycle or page the human (config.1
+cycle-1 papercut).
+
+### Milestone: landing
+
+### landing.1 - landing-wrapup — [record](experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md)
+Scorecard (timing included), findings
+disposition, landing walkthrough actually run
+(red-ink-quest-landing-demo diligence), for the
+owner's promotion review.
+
+## Scorecard
+
+Fields: claims observed (minted/claimed/spent),
+context resolutions, per-node wall/wait/dwell,
+setup wall per Run, ready-set wall vs serial estimate,
+tokens per node, drives observed per harness,
+human-active minutes — or "unmeasured", never zero.
+
+## Exp diagram
+
+```text
+mig.1 ──────────────┐ (verbs first; everything after speaks handoff/grade)
+config.1 ─► mvp.1 ─► mvp.2 ─┬─► mvp.3 ─► mvp.4
+                            ├─► mvp.5 ────────┐
+                            └─► dogfood.1 ─► dogfood.2 ─► rename.1 ─► landing.1
+                                              ▲
+                            mvp.3 ────────────┘ (and mvp.5, dogfood.1 feed it)
+
+ready-set waves: [mig.1, config.1] -> [mig.2, mvp.1] -> [mvp.2] -> [mvp.3, dogfood.1]
+         -> [mvp.4, mvp.5] -> [dogfood.2] -> [rename.1] -> [followup.1, followup.2] -> [landing.1]
+rename.1 = nouns/doors/skills only; verbs already migrated in mig.1
+```
+---SRC---
+src/quest/worktree.ml
+src/quest/dune
+src/quest/main.ml
+src/quest/render.ml
+src/quest/config.ml
+src/quest/harness.ml
+src/quest/hooks.ml
+src/quest/store.ml
+src/quest/gitx.ml
+---TESTS---
+./test
+./docs/quests/2026-11-14-bp3-unit-tests
+./docs/quests/2026-11-14-bp3-unit-tests/experiments/exp-1-test-split-standard
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-1-muse
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-backtest-2-pi
+./extensions/bp3-pi/test
+./src/quest/worktree.ml
+./src/quest/main.ml
+./src/quest/render.ml
+./src/quest/config.ml
+./src/quest/harness.ml
+./src/quest/hooks.ml
+./src/quest/store.ml
+./src/quest/gitx.ml
+     408 src/quest/config.ml
+     125 src/quest/gitx.ml
+    2695 src/quest/harness.ml
+     394 src/quest/hooks.ml
+     668 src/quest/main.ml
+     320 src/quest/render.ml
+     412 src/quest/store.ml
+     547 src/quest/worktree.ml
+     132 test/completion.sh
+     147 test/config.sh
+     113 test/context.sh
+     709 test/harness.sh
+     183 test/hooks.sh
+     393 test/induct-grade.test.mjs
+      46 test/install.sh
+     209 test/link.sh
+     184 test/node-loop.test.mjs
+      55 test/pi-discovery.mjs
+     591 test/q.sh
+     111 test/quest-land.test.mjs
+      65 test/release.sh
+     166 test/skills.sh
+      69 test/tape.sh
+     127 test/traverse-conduct.test.mjs
+       8 test/traverse.sh
+     233 test/worktree.sh
+    9110 total
+---
+63d49cd feat(mvp.2): context resolution — session/desk rungs, bp3 e door, claimed run-id stamping
+febc3ac docs(graph-engine): add followup.2 workflow-birth node
+09b9d8d feat(mvp.1): one-time link claim binding (mint/claim/lookup/cleanup)
+c9a76eb docs(graph-engine): add followup.1 grade-evidence node
+3c47fe5 fix(config.1): attribute mkdir failures, scope thresholds claim
+229a6ba feat(config.1): add bp3 config store and view door
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+886e1af docs(icebox): kill engine fan-out, addressed by graph-engine quest
+1fdb11e docs(icebox): freeze lint, portable dogfood, engine fan-out sketches
+3478ac1 docs(quest): rename graph-link to bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+13ebfdb fix(skills-test): expect red-ink in pi settings exclusions
+0334cdf docs(graph-link): adopt red-inked design; 12 nodes framed
+7640168 docs(quest-skill): quest files end with the Exp diagram
+---STATUS---
+ M .agents/workflows/induct-grade.js
+ M .agents/workflows/node-loop.js
+ M .agents/workflows/quest-land.js
+---BRANCH---
+quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+ .agents/workflows/induct-grade.js | 81 ++++++++++++++++++++++---------------
+ .agents/workflows/node-loop.js    | 85 ++++++++++++++++++++++-----------------
+ .agents/workflows/quest-land.js   | 69 ++++++++++++++++++-------------
+ 3 files changed, 139 insertions(+), 96 deletions(-)
+---
+diff --git a/.agents/workflows/induct-grade.js b/.agents/workflows/induct-grade.js
+index eea4db0..e735fac 100644
+--- a/.agents/workflows/induct-grade.js
++++ b/.agents/workflows/induct-grade.js
+@@ -8,9 +8,9 @@
+ // adherence rows, no edges), then
+ // grade and verify children run in parallel on the exact bound
+ // commit and call their verdict edges directly. Grade children
+-// never edit the work. As the named InitRecord writer (mvp.8)
+-// this launcher records each child's InitRecord via
+-// `bp3 harness record-init` before that child spawns; no child
++// never edit the work. As the link minter (mvp.1)
++// this launcher mints each child's one-time link via
++// `bp3 harness link mint` before that child spawns; no child
+ // writes its own proof. Returns {outcome, matrix, run_ids,
+ // refusals}; replay on the same commit is safe: the audit is
+ // read-only and re-cast verdicts bind the same commit.
+@@ -264,41 +264,53 @@ export default async function workflow(host) {
+   }
+ 
+   function runFolder(edge, cycle, harnessNote) {
+-    return (
+-      expDir + "/runs/" + ts + "-" + edge + "-" + harnessNote +
+-      "-c" + String(cycle)
+-    );
++    void harnessNote;
++    return expDir + "/runs/" + runIdOf(edge, cycle);
+   }
+ 
+   function envPreset(edge, cycle) {
+-    // Env-set identity: BP3_RUN_ID carries the same id as this
+-    // stage's run folder. `bp3` reads it from the environment
+-    // and stamps it into verdicts and ledger lines, so no
+-    // first-command prefix binds the session.
++    // Identity arrives via the claim, never typed env: the
++    // child claims its link first and prefixes its edge call
++    // with BP3_RUN_ID=<run_id from the claim verdict>; bp3
++    // stamps it into verdicts and ledger lines.
++    void edge; void cycle;
++    return "BP3_QUEST=" + quest + " BP3_EXP=" + exp + " " + envPrefix;
++  }
++
++  const links = {};
++
++  function claimNote(edge) {
++    const link = links[edge];
++    if (!link) return "";
+     return (
+-      "BP3_RUN_ID=" + ts + "-" + edge + "-" + harness + "-" + model +
+-      "-c" + String(cycle) + " BP3_QUEST=" + quest + " BP3_EXP=" +
+-      exp + " " + envPrefix
++      "Your first action claims your one-time link: run `" +
++      envPrefix + "./bin/bp3 harness link claim " + link.token +
++      "` and note the run_id it returns (expected " + link.run_id +
++      "). Prefix your state-edge call below with " +
++      "BP3_RUN_ID=<that run_id>. "
+     );
+   }
+ 
+   function runIdOf(edge, cycle) {
++    if (links[edge] && links[edge].run_id) return links[edge].run_id;
+     return ts + "-" + edge + "-" + harness + "-" + model +
+       "-c" + String(cycle);
+   }
+ 
+-  // The named InitRecord writer (mvp.8): this launcher, before
++  // The link minter (mvp.1): this launcher, before
+   // each child spawns. The child never writes its own proof; a
+   // refused write means that child never starts.
+-  async function recordInit(edge, cycle) {
++  async function mintLink(edge, cycle) {
++    const fsm = ["handoff", "grade", "verify", "land", "block", "resume"].includes(edge);
+     const cmd =
+-      envPreset(edge, cycle) + "./bin/bp3 harness record-init" +
+-      " --run-id " + runIdOf(edge, cycle) +
+-      " --harness " + harness + " --quest " + quest +
+-      " --exp " + exp + " --model " + model +
++      envPreset(edge, cycle) + "./bin/bp3 harness link mint" +
++      (fsm ? " --kind edge --edge " + edge : " --kind node") +
++      " --graph " + quest + " --node " + exp +
++      " --harness " + harness + " --model " + model +
++      " --cycle " + String(cycle) +
+       (desk ? " --desk " + desk : "");
+     const result = await host.agent({
+-      label: "init " + exp,
++      label: "mint " + exp,
+       input:
+         deskNote +
+         "Run exactly `" + cmd + "` from the quest worktree if " +
+@@ -310,13 +322,15 @@ export default async function workflow(host) {
+         "update edge.",
+     });
+     const v = parseVerdict(result);
+-    if (!v || v.ok !== true) {
++    if (!v || v.ok !== true || typeof v.token !== "string" || typeof v.run_id !== "string") {
+       refusals.push(
+-        "record-init refused before the " + edge + " child: " +
++        "link mint refused before the " + edge + " child: " +
+         errorText(result)
+       );
+       return false;
+     }
++    links[edge] = { token: v.token, run_id: v.run_id };
++    runIds.push(v.run_id);
+     return true;
+   }
+ 
+@@ -324,10 +338,11 @@ export default async function workflow(host) {
+     const folder = runFolder(edge, cycle, harness + "-" + model);
+     return (
+       "Your run folder is `" + folder + "` under `" + expDir +
+-      "/runs/`. `BP3_RUN_ID`, `BP3_QUEST`, `BP3_EXP`, " +
+-      "`BP3_HARNESS`, and `BP3_MODEL` arrive via environment " +
+-      "and `bp3` stamps them into its verdicts and ledger " +
+-      "lines, so no first-command prefix is needed. First check whether that concrete run " +
++      "/runs/`. " + claimNote(edge) +
++      "`BP3_QUEST`, `BP3_EXP`, `BP3_HARNESS`, and `BP3_MODEL` " +
++      "arrive via environment; your run-id arrives via the " +
++      "claim above and `bp3` stamps it into its verdicts and " +
++      "ledger lines. First check whether that concrete run " +
+src/quest/config.ml:15:   land (depth cap at link mint in mvp.1, W_SETUP_SLOW in
+src/quest/config.ml:41:(* Only an already-existing directory is benign; any other
+src/quest/config.ml:74:type thresholds = { setup_slow_s : int; depth_cap : int }
+src/quest/config.ml:76:let default_thresholds = { setup_slow_s = 180; depth_cap = 3 }
+src/quest/config.ml:79:  `Assoc [("setup_slow_s", `Int t.setup_slow_s); ("depth_cap", `Int t.depth_cap)]
+src/quest/config.ml:107:      { setup_slow_s = jint scope "setup_slow_s" default_thresholds.setup_slow_s;
+src/quest/config.ml:111:(* Zero setup: the first bp3 write on a fresh repo creates
+src/quest/harness.ml:1607:  let wait_dead secs =
+src/quest/harness.ml:1694:           wait_dead (float_of_int fl.wt_grace);
+src/quest/harness.ml:1697:             wait_dead (float_of_int fl.wt_grace)
+src/quest/harness.ml:1780:                   ("Run already bound to a different tape; refusing to rebind: " ^ tp) 1
+src/quest/harness.ml:1836:              ("Run already bound to a different tape; refusing to rebind: "
+src/quest/harness.ml:1840:               or a binding row already names for another Run
+src/quest/harness.ml:1860:                   ("Tape already bound to another run-id; refusing to bind: "
+src/quest/harness.ml:2234:            "A run config already exists for that run-id." 1;
+src/quest/harness.ml:2336:        "Link already claimed; the first claimant is named in first_claim." 1
+src/quest/harness.ml:2339:        "Link already claimed." 1
+src/quest/harness.ml:2359:       (* ensure_dir makes parent+dir; sub parent already exists *)
+src/quest/harness.ml:2612:  Finish evidence is per harness, read off the tape tail: muse-code scans whole entries from the end, skipping task entries, and the first non-task entry decides — a session.end entry closes the tape, and a runtime terminal entry is a child tape's exit entry (child tapes carry no close marker and end with task entries after it); pi never closes, so only its last whole entry counts (a session_closed entry or a final assistant entry that stopped is its clean end). Exit plus finish evidence (or settle plus finish evidence) with no live pid is settled; a live pid is never finished. A torn final tape entry finishes nothing and warns W_TORN_TAIL. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. Finish evidence or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
+src/quest/hooks.ml:250:                     finish (no_write "already bound")
+src/quest/hooks.ml:353:                     if b.settled then finish (no_write "already settled")
+src/quest/hooks.ml:356:                       let wall_ms =
+src/quest/hooks.ml:363:                          ("wall_ms", `Int wall_ms);
+src/quest/hooks.ml:390:                      | None -> finish (no_write "already started"))
+src/quest/main.ml:11:  target : string option; typ : string option; depends_on : string option;
+src/quest/main.ml:23:    | "--depends-on" :: v :: rest -> add acc "depends-on" v rest
+src/quest/main.ml:26:    | "--type" :: [] | "--depends-on" :: [] | "--format" :: [] ->
+src/quest/main.ml:37:      | "type" -> acc.typ <> None | "depends-on" -> acc.depends_on <> None
+src/quest/main.ml:47:    | "depends-on" -> if acc.depends_on <> None then usage "duplicate flag --depends-on" else loop { acc with depends_on = Some v } rest
+src/quest/main.ml:58:         typ = None; depends_on = None; fmt = "json" } args
+src/quest/main.ml:110:    err "E_EXISTS" (`Assoc [("quest", json_str quest)]) "Quest already exists." 1;
+src/quest/main.ml:111:  let deps = match fl.depends_on with
+src/quest/main.ml:124:            ("depends_on", `List (List.map json_str deps))] () in
+src/quest/main.ml:163:    err "E_EXISTS" (`Assoc [("quest", json_str quest); ("exp", json_str exp)]) "Exp already exists." 1;
+src/quest/main.ml:219:      let blocked_by = List.filter (fun d -> not (dep_satisfied d)) deps in
+src/quest/main.ml:441:  bp3 q c <quest> [--type <quest_type>] [--depends-on <a,b>]   create a quest\n\
+src/quest/main.ml:462:Example: bp3 q my-quest u exp-1 handoff --commit abc123 --reason \"ready\"\n"
+src/quest/main.ml:468:Example: bp3 e handoff --commit abc123 --reason \"ready\"\n"
+src/quest/main.ml:483:  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. The depth cap is enforced at link mint (mvp.1, E_DEPTH); W_SETUP_SLOW enforcement lands with mvp.3. First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
+src/quest/main.ml:574:              "Plan already exists with different content; refusing to overwrite." 1
+src/quest/main.ml:598:           let (pos, fl) = ( [quest], { reason=None; commit=None; verdict=None; target=None; typ=None; depends_on=None; fmt="json" } ) in
+src/quest/store.ml:165:   to the new words here and nowhere else; new ledger lines already
+src/quest/store.ml:176:  let depends_on = ref [] in
+src/quest/store.ml:188:          (try match Yojson.Safe.Util.member "depends_on" j with
+src/quest/store.ml:189:             | `List xs -> depends_on := List.map (function `String x -> x | _ -> "") xs
+src/quest/store.ml:211:  (s, !quest_type, !depends_on)
+src/quest/store.ml:341:let dep_satisfied dep =
+src/quest/worktree.ml:120:      "Worktree path already exists." 1;
+src/quest/worktree.ml:126:            "Branch is already checked out in another worktree." 1;
+src/quest/worktree.ml:140:           "Branch is already checked out in another worktree." 1
+src/quest/worktree.ml:227:   final name. The link fails if the key already exists, so
+---HARNESS-HEADS---
+58:(* ---------- lifecycle fold (pure) ---------- *)
+79:let no_observation = {
+90:let derive_lifecycle init obs =
+107:let exit_of_outcome = function
+117:let tape_settle text = contains_sub text "run_settled"
+119:(* ---------- derivation store (mvp.4: supervisor-written) ---------- *)
+120:let git_common_dir () =
+125:let derivations_dir () =
+131:let ensure_dir dir =
+136:(* ---------- writer discipline (followup.1) ---------- *)
+150:let write_one fd path s =
+155:let append_row path row =
+164:let create_row path row =
+171:let cache_tmp_counter = ref 0
+173:let write_cache_file path content =
+190:let whole_lines text =
+199:let nested_str j outer key =
+222:let muse_task_entry j =
+228:let muse_finish j =
+241:let tape_evidence harness text =
+269:let pid_alive pid =
+282:let get_bool j key =
+286:let get_int_opt j key =
+294:let fold_run_file ~silence_seconds path =
+392:(* ---------- derived-state cache (disposable) ---------- *)
+398:let stat_fp path =
+402:let cache_path dir run_id = Filename.concat dir (run_id ^ ".json")
+404:let write_cache dir (rec_ : init_record) run_id lifecycle warns obs silence_seconds =
+432:let read_cache dir run_id silence_seconds =
+478:let fold_run_config ~silence_seconds (rc : Config.run_config) =
+511:let fold_all ~quest ~silence_seconds =
+561:(* ---------- per-Run writer (supervisor-owned) ---------- *)
+562:let last_observed_lifecycle path =
+579:let probe_observation ~silence_seconds (rec_ : init_record) prior =
+608:let append_observation dir (rf : run_fold) ~silence_seconds =
+643:(* ---------- argv ---------- *)
+644:let positive_seconds flag v =
+657:let parse_sup_flags args =
+682:let split_positional args =
+690:(* ---------- verdict helpers ---------- *)
+691:let run_json v =
+698:let dedup xs =
+701:(* ---------- supervisor ---------- *)
+702:let do_supervisor quest args =
+780:(* ---------- init-check ---------- *)
+781:let tape_source = function
+791:let do_init_check args =
+819:(* ---------- find-tape (mvp.2) ---------- *)
+822:let sha256_hex s =
+886:let all_init_records () =
+927:let run_config_records () =
+944:let all_records () =
+951:let tape_roots = function
+966:let rec collect_tapes dir acc =
+973:let member_str_opt j key =
+977:let entry_id_of_line ln =
+999:let tape_references_run text run =
+1004:let tape_references_session text session =
+1018:let engine_fsm_edge_of_run_id run_id =
+1026:let epoch_of_iso s =
+1059:let session_start_of_tape text =
+1094:let tokens_of_line line =
+1110:let tape_carries_own_engine_fsm_edge text run_id exp =
+1131:let session_id_of_tape path =
+1164:let extract_run_ids text =
+1194:let nonneg_int flag v =
+1200:let parse_ft_flags args =
+1233:let tape_entries path =
+1246:let entry_json e =
+1257:let ambiguous what candidates =
+1272:let narrow_candidates candidates run_id exp init_ts =
+1298:let do_find_tape args =
+1431:(* ---------- watch (mvp.3) ---------- *)
+1439:let parse_wt_flags args =
+1480:let resolve_watch fl =
+1586:let watch_lifecycle ~alive ~exit_obs ~evidence ~settle ~tape_seen ~fresh =
+1593:let do_watch args =
+1710:(* ---------- record-init (mvp.8: the InitRecord writer) ---------- *)
+1718:let do_record_init _args =
+1722:(* ---------- bind-tape (followup.3: the launcher's bind step) ---------- *)
+1740:let parse_bind_flags args =
+1758:let do_bind_tape args =
+1878:(* ---------- backtest (backtest.1: findings, not a gate) ---------- *)
+1879:let count_sub text sub =
+1887:let extract_codes text =
+1901:let extract_shas text =
+1925:let pi_usage text =
+1944:let pi_shape text =
+1952:let parse_bt_flags args =
+1973:let do_backtest args =
+2064:(* ---------- link (mvp.1: one-time claim binding) ---------- *)
+2065:let link_hex_of_bytes s =
+2071:let mint_token () =
+2085:let compact_ts () =
+2091:let slug_keep s =
+2100:let env_or flagv name =
+2105:let nonneg_flag flag v =
+2120:let parse_mint_flags args =
+2176:let jassoc j key =
+2180:let creator_depth dir parent =
+2191:let do_link_mint args =
+2280:let observe_session explicit =
+2285:let parse_claim_args args =
+2301:let first_claim_of dir run_id fallback =
+2329:let link_spent dir run_id fallback =
+2341:let sanitize_desk d =
+2349:let write_desk_context dir run_id graph node edge desk =
+2367:let do_link_claim args =
+2445:let parse_lookup_args args =
+2462:let do_link_lookup args =
+2506:let parse_cleanup_args args =
+2520:let do_link_cleanup args =
+2551:let do_link args =
+2574:(* ---------- help (docstrings beside dispatch) ---------- *)
+2575:let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
+2587:let help_supervisor = "bp3 harness supervisor - passive supervisor loop for one quest:\n\
+2595:let help_init_check = "bp3 harness init-check - probe tape sources per harness:\n\
+2600:let help_find_tape = "bp3 harness find-tape - InitRecord-first tape lookup:\n\
+2608:let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
+2617:let help_desk = "bp3 harness desk - machine-local desks, never ledgered (same Worktree store as the retired bp3 worktree door, which remains its documented alias):\n\
+.agents/workflows/:
+induct-grade.js
+node-loop.js
+quest-land.js
+
+skills/:
+add-bp3-skill
+add-yap-skill
+icebox
+naming
+quest
+red-ink
+red-ink-quest-landing-demo
+traverse
+traverse-no-human
+using-bp3
+---
+completion.sh
+config.sh
+context.sh
+harness.sh
+hooks.sh
+induct-grade.test.mjs
+install.sh
+link.sh
+node-loop.test.mjs
+pi-discovery.mjs
+q.sh
+quest-land.test.mjs
+release.sh
+skills.sh
+tape.sh
+traverse-conduct.test.mjs
+traverse.sh
+worktree.sh
+---MAKE---
+.PHONY: check test lint release publish install
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/harness.sh
+	./test/config.sh
+	./test/link.sh
+	./test/context.sh
+	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/traverse.sh
+	./test/completion.sh
+	./test/release.sh
+	./test/install.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	node --check skills/traverse/workflows/node-loop.js
+	node --check skills/traverse/workflows/induct-grade.js
+	node --check skills/traverse/workflows/quest-land.js
+
+test:
+	./test/skills.sh
+
+# --- release (Exp 5): tag-gated artifact + checksum; publish-once via gh ---
+RELEASE_VERSION := $(shell sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' src/quest/gitx.ml | head -1)
+RELEASE_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+RELEASE_ARCH := $(shell uname -m)
+RELEASE_ARTIFACT := dist/bp3-q-v$(RELEASE_VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
+
+release:
+	@./scripts/release-check >/dev/null
+	$(DUNE_BUILD) src/quest/main.exe
+	mkdir -p dist
+	cp _build/default/src/quest/main.exe $(RELEASE_ARTIFACT)
+	cd dist && shasum -a 256 $$(basename $(RELEASE_ARTIFACT)) > $$(basename $(RELEASE_ARTIFACT)).sha256
+	@echo "released $(RELEASE_ARTIFACT)"
+
+publish: release
+	./scripts/release-publish $(RELEASE_ARTIFACT) $(RELEASE_ARTIFACT).sha256
+
+PREFIX ?= $(HOME)/.local
+install:
+	PREFIX="$(PREFIX)" ./scripts/install-bp3.sh
+ls: .agents/skills/traverse/workflows/: No such file or directory
+skills/traverse/workflows/:
+induct-grade.js
+node-loop.js
+quest-land.js
+---
+// node-loop: build one todo exp, then stop. Installed to
+// .agents/workflows/node-loop.js by `bp3 skills install`.
+// This step owns exactly one transition family: it reads state,
+// spawns the single author child for a `todo` exp, re-reads, and
+// returns what the re-read reports. Any other state belongs to
+// a different step; this file refuses it untouched. All state
+// moves through `bp3 q u`, called directly by the author child;
+// this script never writes state. Its one write is proof, not
+// state: as the link minter (mvp.1) it mints a one-time link via
+// `bp3 harness link mint` before the child spawns; the
+// child's first action claims it, and the claim binds
+// session to run-id. As the named tape binder it then
+// binds the child's session tape via `bp3 harness
+// bind-tape` after the child returns.
+// Args are supplied by the calling traverse skill as {quest, exp,
+// ts, harness, model}; ts is a UTC compact timestamp from the
+// caller, embedded by the child in its run-id because scripts
+// cannot read the clock.
+
+function textOf(result) {
+  if (typeof result === "string") return result;
+  if (!result || typeof result !== "object") return "";
+  if (typeof result.output === "string") return result.output;
+  if (typeof result.text === "string") return result.text;
+  if (typeof result.content === "string") return result.content;
+  try {
+    return JSON.stringify(result);
+  } catch (e) {
+    return "";
+  }
+}
+
+function parseVerdict(result) {
+  const text = textOf(result);
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    // fall through to embedded-JSON extraction
+  }
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(text.slice(start, end + 1));
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
+
+function errorText(result) {
+  const v = parseVerdict(result);
+  if (v && v.error && v.error.code) {
+    const facts = v.error.facts ? JSON.stringify(v.error.facts) : "";
+    return v.error.code + (facts ? " " + facts : "");
+  }
+  const text = textOf(result).trim();
+  return text ? text.slice(0, 500) : "no verdict returned";
+}
+
+export default async function workflow(host) {
+  const rawArgs = typeof host.args === "string"
+    ? JSON.parse(host.args)
+    : (host.args || {});
+  const quest = rawArgs.quest;
+  const exp = rawArgs.exp;
+  const ts = rawArgs.ts;
+  const harness = rawArgs.harness || "muse-code";
+  const model = rawArgs.model || "unknown";
+  const desk = rawArgs.desk ? String(rawArgs.desk) : "";
+  const envPrefix =
+    "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
+  const deskNote = desk ? ("Your working directory is the quest worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
+  const authorLoad =
+    "First load the code-writer skill (read_skill \"code-writer\") " +
+    "and follow its procedure, including naming discipline and " +
+    "its language references. ";
+  const refusals = [];
+  const runIds = [];
+  if (!quest || !exp || !ts) {
+    return {
+      exp: exp || null,
+      outcome: "refused",
+      commit: null,
+      run_ids: runIds,
+      refusals: ["missing quest, exp, or ts in workflow args"],
+    };
+  }
+
+  const expDir =
+    "docs/quests/" + quest + "/experiments/" + exp;
+
+  async function readState() {
+    const result = await host.agent({
+      label: "read " + exp,
+      input:
+        "Run exactly `" + envPrefix + "./bin/bp3 q " + quest + " r " + exp +
+        "` from the quest worktree if one is named below, else the repository root, and return only its stdout JSON " +
+        "verdict verbatim as your entire reply, with no prose and no " +
+        "code fences. If the command fails, return its stdout JSON " +
+        "verdict verbatim instead. Do not edit any file and do not " +
+        "call any `bp3 q u` update edge.",
+    });
+    const v = parseVerdict(result);
+    if (!v || typeof v.state !== "string") {
+      return {
+        state: "unknown",
+        commit: null,
+        cycle: 0,
+        legal_edges: [],
+        raw: textOf(result),
+      };
+    }
+    return {
+      state: v.state,
+      commit: v.commit === undefined ? null : v.commit,
+      cycle: typeof v.cycle === "number" ? v.cycle : 0,
+      legal_edges: Array.isArray(v.legal_edges) ? v.legal_edges : [],
+---QSH---
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+quest_alias() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 quest "$@"; }
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+# --- create / read verdict shapes, both spellings ---
+out=$(q c demo)
+echo "$out" | jq -e '.ok == true and .quest == "demo" and .state == "proposed"' >/dev/null || fail "quest create shape: $out"
+out=$(q create demo2)
+echo "$out" | jq -e '.ok == true and .state == "proposed"' >/dev/null || fail "quest create alias: $out"
+out=$(quest_alias r demo)
+echo "$out" | jq -e '.ok == true and .quest == "demo" and .state == "proposed" and (.exps | type == "array") and (.inbox | type == "array") and has("rollup")' >/dev/null || fail "quest read shape: $out"
+out=$(q r)
+echo "$out" | jq -e '.ok == true and (.quests | length >= 2)' >/dev/null || fail "quest list: $out"
+
+out=$(q demo c parser-fix)
+echo "$out" | jq -e '.ok == true and .state == "todo" and .cycle == 1' >/dev/null || fail "exp create: $out"
+out=$(q demo create parser-fix2)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "exp create alias: $out"
+out=$(q demo r parser-fix)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "exp read: $out"
+out=$(q demo read parser-fix)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "exp read alias: $out"
+
+# --- strict argv: dup flag, unknown flag, stray positional -> usage before write ---
+before=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+if out=$(q demo u parser-fix handoff --commit abc --reason x --reason y 2>&1); then fail "dup flag accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "dup flag code: $out"
+if out=$(q demo u parser-fix handoff --commit abc --reason x --bogus y 2>&1); then fail "unknown flag accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "unknown flag code: $out"
+if out=$(q demo u parser-fix handoff extra --commit abc --reason x 2>&1); then fail "stray positional accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "stray code: $out"
+after=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+[ "$before" = "$after" ] || fail "strict argv wrote to ledger"
+
+# --- refusal: land from todo, ledger unchanged ---
+if out=$(q demo u parser-fix land --reason "too early" 2>&1); then fail "land from todo accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "todo" and .error.facts.edge == "land" and (.error.facts.legal_edges | index("handoff") != null) and (.error.guidance | length > 0)' >/dev/null || fail "illegal edge facts: $out"
+after=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+[ "$before" = "$after" ] || fail "refusal ledgered"
+
+# --- identity: unset -> unknown + warning; invalid -> fail fast ---
+out=$(env -u BP3_HARNESS -u BP3_MODEL BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q demo c id-exp)
+echo "$out" | jq -e '.ok == true and (.warnings | index("W_IDENTITY_UNKNOWN") != null)' >/dev/null || fail "identity warning: $out"
+git show bp3/exp/demo/id-exp:docs/quests/demo/experiments/id-exp/ledger.jsonl | tail -1 | jq -e '.harness == "unknown" and .model == "unknown" and .bp3_version == "0.2.0"' >/dev/null || fail "identity ledger unknown"
+if out=$(BP3_HARNESS=bogus BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q demo r parser-fix 2>&1); then fail "invalid harness accepted"; fi
+echo "$out" | jq -e '.error.code == "E_IDENTITY"' >/dev/null || fail "identity code: $out"
+
+# --- run-id: BP3_RUN_ID from env stamps verdict + ledger; unset is absent ---
+out=$(BP3_RUN_ID=run-42 BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q c runq)
+echo "$out" | jq -e '.ok == true and .run_id == "run-42"' >/dev/null || fail "run-id quest verdict: $out"
+out=$(BP3_RUN_ID=run-42 BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq c rid-exp)
+echo "$out" | jq -e '.ok == true and .run_id == "run-42"' >/dev/null || fail "run-id exp verdict: $out"
+git show bp3/exp/runq/rid-exp:docs/quests/runq/experiments/rid-exp/ledger.jsonl | tail -1 | jq -e '.run_id == "run-42" and .harness == "muse-code"' >/dev/null || fail "run-id ledger set"
+out=$(BP3_RUN_ID=run-42 BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq r rid-exp)
+echo "$out" | jq -e '.ok == true and .run_id == "run-42"' >/dev/null || fail "run-id read verdict: $out"
+out=$(env -u BP3_RUN_ID BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq c rid-unset)
+echo "$out" | jq -e '.ok == true and (has("run_id") | not)' >/dev/null || fail "run-id unset verdict: $out"
+git show bp3/exp/runq/rid-unset:docs/quests/runq/experiments/rid-unset/ledger.jsonl | tail -1 | jq -e 'has("run_id") | not' >/dev/null || fail "run-id ledger unset"
+out=$(env -u BP3_RUN_ID BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq r rid-unset)
+echo "$out" | jq -e '.ok == true and (has("run_id") | not)' >/dev/null || fail "run-id unset read verdict: $out"
+out=$(env -u BP3_HARNESS -u BP3_MODEL -u BP3_RUN_ID BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq c rid-unknown)
+echo "$out" | jq -e '.ok == true and (has("run_id") | not) and (.warnings | index("W_IDENTITY_UNKNOWN") != null)' >/dev/null || fail "run-id unset identity warning: $out"
+git show bp3/exp/runq/rid-unknown:docs/quests/runq/experiments/rid-unknown/ledger.jsonl | tail -1 | jq -e '(has("run_id") | not) and .harness == "unknown"' >/dev/null || fail "run-id unset unknown ledger"
+
+# --- happy path handoff/grade/verify/land (alias spellings mixed) ---
+echo work > b.txt; git add b.txt; git commit -qm work
+B=$(git rev-parse HEAD)
+out=$(q demo u parser-fix handoff --commit "$B" --reason "first cut")
+echo "$out" | jq -e '.ok == true and .state == "handed_off" and .cycle == 1' >/dev/null || fail "handoff: $out"
+out=$(q demo update parser-fix grade --verdict ship --reason "looks right")
+echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "grade ship stays handed_off until verify: $out"
+out=$(q demo u parser-fix verify --verdict pass --reason "green")
+echo "$out" | jq -e '.ok == true and .state == "approved"' >/dev/null || fail "verify pass approves: $out"
+out=$(q demo u parser-fix land --reason "ship it")
+echo "$out" | jq -e '.ok == true and .state == "landed" and .fin == "exp_fin"' >/dev/null || fail "land: $out"
+out=$(q r demo)
+echo "$out" | jq -e '.ok == true and (.exps[] | select(.exp == "parser-fix") | .state == "landed" and .fin == "exp_fin")' >/dev/null || fail "read after land: $out"
+
+# --- mig.1 compat: frozen pre-rename ledger folds to new words, file untouched ---
+out=$(q demo c compat-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "compat create: $out"
+append_ledger_line() { # $1 exp $2 json-line
+  local br="bp3/exp/demo/$1" path="docs/quests/demo/experiments/$1/ledger.jsonl" tip idx led blob tree nt
+  tip=$(git rev-parse "$br")
+  led=$(git show "$br:$path")
+  idx=$(mktemp)
+  GIT_INDEX_FILE="$idx" git read-tree "$tip"
+  blob=$(printf '%s\n%s\n' "$led" "$2" | git hash-object -w --stdin)
+  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$path"
+  tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+  nt=$(git commit-tree "$tree" -p "$tip" -m "compat fixture $1")
+  git update-ref "refs/heads/$br" "$nt" "$tip"
+  rm -f "$idx"
+}
+compat_tip_before=$(git rev-parse bp3/exp/demo/compat-exp)
+append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:00:00Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":null,\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+out=$(q demo r compat-exp)
+echo "$out" | jq -e --arg c "$B" '.state == "handed_off" and .cycle == 1 and .commit == $c and (.legal_edges | index("grade") != null) and (.legal_edges | index("verify") != null)' >/dev/null || fail "compat old submit folds handed_off: $out"
+append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:01:00Z\",\"edge\":\"review\",\"from\":\"submitted\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"ship\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:02:00Z\",\"edge\":\"check\",\"from\":\"submitted\",\"to\":\"approved\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"pass\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+out=$(q demo r compat-exp)
+echo "$out" | jq -e '.state == "approved" and .cycle == 1' >/dev/null || fail "compat old grade/verify fold approved: $out"
+# reads never rewrite the frozen file
+q demo r compat-exp >/dev/null
+q demo r compat-exp >/dev/null
+[ "$(git rev-parse bp3/exp/demo/compat-exp)" != "$compat_tip_before" ] || fail "compat fixture did not land"
+compat_tip_read=$(git rev-parse bp3/exp/demo/compat-exp)
+q r demo >/dev/null
+[ "$(git rev-parse bp3/exp/demo/compat-exp)" = "$compat_tip_read" ] || fail "read rewrote frozen ledger"
+# old verbs refuse as unknown edges, ledger unchanged
+for old in submit review check; do
+  if out=$(q demo u compat-exp "$old" --commit "$B" --verdict ship --reason "old words" 2>&1); then fail "old edge $old accepted"; fi
+  echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "old edge $old code: $out"
+done
+[ "$(git rev-parse bp3/exp/demo/compat-exp)" = "$compat_tip_read" ] || fail "old edge refusal ledgered"
+# mixed vocab in one ledger (this quest's own shape): new handoff, old verdicts
+out=$(q demo c mixed-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "mixed create: $out"
+out=$(q demo u mixed-exp handoff --commit "$B" --reason "new words")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "mixed handoff: $out"
+append_ledger_line mixed-exp "{\"ts\":\"2026-01-01T00:03:00Z\",\"edge\":\"review\",\"from\":\"submitted\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"ship\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+append_ledger_line mixed-exp "{\"ts\":\"2026-01-01T00:04:00Z\",\"edge\":\"check\",\"from\":\"submitted\",\"to\":\"approved\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"pass\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+out=$(q demo r mixed-exp)
+echo "$out" | jq -e '.state == "approved" and .cycle == 1' >/dev/null || fail "mixed vocab folds approved: $out"
+
+# --- fin report words: exp_fin above; quest_fin when rollup landed ---
+out=$(q c fin-demo)
+echo "$out" | jq -e '.ok == true' >/dev/null || fail "fin quest create: $out"
+out=$(q fin-demo c only-exp)
+echo "$out" | jq -e '.state == "todo" and .fin == null' >/dev/null || fail "fin exp create: $out"
+out=$(q fin-demo u only-exp handoff --commit "$B" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "fin handoff: $out"
+out=$(q fin-demo u only-exp grade --verdict ship --reason "ok")
+out=$(q fin-demo u only-exp verify --verdict pass --reason "ok")
+out=$(q fin-demo u only-exp land --reason "done")
+echo "$out" | jq -e '.state == "landed" and .fin == "exp_fin"' >/dev/null || fail "fin land: $out"
+out=$(q r fin-demo)
+echo "$out" | jq -e '.rollup == "landed" and .fin == "quest_fin" and (.exps[0] | .state == "landed" and .fin == "exp_fin")' >/dev/null || fail "quest_fin read: $out"
+out=$(q r demo)
+echo "$out" | jq -e '.fin == null' >/dev/null || fail "unfinished quest has no quest_fin: $out"
+
+# --- blocked inbox after needs_fix at max_cycles (default max_cycles=1) ---
+out=$(q demo u parser-fix2 handoff --commit "$B" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "submit2: $out"
+out=$(q demo u parser-fix2 grade --verdict needs_fix --reason "broken")
+echo "$out" | jq -e '.ok == true and .state == "blocked" and .human_action_required == true' >/dev/null || fail "needs_fix blocks at max: $out"
+out=$(q r demo)
+echo "$out" | jq -e '(.inbox | length == 1) and .inbox[0].quest == "demo" and .inbox[0].exp == "parser-fix2" and .inbox[0].reason == "broken" and (.inbox[0] | has("checkpoint")) and (.inbox[0] | has("cycle")) and (.inbox[0] | has("since"))' >/dev/null || fail "blocked inbox: $out"
+
+# table format contains same facts
+tbl=$(q r demo --format table)
+echo "$tbl" | grep -q "demo" || fail "table missing quest"
+echo "$tbl" | grep -q "parser-fix2" || fail "table missing blocked exp"
+echo "$tbl" | grep -q "blocked" || fail "table missing blocked state"
+
+# rendered tables: header row, aligned columns, short commits, counts
+echo "$tbl" | sed -n 1p | grep -q "^quest demo \[proposed\] rollup: " || fail "quest table header: $tbl"
+echo "$tbl" | sed -n 2p | grep -Eq '^exp +state +cycle +commit +changes$' || fail "quest table columns: $tbl"
+echo "$tbl" | grep -Eq '^parser-fix +landed +1 +[0-9a-f]{7} +\+[0-9]+ u[0-9]+ -[0-9]+$' || fail "quest table landed row: $tbl"
+if echo "$tbl" | grep -q '="'; then fail "quest table dumps inline JSON: $tbl"; fi
+if echo "$tbl" | grep -q 'legal_edges'; then fail "quest table dumps raw fields: $tbl"; fi
+etbl=$(q demo r parser-fix --format table)
+echo "$etbl" | sed -n 1p | grep -Eq '^demo / parser-fix — landed, cycle 1, commit [0-9a-f]{7}, legal: ' || fail "exp table summary: $etbl"
+echo "$etbl" | sed -n 2p | grep -Eq '^change +path$' || fail "exp table columns: $etbl"
+echo "$etbl" | grep -Eq '^\+ +b\.txt$' || fail "exp table change row: $etbl"
+# null commit / unknown changes render as - / ?, never crash
+out=$(q demo c null-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "null-exp create: $out"
+ntbl=$(q demo r null-exp --format table)
+echo "$ntbl" | sed -n 1p | grep -q 'commit -, legal: handoff, block, delete' || fail "null commit cell: $ntbl"
+echo "$ntbl" | grep -q '? changes unknown' || fail "unknown changes cell: $ntbl"
+qtbl_null=$(q r demo --format table)
+echo "$qtbl_null" | grep -Eq '^null-exp +todo +1 +- +\?$' || fail "quest table null row: $qtbl_null"
+
+# tree format: the human view (git-status alphabet: + todo, u in-flight, - deleted, blank landed)
+tree=$(q r demo --format tree)
+echo "$tree" | grep -q "^demo " || fail "tree missing quest root: $tree"
+echo "$tree" | grep -q "u parser-fix2 - blocked" || fail "tree blocked marker: $tree"
+echo "$tree" | grep -q "parser-fix - landed (exp_fin)" || fail "tree exp_fin: $tree"
+echo "$tree" | grep -q "(human owed)" || fail "tree human owed: $tree"
+echo "$tree" | grep -q "human owed:" || fail "tree inbox header: $tree"
+etree=$(q demo r parser-fix2 --format tree)
+echo "$etree" | grep -q "u parser-fix2 - blocked" || fail "exp tree marker: $etree"
+echo "$etree" | grep -q "legal: resume, delete" || fail "exp tree legal edges: $etree"
+
+# delete spellings (d / delete) on a scratch exp
+out=$(q demo c scratch-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "scratch create: $out"
+out=$(q demo d scratch-exp --reason "no longer needed")
+echo "$out" | jq -e '.ok == true and .state == "deleted"' >/dev/null || fail "exp delete d: $out"
+out=$(q demo create scratch-exp2)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "scratch2 create: $out"
+out=$(q demo delete scratch-exp2 --reason "gone")
+echo "$out" | jq -e '.ok == true and .state == "deleted"' >/dev/null || fail "exp delete alias: $out"
+
+# --- scenario helpers ---
+qa() { env BP3_MODEL=executor-a BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+qb() { env BP3_MODEL=executor-b BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+exp_ledger() { git show "bp3/exp/demo/$1:docs/quests/demo/experiments/$1/ledger.jsonl"; }
+commit_on_exp() {
+  local exp_name="$1"
+  local file_path="$2"
+  local content="$3"
+  local branch="refs/heads/bp3/exp/demo/$exp_name"
+  local tip
+  local blob
+  local tree
+  local new_tip
+  local idx="$work/idx-$exp_name"
+  tip=$(git rev-parse "$branch")
+  rm -f "$idx"
+  blob=$(printf '%s' "$content" | git hash-object -w --stdin)
+  GIT_INDEX_FILE="$idx" git read-tree "$tip"
+  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$file_path"
+  tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+  new_tip=$(printf 'work %s\n' "$exp_name" | git commit-tree "$tree" -p "$tip")
+  git update-ref "$branch" "$new_tip" "$tip"
+  rm -f "$idx"
+  printf '%s' "$new_tip"
+}
+
+# --- two executors alternate edges on one exp, identical guards ---
+out=$(q demo c alt-exp)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "alt create: $out"
+if out_a=$(qa demo u alt-exp land --reason "too early" 2>&1); then fail "alt land by A accepted"; fi
+if out_b=$(qb demo u alt-exp land --reason "too early" 2>&1); then fail "alt land by B accepted"; fi
+echo "$out_a" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "todo" and .error.facts.edge == "land"' >/dev/null || fail "alt guard A: $out_a"
+echo "$out_b" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "todo" and .error.facts.edge == "land"' >/dev/null || fail "alt guard B: $out_b"
+[ "$(echo "$out_a" | jq -cS '.error.facts')" = "$(echo "$out_b" | jq -cS '.error.facts')" ] || fail "alt guards differ: $out_a vs $out_b"
+echo alt-work > alt.txt; git add alt.txt; git commit -qm alt-work
+ALT=$(git rev-parse HEAD)
+out=$(qa demo u alt-exp handoff --commit "$ALT" --reason "work")
+echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "alt handoff A: $out"
+out=$(qb demo u alt-exp grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "alt grade B: $out"
+out=$(qa demo u alt-exp verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.ok == true and .state == "approved"' >/dev/null || fail "alt verify A: $out"
+out=$(qb demo u alt-exp land --reason "ship")
+echo "$out" | jq -e '.ok == true and .state == "landed"' >/dev/null || fail "alt land B: $out"
+exp_ledger alt-exp | jq -se '([.[] | select(.edge == "handoff") | .model] == ["executor-a"]) and ([.[] | select(.edge == "grade") | .model] == ["executor-b"]) and ([.[] | select(.edge == "verify") | .model] == ["executor-a"]) and ([.[] | select(.edge == "land") | .model] == ["executor-b"])' >/dev/null || fail "alt ledger models"
+
+# --- verdict naming a superseded commit refused ---
+out=$(q demo c stale-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "stale create: $out"
+echo stale-a > stale.txt; git add stale.txt; git commit -qm stale-a
+STALE_A=$(git rev-parse HEAD)
+out=$(q demo u stale-exp handoff --commit "$STALE_A" --reason "first")
+echo "$out" | jq -e '.state == "handed_off" and .cycle == 1' >/dev/null || fail "stale handoff A: $out"
+out=$(q demo u stale-exp block --reason "hold")
+echo "$out" | jq -e '.state == "blocked"' >/dev/null || fail "stale block: $out"
+out=$(BP3_DECIDER=human q demo u stale-exp resume --reason "go simpler")
+echo "$out" | jq -e '.state == "todo" and .cycle == 2' >/dev/null || fail "stale resume: $out"
+echo stale-b > stale.txt; git add stale.txt; git commit -qm stale-b
+STALE_B=$(git rev-parse HEAD)
+out=$(q demo u stale-exp handoff --commit "$STALE_B" --reason "second")
+echo "$out" | jq -e '.state == "handed_off" and .cycle == 2' >/dev/null || fail "stale handoff B: $out"
+before=$(exp_ledger stale-exp | wc -l)
+if out=$(q demo u stale-exp grade --verdict ship --commit "$STALE_A" --reason "stale" 2>&1); then fail "stale grade accepted"; fi
+echo "$out" | jq -e --arg b "$STALE_B" '.ok == false and .error.code == "E_COMMIT_MISMATCH" and .error.facts.bound == $b' >/dev/null || fail "stale grade code: $out"
+if out=$(q demo u stale-exp verify --verdict pass --commit "$STALE_A" --reason "stale" 2>&1); then fail "stale verify accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_COMMIT_MISMATCH"' >/dev/null || fail "stale verify code: $out"
+after=$(exp_ledger stale-exp | wc -l)
+[ "$before" = "$after" ] || fail "stale verdict ledgered"
+out=$(q demo r stale-exp)
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "stale still handed_off: $out"
+out=$(q demo u stale-exp grade --verdict ship --commit "$STALE_B" --reason "current")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "stale grade current: $out"
+out=$(q demo u stale-exp verify --verdict pass --commit "$STALE_B" --reason "current")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "stale verify current: $out"
+out=$(q demo u stale-exp land --reason "ship")
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "stale land: $out"
+
+# --- grade + verify on same commit while handed_off: approved exactly once ---
+out=$(q demo c parallel-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "parallel create: $out"
+echo par-work > par.txt; git add par.txt; git commit -qm par-work
+PAR=$(git rev-parse HEAD)
+out=$(q demo u parallel-exp handoff --commit "$PAR" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel handoff: $out"
+out=$(q demo u parallel-exp grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel grade first: $out"
+out=$(q demo u parallel-exp verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "parallel verify approves: $out"
+[ "$(exp_ledger parallel-exp | grep -c '"to":"approved"')" = "1" ] || fail "parallel approved count"
+if out=$(q demo u parallel-exp grade --verdict ship --reason "again" 2>&1); then fail "parallel extra grade accepted"; fi
+echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "approved"' >/dev/null || fail "parallel extra grade code: $out"
+if out=$(q demo u parallel-exp verify --verdict pass --reason "again" 2>&1); then fail "parallel extra verify accepted"; fi
+echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "approved"' >/dev/null || fail "parallel extra verify code: $out"
+[ "$(exp_ledger parallel-exp | grep -c '"to":"approved"')" = "1" ] || fail "parallel approved twice"
+out=$(q demo u parallel-exp land --reason "ship")
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "parallel land: $out"
+out=$(q demo c parallel-rev)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "parallel-rev create: $out"
+out=$(q demo u parallel-rev handoff --commit "$PAR" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel-rev handoff: $out"
+out=$(q demo u parallel-rev verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel-rev verify first: $out"
+out=$(q demo u parallel-rev grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "parallel-rev grade approves: $out"
+[ "$(exp_ledger parallel-rev | grep -c '"to":"approved"')" = "1" ] || fail "parallel-rev approved count"
+out=$(q demo u parallel-rev land --reason "ship")
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "parallel-rev land: $out"
+
+# --- needs_fix at max_cycles blocked; resume human gate (parser-fix2 above) ---
+before=$(exp_ledger parser-fix2 | wc -l)
+if out=$(q demo u parser-fix2 resume --reason "go" 2>&1); then fail "resume without human accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_HUMAN_REQUIRED"' >/dev/null || fail "resume human code: $out"
+after=$(exp_ledger parser-fix2 | wc -l)
+[ "$before" = "$after" ] || fail "refused resume ledgered"
+out=$(q demo r parser-fix2)
+echo "$out" | jq -e '.state == "blocked" and .cycle == 1 and (.legal_edges | index("resume") != null) and (.legal_edges | index("delete") != null)' >/dev/null || fail "blocked legal edges: $out"
+out=$(BP3_DECIDER=human q demo u parser-fix2 resume --reason "go simpler")
+echo "$out" | jq -e '.ok == true and .state == "todo" and .cycle == 2' >/dev/null || fail "resume human todo cycle+1: $out"
+out=$(q r demo)
+echo "$out" | jq -e '[.inbox[] | select(.exp == "parser-fix2")] | length == 0' >/dev/null || fail "resumed exp still in inbox: $out"
+
+# --- two exps land into one quest branch: clean merge keeps verdicts ---
+out=$(q demo c land-a)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "land-a create: $out"
+out=$(q demo c land-b)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "land-b create: $out"
+LAND_A=$(commit_on_exp land-a fa.txt "A-content")
+LAND_B=$(commit_on_exp land-b fb.txt "B-content")
+out=$(q demo u land-a handoff --commit "$LAND_A" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-a handoff: $out"
+out=$(q demo u land-b handoff --commit "$LAND_B" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-b handoff: $out"
+out=$(q demo u land-a grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-a grade: $out"
+out=$(q demo u land-a verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-a verify: $out"
+out=$(q demo u land-b grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-b grade: $out"
+out=$(q demo u land-b verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-b verify: $out"
+out=$(q demo u land-a land --reason "ship")
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-a land: $out"
+out=$(q demo u land-b land --reason "ship")
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-b clean merge: $out"
+[ "$(git show bp3/quest/demo:fa.txt)" = "A-content" ] || fail "clean merge lost fa.txt"
+[ "$(git show bp3/quest/demo:fb.txt)" = "B-content" ] || fail "clean merge lost fb.txt"
+git merge-base --is-ancestor "$LAND_A" bp3/quest/demo || fail "land-a reviewed commit not ancestor of quest tip"
+git merge-base --is-ancestor "$LAND_B" bp3/quest/demo || fail "land-b reviewed commit not ancestor of quest tip"
+out=$(q demo r land-b)
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-b verdicts kept: $out"
+[ "$(exp_ledger land-b | grep -c '"to":"approved"')" = "1" ] || fail "land-b approved verdict lost"
+
+# --- two exps land: conflict demotes only the conflicting exp ---
+out=$(q demo c land-c)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "land-c create: $out"
+out=$(q demo c land-d)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "land-d create: $out"
+LAND_C=$(commit_on_exp land-c shared.txt "C-side")
+LAND_D=$(commit_on_exp land-d shared.txt "D-side")
+out=$(q demo u land-c handoff --commit "$LAND_C" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-c handoff: $out"
+out=$(q demo u land-d handoff --commit "$LAND_D" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-d handoff: $out"
+out=$(q demo u land-c grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-c grade: $out"
+out=$(q demo u land-c verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-c verify: $out"
+out=$(q demo u land-d grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-d grade: $out"
+out=$(q demo u land-d verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-d verify: $out"
+out=$(q demo u land-c land --reason "ship")
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-c land: $out"
+cycle_before=$(q demo r land-d | jq -r '.cycle')
+out=$(q demo u land-d land --reason "ship")
+echo "$out" | jq -e --argjson cyc "$cycle_before" '.ok == true and .state == "todo" and .cycle == $cyc and .facts.land_conflict == true' >/dev/null || fail "land-d conflict demotion: $out"
+out=$(q demo r land-d)
+echo "$out" | jq -e --argjson cyc "$cycle_before" '.state == "todo" and .cycle == $cyc' >/dev/null || fail "land-d cycle changed: $out"
+out=$(q demo r land-c)
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-c demoted by other conflict: $out"
+out=$(q demo r land-a)
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-a demoted by other conflict: $out"
+[ "$(git show bp3/quest/demo:shared.txt)" = "C-side" ] || fail "conflict overwrote quest work file"
+
+# --- dirty-tree handoff refused; block checkpoint is a real commit ---
+out=$(q demo c dirty-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "dirty create: $out"
+echo dirty-work > dirty.txt; git add dirty.txt; git commit -qm dirty-work
+DIRTY_WORK=$(git rev-parse HEAD)
+echo dirty >> a.txt
+before=$(exp_ledger dirty-exp | wc -l)
+if out=$(q demo u dirty-exp handoff --commit "$DIRTY_WORK" --reason "work" 2>&1); then fail "dirty handoff accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_DIRTY_TREE"' >/dev/null || fail "dirty handoff code: $out"
+after=$(exp_ledger dirty-exp | wc -l)
+[ "$before" = "$after" ] || fail "dirty handoff ledgered"
+out=$(q demo r dirty-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "dirty handoff changed state: $out"
+git checkout -- a.txt
+out=$(q demo u dirty-exp handoff --commit "$DIRTY_WORK" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "clean handoff after dirty: $out"
+echo dirty-again >> a.txt
+out=$(q demo u dirty-exp block --reason "stuck")
+echo "$out" | jq -e '.ok == true and .state == "blocked" and .human_action_required == true' >/dev/null || fail "dirty block: $out"
+checkpoint=$(exp_ledger dirty-exp | tail -1 | jq -r '.checkpoint')
+[ -n "$checkpoint" ] && [ "$checkpoint" != "null" ] || fail "block checkpoint missing"
+[ "$(git cat-file -t "$checkpoint")" = "commit" ] || fail "checkpoint is not a commit object: $checkpoint"
+out=$(q r demo)
+echo "$out" | jq -e --arg ck "$checkpoint" '[.inbox[] | select(.exp == "dirty-exp" and .checkpoint == $ck)] | length == 1' >/dev/null || fail "inbox checkpoint mismatch: $out"
+git checkout -- a.txt
+
+# --- delete from blocked requires human; tombstone keeps branch ref ---
+before=$(exp_ledger dirty-exp | wc -l)
+if out=$(q demo d dirty-exp --reason "gone" 2>&1); then fail "delete blocked without human accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_HUMAN_REQUIRED"' >/dev/null || fail "delete blocked code: $out"
+after=$(exp_ledger dirty-exp | wc -l)
+[ "$before" = "$after" ] || fail "refused delete ledgered"
+out=$(q demo r dirty-exp)
+echo "$out" | jq -e '.state == "blocked"' >/dev/null || fail "refused delete changed state: $out"
+out=$(BP3_DECIDER=human q demo d dirty-exp --reason "gone")
+echo "$out" | jq -e '.ok == true and .state == "deleted"' >/dev/null || fail "delete blocked human: $out"
+git rev-parse --verify -q refs/heads/bp3/exp/demo/dirty-exp >/dev/null || fail "delete removed exp branch ref"
+out=$(q demo r dirty-exp)
+echo "$out" | jq -e '.state == "deleted" and (.legal_edges | length == 0)' >/dev/null || fail "tombstone read: $out"
+exp_ledger dirty-exp | tail -1 | jq -e '.edge == "delete" and .to == "deleted"' >/dev/null || fail "tombstone ledger line"
+
+# --- fresh-clone reconstruction from branch tips alone ---
+out=$(q demo c clone-blocked)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "clone-blocked create: $out"
+echo cb-work > cb.txt; git add cb.txt; git commit -qm cb-work
+CB_WORK=$(git rev-parse HEAD)
+out=$(q demo u clone-blocked handoff --commit "$CB_WORK" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "clone-blocked handoff: $out"
+out=$(q demo u clone-blocked grade --verdict needs_fix --reason "clone blocked reason")
+echo "$out" | jq -e '.state == "blocked" and .human_action_required == true' >/dev/null || fail "clone-blocked blocks: $out"
+before_clone=$(q r demo | jq -S -c '{quest, state, rollup, exps: (.exps | sort_by(.exp) | map({exp, state, cycle, commit})), inbox: (.inbox | sort_by(.exp))}')
+git clone -q "$work/repo" "$work/clone"
+cd "$work/clone"
+git config user.email t@t.t; git config user.name t
+git fetch -q origin '+refs/heads/bp3/*:refs/heads/bp3/*'
+test ! -f docs/quests/demo/experiments/clone-blocked/state.yaml || fail "clone worktree carries state.yaml; branch-tip proof unclear"
+clone_q() { BP3_Q_BIN="$work/clone/q-bin" ./bin/bp3 q "$@"; }
+after_clone=$(clone_q r demo | jq -S -c '{quest, state, rollup, exps: (.exps | sort_by(.exp) | map({exp, state, cycle, commit})), inbox: (.inbox | sort_by(.exp))}')
+[ "$before_clone" = "$after_clone" ] || fail "clone reconstruction differs: $before_clone vs $after_clone"
+out=$(clone_q demo r clone-blocked)
+echo "$out" | jq -e '.state == "blocked"' >/dev/null || fail "clone blocked exp: $out"
+out=$(clone_q demo r land-a)
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "clone landed exp: $out"
+out=$(clone_q demo r land-d)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "clone demoted exp: $out"
+out=$(clone_q r demo)
+echo "$out" | jq -e '.rollup == "blocked" and ([.inbox[] | select(.exp == "clone-blocked" and .reason == "clone blocked reason")] | length == 1)' >/dev/null || fail "clone rollup/inbox: $out"
+cd "$work/repo"
+
+# --- proposed changes: the bound commit's changeset, visible before land ---
+q c chg >/dev/null
+q chg c files >/dev/null
+echo new > added.txt; mkdir -p sub; echo deep > sub/deep.txt; echo change >> a.txt; git rm -q b.txt 2>/dev/null || rm -f b.txt
+git add -A; git commit -qm "add+modify+delete"
+CHG=$(git rev-parse HEAD)
+out=$(q chg u files handoff --commit "$CHG" --reason "changeset demo")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "chg handoff: $out"
+out=$(q chg r files)
+echo "$out" | jq -e '[.changes[] | select(.change == "+" and .path == "added.txt")] | length == 1' >/dev/null || fail "changes +: $out"
+echo "$out" | jq -e '[.changes[] | select(.change == "u" and .path == "a.txt")] | length == 1' >/dev/null || fail "changes u: $out"
+echo "$out" | jq -e '[.changes[] | select(.change == "-" and .path == "b.txt")] | length == 1' >/dev/null || fail "changes -: $out"
+ctree=$(q chg r files --format tree)
+echo "$ctree" | grep -q "├── + added.txt" || fail "exp tree files: $ctree"
+echo "$ctree" | grep -q "├── sub" || fail "exp tree dir branch: $ctree"
+echo "$ctree" | grep -q "└── + deep.txt" || fail "exp tree nested leaf: $ctree"
+echo "$ctree" | grep -qF "+ added.txt" || fail "exp tree + line: $ctree"
+echo "$ctree" | grep -qF "u a.txt" || fail "exp tree u line: $ctree"
+echo "$ctree" | grep -qF -- "- b.txt" || fail "exp tree - line: $ctree"
+qtree=$(q r chg --format tree)
+echo "$qtree" | grep -q "\[+2 u1 -1\]" || fail "quest tree counts: $qtree"
+git checkout -q HEAD -- a.txt 2>/dev/null || true
+# unsure changeset renders as ?, never a fake empty
+q chg c fresh >/dev/null
+ftree=$(q chg r fresh --format tree)
+echo "$ftree" | grep -q "? changes unknown" || fail "unsure changes marker: $ftree"
+out=$(q chg r fresh)
+echo "$out" | jq -e '.changes == null' >/dev/null || fail "unsure changes json: $out"
+
+# --- icebox door: read-only list/search/slug over docs/icebox ---
+mkdir -p docs/icebox
+cat > docs/icebox/2026-01-01-alpha-idea.md <<'EOF'
+---
+status: frozen
+date: 2026-01-01
+promoted: null
+---
+
+# Alpha idea
+
+Body mentions Tables and completion.
+EOF
+cat > docs/icebox/2026-01-02-beta-idea.md <<'EOF'
+---
+status: frozen
+date: 2026-01-02
+promoted: docs/quests/some-quest/QUEST.md
+---
+
+# Beta idea
+
+Plain body.
+EOF
+printf 'no frontmatter here\njust text about tables\n' > docs/icebox/2026-01-03-broken.md
+printf '# Icebox\n\nnot an entry\n' > docs/icebox/README.md
+icebox_status_before=$(git status --porcelain)
+out=$(q icebox r)
+echo "$out" | jq -e '.ok == true and (.entries | length == 3) and .entries[0].slug == "2026-01-01-alpha-idea" and .entries[0].date == "2026-01-01" and .entries[0].status == "frozen" and .entries[0].promoted == null and .entries[0].title == "Alpha idea" and .entries[1].promoted == "docs/quests/some-quest/QUEST.md" and .entries[2].slug == "2026-01-03-broken" and .entries[2].date == "-" and .entries[2].status == "-" and .entries[2].title == "-"' >/dev/null || fail "icebox list: $out"
+out=$(q icebox read)
+echo "$out" | jq -e '.ok == true and (.entries | length == 3)' >/dev/null || fail "icebox read alias: $out"
+out=$(q icebox r TABLE)
+echo "$out" | jq -e '.ok == true and (.entries | length == 2) and .entries[0].slug == "2026-01-01-alpha-idea" and .entries[1].slug == "2026-01-03-broken"' >/dev/null || fail "icebox term case-insensitive: $out"
+out=$(q icebox r alpha tables)
+echo "$out" | jq -e '.ok == true and (.entries | length == 1) and .entries[0].slug == "2026-01-01-alpha-idea"' >/dev/null || fail "icebox all terms: $out"
+out=$(q icebox r zzz-no-hit)
+echo "$out" | jq -e '.ok == true and (.entries | length == 0)' >/dev/null || fail "icebox no hits empty: $out"
+q icebox r 2026-01-01-alpha-idea > "$work/icebox-out.txt"
+cmp docs/icebox/2026-01-01-alpha-idea.md "$work/icebox-out.txt" || fail "icebox slug verbatim"
+itbl=$(q icebox r --format table)
+echo "$itbl" | sed -n 1p | grep -Eq '^slug +date +status +promoted +title$' || fail "icebox table header: $itbl"
+echo "$itbl" | grep -Eq '^2026-01-01-alpha-idea +2026-01-01 +frozen +- +Alpha idea$' || fail "icebox table alpha row: $itbl"
+echo "$itbl" | grep -q 'docs/quests/some-quest/QUEST.md' || fail "icebox table promoted: $itbl"
+if out=$(q icebox c nope 2>&1); then fail "icebox write verb accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "icebox write verb code: $out"
+[ "$(git status --porcelain)" = "$icebox_status_before" ] || fail "icebox command wrote to worktree"
+
+# --- version guard: minor-ahead warns and writes; major-ahead refuses writes ---
+stamp_ledger() { # $1 quest $2 exp $3 version
+  local br="bp3/exp/$1/$2" path="docs/quests/$1/experiments/$2/ledger.jsonl" tip idx led blob tree nt
+  tip=$(git rev-parse "$br")
+  led=$(git show "$br:$path")
+  idx=$(mktemp)
+  GIT_INDEX_FILE="$idx" git read-tree "$tip"
+  blob=$(printf '%s\n{"ts":"2026-01-01T00:00:00Z","edge":"note","from":"todo","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"fixture stamp","harness":"t","model":"t","bp3_version":"%s"}\n' "$led" "$3" | git hash-object -w --stdin)
+  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$path"
+  tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+  nt=$(git commit-tree "$tree" -p "$tip" -m "fixture stamp $3")
+  git update-ref "refs/heads/$br" "$nt" "$tip"
+  rm -f "$idx"
+}
+out=$(q demo c vf-exp)
+echo "$out" | jq -e '.ok == true' >/dev/null || fail "vf-exp create: $out"
+stamp_ledger demo vf-exp 0.3.0
+out=$(q demo r vf-exp)
+echo "$out" | jq -e '.warnings | index("W_VERSION_AHEAD") != null' >/dev/null || fail "minor-ahead read warning: $out"
+out=$(q demo u vf-exp block --reason "minor ahead still writes")
+echo "$out" | jq -e '.ok == true and .state == "blocked" and (.warnings | index("W_VERSION_AHEAD") != null)' >/dev/null || fail "minor-ahead write: $out"
+stamp_ledger demo parser-fix 99.0.0
+before=$(git rev-parse bp3/exp/demo/parser-fix)
+if out=$(q demo u parser-fix block --reason "major ahead must refuse" 2>&1); then fail "major-ahead write accepted: $out"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_VERSION_AHEAD" and .error.facts.binary == "0.2.0" and .error.facts.repo == "99.0.0"' >/dev/null || fail "major-ahead refusal: $out"
+[ "$(git rev-parse bp3/exp/demo/parser-fix)" = "$before" ] || fail "major-ahead refusal wrote"
+
+# --- help: -h/--help at every door, stdout, exit 0, no state read ---
+out=$(q -h) || fail "q -h exit"
+echo "$out" | grep -q "bp3 q c|r|d" || fail "q -h doors: $out"
+echo "$out" | grep -q "icebox" || fail "q -h icebox: $out"
+out=$(q --help) || fail "q --help exit"
+echo "$out" | grep -q "quest door" || fail "q --help text: $out"
+out=$(q c -h) || fail "quest door -h exit"
+for w in --type --depends-on --format --reason; do echo "$out" | grep -q -- "$w" || fail "quest door help missing $w: $out"; done
+out=$(q demo -h) || fail "exp door -h exit"
+echo "$out" | grep -q "exp door" || fail "exp door help: $out"
+out=$(q demo u -h) || fail "update -h exit"
+for w in handoff grade verify land block resume --verdict --commit --reason --target; do echo "$out" | grep -qw -- "$w" || fail "update help missing $w: $out"; done
+out=$(q icebox -h) || fail "icebox -h exit"
+echo "$out" | grep -q "icebox r" || fail "icebox help: $out"
+out=$(q icebox r --help) || fail "icebox r --help exit"
+echo "$out" | grep -q "read-only" || fail "icebox r help: $out"
+out=$(./bin/bp3 -h) || fail "wrapper -h exit"
+echo "$out" | grep -q "usage: bp3" || fail "wrapper help: $out"
+out=$(q r --help) || fail "r --help should be quest-door help"
+echo "$out" | grep -q "quest door" || fail "r --help text: $out"
+# help reads no state: works for a nonexistent quest
+out=$(q no-such-quest -h) || fail "ghost quest -h exit"
+echo "$out" | grep -q "exp door" || fail "ghost quest help: $out"
+
+echo "q tests: ok"
+(* ---------- link (mvp.1: one-time claim binding) ---------- *)
+let link_hex_of_bytes s =
+  let buf = Buffer.create (String.length s * 2) in
+  String.iter (fun c ->
+    Buffer.add_string buf (Printf.sprintf "%02x" (Char.code c))) s;
+  Buffer.contents buf
+
+let mint_token () =
+  let raw =
+    try
+      let fd = Unix.openfile "/dev/urandom" [Unix.O_RDONLY] 0 in
+      let b = Bytes.make 16 '\x00' in
+      let n = Unix.read fd b 0 16 in
+      Unix.close fd;
+      if n = 16 then Bytes.to_string b else raise Exit
+    with _ ->
+      let seed = Printf.sprintf "%d-%f-%d" (Unix.getpid ()) (Unix.time ())
+        (Random.int 1_000_000_000) in
+      String.sub (sha256_hex seed ^ sha256_hex (seed ^ "!")) 0 16 in
+  "bp3link_" ^ link_hex_of_bytes raw
+
+let compact_ts () =
+  let t = Unix.gmtime (Unix.time ()) in
+  Printf.sprintf "%04d%02d%02dT%02d%02d%02dZ"
+    (t.Unix.tm_year + 1900) (t.Unix.tm_mon + 1) t.Unix.tm_mday
+    t.Unix.tm_hour t.Unix.tm_min t.Unix.tm_sec
+
+let slug_keep s =
+  let b = Buffer.create (String.length s) in
+  String.iter (fun c ->
+    let ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+      || (c >= '0' && c <= '9') || c = '-' || c = '.' || c = '_' in
+    Buffer.add_char b (if ok then c else '-')) s;
+  let v = Buffer.contents b in
+  if v = "" then "unknown" else v
+
+let env_or flagv name =
+  match flagv with
+  | Some v when v <> "" -> v
+  | _ -> (match Sys.getenv_opt name with Some v when v <> "" -> v | _ -> "")
+
+let nonneg_flag flag v =
+  let n = try int_of_string v with _ -> -1 in
+  if n < 0 || string_of_int n <> v then
+    usage (flag ^ " needs a non-negative integer, got: " ^ v)
+  else n
+
+type mint_flags = {
+  mutable m_kind : string option; mutable m_graph : string option;
+  mutable m_node : string option; mutable m_edge : string option;
+  mutable m_parent : string option; mutable m_depth : int option;
+  mutable m_desk : string option; mutable m_harness : string option;
+  mutable m_model : string option; mutable m_thinking : string option;
+  mutable m_cycle : int; mutable m_run : string option;
+}
+
+let parse_mint_flags args =
+  let fl = { m_kind = None; m_graph = None; m_node = None; m_edge = None;
+             m_parent = None; m_depth = None; m_desk = None;
+             m_harness = None; m_model = None; m_thinking = None;
+             m_cycle = 1; m_run = None } in
+  let cyc_set = ref false in
+  let rec loop = function
+    | [] -> fl
+    | "--kind" :: v :: rest ->
+        if fl.m_kind <> None then usage "duplicate flag --kind";
+        fl.m_kind <- Some v; loop rest
+    | "--graph" :: v :: rest ->
+        if fl.m_graph <> None then usage "duplicate flag --graph";
+        fl.m_graph <- Some v; loop rest
+    | "--node" :: v :: rest ->
+        if fl.m_node <> None then usage "duplicate flag --node";
+        fl.m_node <- Some v; loop rest
+    | "--edge" :: v :: rest ->
+        if fl.m_edge <> None then usage "duplicate flag --edge";
+        fl.m_edge <- Some v; loop rest
+    | "--parent-run-id" :: v :: rest ->
+        if fl.m_parent <> None then usage "duplicate flag --parent-run-id";
+        fl.m_parent <- Some v; loop rest
+    | "--depth" :: v :: rest ->
+        if fl.m_depth <> None then usage "duplicate flag --depth";
+        fl.m_depth <- Some (nonneg_flag "--depth" v); loop rest
+    | "--desk" :: v :: rest ->
+        if fl.m_desk <> None then usage "duplicate flag --desk";
+        fl.m_desk <- Some v; loop rest
+    | "--harness" :: v :: rest ->
+        if fl.m_harness <> None then usage "duplicate flag --harness";
+        fl.m_harness <- Some v; loop rest
+    | "--model" :: v :: rest ->
+        if fl.m_model <> None then usage "duplicate flag --model";
+        fl.m_model <- Some v; loop rest
+    | "--thinking" :: v :: rest ->
+        if fl.m_thinking <> None then usage "duplicate flag --thinking";
+        fl.m_thinking <- Some v; loop rest
+    | "--cycle" :: v :: rest ->
+        if !cyc_set then usage "duplicate flag --cycle";
+        cyc_set := true;
+        fl.m_cycle <- positive_seconds "--cycle" v; loop rest
+    | "--run-id" :: v :: rest ->
+        if fl.m_run <> None then usage "duplicate flag --run-id";
+        fl.m_run <- Some v; loop rest
+    | ["--kind"] | ["--graph"] | ["--node"] | ["--edge"]
+    | ["--parent-run-id"] | ["--depth"] | ["--desk"] | ["--harness"]
+    | ["--model"] | ["--thinking"] | ["--cycle"] | ["--run-id"] ->
+        usage "flag needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray) in
+  loop args
+
+let jassoc j key =
+  try match Yojson.Safe.Util.member key j with `Assoc _ as o -> Some o | _ -> None
+  with _ -> None
+
+let creator_depth dir parent =
+  match parent with
+  | None -> None
+  | Some p ->
+      (match Config.load_run_config_json dir p with
+       | Some j ->
+           (match jassoc j "creator" with
+            | Some c -> Some (Config.jint c "depth" 0 + 1)
+            | None -> None)
+       | None -> None)
+
+let do_link_mint args =
+  let fl = parse_mint_flags args in
+  let kind = match fl.m_kind with
+    | Some k when k = "node" || k = "edge" -> k
+    | Some k -> usage ("--kind must be node or edge, got: " ^ k)
+    | None -> usage "link mint needs --kind node|edge" in
+  let graph = match fl.m_graph with
+    | Some g when g <> "" -> g | _ -> usage "link mint needs --graph <graph>" in
+  let node = match fl.m_node with
+    | Some n when n <> "" -> n | _ -> usage "link mint needs --node <node>" in
+  Store.check_slug graph; Store.check_slug node;
+  let edge = match kind, fl.m_edge with
+    | "edge", Some e when e <> "" -> Some e
+    | "edge", _ -> usage "link mint --kind edge needs --edge <edge>"
+    | _, Some _ -> usage "link mint --kind node takes no --edge"
+    | _, None -> None in
+  (match edge with
+   | Some e ->
+       if not (List.mem e ["handoff"; "grade"; "verify"; "land"; "block"; "resume"])
+       then usage ("unknown edge: " ^ e)
+   | None -> ());
+  let dir = Config.ensure_config () in
+  let parent = fl.m_parent in
+  let depth = match fl.m_depth with
+    | Some d -> d
+    | None -> (match creator_depth dir parent with
+               | Some d -> d | None -> 0) in
+  let thresholds = Config.load_thresholds dir in
+  if depth > thresholds.Config.depth_cap then
+    err "E_DEPTH" (`Assoc [("depth", `Int depth);
+      ("depth_cap", `Int thresholds.Config.depth_cap);
+      ("graph", json_str graph); ("node", json_str node)])
+      "Depth beyond the machine depth cap; the worker tree cannot fan out past it." 1;
+  let harness_v = env_or fl.m_harness "BP3_HARNESS" in
+  let harness_v = if harness_v = "" then "muse-code" else harness_v in
+  let model_v = env_or fl.m_model "BP3_MODEL" in
+  let model_v = if model_v = "" then "unknown" else model_v in
+  let desk = match fl.m_desk with Some d -> d | None -> Sys.getcwd () in
+  let edge_label = match edge with Some e -> e | None -> "node" in
+  let run_id = match fl.m_run with
+    | Some r when r <> "" ->
+        if Config.load_run_config_json dir r <> None then
+          err "E_EXISTS" (`Assoc [("run_id", json_str r)])
+            "A run config already exists for that run-id." 1;
+        r
+    | _ ->
+        let rec gen tries =
+          let cand = Printf.sprintf "%s-%s-%s-%s-c%d" (compact_ts ())
+            edge_label (slug_keep harness_v) (slug_keep model_v) fl.m_cycle in
+          if Config.load_run_config_json dir cand = None then cand
+          else if tries <= 0 then
+            err "E_EXISTS" (`Assoc [("run_id", json_str cand)])
+              "Minted run-id collided; retry." 1
+          else begin ignore (Unix.select [] [] [] 1.0); gen (tries - 1) end in
+        gen 5 in
+  let token = mint_token () in
+  let token_hash = "sha256:" ^ sha256_hex token in
+  let creator = [
+    ("run_id", json_str (match parent with Some p -> p | None -> ""));
+    ("depth", `Int depth);
+    ("harness", json_str harness_v);
+    ("model", json_str model_v);
+    ("minted_at", json_str (now_ts ()));
+    ("token_hash", json_str token_hash);
+  ] @ (match fl.m_thinking with Some t -> [("thinking", json_str t)] | None -> []) in
+  let fields = [
+    ("run_id", json_str run_id);
+    ("kind", json_str kind);
+    ("graph", json_str graph);
+    ("node", json_str node);
+    ("state", json_str "minted");
+    ("desk", json_str desk);
+    ("creator", `Assoc creator);
+  ] @ (match edge with Some e -> [("edge", json_str e)] | None -> []) in
+  Config.save_run_config_json dir run_id (`Assoc fields);
+  let hash_hex = sha256_hex token in
+  Config.write_file_atomic
+    (Filename.concat (Config.links_dir dir) hash_hex) (run_id ^ "\n");
+  print_endline (Yojson.Safe.to_string (`Assoc [
+    ("ok", `Bool true); ("token", json_str token);
+    ("run_id", json_str run_id); ("kind", json_str kind);
+    ("graph", json_str graph); ("node", json_str node);
+    ("edge", (match edge with Some e -> json_str e | None -> `Null));
+    ("state", json_str "minted"); ("depth", `Int depth);
+    ("parent_run_id", (match parent with Some p -> json_str p | None -> `Null));
+    ("desk", json_str desk);
+  ]));
+  0
+
+let observe_session explicit =
+  match explicit with
+  | Some s when s <> "" -> Some s
+  | _ -> Config.observed_session_id ()
+
+let parse_claim_args args =
+  let rec loop token session = function
+    | [] -> (token, session)
+    | "--session-id" :: v :: rest ->
+        if session <> None then usage "duplicate flag --session-id";
+        loop token (Some v) rest
+    | ["--session-id"] -> usage "flag needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | v :: rest ->
+        if token <> None then usage "link claim takes one token";
+        loop (Some v) session rest in
+  loop None None args
+
+let first_claim_of dir run_id fallback =
+  let marker = Filename.concat (Config.claims_dir dir) (run_id ^ ".claim") in
+  let from_text text =
+    try
+      let j = Yojson.Safe.from_string text in
+      let sess = Config.jopt j "session_id" in
+      let pid = try match Yojson.Safe.Util.member "pid" j with
+        | `Int n -> n | _ -> 0 with _ -> 0 in
+      let ts = Config.jstr j "claimed_at" "" in
+      Some (sess, pid, ts)
+    with _ -> None in
+  match (if Sys.file_exists marker then from_text (read_file_or marker "") else None) with
+  | Some _ as v -> v
+  | None ->
+      (match fallback with
+       | `Assoc fs ->
+           (match List.assoc_opt "claim" fs with
+            | Some (`Assoc cf) ->
+                let sess = (match List.assoc_opt "session_id" cf with
+                  | Some (`String s) -> Some s | _ -> None) in
+                let pid = (match List.assoc_opt "pid" cf with
+                  | Some (`Int n) -> n | _ -> 0) in
+                let ts = (match List.assoc_opt "claimed_at" cf with
+                  | Some (`String s) -> s | _ -> "") in
+                Some (sess, pid, ts)
+            | _ -> None)
+       | _ -> None)
+
+let link_spent dir run_id fallback =
+  match first_claim_of dir run_id fallback with
+  | Some (sess, pid, ts) ->
+      err "E_LINK_SPENT" (`Assoc [("run_id", json_str run_id);
+        ("first_claim", `Assoc [
+          ("session_id", (match sess with Some s -> json_str s | None -> `Null));
+          ("pid", `Int pid); ("ts", json_str ts)])])
+        "Link already claimed; the first claimant is named in first_claim." 1
+  | None ->
+      err "E_LINK_SPENT" (`Assoc [("run_id", json_str run_id)])
+        "Link already claimed." 1
+
+let sanitize_desk d =
+  let b = Buffer.create (String.length d) in
+  String.iter (fun c ->
+    let ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+      || (c >= '0' && c <= '9') || c = '-' || c = '_' || c = '.' in
+    Buffer.add_char b (if ok then c else '_')) d;
+  Buffer.contents b
+
+let write_desk_context dir run_id graph node edge desk =
+  if desk = "" then ()
+  else
+    let payload = Yojson.Safe.to_string (`Assoc [
+      ("run_id", json_str run_id); ("graph", json_str graph);
+      ("node", json_str node);
+      ("edge", (match edge with Some e -> json_str e | None -> `Null))]) ^ "\n" in
+    (try
+       let sub = Filename.concat (Config.desks_dir dir) (sanitize_desk desk) in
+       Config.ensure_dir sub;
+       (* ensure_dir makes parent+dir; sub parent already exists *)
+       Config.write_file_atomic (Filename.concat sub "context") payload
+extensions/bp3-pi/:
+index.ts
+package.json
+README.md
+roles
+src
+test
+
+skills/traverse/:
+SKILL.md
+workflows
+extensions/bp3-pi/index.ts:56:    name: "spawn_run",
+extensions/bp3-pi/index.ts:58:    description: "Spawn one supervised pi child: link mint before spawn, the child claims first, bind-tape after exit. Example: spawn_run({quest, exp, edge:\"handoff\", prompt})",
+extensions/bp3-pi/index.ts:78:        run_ids: { type: "array", items: { type: "string" }, description: "Run-ids returned by spawn_run" },
+---TRAVERSE---
+     166 skills/traverse/SKILL.md
+     527 skills/traverse/workflows/induct-grade.js
+     349 skills/traverse/workflows/node-loop.js
+     260 skills/traverse/workflows/quest-land.js
+    1302 total
+      legal_edges: Array.isArray(v.legal_edges) ? v.legal_edges : [],
+      raw: textOf(result),
+    };
+  }
+
+  function runFolder(edge, cycle, harnessNote) {
+    void harnessNote;
+    return expDir + "/runs/" + runIdOf(edge, cycle);
+  }
+
+  function envPreset(edge, cycle) {
+    // Identity arrives via the claim, never typed env: the
+    // child claims its link first and prefixes its edge call
+    // with BP3_RUN_ID=<run_id from the claim verdict>; bp3
+    // stamps it into verdicts and ledger lines.
+    void edge; void cycle;
+    return "BP3_QUEST=" + quest + " BP3_EXP=" + exp + " " + envPrefix;
+  }
+
+  const links = {};
+
+  function claimNote(edge) {
+    const link = links[edge];
+    if (!link) return "";
+    return (
+      "Your first action claims your one-time link: run `" +
+      envPrefix + "./bin/bp3 harness link claim " + link.token +
+      "` and note the run_id it returns (expected " + link.run_id +
+      "). Prefix your state-edge call below with " +
+      "BP3_RUN_ID=<that run_id>. "
+    );
+  }
+
+  function runIdOf(edge, cycle) {
+    if (links[edge] && links[edge].run_id) return links[edge].run_id;
+    return ts + "-" + edge + "-" + harness + "-" + model +
+      "-c" + String(cycle);
+  }
+
+  // The link minter (mvp.1): this launcher, before the child
+  // spawns. A refused mint means the child never starts. The
+  // mint names no tape: the child's session tape does not
+  // exist yet, so the launcher binds it after the child
+  // returns (bindTape below). The run folder's tape.log stays
+  // the child's own transcript, never finish evidence.
+  async function mintLink(edge, cycle) {
+    const fsm = ["handoff", "grade", "verify", "land", "block", "resume"].includes(edge);
+    const cmd =
+      envPreset(edge, cycle) + "./bin/bp3 harness link mint" +
+      (fsm ? " --kind edge --edge " + edge : " --kind node") +
+      " --graph " + quest + " --node " + exp +
+      " --harness " + harness + " --model " + model +
+      " --cycle " + String(cycle) +
+      (desk ? " --desk " + desk : "");
+    const result = await host.agent({
+      label: "mint " + exp,
+      input:
+        deskNote +
+        "Run exactly `" + cmd + "` from the quest worktree if " +
+        "one is named above, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const v = parseVerdict(result);
+    if (!v || v.ok !== true || typeof v.token !== "string" || typeof v.run_id !== "string") {
+      refusals.push(
+        "link mint refused before the " + edge + " child: " +
+        errorText(result)
+      );
+      return false;
+    }
+    links[edge] = { token: v.token, run_id: v.run_id };
+    runIds.push(v.run_id);
+    return true;
+  }
+
+  // The named tape binder (followup.3): this launcher, after
+  // the child returns, when its session tape exists and has
+  // closed. Resolution is mechanical — `bp3 harness
+  // find-tape` on the run-id — and a resolution that is not
+  // unique refuses typed, never a guess; the bind itself is
+  // one pointer-only tape_binding row written by bind-tape.
+  // The author child writes no binding.
+  async function bindTape(edge, cycle) {
+    const runId = runIdOf(edge, cycle);
+    const resolveCmd =
+      envPreset(edge, cycle) + "./bin/bp3 harness find-tape" +
+      " --run-id " + runId;
+    const resolved = await host.agent({
+      label: "resolve " + exp,
+      input:
+        deskNote +
+        "Run exactly `" + resolveCmd + "` from the quest worktree if " +
+        "one is named above, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const rv = parseVerdict(resolved);
+    const tapePath = rv && rv.ok === true
+      ? (typeof rv.tape_path === "string" && rv.tape_path
+         ? rv.tape_path
+         : (typeof rv.wal === "string" ? rv.wal : ""))
+      : "";
+    if (!tapePath) {
+      refusals.push(
+        "bind-tape resolution refused after the " + edge + " child: " +
+        errorText(resolved)
+      );
+      return false;
+    }
+    const bindCmd =
+      envPreset(edge, cycle) + "./bin/bp3 harness bind-tape" +
+      " --run-id " + runId + " --tape-path " + tapePath;
+    const bound = await host.agent({
+      label: "bind " + exp,
+      input:
+        deskNote +
+        "Run exactly `" + bindCmd + "` from the quest worktree if " +
+        "one is named above, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const bv = parseVerdict(bound);
+    if (!bv || bv.ok !== true) {
+      refusals.push(
+        "bind-tape refused after the " + edge + " child: " +
+        errorText(bound)
+      );
+      return false;
+    }
+    return true;
+  }
+
+  function tapePreamble(edge, cycle) {
+    const folder = runFolder(edge, cycle, harness + "-" + model);
+    return (
+      "Your run folder is `" + folder + "` under `" + expDir +
+      "/runs/`. " + claimNote(edge) +
+      "`BP3_QUEST`, `BP3_EXP`, `BP3_HARNESS`, and `BP3_MODEL` " +
+      "arrive via environment; your run-id arrives via the " +
+      "claim above and `bp3` stamps it into its verdicts and " +
+      "ledger lines. First check whether that concrete run " +
+      "folder already exists: if it does, stop immediately, do " +
+      "not overwrite or reuse it, and return a JSON object " +
+      '{"ok":false,"error":{"code":"E_RUN_EXISTS"}} describing ' +
+      "the collision. Run-id folders must fail if they already " +
+      "exist. Otherwise create the folder, then tee all of your " +
+      "session output into its tape.log for the rest of the run: " +
+      "run your shell work so stdout and stderr are appended " +
+      "through `tee -a <run-folder>/tape.log` (for example " +
+      "`exec > >(tee -a <run-folder>/tape.log) 2>&1` in bash, " +
+      "or pipe each command through `tee -a`). The tape is " +
+      "verbatim evidence only; never parse tape text into facts. " +
+      "Write `<run-folder>/notes.md` with brief authored lessons " +
+      "from the run before you finish. Record the concrete run " +
+      "folder name as run_id in your reply JSON."
+    );
+  }
+
+  const before = await readState();
+  if (before.state === "unknown") {
+    refusals.push("initial read failed: " + (before.raw || "no verdict"));
+    return { exp: exp, outcome: "refused", commit: null, run_ids: runIds, refusals: refusals };
+  }
+  if (before.state !== "todo") {
+    refusals.push(
+      "expected todo, got " + before.state + "; another step owns that state"
+    );
+    return { exp: exp, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
+  }
+
+  if (!(await mintLink("handoff", before.cycle))) {
+    return { exp: exp, outcome: "refused", commit: before.commit, run_ids: runIds, refusals: refusals };
+  }
+
+  const author = await host.agent({
+    label: "author " + exp,
+    input:
+      deskNote + "You are the author child for exp `" + exp + "` of quest `" +
+      quest + "`, currently in state `todo` at cycle " +
+      String(before.cycle) + ". " + authorLoad + tapePreamble("handoff", before.cycle) +
+      " Do the exp's work in the repository, then commit the " +
+      "work as a clean git commit and note its full sha. Then " +
+      "call the state edge directly yourself: " +
+      "`" + envPreset("handoff", before.cycle) + "./bin/bp3 q " + quest + " u " + exp +
+      " handoff --commit <your-commit-sha> --reason \"<short reason>\"`. " +
+      "Children call `bp3 q u` directly; never only return a " +
+      "verdict for the parent to relay. Reply with only a JSON " +
+      "object {ok, run_id, commit, verdict} where verdict is " +
+      "the JSON printed by the handoff call.",
+  });
+  const authorVerdict = parseVerdict(author);
+  if (authorVerdict && typeof authorVerdict.run_id === "string" && authorVerdict.run_id) {
+    runIds.push(authorVerdict.run_id);
+  }
+
+  // The child has returned and its session tape has closed:
+  // bind it to the Run before re-reading state.
+  await bindTape("handoff", before.cycle);
+
+  const after = await readState();
+  if (after.state === "handed_off") {
+    const commit = after.commit
+      ? String(after.commit)
+      : (authorVerdict && authorVerdict.commit ? String(authorVerdict.commit) : null);
+    return { exp: exp, outcome: "handed_off", commit: commit, run_ids: runIds, refusals: refusals };
+  }
+  refusals.push(errorText(author));
+  if (after.state === "unknown") {
+    refusals.push("re-read after author failed: " + (after.raw || "no verdict"));
+  } else {
+    refusals.push("author left state " + after.state + ", expected handed_off");
+  }
+  return {
+    exp: exp,
+    outcome: "refused",
+    commit: after.commit === undefined ? null : after.commit,
+    run_ids: runIds,
+    refusals: refusals,
+  };
+}
+===SKILLS-TEST===
+test/skills.sh:59:assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink/SKILL.md","!**/.agents/skills/red-ink-quest-landing-demo/SKILL.md","!**/.agents/skills/traverse/SKILL.md","!**/.agents/skills/traverse-no-human/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
+test/skills.sh:60:# Traverse is the one conducting skill; old induct names render nowhere.
+test/skills.sh:62:  assert test -f "$root/$h/skills/traverse/SKILL.md"
+test/skills.sh:63:  assert test ! -e "$root/$h/skills/induct"
+test/skills.sh:64:  assert test ! -e "$root/$h/skills/induct-quest"
+test/skills.sh:65:  assert test ! -e "$root/$h/skills/induct-quest-no-human"
+test/skills.sh:67:# The no-human skill renders beside traverse in every harness.
+test/skills.sh:69:  assert test -f "$root/$h/skills/traverse-no-human/SKILL.md"
+test/skills.sh:75:assert test -f "$root/.agents/workflows/node-loop.js"
+test/skills.sh:76:assert cmp "$root/skills/traverse/workflows/node-loop.js" "$root/.agents/workflows/node-loop.js"
+test/skills.sh:77:assert test ! -e "$root/.agents/workflows/induct-exp.js"
+test/skills.sh:78:assert test -f "$root/.agents/workflows/induct-grade.js"
+test/skills.sh:79:assert cmp "$root/skills/traverse/workflows/induct-grade.js" "$root/.agents/workflows/induct-grade.js"
+test/skills.sh:81:assert cmp "$root/skills/traverse/workflows/quest-land.js" "$root/.agents/workflows/quest-land.js"
+test/skills.sh:95:assert cmp "$root/skills/traverse/workflows/node-loop.js" "$root/.agents/workflows/node-loop.js"
+test/skills.sh:96:assert cmp "$root/skills/traverse/workflows/induct-grade.js" "$root/.agents/workflows/induct-grade.js"
+test/skills.sh:97:assert cmp "$root/skills/traverse/workflows/quest-land.js" "$root/.agents/workflows/quest-land.js"
+test/skills.sh:118:assert grep -q 'next author cycle itself' "$repo/skills/traverse/SKILL.md"
+test/skills.sh:119:assert grep -q 'named fix rides along verbatim' "$repo/skills/traverse/SKILL.md"
+test/skills.sh:120:assert grep -q 'does not ask the owner about the cycle' "$repo/skills/traverse/SKILL.md"
+test/skills.sh:121:assert grep -q 'cycle cap' "$repo/skills/traverse/SKILL.md"
+test/skills.sh:122:assert grep -q 'scope change autonomously' "$repo/skills/traverse/SKILL.md"
+test/skills.sh:123:assert grep -q 'Human attestation comes only from actual human words' "$repo/skills/traverse/SKILL.md"
+test/skills.sh:124:assert grep -q 'next author cycle itself' "$root/.agents/skills/traverse/SKILL.md"
+test/skills.sh:128:  assert test -f "$root/$h/skills/traverse-no-human/SKILL.md"
+test/skills.sh:129:  assert grep -q 'skills/traverse/SKILL.md' "$root/$h/skills/traverse-no-human/SKILL.md"
+test/skills.sh:131:assert grep -q 'means `/traverse <quest>` per' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:132:assert grep -q 'BP3_DECIDER` stays unset' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:133:assert grep -q 'never takes `resume` or `delete`' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:134:assert grep -q 'park it' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:135:assert grep -q 'missing Acceptance rows' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:136:assert grep -q 'open' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:137:assert grep -q 'design question' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:138:assert grep -q 'make check` is green' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:139:assert grep -q 'the budget stopped it' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:140:assert grep -q 'quest_fin` stays the' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:141:assert grep -q 'usage_recorded` token totals' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:142:assert grep -q 'bp3 harness desk list' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:143:assert grep -q 'skill mode of `traverse`' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:144:assert grep -q 'traverse-no-human' "$repo/skills/traverse/SKILL.md"
+test/skills.sh:145:assert grep -q 'No-human never' "$root/.agents/skills/traverse/SKILL.md"
+test/skills.sh:148:assert grep -q 'one fleet, not several queues' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:149:assert grep -q 'merge order before the queue starts' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:150:assert grep -q 'Footprint: the paths a quest declares' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:151:assert grep -q 'no declared footprint' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:152:assert grep -q 'Disjoint quests run in parallel' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:153:assert grep -q 'refused at preflight, named' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:154:assert grep -q 'zero Runs spent on it' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:155:assert grep -q 'queues serially in a later fleet' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:156:assert grep -q 'The fleet never merges' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:157:assert grep -q 'predeclared merge order (fleet never merges)' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:158:assert grep -q 'one budget caps the whole fleet' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:159:assert grep -q 'every quest stops' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:160:assert grep -q 'one check-in list' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:161:assert grep -q 'grouped by quest, each with its inbox reason' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:162:assert grep -q 'same human decision appear as one' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:163:assert grep -q 'attested per exp at resume time' "$repo/skills/traverse-no-human/SKILL.md"
+test/skills.sh:164:assert grep -q 'Disjoint quests run in parallel' "$root/.agents/skills/traverse-no-human/SKILL.md"
+test/traverse.sh:2:# traverse workflow contract tests (mock host, no agent calls).
+test/traverse.sh:5:node test/node-loop.test.mjs
+(executable (name main) (libraries yojson unix str))
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+File "src/quest/store.ml", line 432, characters 15-19:
+432 |   let rec loop done acc =
+                     ^^^^
+Error: Syntax error
+BUILD_EXIT:0
+DONE
+#!/usr/bin/env bash
+# bp3 project tooling (pre-binary). The OCaml CLI absorbs these subcommands
+# later; the interface stays: bp3 skills install --harness=<name|all>.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+src_dir="$root/skills"
+
+# harness -> skills_dir. Sources are plain Markdown: no templating in bp3.
+# The render is a copy plus a GENERATED notice after the frontmatter.
+harness_target() {
+  case "$1" in
+    pi)     echo ".pi/skills" ;;
+    claude) echo ".claude/skills" ;;
+    codex)  echo ".agents/skills" ;;
+    muse)   echo ".agents/skills" ;;
+    *) return 1 ;;
+  esac
+}
+
+install_one() {
+  local skill="$1" harness="$2" target_dir dest
+  target_dir="$(harness_target "$harness")"
+  dest="$root/$target_dir/$skill"
+  mkdir -p "$dest"
+  awk -v h="$harness" -v s="$skill" '
+    /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
+    { print }' "$src_dir/$skill/SKILL.md" > "$dest/SKILL.md"
+  echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness)"
+}
+
+skills_install() {
+  local harness="all"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --harness=*) harness="${1#--harness=}" ;;
+      --harness) [ $# -ge 2 ] || { echo '--harness needs a value' >&2; exit 2; }; harness="$2"; shift ;;
+      *) echo "unknown arg: $1" >&2; exit 2 ;;
+    esac
+    shift
+  done
+
+  local harnesses
+  if [ "$harness" = "all" ]; then
+    harnesses="pi claude codex muse"
+  else
+    harnesses="$harness"
+  fi
+
+  # Preflight every source and the selected harness before writing any render.
+  "$root/scripts/check-skills" "$src_dir"
+  local h
+  for h in $harnesses; do
+    harness_target "$h" >/dev/null || { echo "unknown harness: $h" >&2; exit 2; }
+  done
+
+  # Pi discovers .agents as well as .pi. Prefer our Pi copies per project,
+  # without deleting Codex/Muse skills or hiding unrelated .agents skills.
+  local settings_plan='' existing='{}' ids
+  case " $harnesses " in
+---LINKSH---
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+h() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness "$@"; }
+lk() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
+store=".git/bp3"
+lku() { env -u MUSE_SESSION_ID -u MUSE_THREAD_ID -u BP3_SESSION_ID -u PI_SESSION_ID -u PI_SESSION_FILE BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
+
+# --- help: every link verb documented, exit 0, no store created ---
+out=$(lk -h) || fail "link -h exit"
+for v in mint claim lookup cleanup; do
+  echo "$out" | grep -q "$v" || fail "link help lists $v: $out"
+done
+echo "$out" | grep -q "E_LINK_SPENT" || fail "link help codes spent: $out"
+echo "$out" | grep -q "E_DEPTH" || fail "link help codes depth: $out"
+out=$(h -h) || fail "harness -h exit"
+echo "$out" | grep -q "link" || fail "harness help lists link: $out"
+out=$(h link -h) || fail "harness link -h exit"
+echo "$out" | grep -q "mint" || fail "harness link help: $out"
+out=$(h record-init -h) || fail "record-init -h exit"
+echo "$out" | grep -q "E_RETIRED" || fail "record-init help retired: $out"
+[ ! -e "$store" ] || fail "help created the store"
+
+# --- strict argv ---
+if out=$(lk mint --graph g1 --node n1 2>&1); then fail "mint without kind accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "mint no-kind code: $out"
+if out=$(lk mint --kind node --graph g1 --node n1 --edge handoff 2>&1); then fail "node with edge accepted"; fi
+if out=$(lk mint --kind edge --graph g1 --node n1 2>&1); then fail "edge without edge accepted"; fi
+if out=$(lk mint --kind edge --graph g1 --node n1 --edge bogus 2>&1); then fail "bogus edge accepted"; fi
+if out=$(lk mint --kind=edge --graph g1 --node n1 --edge handoff 2>&1); then fail "--flag=value accepted"; fi
+if out=$(lk mint --kind edge --kind edge --graph g1 --node n1 --edge handoff 2>&1); then fail "duplicate kind accepted"; fi
+if out=$(lk mint --kind edge --graph g1 --node n1 --edge handoff --depth -1 2>&1); then fail "negative depth accepted"; fi
+if out=$(lk claim 2>&1); then fail "claim without token accepted"; fi
+if out=$(lk lookup 2>&1); then fail "lookup without identity accepted"; fi
+if out=$(lk lookup --session-id S1 --run-id R1 2>&1); then fail "lookup with both accepted"; fi
+if out=$(lk cleanup 2>&1); then fail "cleanup without graph accepted"; fi
+if out=$(lk bogus 2>&1); then fail "unknown link verb accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "unknown verb code: $out"
+[ ! -e "$store" ] || fail "usage errors created the store"
+
+# --- mint + claim: run config is the InitRecord-equivalent ---
+out=$(lk mint --kind edge --graph g1 --node n1 --edge handoff --parent-run-id root-1 --depth 2 --desk "$work/repo" --harness muse-code --model test-model)
+echo "$out" | jq -e '.ok == true and .state == "minted" and (.token | startswith("bp3link_"))' >/dev/null || fail "mint verdict: $out"
+TOK=$(echo "$out" | jq -r .token)
+RID=$(echo "$out" | jq -r .run_id)
+[ -f "$store/runs/$RID.json" ] || fail "mint wrote no run config"
+jq -e '.state == "minted" and .kind == "edge" and .graph == "g1" and .node == "n1" and .edge == "handoff"
+  and .creator.run_id == "root-1" and .creator.depth == 2 and .creator.harness == "muse-code"
+  and (.creator.token_hash | startswith("sha256:")) and (.creator.minted_at | type == "string")' \
+  "$store/runs/$RID.json" >/dev/null || fail "minted run config shape: $(cat "$store/runs/$RID.json")"
+# quoting safety: the token sitting in a brief confers nothing
+echo "brief: claim $TOK then build" > brief.txt
+if out=$(lk lookup --session-id sess-a 2>&1); then fail "lookup before claim accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "pre-claim lookup code: $out"
+
+out=$(MUSE_SESSION_ID=sess-a lk claim "$TOK") || fail "claim exit: $out"
+echo "$out" | jq -e --arg r "$RID" '.ok == true and .run_id == $r and .state == "claimed"
+  and .session_id == "sess-a" and (.pid | type == "number" and . > 0) and (.cwd | type == "string")' \
+  >/dev/null || fail "claim verdict: $out"
+jq -e '.state == "claimed" and .claim.session_id == "sess-a" and (.claim.pid | type == "number")
+  and (.claim.cwd | type == "string") and (.claim.claimed_at | type == "string")' \
+  "$store/runs/$RID.json" >/dev/null || fail "claimed run config shape: $(cat "$store/runs/$RID.json")"
+[ "$(cat "$store/by-session/sess-a")" = "$RID" ] || fail "by-session index content"
+[ -f "$store/claims/$RID.claim" ] || fail "O_EXCL claim marker missing"
+jq -e '.run_id and .graph == "g1"' .bp3-context.json >/dev/null || fail "desk context file: $(cat .bp3-context.json 2>/dev/null)"
+rm -f .bp3-context.json brief.txt
+
+# by-session join: one lookup from session-id alone
+out=$(lk lookup --session-id sess-a) || fail "lookup exit: $out"
+echo "$out" | jq -e --arg r "$RID" '.ok == true and .run_id == $r and .graph == "g1"
+  and .node == "n1" and .edge == "handoff"' >/dev/null || fail "by-session join: $out"
+out=$(BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 config) || fail "config view exit"
+echo "$out" | jq -e --arg r "$RID" '(.contexts[] | select(.run_id == $r) | .session_id == "sess-a"
+  and .parent_run_id == "root-1" and .depth == 2)' >/dev/null || fail "config context join: $out"
+
+# one winner: second claim names the first claimant, forever
+SHELLCHECK_OK
+ready tests: ok
+READY_EXIT:0
+CHECK_OK
+FAIL: two authors across cycles, got 1
+file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/test/induct-node.test.mjs:80
+  assert(inputs.handoff[1].includes("fix the parser"), "named fix rides verbatim");
+                           ^
+
+TypeError: Cannot read properties of undefined (reading 'includes')
+    at file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/test/induct-node.test.mjs:80:28
+
+Node.js v25.4.0
+TEST_EXIT:1
+induct-node tests: ok
+TEST_EXIT:0
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check skills/traverse/workflows/induct-node.js
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+FAIL: test -f /var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T//bp3-skills-tests.ZqDNcX/project with spaces/.agents/workflows/induct-node.js
+make: *** [check] Error 1
+MAKE_EXIT:2
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check skills/traverse/workflows/induct-node.js
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (123 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/ready.sh
+ready tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 25901 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 26077 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 26460 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 25381 Terminated: 15          sleep 60
+./test/harness.sh: line 502: 28269 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 28510 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/context.sh
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (25.5705ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.141667ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (208.434833ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (237.698917ms)
+✔ roles route model/thinking into the child env: override > role > conductor (441.595292ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (173.243917ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1509.48475ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (2928.909167ms)
+config tests: ok
+CFG_EXIT:0
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check skills/traverse/workflows/induct-node.js
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (123 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (113003.274583ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (213.818375ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.378125ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (144.741625ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (35.403542ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 118998.659291
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+MAKE_EXIT:0
+q tests: ok
+./test/ready.sh
+ready tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 85524 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 85655 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 86041 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 85007 Terminated: 15          sleep 60
+./test/harness.sh: line 502: 87867 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 88104 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/context.sh
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (25.036125ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.12275ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (199.586125ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (238.559625ms)
+✔ roles route model/thinking into the child env: override > role > conductor (450.297833ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (179.4695ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1433.352875ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (3057.320458ms)
+ M Makefile
+ M bin/bp3
+ M skills/traverse/SKILL.md
+ M src/quest/main.ml
+ M src/quest/render.ml
+ M src/quest/store.ml
+ M test/skills.sh
+ M test/traverse.sh
+?? .agents/workflows/induct-node.js
+?? skills/traverse/workflows/induct-node.js
+?? test/induct-node.test.mjs
+?? test/ready.sh
+A  .agents/workflows/induct-node.js
+M  Makefile
+M  bin/bp3
+M  skills/traverse/SKILL.md
+A  skills/traverse/workflows/induct-node.js
+M  src/quest/main.ml
+M  src/quest/render.ml
+M  src/quest/store.ml
+A  test/induct-node.test.mjs
+A  test/ready.sh
+M  test/skills.sh
+M  test/traverse.sh
+[quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines b765d07] feat(mvp.3): ready-set waves, node deps, derived timing, setup gate, induct-node loop
+ 12 files changed, 1266 insertions(+), 22 deletions(-)
+ create mode 100644 .agents/workflows/induct-node.js
+ create mode 100644 skills/traverse/workflows/induct-node.js
+ create mode 100644 test/induct-node.test.mjs
+ create mode 100755 test/ready.sh
+b765d07 feat(mvp.3): ready-set waves, node deps, derived timing, setup gate, induct-node loop
+b2250e3 chore: sync installed workflow renders with committed sources
+63d49cd feat(mvp.2): context resolution — session/desk rungs, bp3 e door, claimed run-id stamping
+STATUS_DONE
+SHA=b765d076ad5aca6b322a95f193c15ae190825a9c
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-3-ready-set-timing","state":"handed_off","cycle":1,"commit":"b765d076ad5aca6b322a95f193c15ae190825a9c","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-3-ready-set-timing","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-3-ready-set-timing","edge":"handoff","run_id":"20261117T013825Z-handoff-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T013825Z-handoff-muse-code-muse-wonder-1.0-c1"}
+HANDOFF_EXIT:0
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (106953.247708ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (210.259334ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.182667ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (164.988292ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (20.908084ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 112997.664708
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+MAKE_EXIT:0

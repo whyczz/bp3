@@ -1,0 +1,339 @@
+run folder: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T191513Z-submit-muse-code-muse-wonder-1.0-c1
+skills/induct/workflows/:
+induct-exp.js
+induct-grade.js
+quest-land.js
+
+test/:
+completion.sh
+harness.sh
+hooks.sh
+induct-exp.test.mjs
+induct-grade.test.mjs
+induct.sh
+install.sh
+pi-discovery.mjs
+q.sh
+quest-land.test.mjs
+release.sh
+skills.sh
+tape.sh
+worktree.sh
+=== pre-rename old-quest rollup capture ===
+{"ok":true,"quests":[{"quest":"2026-11-07-bp3-mvp-engine-core","state":"proposed","exps":[{"exp":"exp-2-cli-scaffold","state":"landed","fin":"exp_fin","cycle":1,"commit":"4d9ceaaac8de41a144f656fcea0a5732b77833ab","legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"invoke/dune"},{"change":"+","path":"invoke/main.ml"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"-","path":"test/invoke.sh"},{"change":"+","path":"test/q.sh"}]},{"exp":"exp-3-fsm","state":"landed","fin":"exp_fin","cycle":1,"commit":"4d9ceaaac8de41a144f656fcea0a5732b77833ab","legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"invoke/dune"},{"change":"+","path":"invoke/main.ml"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"-","path":"test/invoke.sh"},{"change":"+","path":"test/q.sh"}]},{"exp":"exp-4-tape-hooks","state":"landed","fin":"exp_fin","cycle":1,"commit":"a43bcd604070bf99b613b4493533afc22f278806","legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"+","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"+","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"test/skills.sh"},{"change":"+","path":"test/tape.sh"}]},{"exp":"exp-5-muse-engine","state":"landed","fin":"exp_fin","cycle":1,"commit":"a43bcd604070bf99b613b4493533afc22f278806","legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"+","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"+","path":"skills/induct/workflows/indu
+{"ok":true,"quest":"2026-11-15-toy-solo-clean","state":"proposed","exps":[{"exp":"exp-1-hello","state":"blocked","fin":null,"cycle":1,"commit":"f9a61a7bb02ac75e16519beccaaaff9d2ac549d0","legal_edges":["resume","delete"],"changes":[{"change":"u","path":"docs/quests/2026-11-15-toy-solo-clean/experiments/exp-1-hello/runs/20261115T030030Z-submit-muse-code-muse-wonder-1.0-c1/tape.log"}]}],"rollup":"blocked","fin":null,"inbox":[{"quest":"2026-11-15-toy-solo-clean","exp":"exp-1-hello","reason":"gated fail: submit edge E_DIRTY_TREE; hello passes but matrix fail forces fail","checkpoint":null,"cycle":1,"since":"2026-11-15T03:03:09Z"}]}
+
+     106 /tmp/pre-rollup.txt
+2
+2026-11-15-toy-budget-stop exp-1-hello submitted 1 2ce75003e07c857ae239ce02a25a241409deb400
+2026-11-15-toy-fleet-budget exp-1-hello submitted 1 e3a1fa5de534fc1f6b864320765365c6cdf1907e
+harness help examples renamed
+=== dune build ===
+ld: warning: object file (/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/_build/default/src/quest/.main.eobjs/native/dune__exe__Gitx.o) was built for newer 'macOS' version (27.2) than being linked (26.5)
+ld: warning: object file (/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/_build/default/src/quest/.main.eobjs/native/dune__exe.o) was built for newer 'macOS' version (27.2) than being linked (26.5)
+BUILD_EXIT:0
+{"ok":true,"quest":"2026-11-15-toy-budget-stop","exp":"exp-1-hello","state":"handed_off","fin":null,"cycle":1,"commit":"2ce75003e07c857ae239ce02a25a241409deb400","legal_edges":["grade","verify","block","delete"],"changes":[{"change":"+","path":"docs/quests/2026-11-15-toy-budget-stop/experiments/exp-1-hello/EXPERIMENT.md"},{"change":"+","path":"docs/quests/2026-11-15-toy-budget-stop/hello.txt"}]}
+{"ok":true,"quest":"2026-11-15-toy-fleet-budget","exp":"exp-1-hello","state":"handed_off","fin":null,"cycle":1,"commit":"e3a1fa5de534fc1f6b864320765365c6cdf1907e","legal_edges":["grade","verify","block","delete"],"changes":[{"change":"+","path":"docs/quests/2026-11-15-toy-fleet-budget/c.txt"}]}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-1-handoff-verbs","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null}
+edited skills/induct/workflows/induct-exp.js
+edited skills/induct/workflows/induct-grade.js
+edited completions/bp3.bash
+edited completions/_bp3
+edited extensions/bp3-pi/index.ts
+edited extensions/bp3-pi/roles/author.md
+phase1 done
+edited test/q.sh
+edited test/harness.sh
+edited test/hooks.sh
+edited test/tape.sh
+edited test/completion.sh
+edited test/install.sh
+edited test/worktree.sh
+edited test/induct-exp.test.mjs
+edited test/induct-grade.test.mjs
+edited test/quest-land.test.mjs
+edited extensions/bp3-pi/test/bp3-pi.test.mjs
+phase2 done
+edited test/q.sh labels
+edited test/hooks.sh
+edited test/induct-exp.test.mjs
+edited test/induct-grade.test.mjs
+edited test/completion.sh
+cleanup done
+skills check: ok (11 files)
+installed add-bp3-skill -> .pi/skills/add-bp3-skill/SKILL.md (pi)
+installed add-bp3-skill -> .claude/skills/add-bp3-skill/SKILL.md (claude)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (codex)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (muse)
+installed add-yap-skill -> .pi/skills/add-yap-skill/SKILL.md (pi)
+installed add-yap-skill -> .claude/skills/add-yap-skill/SKILL.md (claude)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (codex)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (muse)
+installed icebox -> .pi/skills/icebox/SKILL.md (pi)
+installed icebox -> .claude/skills/icebox/SKILL.md (claude)
+installed icebox -> .agents/skills/icebox/SKILL.md (codex)
+installed icebox -> .agents/skills/icebox/SKILL.md (muse)
+installed induct-quest-no-human -> .pi/skills/induct-quest-no-human/SKILL.md (pi)
+installed induct-quest-no-human -> .claude/skills/induct-quest-no-human/SKILL.md (claude)
+installed induct-quest-no-human -> .agents/skills/induct-quest-no-human/SKILL.md (codex)
+installed induct-quest-no-human -> .agents/skills/induct-quest-no-human/SKILL.md (muse)
+installed induct-quest -> .pi/skills/induct-quest/SKILL.md (pi)
+installed induct-quest -> .claude/skills/induct-quest/SKILL.md (claude)
+installed induct-quest -> .agents/skills/induct-quest/SKILL.md (codex)
+installed induct-quest -> .agents/skills/induct-quest/SKILL.md (muse)
+installed induct -> .pi/skills/induct/SKILL.md (pi)
+installed induct -> .claude/skills/induct/SKILL.md (claude)
+installed induct -> .agents/skills/induct/SKILL.md (codex)
+installed induct -> .agents/skills/induct/SKILL.md (muse)
+installed naming -> .pi/skills/naming/SKILL.md (pi)
+installed naming -> .claude/skills/naming/SKILL.md (claude)
+installed naming -> .agents/skills/naming/SKILL.md (codex)
+installed naming -> .agents/skills/naming/SKILL.md (muse)
+installed quest -> .pi/skills/quest/SKILL.md (pi)
+installed quest -> .claude/skills/quest/SKILL.md (claude)
+installed quest -> .agents/skills/quest/SKILL.md (codex)
+installed quest -> .agents/skills/quest/SKILL.md (muse)
+installed red-ink-quest-landing-demo -> .pi/skills/red-ink-quest-landing-demo/SKILL.md (pi)
+installed red-ink-quest-landing-demo -> .claude/skills/red-ink-quest-landing-demo/SKILL.md (claude)
+installed red-ink-quest-landing-demo -> .agents/skills/red-ink-quest-landing-demo/SKILL.md (codex)
+installed red-ink-quest-landing-demo -> .agents/skills/red-ink-quest-landing-demo/SKILL.md (muse)
+installed red-ink -> .pi/skills/red-ink/SKILL.md (pi)
+installed red-ink -> .claude/skills/red-ink/SKILL.md (claude)
+installed red-ink -> .agents/skills/red-ink/SKILL.md (codex)
+installed red-ink -> .agents/skills/red-ink/SKILL.md (muse)
+installed using-bp3 -> .pi/skills/using-bp3/SKILL.md (pi)
+installed using-bp3 -> .claude/skills/using-bp3/SKILL.md (claude)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (codex)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (muse)
+installed induct-exp -> .agents/workflows/induct-exp.js
+installed induct-grade -> .agents/workflows/induct-grade.js
+installed quest-land -> .agents/workflows/quest-land.js
+installed hooks -> .claude/hooks.json
+installed hooks -> .claude/settings.json
+installed hooks -> .muse/hooks.json
+installed _bp3 -> /opt/homebrew/share/zsh/site-functions/_bp3
+completion: source /Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/completions/bp3.bash (bash)
+INSTALL_EXIT:0
+ M .agents/skills/induct/SKILL.md
+ M .agents/skills/naming/SKILL.md
+ M .agents/skills/quest/SKILL.md
+ M .agents/skills/red-ink/SKILL.md
+ M .agents/skills/using-bp3/SKILL.md
+ M .agents/workflows/induct-exp.js
+ M .agents/workflows/induct-grade.js
+ M .claude/skills/induct/SKILL.md
+ M .claude/skills/naming/SKILL.md
+ M .claude/skills/quest/SKILL.md
+ M .claude/skills/red-ink/SKILL.md
+ M .claude/skills/using-bp3/SKILL.md
+ M .pi/skills/induct/SKILL.md
+ M .pi/skills/naming/SKILL.md
+ M .pi/skills/quest/SKILL.md
+ M .pi/skills/red-ink/SKILL.md
+ M .pi/skills/using-bp3/SKILL.md
+ M completions/_bp3
+ M completions/bp3.bash
+ M extensions/bp3-pi/index.ts
+ M extensions/bp3-pi/roles/author.md
+ M extensions/bp3-pi/test/bp3-pi.test.mjs
+ M plans/default.yaml
+ M plans/direct.yaml
+ M skills/induct/SKILL.md
+ M skills/induct/workflows/induct-exp.js
+ M skills/induct/workflows/induct-grade.js
+ M skills/naming/SKILL.md
+ M skills/quest/SKILL.md
+ M skills/red-ink/SKILL.md
+ M skills/using-bp3/SKILL.md
+ M src/quest/harness.ml
+ M src/quest/main.ml
+ M src/quest/render.ml
+ M src/quest/store.ml
+ M test/completion.sh
+ M test/harness.sh
+ M test/hooks.sh
+ M test/induct-exp.test.mjs
+ M test/induct-grade.test.mjs
+ M test/install.sh
+ M test/q.sh
+ M test/quest-land.test.mjs
+ M test/tape.sh
+ M test/worktree.sh
+exp syntax ok
+grade syntax ok
+land syntax ok
+induct-exp tests: ok
+✔ test/induct-exp.test.mjs (27.478208ms)
+induct-grade tests: ok
+✔ test/induct-grade.test.mjs (30.4265ms)
+quest-land tests: ok
+✔ test/quest-land.test.mjs (25.106ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 34.448833
+q tests: ok
+Q_EXIT:0
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/worktree.sh test/tape.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+
+In test/q.sh line 120:
+out=$(q demo r compat-exp >/dev/null)
+    ^-- SC2327 (warning): This command substitution will be empty because the command's output gets redirected away.
+                          ^--------^ SC2328 (error): This redirection takes output away from the command substitution.
+
+
+In test/q.sh line 123:
+out=$(q r demo >/dev/null)
+    ^--------------------^ SC2327 (warning): This command substitution will be empty because the command's output gets redirected away.
+               ^--------^ SC2328 (error): This redirection takes output away from the command substitution.
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2328 -- This redirection takes output awa...
+  https://www.shellcheck.net/wiki/SC2327 -- This command substitution will be...
+make: *** [lint] Error 1
+MAKE_EXIT done
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (3007.5905ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (25057.037208ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (251.109667ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.466125ms)
+✔ dispatcher writes nothing itself under run-lifecycle-derivations (133.711167ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 31071.868584
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+MAKE_CHECK_EXIT:0
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+=== rollup diff pre vs post (expect only submitted->handed_off) ===
+61c61
+< 2026-11-15-toy-budget-stop exp-1-hello submitted 1 2ce75003e07c857ae239ce02a25a241409deb400
+---
+> 2026-11-15-toy-budget-stop exp-1-hello handed_off 1 2ce75003e07c857ae239ce02a25a241409deb400
+66c66
+< 2026-11-15-toy-fleet-budget exp-1-hello submitted 1 e3a1fa5de534fc1f6b864320765365c6cdf1907e
+---
+> 2026-11-15-toy-fleet-budget exp-1-hello handed_off 1 e3a1fa5de534fc1f6b864320765365c6cdf1907e
+=== history files touched? ===
+(only this quest run folder expected untracked)
+_build/
+bp3.install
+.bp3/
+dist/
+---status all---
+ M .agents/skills/induct/SKILL.md
+ M .agents/skills/naming/SKILL.md
+ M .agents/skills/quest/SKILL.md
+ M .agents/skills/red-ink/SKILL.md
+ M .agents/skills/using-bp3/SKILL.md
+ M .agents/workflows/induct-exp.js
+ M .agents/workflows/induct-grade.js
+ M .claude/skills/induct/SKILL.md
+ M .claude/skills/naming/SKILL.md
+ M .claude/skills/quest/SKILL.md
+ M .claude/skills/red-ink/SKILL.md
+ M .claude/skills/using-bp3/SKILL.md
+ M .pi/skills/induct/SKILL.md
+ M .pi/skills/naming/SKILL.md
+ M .pi/skills/quest/SKILL.md
+ M .pi/skills/red-ink/SKILL.md
+ M .pi/skills/using-bp3/SKILL.md
+ M completions/_bp3
+ M completions/bp3.bash
+ M extensions/bp3-pi/index.ts
+ M extensions/bp3-pi/roles/author.md
+ M extensions/bp3-pi/test/bp3-pi.test.mjs
+ M plans/default.yaml
+ M plans/direct.yaml
+ M skills/induct/SKILL.md
+ M skills/induct/workflows/induct-exp.js
+ M skills/induct/workflows/induct-grade.js
+ M skills/naming/SKILL.md
+ M skills/quest/SKILL.md
+ M skills/red-ink/SKILL.md
+ M skills/using-bp3/SKILL.md
+ M src/quest/harness.ml
+ M src/quest/main.ml
+ M src/quest/render.ml
+ M src/quest/store.ml
+ M test/completion.sh
+ M test/harness.sh
+ M test/hooks.sh
+ M test/induct-exp.test.mjs
+ M test/induct-grade.test.mjs
+ M test/install.sh
+ M test/q.sh
+ M test/quest-land.test.mjs
+ M test/tape.sh
+ M test/worktree.sh
+---check-ignore run---
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T191513Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+=== old FSM strings in src (expect fold only + desk/lint check) ===
+src/quest/hooks.ml:343:                                  [("check", json_str check);
+src/quest/store.ml:23:    "derive"; "inspect"; "remove"; "prepare"; "check"; "exit";
+src/quest/store.ml:157:  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+src/quest/store.ml:160:let fold_state_name = function "submitted" -> "handed_off" | s -> s
+src/quest/worktree.ml:521:  | "check" :: rest ->
+=== old words in live surfaces (skills src, workflows, tests, completions, extensions, plans) ===
+test/q.sh:112:append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:00:00Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":null,\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+test/q.sh:114:echo "$out" | jq -e --arg c "$B" '.state == "handed_off" and .cycle == 1 and .commit == $c and (.legal_edges | index("grade") != null) and (.legal_edges | index("verify") != null)' >/dev/null || fail "compat old submit folds handed_off: $out"
+test/q.sh:115:append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:01:00Z\",\"edge\":\"review\",\"from\":\"submitted\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"ship\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+test/q.sh:116:append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:02:00Z\",\"edge\":\"check\",\"from\":\"submitted\",\"to\":\"approved\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"pass\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+test/q.sh:126:for old in submit review check; do
+test/q.sh:136:append_ledger_line mixed-exp "{\"ts\":\"2026-01-01T00:03:00Z\",\"edge\":\"review\",\"from\":\"submitted\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"ship\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+test/q.sh:137:append_ledger_line mixed-exp "{\"ts\":\"2026-01-01T00:04:00Z\",\"edge\":\"check\",\"from\":\"submitted\",\"to\":\"approved\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"pass\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+src/quest/store.ml:157:  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+src/quest/store.ml:160:let fold_state_name = function "submitted" -> "handed_off" | s -> s
+(submit/submitted hits above; fold lines are src/quest/store.ml)
+=== review/check as edge strings ===
+(none expected)
+handoff:
+{"ok":true,"quest":"demo","exp":"fx","state":"handed_off","cycle":1,"commit":"773a1f6d91f5805eb61bfc013bc0dba2f6ed6409","legal_edges":["grade","verify","block","delete"]}
+grade:
+{"ok":true,"quest":"demo","exp":"fx","state":"handed_off","cycle":1,"commit":"773a1f6d91f5805eb61bfc013bc0dba2f6ed6409","legal_edges":["grade","verify","block","delete"]}
+verify:
+{"ok":true,"quest":"demo","exp":"fx","state":"approved","cycle":1,"commit":"773a1f6d91f5805eb61bfc013bc0dba2f6ed6409","legal_edges":["land","block","delete"]}
+land:
+{"ok":true,"quest":"demo","exp":"fx","state":"landed","fin":"exp_fin","cycle":1,"commit":"773a1f6d91f5805eb61bfc013bc0dba2f6ed6409","legal_edges":[]}
+old submit refuses:
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"unknown edge: submit"},"guidance":"Fix the call: unknown edge: submit"}}
+ROUNDTRIP_DIR:/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/tmp.BkJDvGTmRN
+M  .agents/skills/induct/SKILL.md
+M  .agents/skills/naming/SKILL.md
+M  .agents/skills/quest/SKILL.md
+M  .agents/skills/red-ink/SKILL.md
+M  .agents/skills/using-bp3/SKILL.md
+[quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines 4419672] feat(mig.1): rename FSM verbs to handoff/grade/verify
+ 45 files changed, 486 insertions(+), 431 deletions(-)
+COMMIT_EXIT:0
+44196725860125de048415ff6a4be350a90c033b
+clean check done
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-1-handoff-verbs","state":"handed_off","cycle":1,"commit":"44196725860125de048415ff6a4be350a90c033b","legal_edges":["grade","verify","block","delete"],"run_id":"20261116T191513Z-submit-muse-code-muse-wonder-1.0-c1"}
+HANDOFF_EXIT:0

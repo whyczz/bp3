@@ -2,12 +2,11 @@
 name: naming
 description: "Choose concrete, short names in bp3's existing vocabulary for graphs, nodes, skills, plans, engines, and CLI verbs."
 ---
-<!-- GENERATED from skills/naming/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->
 
 # Naming
 
 Use when a human, Controller, or Worker in bp3 must name or
-rename something: a graph slug, node, skill, plan (`graph_type`),
+rename something: a graph slug, node, skill, plan (`goal_type`),
 engine, CLI verb, file, or state. Invoked by name (`/naming`,
 `$naming`). One output: one recommended name, with the vocabulary
 it reuses. A shortlist only when two names genuinely tie.
@@ -33,12 +32,13 @@ ordinary code identifiers with no bp3 meaning.
   handoff, grade, verify, land, block, resume. A dep links
   nodes; a dep is not an edge. Stages: author, grade, fix,
   ready, landed, blocked, canceled.
-- Dimensions: `graph_type` (the plan: default is implemented;
+- Goal and graph: the container of work is a **goal** (`docs/goals/<goal>/GOAL.md`, `goal/<slug>` branch, finish word `goal_fin`); its DAG of nodes is the **graph** (`bp3 g` unchanged). Graph id/slug unchanged by the goal rename.
+- Dimensions: `goal_type` (the plan: default is implemented;
   design, mvp, refactor, frontend, backend are proposed), `engine` (who executes: single,
   master-subagents, panes, workflows).
-- Artifacts: GRAPH.md, state.yaml, ledger.jsonl,
+- Artifacts: GOAL.md, state.yaml, ledger.jsonl,
   tape.log, notes.md, runs/. Storage paths and ledger history
-  keep their frozen spellings; only the fold maps them.
+  keep their frozen spellings (landed ledger text, `bp3/quest/` legacy refs, `quest_type` legacy key); only the fold maps them.
 - Ceremony lanes: micro, standard, high-blast-radius.
 
 ## Procedure

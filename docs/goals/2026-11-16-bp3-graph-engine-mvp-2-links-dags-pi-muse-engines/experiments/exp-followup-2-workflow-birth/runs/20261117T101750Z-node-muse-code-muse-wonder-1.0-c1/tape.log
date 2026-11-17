@@ -1,0 +1,1240 @@
+created docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-2-workflow-birth/runs/20261117T101750Z-node-muse-code-muse-wonder-1.0-c1
+total 8
+drwxr-xr-x@ 3 whycz  staff   96 Nov 17 05:18 .
+drwxr-xr-x@ 4 whycz  staff  128 Nov 17 05:18 ..
+-rw-r--r--@ 1 whycz  staff  179 Nov 17 05:18 tape.log
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: followup.2
+status: proposed
+---
+
+# followup.2 - workflow-birth: renders must track workflow sources
+
+## TL;DR
+
+Papercut found live (mvp.1 grade, owner chose
+fix path A): mvp.1 migrated the traverse workflow
+sources on the quest branch (children now birth
+via `link mint`), but the quest desk's installed
+renders (`.agents/workflows/*.js`) were never
+regenerated. The grade workflow launched from a
+stale render called the retired `record-init`
+and refused `E_RETIRED` before its audit child —
+no matrix, on a finished product.
+
+The desk render regeneration fixed it by hand
+(`bp3 skills install` in the desk; grade then
+approved). Make it structural: a dispatch must
+never launch a render older than its source.
+
+## Demo (design trace)
+
+```text
+before: quest branch takes workflow-source change (child commit)
+  -> desk .agents/workflows/induct-grade.js still calls record-init
+  -> grade dispatch -> record-init refused E_RETIRED, no audit
+
+after:  dispatch-time check: render hash vs source hash
+  -> stale -> re-render in desk (or refuse E_RENDER_STALE naming the file)
+  -> grade launches the migrated workflow; mvp.1 grades on merits
+```
+
+## Diagram
+
+```text
+workflow source (skills/traverse/workflows)
+      | bp3 skills install
+      v
+desk render (.agents/workflows) --hash check at dispatch--> launch
+      stale ---------------------> re-render / E_RENDER_STALE
+```
+
+## Pseudocode
+
+```python
+def dispatch(workflow, desk, args):
+    src = source_of(workflow); render = desk_render(desk, workflow)
+    if hash(render) != render_hash(src):
+        install_skills(desk)              # or refuse, naming render+source
+        assert hash(desk_render(desk, workflow)) == render_hash(src)
+    launch(desk_render(desk, workflow), args)
+```
+
+| Field | Value |
+|---|---|
+| Intent | the conducting surface that runs is the surface that was written |
+| Lane | standard |
+| Output | dispatch-time render freshness (re-render or `E_RENDER_STALE`); traverse skill states the rule; regression fixture |
+| Depends on | mig.2, mvp.1 (the live papercut) |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| stale render at dispatch | dispatch re-renders in the desk (or refuses `E_RENDER_STALE` naming render and source); it never launches the stale script |
+| mvp.1 replay | with a deliberately staled grade render, the mvp.1 grade scenario reaches the audit child (no `E_RETIRED` pre-audit refusal) |
+| fresh render | hash check passes silently; no reinstall cost on the happy path |
+| all three workflows | node-loop, induct-grade, quest-land all covered by the same freshness rule |
+
+## Amendment (pulled forward, 2026-11-17): workflow-birth defects
+
+Owner-notified live at rename.1: every step
+workflow's `readState()` child prompt says
+"from the graph worktree if one is named
+below, else the repository root" — and never
+names the desk. After the bp3g rename the
+root binary speaks the old dialect, so read
+children that ran from the root refused the
+whole step (`bp3g-grade` attempt 1, `bp3g-land`
+attempts 1 and 2; `bp3g-grade` attempt 2
+happened to infer the desk). A step that
+cannot read state cannot conduct. This node
+is pulled forward ahead of rename.1's land:
+the land workflow must be fixed before it is
+trusted to land the rename.
+
+Birth defects in scope (all observed live):
+
+1. `readState()` in every step workflow
+   (bp3g-node / node-loop, bp3g-grade,
+   bp3g-land) must carry the desk explicitly
+   (deskNote in the read prompt), so the read
+   always runs the desk binary. Regression:
+   a fixture read from a root with a foreign-
+   dialect binary still returns desk state.
+2. node-loop silently drops the `context`
+   arg the conductor passes for cycle fixes
+   (observed mvp.3/followup.1/dogfood cycles:
+   named fixes only reached authors via
+   EXPERIMENT.md amendments). Either thread
+   `context` into the author brief or refuse
+   loudly at launch; silent drop is the bug.
+3. `bind-tape` after handoff refuses
+   `E_AMBIGUOUS` on effectively every Muse
+   handoff (4 candidate session tapes: two
+   stale sessions, the child subagent tape,
+   the conductor tape). Proof binding must
+   disambiguate deterministically (the child
+   session is the one parented by the run's
+   claim) or degrade to a named, non-refusing
+   outcome; the current refusal trains
+   conductors to ignore refusals.
+4. The stale-render dispatch check from the
+   original record below (unchanged).
+
+Acceptance additions: each defect has a
+regression fixture in the workflow tests;
+a full conduct (node -> grade -> land) runs
+from a conductor root whose binary cannot
+speak the desk dialect, with zero read
+refusals.
+
+## Acceptance test (goal block)
+
+- **Objective:** a stale desk render can never
+  silently conduct a step again.
+- **Prove by:** fixture desk with a backdated
+  render; dispatch each workflow kind; observe
+  re-render/refusal and successful audit reach.
+- **Done when:** stale renders are caught at
+  dispatch for all three workflows, observed.
+
+## Tests
+
+Known cases: stale grade render (mvp.1 replay
+shape), stale node-loop, stale quest-land, fresh
+render no-op.
+
+Property-based: for any source edit, the launched
+script's hash equals the current render of that
+source (dispatch invariant).
+
+## Context
+
+Owner chose path A at the mvp.1 gate (patch now,
+formalize as followup). The manual desk re-render
+unblocked mvp.1's grade the same day; this node
+makes the freshness structural so the next
+workflow-source migration (mvp.3's node-loop
+generalization is the obvious candidate) cannot
+repeat it.
+=== git log bound commit ===
+6f124a6 feat(followup.2): workflow-birth — desk reads, context, claim-session tape, render freshness
+afd0d80 docs(followup.2): pull forward with workflow-birth defect list
+4e0f1bd feat(rename.1): bp3g rename — bp3 g/n doors, bp3g skill family, graph/node vocabulary
+7a0dfca feat(dogfood.2): bubble proof in the parallel drive — Pi and Muse, sibling unaffected
+a400ed5 docs(dogfood.2): name cycle-2 bubble proof fix
+=== git show stat ===
+commit 6f124a6cfafb7427249e1f39442e8db648b106aa
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 05:15:26 2026 -0500
+
+    feat(followup.2): workflow-birth — desk reads, context, claim-session tape, render freshness
+    
+    readState carries the desk in all four workflows; context threads verbatim into author briefs; find-tape resolves the claimed session first; bp3 skills check refuses E_RENDER_STALE and bp3g states the dispatch rule.
+
+ .agents/skills/bp3g/SKILL.md        | 13 +++++++++++--
+ .agents/workflows/bp3g-grade.js     |  3 ++-
+ .agents/workflows/bp3g-land.js      |  3 ++-
+ .agents/workflows/bp3g-node.js      | 12 +++++++++---
+ .agents/workflows/node-loop.js      | 11 ++++++++---
+ bin/bp3                             | 29 ++++++++++++++++++++++++++++-
+ skills/bp3g/SKILL.md                | 13 +++++++++++--
+ skills/bp3g/workflows/bp3g-grade.js |  3 ++-
+ skills/bp3g/workflows/bp3g-land.js  |  3 ++-
+ skills/bp3g/workflows/bp3g-node.js  | 12 +++++++++---
+ skills/bp3g/workflows/node-loop.js  | 11 ++++++++---
+ src/graph/harness.ml                | 37 +++++++++++++++++++++++++++++++------
+ test/bp3g-conduct.test.mjs          |  3 +++
+ test/bp3g-grade.test.mjs            | 26 ++++++++++++++++++++++----
+ test/bp3g-land.test.mjs             | 25 +++++++++++++++++++++----
+ test/bp3g-node.test.mjs             | 28 ++++++++++++++++++++++++----
+ test/harness.sh                     | 12 ++++++++++++
+ test/node-loop.test.mjs             | 28 ++++++++++++++++++++++++----
+ test/skills.sh                      | 14 ++++++++++++++
+ 19 files changed, 243 insertions(+), 43 deletions(-)
+=== env ===
+OLDPWD=/Users/whycz/m/bp3
+PWD=/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+=== graph files ===
+experiments
+QUEST.md
+=== git show diff (code) ===
+commit 6f124a6cfafb7427249e1f39442e8db648b106aa
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 05:15:26 2026 -0500
+
+    feat(followup.2): workflow-birth — desk reads, context, claim-session tape, render freshness
+    
+    readState carries the desk in all four workflows; context threads verbatim into author briefs; find-tape resolves the claimed session first; bp3 skills check refuses E_RENDER_STALE and bp3g states the dispatch rule.
+
+diff --git a/.agents/skills/bp3g/SKILL.md b/.agents/skills/bp3g/SKILL.md
+index c87c039..9f565e2 100644
+--- a/.agents/skills/bp3g/SKILL.md
++++ b/.agents/skills/bp3g/SKILL.md
+@@ -83,7 +83,7 @@ above stays the one conductor procedure.
+ 
+    | State | Dispatch | Args |
+    |---|---|---|
+-   | `todo` | `node-loop` workflow | `{graph, node, ts, harness, model, desk}` |
++   | `todo` | `node-loop` workflow | `{graph, node, ts, harness, model, desk, context}` |
+    | `handed_off` | `bp3g-grade` workflow | `{graph, node, ts, harness, model, commit, desk}` with `commit` from this read |
+    | `approved` | `bp3g-land` workflow | `{graph, node, ts, harness, model, desk}` |
+    | `blocked` | human gate (step 4) | — |
+@@ -94,7 +94,8 @@ above stays the one conductor procedure.
+    and `timing` (wall/wait/dwell derived from ledger
+    timestamps), and per-Run `setup` (`W_SETUP_SLOW` when a
+    setup exceeds the local threshold). Dispatch one
+-   `bp3g-node` workflow run per node in `ready`, in
++   `bp3g-node` workflow run per node in `ready`
++   (`{graph, node, ts, harness, model, desk, context}`), in
+    parallel desks: it owns that node's whole FSM loop
+    (author, grade+verify, and land as phases inside it)
+    and returns exactly one terminal outcome (`landed`,
+@@ -121,6 +122,14 @@ above stays the one conductor procedure.
+    and revival after `resume` is a fresh node run that
+    re-reads bp3 — no worker process is ever resumed.
+ 
++   Render freshness (followup.2): before every dispatch,
++   from the desk, run `./bin/bp3 skills check`. A stale
++   render refuses `E_RENDER_STALE` naming the render and
++   its source; re-render in the desk (`./bin/bp3 skills
++   install`) and re-check. Never launch a stale render:
++   the conducting surface that runs is the surface that
++   was written. A fresh check passes silently and costs
++   no reinstall.
+    `ts` is a UTC compact timestamp (for example
+    `20261107T143022Z`) supplied in args because workflow
+    scripts cannot read the clock; `harness` and `model` carry
+diff --git a/.agents/workflows/bp3g-grade.js b/.agents/workflows/bp3g-grade.js
+index 51ff440..dc2a9bb 100644
+--- a/.agents/workflows/bp3g-grade.js
++++ b/.agents/workflows/bp3g-grade.js
+@@ -398,8 +398,9 @@ export default async function workflow(host) {
+     const result = await host.agent({
+       label: "read " + node,
+       input:
++        deskNote +
+         "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
+-        "` from the graph worktree if one is named below, else the repository root, and return only its stdout JSON " +
++        "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
+         "verdict verbatim as your entire reply, with no prose and no " +
+         "code fences. If the command fails, return its stdout JSON " +
+         "verdict verbatim instead. Do not edit any file and do not " +
+diff --git a/.agents/workflows/bp3g-land.js b/.agents/workflows/bp3g-land.js
+index 374021a..fac1319 100644
+--- a/.agents/workflows/bp3g-land.js
++++ b/.agents/workflows/bp3g-land.js
+@@ -88,8 +88,9 @@ export default async function workflow(host) {
+     const result = await host.agent({
+       label: "read " + node,
+       input:
++        deskNote +
+         "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
+-        "` from the graph worktree if one is named below, else the repository root, and return only its stdout JSON " +
++        "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
+         "verdict verbatim as your entire reply, with no prose and no " +
+         "code fences. If the command fails, return its stdout JSON " +
+         "verdict verbatim instead. Do not edit any file and do not " +
+diff --git a/.agents/workflows/bp3g-node.js b/.agents/workflows/bp3g-node.js
+index 9be868d..4c3186f 100644
+--- a/.agents/workflows/bp3g-node.js
++++ b/.agents/workflows/bp3g-node.js
+@@ -31,7 +31,11 @@
+ // state, reason, last edge, claim/run chain, desk, and
+ // inbox key — so revival after resume is a fresh run
+ // that re-reads bp3; no pid or session is ever resumed.
+-// Args: {graph, node, ts, harness, model, desk}.
++// Args: {graph, node, ts, harness, model, desk, context}.
++// The conductor's context (a cycle's named fix, carried
++// verbatim) rides the first author cycle; a grade's own
++// named fix replaces it on later cycles. Context is never
++// dropped silently: with none supplied, no clause is added.
+ 
+ function textOf(result) {
+   if (typeof result === "string") return result;
+@@ -86,6 +90,7 @@ export default async function workflow(host) {
+   const harness = rawArgs.harness || "muse-code";
+   const model = rawArgs.model || "unknown";
+   const desk = rawArgs.desk ? String(rawArgs.desk) : "";
++  const context = rawArgs.context ? String(rawArgs.context) : "";
+   const envPrefix =
+     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
+   const deskNote = desk ? ("Your working directory is the graph worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
+@@ -106,8 +111,9 @@ export default async function workflow(host) {
+     const result = await host.agent({
+       label: "read " + node,
+       input:
++        deskNote +
+         "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
+-        "` from the graph worktree if one is named below, else the repository root, and return only its stdout JSON " +
++        "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
+         "verdict verbatim as your entire reply, with no prose and no " +
+         "code fences. If the command fails, return its stdout JSON " +
+         "verdict verbatim instead. Do not edit any file and do not " +
+@@ -446,7 +452,7 @@ export default async function workflow(host) {
+   // loop's own block call; an orphaned worker is replaced
+   // by the next iteration's fresh link; neither path ever
+   // waits on a human inside this run.
+-  let fix = "";
++  let fix = context;
+   let lastEdge = null;
+   for (let step = 0; step < 12; step++) {
+     const state = await readState();
+diff --git a/.agents/workflows/node-loop.js b/.agents/workflows/node-loop.js
+index 4ad99df..a740fcc 100644
+--- a/.agents/workflows/node-loop.js
++++ b/.agents/workflows/node-loop.js
+@@ -13,9 +13,11 @@
+ // binds the child's session tape via `bp3 harness
+ // bind-tape` after the child returns.
+ // Args are supplied by the calling bp3g skill as {graph, node,
+-// ts, harness, model}; ts is a UTC compact timestamp from the
++// ts, harness, model, desk, context}; ts is a UTC compact timestamp from the
+ // caller, embedded by the child in its run-id because scripts
+-// cannot read the clock.
++// cannot read the clock. The conductor's context (a cycle's
++// named fix) is threaded verbatim into the author brief;
++// it is never dropped silently.
+ 
+ function textOf(result) {
+   if (typeof result === "string") return result;
+@@ -70,6 +72,7 @@ export default async function workflow(host) {
+   const harness = rawArgs.harness || "muse-code";
+   const model = rawArgs.model || "unknown";
+   const desk = rawArgs.desk ? String(rawArgs.desk) : "";
++  const context = rawArgs.context ? String(rawArgs.context) : "";
+   const envPrefix =
+     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
+   const deskNote = desk ? ("Your working directory is the graph worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
+@@ -96,8 +99,9 @@ export default async function workflow(host) {
+     const result = await host.agent({
+       label: "read " + node,
+       input:
++        deskNote +
+         "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
+-        "` from the graph worktree if one is named below, else the repository root, and return only its stdout JSON " +
++        "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
+         "verdict verbatim as your entire reply, with no prose and no " +
+         "code fences. If the command fails, return its stdout JSON " +
+         "verdict verbatim instead. Do not edit any file and do not " +
+@@ -307,6 +311,7 @@ export default async function workflow(host) {
+       deskNote + "You are the author child for node `" + node + "` of graph `" +
+       graph + "`, currently in state `todo` at cycle " +
+       String(before.cycle) + ". " + authorLoad + tapePreamble("handoff", before.cycle) +
++      (context ? " The conductor named this context; carry it verbatim: " + context : "") +
+       " Do the node's work in the repository, then commit the " +
+       "work as a clean git commit and note its full sha. Then " +
+       "call the state edge directly yourself: " +
+diff --git a/bin/bp3 b/bin/bp3
+index d790d3b..91041c4 100755
+--- a/bin/bp3
++++ b/bin/bp3
+@@ -167,7 +167,33 @@ HOOKS_JSON
+   fi
+ }
+ 
+-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
++# Render freshness (followup.2, workflow-birth): a dispatch
++# must never launch a render older than its source. Workflow
++# renders are plain copies, so freshness is byte equality
++# between skills/bp3g/workflows/<name>.js (source) and
++# .agents/workflows/<name>.js (render). Fresh is silent JSON
++# ok; stale refuses E_RENDER_STALE naming render and source.
++skills_check() {
++  local workflow_names="node-loop bp3g-grade bp3g-land bp3g-node"
++  local workflow_name src_file render_file
++  local stale_json="" stale_count=0
++  for workflow_name in $workflow_names; do
++    src_file="$root/skills/bp3g/workflows/$workflow_name.js"
++    [ -f "$src_file" ] || continue
++    render_file="$root/.agents/workflows/$workflow_name.js"
++    if [ ! -f "$render_file" ] || ! cmp -s "$src_file" "$render_file"; then
++      stale_count=$((stale_count + 1))
++      stale_json="${stale_json}{\"workflow\":\"$workflow_name\",\"render\":\".agents/workflows/$workflow_name.js\",\"source\":\"skills/bp3g/workflows/$workflow_name.js\"},"
++    fi
++  done
++  if [ "$stale_count" -gt 0 ]; then
++    printf '{"ok":false,"error":{"code":"E_RENDER_STALE","facts":{"stale":[%s]},"guidance":"Re-render in the desk (./bin/bp3 skills install) and re-check; never launch a stale render."}}\n' "${stale_json%,}"
++    exit 1
++  fi
++  printf '{"ok":true,"fresh":["node-loop","bp3g-grade","bp3g-land","bp3g-node"]}\n'
++}
++
++usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 skills check | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+ g_bin() { echo "${BP3_G_BIN:-$root/_build/default/src/graph/main.exe}"; }
+ case "${1:-}" in
+   -h|--help) printf '%s\n' "$usage_text"; printf '%s\n' '  bp3 g -h for graph/node doors'; exit 0 ;;
+@@ -200,6 +226,7 @@ case "${1:-}" in
+     shift
+     case "${1:-}" in
+       install) shift; skills_install "$@" ;;
++      check) shift; skills_check "$@" ;;
+       *) echo "$usage_text" >&2; exit 2 ;;
+     esac
+     ;;
+diff --git a/skills/bp3g/SKILL.md b/skills/bp3g/SKILL.md
+index b890b15..99689ab 100644
+--- a/skills/bp3g/SKILL.md
++++ b/skills/bp3g/SKILL.md
+@@ -82,7 +82,7 @@ above stays the one conductor procedure.
+ 
+    | State | Dispatch | Args |
+    |---|---|---|
+-   | `todo` | `node-loop` workflow | `{graph, node, ts, harness, model, desk}` |
++   | `todo` | `node-loop` workflow | `{graph, node, ts, harness, model, desk, context}` |
+    | `handed_off` | `bp3g-grade` workflow | `{graph, node, ts, harness, model, commit, desk}` with `commit` from this read |
+    | `approved` | `bp3g-land` workflow | `{graph, node, ts, harness, model, desk}` |
+    | `blocked` | human gate (step 4) | — |
+@@ -93,7 +93,8 @@ above stays the one conductor procedure.
+    and `timing` (wall/wait/dwell derived from ledger
+    timestamps), and per-Run `setup` (`W_SETUP_SLOW` when a
+    setup exceeds the local threshold). Dispatch one
+-   `bp3g-node` workflow run per node in `ready`, in
++   `bp3g-node` workflow run per node in `ready`
++   (`{graph, node, ts, harness, model, desk, context}`), in
+    parallel desks: it owns that node's whole FSM loop
+    (author, grade+verify, and land as phases inside it)
+    and returns exactly one terminal outcome (`landed`,
+@@ -120,6 +121,14 @@ above stays the one conductor procedure.
+    and revival after `resume` is a fresh node run that
+    re-reads bp3 — no worker process is ever resumed.
+ 
++   Render freshness (followup.2): before every dispatch,
++   from the desk, run `./bin/bp3 skills check`. A stale
++   render refuses `E_RENDER_STALE` naming the render and
++   its source; re-render in the desk (`./bin/bp3 skills
++   install`) and re-check. Never launch a stale render:
++   the conducting surface that runs is the surface that
++   was written. A fresh check passes silently and costs
++   no reinstall.
+    `ts` is a UTC compact timestamp (for example
+    `20261107T143022Z`) supplied in args because workflow
+    scripts cannot read the clock; `harness` and `model` carry
+diff --git a/skills/bp3g/workflows/bp3g-grade.js b/skills/bp3g/workflows/bp3g-grade.js
+index 51ff440..dc2a9bb 100644
+--- a/skills/bp3g/workflows/bp3g-grade.js
++++ b/skills/bp3g/workflows/bp3g-grade.js
+@@ -398,8 +398,9 @@ export default async function workflow(host) {
+     const result = await host.agent({
+       label: "read " + node,
+       input:
++        deskNote +
+         "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
+-        "` from the graph worktree if one is named below, else the repository root, and return only its stdout JSON " +
++        "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
+         "verdict verbatim as your entire reply, with no prose and no " +
+         "code fences. If the command fails, return its stdout JSON " +
+         "verdict verbatim instead. Do not edit any file and do not " +
+diff --git a/skills/bp3g/workflows/bp3g-land.js b/skills/bp3g/workflows/bp3g-land.js
+index 374021a..fac1319 100644
+--- a/skills/bp3g/workflows/bp3g-land.js
++++ b/skills/bp3g/workflows/bp3g-land.js
+@@ -88,8 +88,9 @@ export default async function workflow(host) {
+     const result = await host.agent({
+       label: "read " + node,
+       input:
++        deskNote +
+         "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
+-        "` from the graph worktree if one is named below, else the repository root, and return only its stdout JSON " +
++        "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
+         "verdict verbatim as your entire reply, with no prose and no " +
+         "code fences. If the command fails, return its stdout JSON " +
+         "verdict verbatim instead. Do not edit any file and do not " +
+diff --git a/skills/bp3g/workflows/bp3g-node.js b/skills/bp3g/workflows/bp3g-node.js
+index 9be868d..4c3186f 100644
+--- a/skills/bp3g/workflows/bp3g-node.js
++++ b/skills/bp3g/workflows/bp3g-node.js
+@@ -31,7 +31,11 @@
+ // state, reason, last edge, claim/run chain, desk, and
+ // inbox key — so revival after resume is a fresh run
+ // that re-reads bp3; no pid or session is ever resumed.
+-// Args: {graph, node, ts, harness, model, desk}.
++// Args: {graph, node, ts, harness, model, desk, context}.
++// The conductor's context (a cycle's named fix, carried
++// verbatim) rides the first author cycle; a grade's own
++// named fix replaces it on later cycles. Context is never
++// dropped silently: with none supplied, no clause is added.
+ 
+ function textOf(result) {
+   if (typeof result === "string") return result;
+@@ -86,6 +90,7 @@ export default async function workflow(host) {
+   const harness = rawArgs.harness || "muse-code";
+   const model = rawArgs.model || "unknown";
+   const desk = rawArgs.desk ? String(rawArgs.desk) : "";
++  const context = rawArgs.context ? String(rawArgs.context) : "";
+   const envPrefix =
+     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
+   const deskNote = desk ? ("Your working directory is the graph worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
+@@ -106,8 +111,9 @@ export default async function workflow(host) {
+     const result = await host.agent({
+       label: "read " + node,
+       input:
++        deskNote +
+         "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
+-        "` from the graph worktree if one is named below, else the repository root, and return only its stdout JSON " +
++        "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
+         "verdict verbatim as your entire reply, with no prose and no " +
+         "code fences. If the command fails, return its stdout JSON " +
+         "verdict verbatim instead. Do not edit any file and do not " +
+@@ -446,7 +452,7 @@ export default async function workflow(host) {
+   // loop's own block call; an orphaned worker is replaced
+   // by the next iteration's fresh link; neither path ever
+   // waits on a human inside this run.
+-  let fix = "";
++  let fix = context;
+   let lastEdge = null;
+   for (let step = 0; step < 12; step++) {
+     const state = await readState();
+diff --git a/skills/bp3g/workflows/node-loop.js b/skills/bp3g/workflows/node-loop.js
+index 4ad99df..a740fcc 100644
+--- a/skills/bp3g/workflows/node-loop.js
++++ b/skills/bp3g/workflows/node-loop.js
+@@ -13,9 +13,11 @@
+ // binds the child's session tape via `bp3 harness
+ // bind-tape` after the child returns.
+ // Args are supplied by the calling bp3g skill as {graph, node,
+-// ts, harness, model}; ts is a UTC compact timestamp from the
++// ts, harness, model, desk, context}; ts is a UTC compact timestamp from the
+ // caller, embedded by the child in its run-id because scripts
+-// cannot read the clock.
++// cannot read the clock. The conductor's context (a cycle's
++// named fix) is threaded verbatim into the author brief;
++// it is never dropped silently.
+ 
+ function textOf(result) {
+   if (typeof result === "string") return result;
+@@ -70,6 +72,7 @@ export default async function workflow(host) {
+   const harness = rawArgs.harness || "muse-code";
+   const model = rawArgs.model || "unknown";
+   const desk = rawArgs.desk ? String(rawArgs.desk) : "";
++  const context = rawArgs.context ? String(rawArgs.context) : "";
+   const envPrefix =
+     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
+   const deskNote = desk ? ("Your working directory is the graph worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
+@@ -96,8 +99,9 @@ export default async function workflow(host) {
+     const result = await host.agent({
+       label: "read " + node,
+       input:
++        deskNote +
+         "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
+-        "` from the graph worktree if one is named below, else the repository root, and return only its stdout JSON " +
++        "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
+         "verdict verbatim as your entire reply, with no prose and no " +
+         "code fences. If the command fails, return its stdout JSON " +
+         "verdict verbatim instead. Do not edit any file and do not " +
+@@ -307,6 +311,7 @@ export default async function workflow(host) {
+       deskNote + "You are the author child for node `" + node + "` of graph `" +
+       graph + "`, currently in state `todo` at cycle " +
+       String(before.cycle) + ". " + authorLoad + tapePreamble("handoff", before.cycle) +
++      (context ? " The conductor named this context; carry it verbatim: " + context : "") +
+       " Do the node's work in the repository, then commit the " +
+       "work as a clean git commit and note its full sha. Then " +
+       "call the state edge directly yourself: " +
+diff --git a/src/graph/harness.ml b/src/graph/harness.ml
+index 2b1e5a1..c8b2092 100644
+--- a/src/graph/harness.ml
++++ b/src/graph/harness.ml
+@@ -49,6 +49,11 @@
+    <engine-fsm-edge> call) can resolve, and among them
+    the earliest session started at-or-after the Run's
+    InitRecord wins; a tie or none refuse E_AMBIGUOUS.
++   workflow-birth (followup.2) puts the claim first:
++   when the Run's record carries the session that
++   claimed its link and exactly one candidate tape is
++   owned by that session, that tape resolves before
++   the engine-fsm-edge rule runs.
+    The binding is one-to-one and pinned: the first
+    tape_binding row is the only pointer the fold reads,
+    and bind-tape refuses a second, different tape. *)
+@@ -1268,12 +1273,28 @@ let ambiguous what candidates =
+    so it never establishes. A tie, no viable tape, or no
+    engine-fsm-edge tape at all is E_AMBIGUOUS naming every
+    candidate. A tape named by an InitRecord or a binding
+-   row never reaches this scan. *)
+-let narrow_candidates candidates run_id node init_ts =
++   row never reaches this scan.
++   workflow-birth (followup.2): before the edge heuristic,
++   the claim's own session decides. A claimed Run's record
++   carries the session that claimed its link; the tape
++   owned by exactly that session is the child tape,
++   however many stale, sibling, or conductor tapes merely
++   reference the Run. Exactly one such tape resolves at
++   once; zero or several fall through to the edge rule. *)
++let narrow_candidates candidates run_id node init_ts claim_session =
+   let paths = dedup (List.map (fun (p, _, _) -> p) candidates) in
+   match paths with
+   | [] | [_] -> paths
+   | _ ->
++      let claimed = match claim_session with
++        | Some s when s <> "" ->
++            dedup (List.filter_map (fun (p, _, _) ->
++              if session_id_of_tape p = Some s then Some p else None)
++              candidates)
++        | _ -> [] in
++      (match claimed with
++       | [p] -> [p]
++       | _ ->
+       let init_epoch = match init_ts with
+         | Some ts -> epoch_of_iso ts | None -> None in
+       let viable = List.filter_map (fun (p, _, text) ->
+@@ -1293,7 +1314,7 @@ let narrow_candidates candidates run_id node init_ts =
+                (snd (List.hd viable)) viable in
+            (match List.filter (fun (_, s) -> s = earliest) viable with
+             | [(p, _)] -> [p]
+-            | _ -> ambiguous "tape" paths))
++            | _ -> ambiguous "tape" paths)))
+ 
+ let do_find_tape args =
+   let fl = parse_ft_flags args in
+@@ -1375,7 +1396,9 @@ let do_find_tape args =
+           | Some rec_ -> rec_.node | None -> None in
+         let scan_init_ts = match record with
+           | Some rec_ -> rec_.init_ts | None -> None in
+-        let paths = narrow_candidates candidates scan_run scan_node scan_init_ts in
++        let scan_session = match record with
++          | Some rec_ -> rec_.session_id | None -> None in
++        let paths = narrow_candidates candidates scan_run scan_node scan_init_ts scan_session in
+         (match paths with
+          | [] ->
+              let facts = match fl.ft_run with
+@@ -1553,7 +1576,9 @@ let resolve_watch fl =
+         | Some rec_ -> rec_.node | None -> None in
+       let scan_init_ts = match record with
+         | Some rec_ -> rec_.init_ts | None -> None in
+-      let paths = narrow_candidates candidates scan_run scan_node scan_init_ts in
++      let scan_session = match record with
++        | Some rec_ -> rec_.session_id | None -> None in
++      let paths = narrow_candidates candidates scan_run scan_node scan_init_ts scan_session in
+       (match paths with
+        | [] ->
+            (match record with
+@@ -2614,7 +2639,7 @@ Example: bp3 harness init-check --engine muse-code\n"
+ let help_find_tape = "bp3 harness find-tape - InitRecord-first tape lookup:\n\
+   bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]\n\
+   bp3 harness find-tape --session-id <id>\n\
+-  Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate. A tape named by an InitRecord or a binding row wins over any scan; when a scan finds several referencing tapes, only tapes carrying the Run's own engine-fsm-edge invocation (BP3_RUN_ID bound to its bp3 g ... u <node> <engine-fsm-edge> call, engine-fsm-edge from the run-id, node from the InitRecord) can resolve, and among them the earliest session started at-or-after the Run's InitRecord wins; a tie or none is E_AMBIGUOUS.\n\
++  Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate. A tape named by an InitRecord or a binding row wins over any scan; when a scan finds several referencing tapes, the tape owned by the session that claimed the Run's link resolves first (workflow-birth); otherwise only tapes carrying the Run's own engine-fsm-edge invocation (BP3_RUN_ID bound to its bp3 g ... u <node> <engine-fsm-edge> call, engine-fsm-edge from the run-id, node from the InitRecord) can resolve, and among them the earliest session started at-or-after the Run's InitRecord wins; a tie or none is E_AMBIGUOUS.\n\
+   --entry returns the one digest-verified entry (sha256 over its exact line, with byte range), widened by --before-entries/--after-entries (non-negative integers, default 0).\n\
+   Emits {ok, run_id, harness, session_id, wal, pid} or, with --entry, plus {entry, entries}.\n\
+ Example: bp3 harness find-tape --run-id 20261115T000000Z-handoff-pi-model-c1\n"
+diff --git a/test/bp3g-conduct.test.mjs b/test/bp3g-conduct.test.mjs
+index 92c61cb..c5b7a02 100644
+--- a/test/bp3g-conduct.test.mjs
++++ b/test/bp3g-conduct.test.mjs
+@@ -129,6 +129,9 @@ function fixtureHost() {
+   assert(skill.includes("`node-loop` workflow"), "bp3g names node-loop for todo");
+   assert(skill.includes("`bp3g-grade` workflow"), "bp3g names bp3g-grade for handed_off");
+   assert(skill.includes("`bp3g-land` workflow"), "bp3g names bp3g-land for approved");
++  assert(skill.includes("bp3 skills check"), "bp3g checks render freshness before dispatch");
++  assert(skill.includes("E_RENDER_STALE"), "bp3g names the stale-render refusal");
++  assert(skill.includes("Never launch a stale render"), "bp3g states the freshness rule");
+ }
+ 
+ if (failures > 0) process.exit(1);
+diff --git a/test/bp3g-grade.test.mjs b/test/bp3g-grade.test.mjs
+index f7ea56c..a169725 100644
+--- a/test/bp3g-grade.test.mjs
++++ b/test/bp3g-grade.test.mjs
+@@ -59,14 +59,14 @@ function rowNamed(result, name) {
+ // reads: state replies in order; audit replies with auditRows
+ // (or auditSeq per audit call); grade/verify reply as cast
+ // verdicts. Records stage inputs.
+-function mockHost({ reads, auditRows, auditSeq, validationsObs, stageReplies, initFails }) {
++function mockHost({ reads, auditRows, auditSeq, validationsObs, stageReplies, initFails, extraArgs }) {
+   let readIdx = 0;
+   let auditIdx = 0;
+-  const inputs = {};
++  const inputs = { reads: [] };
+   const order = [];
+   const inits = [];
+   const host = {
+-    args: { graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: COMMIT },
++    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: COMMIT }, extraArgs || {}),
+     async agent({ label, input }) {
+       if (label.startsWith("validations")) {
+         order.push("validations");
+@@ -85,7 +85,8 @@ function mockHost({ reads, auditRows, auditSeq, validationsObs, stageReplies, in
+         }
+         return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: runId, harness: "muse-code" });
+       }
+-      if (input.startsWith("Run exactly")) {
++      if (label.startsWith("read ") || input.startsWith("Run exactly")) {
++        inputs.reads.push(input);
+         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
+       }
+       const edge = label.split(" ")[0];
+@@ -557,5 +558,22 @@ function rungRow(name, rung, verdict, quote) {
+   }
+ }
+ 
++// --- workflow-birth: the read carries the desk ---
++{
++  const { host, inputs } = mockHost({
++    reads: [handedOff, approved],
++    auditRows: [passRow("acceptance: a"), passRow("adherence: tape present")],
++    extraArgs: { desk: ".bp3/worktrees/toy-desk" },
++  });
++  const result = await workflow(host);
++  assert(result.outcome === "approved", "desk grade approves, got " + result.outcome);
++  assert(inputs.reads.length > 0, "reads captured, got " + inputs.reads.length);
++  for (const read of inputs.reads) {
++    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
++      "read prompt names the desk worktree");
++    assert(!read.includes("named below"), "read prompt never points below for the desk");
++  }
++}
++
+ if (failures > 0) process.exit(1);
+ console.log("bp3g-grade tests: ok");
+diff --git a/test/bp3g-land.test.mjs b/test/bp3g-land.test.mjs
+index ff5c342..9ecf444 100644
+--- a/test/bp3g-land.test.mjs
++++ b/test/bp3g-land.test.mjs
+@@ -10,13 +10,13 @@ function assert(cond, msg) {
+   if (!cond) { console.error("FAIL: " + msg); failures++; }
+ }
+ 
+-function mockHost({ reads, initFails }) {
++function mockHost({ reads, initFails, extraArgs }) {
+   let readIdx = 0;
+   const labels = [];
+-  const inputs = {};
++  const inputs = { reads: [] };
+   const inits = [];
+   const host = {
+-    args: { graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" },
++    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
+     async agent({ label, input }) {
+       if (input.includes("harness link mint")) {
+         labels.push("init");
+@@ -30,7 +30,8 @@ function mockHost({ reads, initFails }) {
+         }
+         return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: runId, harness: "muse-code" });
+       }
+-      if (input.startsWith("Run exactly")) {
++      if (label.startsWith("read ") || input.startsWith("Run exactly")) {
++        inputs.reads.push(input);
+         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
+       }
+       const edge = label.split(" ")[0];
+@@ -96,6 +97,22 @@ for (const state of ["todo", "handed_off", "landed", "blocked"]) {
+   assert(labels.join(",") === "init", "no land child spawns after a refused mint, got " + labels.join(","));
+ }
+ 
++// --- workflow-birth: the read carries the desk ---
++{
++  const { host, inputs } = mockHost({
++    reads: [approved, landed],
++    extraArgs: { desk: ".bp3/worktrees/toy-desk" },
++  });
++  const result = await workflow(host);
++  assert(result.outcome === "landed", "desk land lands, got " + result.outcome);
++  assert(inputs.reads.length === 2, "two reads captured, got " + inputs.reads.length);
++  for (const read of inputs.reads) {
++    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
++      "read prompt names the desk worktree");
++    assert(!read.includes("named below"), "read prompt never points below for the desk");
++  }
++}
++
+ // --- missing args refuse without spawning anything ---
+ {
+   const host = {
+diff --git a/test/bp3g-node.test.mjs b/test/bp3g-node.test.mjs
+index 360efb8..dc7eff9 100644
+--- a/test/bp3g-node.test.mjs
++++ b/test/bp3g-node.test.mjs
+@@ -9,12 +9,12 @@ function assert(cond, msg) {
+   if (!cond) { console.error("FAIL: " + msg); failures++; }
+ }
+ 
+-function mockHost({ reads, gradeReason, edgeResults }) {
++function mockHost({ reads, gradeReason, edgeResults, extraArgs }) {
+   let readIdx = 0;
+   const labels = [];
+-  const inputs = {};
++  const inputs = { reads: [] };
+   const host = {
+-    args: { graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" },
++    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
+     async agent({ label, input }) {
+       if (input.includes("harness link mint")) {
+=== git show remaining diff ===
+commit 6f124a6cfafb7427249e1f39442e8db648b106aa
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 05:15:26 2026 -0500
+
+    feat(followup.2): workflow-birth — desk reads, context, claim-session tape, render freshness
+    
+    readState carries the desk in all four workflows; context threads verbatim into author briefs; find-tape resolves the claimed session first; bp3 skills check refuses E_RENDER_STALE and bp3g states the dispatch rule.
+
+diff --git a/src/graph/harness.ml b/src/graph/harness.ml
+index 2b1e5a1..c8b2092 100644
+--- a/src/graph/harness.ml
++++ b/src/graph/harness.ml
+@@ -49,6 +49,11 @@
+    <engine-fsm-edge> call) can resolve, and among them
+    the earliest session started at-or-after the Run's
+    InitRecord wins; a tie or none refuse E_AMBIGUOUS.
++   workflow-birth (followup.2) puts the claim first:
++   when the Run's record carries the session that
++   claimed its link and exactly one candidate tape is
++   owned by that session, that tape resolves before
++   the engine-fsm-edge rule runs.
+    The binding is one-to-one and pinned: the first
+    tape_binding row is the only pointer the fold reads,
+    and bind-tape refuses a second, different tape. *)
+@@ -1268,12 +1273,28 @@ let ambiguous what candidates =
+    so it never establishes. A tie, no viable tape, or no
+    engine-fsm-edge tape at all is E_AMBIGUOUS naming every
+    candidate. A tape named by an InitRecord or a binding
+-   row never reaches this scan. *)
+-let narrow_candidates candidates run_id node init_ts =
++   row never reaches this scan.
++   workflow-birth (followup.2): before the edge heuristic,
++   the claim's own session decides. A claimed Run's record
++   carries the session that claimed its link; the tape
++   owned by exactly that session is the child tape,
++   however many stale, sibling, or conductor tapes merely
++   reference the Run. Exactly one such tape resolves at
++   once; zero or several fall through to the edge rule. *)
++let narrow_candidates candidates run_id node init_ts claim_session =
+   let paths = dedup (List.map (fun (p, _, _) -> p) candidates) in
+   match paths with
+   | [] | [_] -> paths
+   | _ ->
++      let claimed = match claim_session with
++        | Some s when s <> "" ->
++            dedup (List.filter_map (fun (p, _, _) ->
++              if session_id_of_tape p = Some s then Some p else None)
++              candidates)
++        | _ -> [] in
++      (match claimed with
++       | [p] -> [p]
++       | _ ->
+       let init_epoch = match init_ts with
+         | Some ts -> epoch_of_iso ts | None -> None in
+       let viable = List.filter_map (fun (p, _, text) ->
+@@ -1293,7 +1314,7 @@ let narrow_candidates candidates run_id node init_ts =
+                (snd (List.hd viable)) viable in
+            (match List.filter (fun (_, s) -> s = earliest) viable with
+             | [(p, _)] -> [p]
+-            | _ -> ambiguous "tape" paths))
++            | _ -> ambiguous "tape" paths)))
+ 
+ let do_find_tape args =
+   let fl = parse_ft_flags args in
+@@ -1375,7 +1396,9 @@ let do_find_tape args =
+           | Some rec_ -> rec_.node | None -> None in
+         let scan_init_ts = match record with
+           | Some rec_ -> rec_.init_ts | None -> None in
+-        let paths = narrow_candidates candidates scan_run scan_node scan_init_ts in
++        let scan_session = match record with
++          | Some rec_ -> rec_.session_id | None -> None in
++        let paths = narrow_candidates candidates scan_run scan_node scan_init_ts scan_session in
+         (match paths with
+          | [] ->
+              let facts = match fl.ft_run with
+@@ -1553,7 +1576,9 @@ let resolve_watch fl =
+         | Some rec_ -> rec_.node | None -> None in
+       let scan_init_ts = match record with
+         | Some rec_ -> rec_.init_ts | None -> None in
+-      let paths = narrow_candidates candidates scan_run scan_node scan_init_ts in
++      let scan_session = match record with
++        | Some rec_ -> rec_.session_id | None -> None in
++      let paths = narrow_candidates candidates scan_run scan_node scan_init_ts scan_session in
+       (match paths with
+        | [] ->
+            (match record with
+@@ -2614,7 +2639,7 @@ Example: bp3 harness init-check --engine muse-code\n"
+ let help_find_tape = "bp3 harness find-tape - InitRecord-first tape lookup:\n\
+   bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]\n\
+   bp3 harness find-tape --session-id <id>\n\
+-  Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate. A tape named by an InitRecord or a binding row wins over any scan; when a scan finds several referencing tapes, only tapes carrying the Run's own engine-fsm-edge invocation (BP3_RUN_ID bound to its bp3 g ... u <node> <engine-fsm-edge> call, engine-fsm-edge from the run-id, node from the InitRecord) can resolve, and among them the earliest session started at-or-after the Run's InitRecord wins; a tie or none is E_AMBIGUOUS.\n\
++  Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate. A tape named by an InitRecord or a binding row wins over any scan; when a scan finds several referencing tapes, the tape owned by the session that claimed the Run's link resolves first (workflow-birth); otherwise only tapes carrying the Run's own engine-fsm-edge invocation (BP3_RUN_ID bound to its bp3 g ... u <node> <engine-fsm-edge> call, engine-fsm-edge from the run-id, node from the InitRecord) can resolve, and among them the earliest session started at-or-after the Run's InitRecord wins; a tie or none is E_AMBIGUOUS.\n\
+   --entry returns the one digest-verified entry (sha256 over its exact line, with byte range), widened by --before-entries/--after-entries (non-negative integers, default 0).\n\
+   Emits {ok, run_id, harness, session_id, wal, pid} or, with --entry, plus {entry, entries}.\n\
+ Example: bp3 harness find-tape --run-id 20261115T000000Z-handoff-pi-model-c1\n"
+diff --git a/test/bp3g-conduct.test.mjs b/test/bp3g-conduct.test.mjs
+index 92c61cb..c5b7a02 100644
+--- a/test/bp3g-conduct.test.mjs
++++ b/test/bp3g-conduct.test.mjs
+@@ -129,6 +129,9 @@ function fixtureHost() {
+   assert(skill.includes("`node-loop` workflow"), "bp3g names node-loop for todo");
+   assert(skill.includes("`bp3g-grade` workflow"), "bp3g names bp3g-grade for handed_off");
+   assert(skill.includes("`bp3g-land` workflow"), "bp3g names bp3g-land for approved");
++  assert(skill.includes("bp3 skills check"), "bp3g checks render freshness before dispatch");
++  assert(skill.includes("E_RENDER_STALE"), "bp3g names the stale-render refusal");
++  assert(skill.includes("Never launch a stale render"), "bp3g states the freshness rule");
+ }
+ 
+ if (failures > 0) process.exit(1);
+diff --git a/test/bp3g-grade.test.mjs b/test/bp3g-grade.test.mjs
+index f7ea56c..a169725 100644
+--- a/test/bp3g-grade.test.mjs
++++ b/test/bp3g-grade.test.mjs
+@@ -59,14 +59,14 @@ function rowNamed(result, name) {
+ // reads: state replies in order; audit replies with auditRows
+ // (or auditSeq per audit call); grade/verify reply as cast
+ // verdicts. Records stage inputs.
+-function mockHost({ reads, auditRows, auditSeq, validationsObs, stageReplies, initFails }) {
++function mockHost({ reads, auditRows, auditSeq, validationsObs, stageReplies, initFails, extraArgs }) {
+   let readIdx = 0;
+   let auditIdx = 0;
+-  const inputs = {};
++  const inputs = { reads: [] };
+   const order = [];
+   const inits = [];
+   const host = {
+-    args: { graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: COMMIT },
++    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: COMMIT }, extraArgs || {}),
+     async agent({ label, input }) {
+       if (label.startsWith("validations")) {
+         order.push("validations");
+@@ -85,7 +85,8 @@ function mockHost({ reads, auditRows, auditSeq, validationsObs, stageReplies, in
+         }
+         return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: runId, harness: "muse-code" });
+       }
+-      if (input.startsWith("Run exactly")) {
++      if (label.startsWith("read ") || input.startsWith("Run exactly")) {
++        inputs.reads.push(input);
+         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
+       }
+       const edge = label.split(" ")[0];
+@@ -557,5 +558,22 @@ function rungRow(name, rung, verdict, quote) {
+   }
+ }
+ 
++// --- workflow-birth: the read carries the desk ---
++{
++  const { host, inputs } = mockHost({
++    reads: [handedOff, approved],
++    auditRows: [passRow("acceptance: a"), passRow("adherence: tape present")],
++    extraArgs: { desk: ".bp3/worktrees/toy-desk" },
++  });
++  const result = await workflow(host);
++  assert(result.outcome === "approved", "desk grade approves, got " + result.outcome);
++  assert(inputs.reads.length > 0, "reads captured, got " + inputs.reads.length);
++  for (const read of inputs.reads) {
++    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
++      "read prompt names the desk worktree");
++    assert(!read.includes("named below"), "read prompt never points below for the desk");
++  }
++}
++
+ if (failures > 0) process.exit(1);
+ console.log("bp3g-grade tests: ok");
+diff --git a/test/bp3g-land.test.mjs b/test/bp3g-land.test.mjs
+index ff5c342..9ecf444 100644
+--- a/test/bp3g-land.test.mjs
++++ b/test/bp3g-land.test.mjs
+@@ -10,13 +10,13 @@ function assert(cond, msg) {
+   if (!cond) { console.error("FAIL: " + msg); failures++; }
+ }
+ 
+-function mockHost({ reads, initFails }) {
++function mockHost({ reads, initFails, extraArgs }) {
+   let readIdx = 0;
+   const labels = [];
+-  const inputs = {};
++  const inputs = { reads: [] };
+   const inits = [];
+   const host = {
+-    args: { graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" },
++    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
+     async agent({ label, input }) {
+       if (input.includes("harness link mint")) {
+         labels.push("init");
+@@ -30,7 +30,8 @@ function mockHost({ reads, initFails }) {
+         }
+         return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: runId, harness: "muse-code" });
+       }
+-      if (input.startsWith("Run exactly")) {
++      if (label.startsWith("read ") || input.startsWith("Run exactly")) {
++        inputs.reads.push(input);
+         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
+       }
+       const edge = label.split(" ")[0];
+@@ -96,6 +97,22 @@ for (const state of ["todo", "handed_off", "landed", "blocked"]) {
+   assert(labels.join(",") === "init", "no land child spawns after a refused mint, got " + labels.join(","));
+ }
+ 
++// --- workflow-birth: the read carries the desk ---
++{
++  const { host, inputs } = mockHost({
++    reads: [approved, landed],
++    extraArgs: { desk: ".bp3/worktrees/toy-desk" },
++  });
++  const result = await workflow(host);
++  assert(result.outcome === "landed", "desk land lands, got " + result.outcome);
++  assert(inputs.reads.length === 2, "two reads captured, got " + inputs.reads.length);
++  for (const read of inputs.reads) {
++    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
++      "read prompt names the desk worktree");
++    assert(!read.includes("named below"), "read prompt never points below for the desk");
++  }
++}
++
+ // --- missing args refuse without spawning anything ---
+ {
+   const host = {
+diff --git a/test/bp3g-node.test.mjs b/test/bp3g-node.test.mjs
+index 360efb8..dc7eff9 100644
+--- a/test/bp3g-node.test.mjs
++++ b/test/bp3g-node.test.mjs
+@@ -9,12 +9,12 @@ function assert(cond, msg) {
+   if (!cond) { console.error("FAIL: " + msg); failures++; }
+ }
+ 
+-function mockHost({ reads, gradeReason, edgeResults }) {
++function mockHost({ reads, gradeReason, edgeResults, extraArgs }) {
+   let readIdx = 0;
+   const labels = [];
+-  const inputs = {};
++  const inputs = { reads: [] };
+   const host = {
+-    args: { graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" },
++    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
+     async agent({ label, input }) {
+       if (input.includes("harness link mint")) {
+         labels.push("mint");
+@@ -37,7 +37,8 @@ function mockHost({ reads, gradeReason, edgeResults }) {
+         (inputs.block = inputs.block || []).push(input);
+         return JSON.stringify({ ok: true, state: "blocked" });
+       }
+-      if (input.startsWith("Run exactly")) {
++      if (label.startsWith("read ") || input.startsWith("Run exactly")) {
++        inputs.reads.push(input);
+         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
+       }
+       const edge = label.split(" ")[0];
+@@ -148,6 +149,25 @@ for (const state of ["blocked", "deleted", "landed"]) {
+   assert(labels.filter((l) => l === "block").length === 0, "cap block is bp3's, not re-called, got " + labels.join(","));
+ }
+ 
++// --- workflow-birth: the read carries the desk; context rides ---
++{
++  const reads = [st("todo"), st("handed_off"), st("handed_off"), st("approved"), st("landed")];
++  const { host, inputs } = mockHost({
++    reads,
++    extraArgs: { desk: ".bp3/worktrees/toy-desk", context: "rename the widget verb, keep tests green" },
++  });
++  const result = await workflow(host);
++  assert(result.outcome === "landed", "desk+context run lands, got " + result.outcome);
++  assert(inputs.reads.length > 0, "reads captured, got " + inputs.reads.length);
++  for (const read of inputs.reads) {
++    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
++      "read prompt names the desk worktree");
++    assert(!read.includes("named below"), "read prompt never points below for the desk");
++  }
++  assert(inputs.handoff[0].includes("rename the widget verb, keep tests green"),
++    "conductor context rides the first author brief verbatim");
++}
++
+ // --- missing args refuse without spawning anything ---
+ {
+   const host = {
+diff --git a/test/harness.sh b/test/harness.sh
+index e34aa74..4672d3c 100755
+--- a/test/harness.sh
++++ b/test/harness.sh
+@@ -641,6 +641,18 @@ printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-b","timestamp":"20
+ out=$(h find-tape --run-id "$F4EARLY") || fail "followup.4 earliest exit: $out"
+ echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/f4-early-b.jsonl" '.ok == true and .wal == $w' >/dev/null || fail "followup.4 earliest session wins: $out"
+ 
++# workflow-birth: the claimed session's tape wins over an
++# earlier own-edge tape from another session; stale and
++# conductor tapes merely referencing the Run never win
++out=$(h find-tape -h) || fail "find-tape -h workflow-birth exit"
++echo "$out" | grep -q "workflow-birth" || fail "find-tape help workflow-birth: $out"
++WBRUN="20260101T000000Z-handoff-pi-test-model-c6"
++printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$WBRUN\",\"harness\":\"pi\",\"graph\":\"toy\",\"node\":\"e1\",\"session_id\":\"S-wb-child\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$WBRUN.jsonl"
++printf '%s\n' '{"type":"session","version":3,"id":"S-wb-other","timestamp":"2026-01-01T00:01:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$WBRUN bp3 g toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/wb-other.jsonl
++printf '%s\n' '{"type":"session","version":3,"id":"S-wb-child","timestamp":"2026-01-01T00:05:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$WBRUN bp3 g toy u e1 handoff --commit def --reason work\"}}" > fixtures/pi-store/wb-child.jsonl
++out=$(h find-tape --run-id "$WBRUN") || fail "workflow-birth find-tape exit: $out"
++echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/wb-child.jsonl" '.ok == true and .wal == $w and .session_id == "S-wb-child"' >/dev/null || fail "workflow-birth claimed session wins: $out"
++
+ # the only own engine-fsm-edge tape started before the InitRecord
+ F4OLD="20260101T000000Z-handoff-pi-test-model-c5"
+ printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4OLD\",\"harness\":\"pi\",\"graph\":\"toy\",\"node\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4OLD.jsonl"
+diff --git a/test/node-loop.test.mjs b/test/node-loop.test.mjs
+index 05bd200..d308837 100644
+--- a/test/node-loop.test.mjs
++++ b/test/node-loop.test.mjs
+@@ -18,14 +18,14 @@ function assert(cond, msg) {
+   if (!cond) { console.error("FAIL: " + msg); failures++; }
+ }
+ 
+-function mockHost({ reads, initFails, bindFails }) {
++function mockHost({ reads, initFails, bindFails, extraArgs }) {
+   let readIdx = 0;
+   const labels = [];
+-  const inputs = {};
++  const inputs = { reads: [] };
+   const inits = [];
+   const binds = [];
+   const host = {
+-    args: { graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" },
++    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
+     async agent({ label, input }) {
+       if (input.includes("harness link mint")) {
+         labels.push("init");
+@@ -56,7 +56,8 @@ function mockHost({ reads, initFails, bindFails }) {
+         const r = input.match(/--run-id (\S+)/);
+         return JSON.stringify({ ok: true, run_id: r ? r[1] : "", tape_path: m ? m[1] : "" });
+       }
+-      if (input.startsWith("Run exactly")) {
++      if (label.startsWith("read ") || input.startsWith("Run exactly")) {
++        inputs.reads.push(input);
+         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
+       }
+       const edge = label.split(" ")[0];
+@@ -170,6 +171,25 @@ for (const state of ["approved", "landed", "blocked"]) {
+   assert(result.outcome === "refused", "missing args refuse");
+ }
+ 
++// --- workflow-birth: the read carries the desk; context rides ---
++{
++  const { host, inputs } = mockHost({
++    reads: [todo, handedOff],
++    extraArgs: { desk: ".bp3/worktrees/toy-desk", context: "rename the widget verb, keep tests green" },
++  });
++  const result = await workflow(host);
++  assert(result.outcome === "handed_off", "desk+context build hands off, got " + result.outcome);
++  assert(inputs.reads.length === 2, "two reads captured, got " + inputs.reads.length);
++  for (const read of inputs.reads) {
++    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
++      "read prompt names the desk worktree");
++    assert(read.includes("named above"), "read prompt points above at the desk");
++    assert(!read.includes("named below"), "read prompt never points below for the desk");
++  }
++  assert(inputs.author.includes("conductor named this context; carry it verbatim: rename the widget verb, keep tests green"),
++    "conductor context rides the author brief verbatim");
++}
++
+ // --- stage set is finite: no other stage's prompts in the file ---
+ {
+   const src = readFileSync(new URL("../skills/bp3g/workflows/node-loop.js", import.meta.url), "utf8");
+diff --git a/test/skills.sh b/test/skills.sh
+index 5b61102..93d1e43 100755
+--- a/test/skills.sh
++++ b/test/skills.sh
+@@ -56,6 +56,20 @@ mkdir -p "$root/.pi"
+ printf '{"defaultModel":"keep","skills":["/extra","!**/ignored/**"]}\n' > "$root/.pi/settings.json"
+ "$root/bin/bp3" skills install --harness=all > /dev/null
+ "$root/scripts/check-skills" "$root/skills" "$root/.pi/skills" "$root/.agents/skills" "$root/.claude/skills" > /dev/null
++
++# Render freshness (followup.2, workflow-birth): a fresh desk
++# passes silently; a backdated render refuses E_RENDER_STALE
++# naming render and source; re-render restores freshness.
++"$root/bin/bp3" skills check > "$work/check-fresh.json"
++assert jq -e '.ok == true' "$work/check-fresh.json"
++printf '\n// backdated render\n' >> "$root/.agents/workflows/bp3g-grade.js"
++rejects "$root/bin/bp3" skills check
++assert grep -q 'E_RENDER_STALE' "$work/out"
++assert grep -q '.agents/workflows/bp3g-grade.js' "$work/out"
++assert grep -q 'skills/bp3g/workflows/bp3g-grade.js' "$work/out"
++"$root/bin/bp3" skills install --harness=all > /dev/null
++"$root/bin/bp3" skills check > "$work/check-rerendered.json"
++assert jq -e '.ok == true' "$work/check-rerendered.json"
+ assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/bp3g/SKILL.md","!**/.agents/skills/bp3g-frame/SKILL.md","!**/.agents/skills/bp3g-landing-demo/SKILL.md","!**/.agents/skills/bp3g-no-human/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/red-ink/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
+ # bp3g is the one conducting skill; old traverse/induct/quest names render nowhere.
+ for h in .pi .agents .claude; do
+=== graph read ===
+{"ok":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-2-workflow-birth","state":"handed_off","fin":null,"cycle":1,"commit":"6f124a6cfafb7427249e1f39442e8db648b106aa","deps":[],"timing":{"wall_s":null,"wait_s":34983,"dwell_s":{"todo":34983},"cycles":1},"legal_edges":["grade","verify","block","delete"],"blocked":null,"changes":[{"change":"u","path":".agents/skills/bp3g/SKILL.md"},{"change":"u","path":".agents/workflows/bp3g-grade.js"},{"change":"u","path":".agents/workflows/bp3g-land.js"},{"change":"u","path":".agents/workflows/bp3g-node.js"},{"change":"u","path":".agents/workflows/node-loop.js"},{"change":"u","path":"bin/bp3"},{"change":"u","path":"skills/bp3g/SKILL.md"},{"change":"u","path":"skills/bp3g/workflows/bp3g-grade.js"},{"change":"u","path":"skills/bp3g/workflows/bp3g-land.js"},{"change":"u","path":"skills/bp3g/workflows/bp3g-node.js"},{"change":"u","path":"skills/bp3g/workflows/node-loop.js"},{"change":"u","path":"src/graph/harness.ml"},{"change":"u","path":"test/bp3g-conduct.test.mjs"},{"change":"u","path":"test/bp3g-grade.test.mjs"},{"change":"u","path":"test/bp3g-land.test.mjs"},{"change":"u","path":"test/bp3g-node.test.mjs"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/node-loop.test.mjs"},{"change":"u","path":"test/skills.sh"}],"run_id":"20261117T101750Z-node-muse-code-muse-wonder-1.0-c1"}
+=== skills check fresh ===
+{"ok":true,"fresh":["node-loop","bp3g-grade","bp3g-land","bp3g-node"]}
+exit:0
+=== run mjs tests ===
+--- test/bp3g-conduct.test.mjs ---
+bp3g-conduct tests: ok
+exit:0
+--- test/bp3g-grade.test.mjs ---
+bp3g-grade tests: ok
+exit:0
+--- test/bp3g-land.test.mjs ---
+bp3g-land tests: ok
+exit:0
+--- test/bp3g-node.test.mjs ---
+bp3g-node tests: ok
+exit:0
+--- test/node-loop.test.mjs ---
+node-loop tests: ok
+exit:0
+=== stale render probe in temp copy ===
+tmp=/tmp/bp3stale.XgPybP
+{"ok":true,"fresh":["node-loop","bp3g-grade","bp3g-land","bp3g-node"]}
+fresh-exit:0
+{"ok":false,"error":{"code":"E_RENDER_STALE","facts":{"stale":[{"workflow":"bp3g-grade","render":".agents/workflows/bp3g-grade.js","source":"skills/bp3g/workflows/bp3g-grade.js"}]},"guidance":"Re-render in the desk (./bin/bp3 skills install) and re-check; never launch a stale render."}}
+stale-exit:1
+{"ok":true,"fresh":["node-loop","bp3g-grade","bp3g-land","bp3g-node"]}
+restored-exit:0
+=== bash test suites (skills, harness find-tape section) ===
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (134 assertions)
+skills.sh exit:0
+=== harness.sh (find-tape workflow-birth fixture) ===
+written
+total 136
+drwxr-xr-x@ 4 whycz  staff    128 Nov 17 05:18 .
+drwxr-xr-x@ 4 whycz  staff    128 Nov 17 05:18 ..
+-rw-r--r--@ 1 whycz  staff   3078 Nov 17 05:18 notes.md
+-rw-r--r--@ 1 whycz  staff  65032 Nov 17 05:18 tape.log

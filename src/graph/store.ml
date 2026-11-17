@@ -193,8 +193,10 @@ let fold_ledger text =
         if edge = "create" || edge = "dep" then begin
           if edge = "create" then begin
             s.node_type <- fold_type_key j "node_type" "exp_type"
-              (fold_type_key j "graph_type" "quest_type" "default");
-            graph_type := fold_type_key j "graph_type" "quest_type" !graph_type
+              (fold_type_key j "goal_type" "graph_type"
+                 (get_str j "quest_type" "default"));
+            graph_type := fold_type_key j "goal_type" "graph_type"
+              (get_str j "quest_type" !graph_type)
           end;
           (try match Yojson.Safe.Util.member "depends_on" j with
              | `List xs -> depends_on := List.map (function `String x -> x | _ -> "") xs
@@ -226,9 +228,9 @@ let ledger_text branch path =
   | None -> None
   | Some tip -> (match git_show tip path with Some t -> Some (tip, t) | None -> Some (tip, ""))
 
-let graph_branch q = "refs/heads/bp3/quest/" ^ q
+let graph_branch q = "refs/heads/bp3/goal/" ^ q
 let node_branch q e = "refs/heads/bp3/exp/" ^ q ^ "/" ^ e
-let graph_dir q = "docs/quests/" ^ q
+let graph_dir q = "docs/goals/" ^ q
 let graph_ledger_path q = graph_dir q ^ "/ledger.jsonl"
 let node_dir q e = graph_dir q ^ "/experiments/" ^ e
 let node_ledger_path q e = node_dir q e ^ "/ledger.jsonl"
@@ -240,8 +242,12 @@ let list_refs prefix =
   String.split_on_char '\n' out |> List.map String.trim |> List.filter (fun s -> s <> "")
 
 let list_graphs () =
-  list_refs "refs/heads/bp3/quest/" |> List.map (fun r ->
-    let p = "refs/heads/bp3/quest/" in String.sub r (String.length p) (String.length r - String.length p))
+  (* Legacy storage prefix frozen bp3/quest/ folds here only (followup.3). *)
+  let strip p r = String.sub r (String.length p) (String.length r - String.length p) in
+  let cur = list_refs "refs/heads/bp3/goal/" |> List.map (strip "refs/heads/bp3/goal/") in
+  let old = list_refs "refs/heads/bp3/quest/" |> List.map (strip "refs/heads/bp3/quest/")
+    |> List.filter (fun q -> not (List.mem q cur)) in
+  cur @ old
 
 let list_nodes q =
   let p = "refs/heads/bp3/exp/" ^ q ^ "/" in

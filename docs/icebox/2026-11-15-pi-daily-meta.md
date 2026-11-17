@@ -48,6 +48,6 @@ second half so the first quest stays lean.
 ## Promotion trigger
 
 Thaw when the pi-engine-conductor quest lands
-(`quest_fin` on master) and the human wants the daily
+(`goal_fin` on master) and the human wants the daily
 setup measured — or when a pi drive's scorecard shows a
 cost surprise worth chasing.

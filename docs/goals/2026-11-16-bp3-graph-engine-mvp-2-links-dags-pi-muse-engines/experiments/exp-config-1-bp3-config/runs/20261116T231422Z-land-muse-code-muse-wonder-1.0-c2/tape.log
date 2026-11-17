@@ -1,0 +1,34 @@
+drwxr-xr-x@ 3 whycz  staff  96 Nov 16 18:14 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T231422Z-land-muse-code-muse-wonder-1.0-c2
+=== land child start ===
+worktree: /Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+run folder: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T231422Z-land-muse-code-muse-wonder-1.0-c2
+3c47fe5 fix(config.1): attribute mkdir failures, scope thresholds claim
+229a6ba feat(config.1): add bp3 config store and view door
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+commit 3c47fe532642369348656be958eb577fc662881d
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 18:08:36 2026 -0500
+
+    fix(config.1): attribute mkdir failures, scope thresholds claim
+
+ src/quest/config.ml | 25 ++++++++++++-------------
+ src/quest/main.ml   |  2 +-
+ test/config.sh      | 14 +++++++++++++-
+ 3 files changed, 26 insertions(+), 15 deletions(-)
+--- exp state ---
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"expected: q c|r|d ... or q <quest> c|r|u|d ..."},"guidance":"Fix the call: expected: q c|r|d ... or q <quest> c|r|u|d ..."}}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-config-1-bp3-config","state":"approved","fin":null,"cycle":2,"commit":"3c47fe532642369348656be958eb577fc662881d","legal_edges":["land","block","delete"],"changes":[{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"}]}
+---
+EXPERIMENT.md
+runs
+# Land notes — exp-config-1-bp3-config c2
+
+- State on entry: `approved` at cycle 2, commit `3c47fe532642369348656be958eb577fc662881d`, legal edges include `land`.
+- Deliverable: bp3 config store and view door (`src/quest/config.ml`, `src/quest/main.ml`) with `test/config.sh` covering mkdir-failure attribution and scoped thresholds claim.
+- Fix commit `3c47fe5` attributes mkdir failures and scopes the thresholds claim; prior feat `229a6ba` added the config store/view door.
+- Working tree clean at land time; no uncommitted changes carried into the landing.
+- Landing via `bp3 q ... u exp-config-1-bp3-config land` directly from this child as instructed.
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-config-1-bp3-config","state":"landed","fin":"exp_fin","cycle":2,"commit":"3c47fe532642369348656be958eb577fc662881d","legal_edges":[],"run_id":"20261116T231422Z-land-muse-code-muse-wonder-1.0-c2"}
+LAND_EXIT:0

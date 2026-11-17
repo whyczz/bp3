@@ -1,0 +1,1025 @@
+created docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1
+20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1
+20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1:
+tape.log
+=== git log ===
+229a6ba feat(config.1): add bp3 config store and view door
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+886e1af docs(icebox): kill engine fan-out, addressed by graph-engine quest
+1fdb11e docs(icebox): freeze lint, portable dogfood, engine fan-out sketches
+3478ac1 docs(quest): rename graph-link to bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+13ebfdb fix(skills-test): expect red-ink in pi settings exclusions
+0334cdf docs(graph-link): adopt red-inked design; 12 nodes framed
+7640168 docs(quest-skill): quest files end with the Exp diagram
+39ea614 feat(red-ink): move red-ink from yap skill to bp3 project skill
+fb08e9b docs(quest-skill): quest files carry Inputs, Outputs, then Demo
+86dee32 docs(graph-link): add config.1 bp3-config node (red-ink round 2)
+adc249b docs(quest): frame bp3-graph-link (link claims, cohorts, bp3g rename last)
+0fca9e6 chore(osx): script to relink CLT after macOS update breaks linking
+=== git show --stat HEAD ===
+commit 229a6bacc7d044c1d35745ca88e3138d024117d1
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 16:32:46 2026 -0500
+
+    feat(config.1): add bp3 config store and view door
+
+ Makefile              |   3 +-
+ bin/bp3               |   6 +-
+ completions/_bp3      |   4 +-
+ completions/bp3.bash  |   4 +-
+ src/quest/config.ml   | 265 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/quest/harness.ml  |   1 +
+ src/quest/main.ml     |  29 ++++++
+ src/quest/store.ml    |   2 +-
+ src/quest/worktree.ml |   2 +
+ test/completion.sh    |   4 +-
+ test/config.sh        | 134 +++++++++++++++++++++++++
+ 11 files changed, 448 insertions(+), 6 deletions(-)
+=== git show HEAD (diff head) ===
+commit 229a6bacc7d044c1d35745ca88e3138d024117d1
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 16:32:46 2026 -0500
+
+    feat(config.1): add bp3 config store and view door
+
+diff --git a/Makefile b/Makefile
+index 2bd846f..72f5ae0 100644
+--- a/Makefile
++++ b/Makefile
+@@ -12,6 +12,7 @@ check: lint
+ 	$(DUNE_BUILD) src/quest/main.exe
+ 	./test/q.sh
+ 	./test/harness.sh
++	./test/config.sh
+ 	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+ 	./test/worktree.sh
+ 	./test/tape.sh
+@@ -22,7 +23,7 @@ check: lint
+ 	./test/install.sh
+ 
+ lint:
+-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
++	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/config.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+ 	node --check skills/traverse/workflows/node-loop.js
+ 	node --check skills/traverse/workflows/induct-grade.js
+ 	node --check skills/traverse/workflows/quest-land.js
+diff --git a/bin/bp3 b/bin/bp3
+index 03a1197..ce2e2d3 100755
+--- a/bin/bp3
++++ b/bin/bp3
+@@ -167,7 +167,7 @@ HOOKS_JSON
+   fi
+ }
+ 
+-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk)'
++usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+ case "${1:-}" in
+   -h|--help) printf '%s\n' "$usage_text"; printf '%s\n' '  bp3 q -h for quest/exp doors'; exit 0 ;;
+   q|quest) shift
+@@ -178,6 +178,10 @@ case "${1:-}" in
+     q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+     [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+     BP3_ROOT="$root" exec "$q_bin" harness "$@" ;;
++  config) shift
++    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
++    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
++    BP3_ROOT="$root" exec "$q_bin" config "$@" ;;
+   worktree) shift
+     q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+     [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+diff --git a/completions/_bp3 b/completions/_bp3
+index 2b41751..c89aa9a 100644
+--- a/completions/_bp3
++++ b/completions/_bp3
+@@ -100,7 +100,9 @@ _bp3_candidates() {
+ 
+   if [ "$has_q" -eq 0 ]; then
+     if [ "${#a[@]}" -eq 0 ]; then
+-      printf '%s\n' q quest init skills harness worktree | _bp3_filter "$cur"
++      printf '%s\n' q quest init skills harness worktree config | _bp3_filter "$cur"
++    elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'config' ]; then
++      printf '%s\n' --source --format -h --help | _bp3_filter "$cur"
+     elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'skills' ]; then
+       printf '%s\n' install | _bp3_filter "$cur"
+     elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'harness' ]; then
+diff --git a/completions/bp3.bash b/completions/bp3.bash
+index 0c9a965..e997e5d 100755
+--- a/completions/bp3.bash
++++ b/completions/bp3.bash
+@@ -104,7 +104,9 @@ _bp3_candidates() {
+ 
+   if [ "$has_q" -eq 0 ]; then
+     if [ "${#a[@]}" -eq 0 ]; then
+-      printf '%s\n' q quest init skills harness worktree | _bp3_filter "$cur"
++      printf '%s\n' q quest init skills harness worktree config | _bp3_filter "$cur"
++    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'config' ]; then
++      printf '%s\n' --source --format -h --help | _bp3_filter "$cur"
+     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'skills' ]; then
+       printf '%s\n' install | _bp3_filter "$cur"
+     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'harness' ]; then
+diff --git a/src/quest/config.ml b/src/quest/config.ml
+new file mode 100644
+index 0000000..a9f0322
+--- /dev/null
++++ b/src/quest/config.ml
+@@ -0,0 +1,265 @@
++(* config — the machine-local bp3 config store (config.1):
++   <git-common-dir>/bp3/ holding config.json (machine
++   settings only: local thresholds and gates), the per-run
++   configs runs/<run_id>.json (one canonical record per
++   Run, created at link mint), links/, the derived
++   by-session index, desks/, and the supervisor's
++   run-lifecycle-derivations. Written only by bp3 verbs,
++   never hand-edited, never committed; every worktree of
++   the repo resolves the same tree through the git common
++   dir, while contexts stay per-session. bp3 config views
++   the store; contexts are folded from runs/, never stored
++   in config.json. *)
++open Gitx
++
++(* ---------- layout ---------- *)
++let config_dir () =
++  let out, code = git_out ["rev-parse"; "--git-common-dir"] in
++  if code <> 0 || String.trim out = "" then None
++  else
++    let common = String.trim out in
++    let abs =
++      if Filename.is_relative common then Filename.concat root common
++      else common in
++    (* one spelling per store: /var and /private/var are the
++       same tree on this host, and worktrees must agree *)
++    let canon = try Unix.realpath abs with _ -> abs in
++    Some (Filename.concat canon "bp3")
++
++let runs_dir dir = Filename.concat dir "runs"
++let links_dir dir = Filename.concat dir "links"
++let by_session_dir dir = Filename.concat dir "by-session"
++let desks_dir dir = Filename.concat dir "desks"
++let derivations_dir_of dir = Filename.concat dir "run-lifecycle-derivations"
++let config_file dir = Filename.concat dir "config.json"
++
++let ensure_dir dir =
++  let parent = Filename.dirname dir in
++  (try Unix.mkdir parent 0o755
++   with Unix.Unix_error (Unix.EEXIST, _, _) -> () | _ -> ());
++  (try Unix.mkdir dir 0o755
++   with Unix.Unix_error (Unix.EEXIST, _, _) -> () | _ -> ())
++
++(* Single-write temp file in the same directory, fsynced,
++   then renamed over the target (followup.1 discipline):
++   a reader sees the old snapshot or the new one, never a
++   torn one. *)
++let write_counter = ref 0
++
++let write_file_atomic path content =
++  incr write_counter;
++  let tmp = Printf.sprintf "%s.tmp.%d.%d" path (Unix.getpid ()) !write_counter in
++  let fd = Unix.openfile tmp [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC] 0o644 in
++  (try
++     let n = Unix.write_substring fd content 0 (String.length content) in
++     if n <> String.length content then
++       raise (Unix.Unix_error (Unix.EIO, "write", path));
++     Unix.fsync fd
++   with e ->
++     (try Unix.close fd with _ -> ());
++     (try Unix.unlink tmp with _ -> ());
++     raise e);
++  Unix.close fd;
++  Sys.rename tmp path
++
++(* ---------- thresholds (machine settings only) ---------- *)
++type thresholds = { setup_slow_s : int; depth_cap : int }
++
++let default_thresholds = { setup_slow_s = 180; depth_cap = 3 }
++
++let thresholds_json t =
++  `Assoc [("setup_slow_s", `Int t.setup_slow_s); ("depth_cap", `Int t.depth_cap)]
++
++let default_config_json = `Assoc [("thresholds", thresholds_json default_thresholds)]
++
++let jstr j key default =
++  try match Yojson.Safe.Util.member key j with `String s -> s | _ -> default
++  with _ -> default
++
++let jopt j key =
++  try match Yojson.Safe.Util.member key j with
++    | `String s when s <> "" -> Some s | _ -> None
++  with _ -> None
++
++let jint j key default =
++  try match Yojson.Safe.Util.member key j with `Int n -> n | _ -> default
++  with _ -> default
++
++let jobj j key =
++  try match Yojson.Safe.Util.member key j with `Assoc _ as o -> Some o | _ -> None
++  with _ -> None
++
++let load_thresholds dir =
++  let path = config_file dir in
++  if not (Sys.file_exists path) then default_thresholds
++  else
++    try
++      let j = Yojson.Safe.from_string (read_file_or path "") in
++      let scope = match jobj j "thresholds" with Some t -> t | None -> j in
++      { setup_slow_s = jint scope "setup_slow_s" default_thresholds.setup_slow_s;
++        depth_cap = jint scope "depth_cap" default_thresholds.depth_cap }
++    with _ -> default_thresholds
++
++(* Effective thresholds for any caller: the store's values
++   when a store exists, defaults otherwise (fails open to
++   today's behavior; no committed file ever requires one). *)
++let thresholds () =
++  match config_dir () with
++  | Some dir -> load_thresholds dir
++  | None -> default_thresholds
++
++(* Zero setup: the first bp3 write on a fresh repo creates
++   the whole tree with defaults; an existing config.json is
++   never overwritten. Outside a git repo there is no store
++   and the caller refuses. Returns the config dir. *)
++let ensure_config () =
++  match config_dir () with
++  | None ->
++      err "E_NOT_FOUND" (`Assoc [])
++        "No bp3 config store: not inside a git repository." 1
++  | Some dir ->
++      List.iter ensure_dir
++        [dir; runs_dir dir; links_dir dir; by_session_dir dir;
++         desks_dir dir; derivations_dir_of dir];
++      let cf = config_file dir in
++      if not (Sys.file_exists cf) then
++        write_file_atomic cf (Yojson.Safe.to_string default_config_json ^ "\n");
++      dir
++
++(* ---------- run configs: the contexts ---------- *)
++type run_config = {
++  rc_id : string;
++  rc_kind : string;
++  rc_graph : string;
++  rc_node : string;
++  rc_edge : string option;
++  rc_state : string;
++  rc_desk : string;
++  rc_session : string option;
++  rc_minted_at : string;
++  rc_claimed_at : string;
++}
++
++let run_config_of_file path =
++  try
++    let j = Yojson.Safe.from_string (read_file_or path "") in
++    let creator = jobj j "creator" in
++    let claim = jobj j "claim" in
++    let nested o key = match o with Some x -> jstr x key "" | None -> "" in
++    let nested_opt o key = match o with Some x -> jopt x key | None -> None in
++    let id = match jopt j "run_id" with
++      | Some r -> r
++      | None -> Filename.remove_extension (Filename.basename path) in
++    if id = "" then None
++    else
++      Some { rc_id = id;
++             rc_kind = jstr j "kind" "";
++             rc_graph = jstr j "graph" "";
++             rc_node = jstr j "node" "";
++             rc_edge = jopt j "edge";
++             rc_state = jstr j "state" "";
++             rc_desk = jstr j "desk" "";
++             rc_session = nested_opt claim "session_id";
++             rc_minted_at = nested creator "minted_at";
++             rc_claimed_at = nested claim "claimed_at" }
++  with _ -> None
++
++(* A torn or foreign file under runs/ is never read as a
++   valid run config; it is skipped, not folded. *)
++let list_run_configs dir =
++  let rd = runs_dir dir in
++  if not (Sys.file_exists rd) then []
++  else
++    try
++      Sys.readdir rd |> Array.to_list
++      |> List.filter (fun n -> Filename.check_suffix n ".json")
++      |> List.sort String.compare
++      |> List.filter_map (fun n -> run_config_of_file (Filename.concat rd n))
++      |> List.sort (fun a b -> String.compare a.rc_id b.rc_id)
++    with _ -> []
++
++let opt_json = function Some s -> json_str s | None -> `Null
++
++let context_json rc =
++  `Assoc [("graph", json_str rc.rc_graph); ("node", json_str rc.rc_node);
++          ("edge", opt_json rc.rc_edge); ("run_id", json_str rc.rc_id);
++          ("session_id", opt_json rc.rc_session);
++          ("desk", json_str rc.rc_desk); ("state", json_str rc.rc_state);
++          ("kind", json_str rc.rc_kind)]
++
++(* Provenance: which verb wrote this context, and when.
++   A claimed run config was last written by link claim; a
++   minted one only by link mint. *)
++let source_context_json rc =
++  let (verb, ts) =
++    if rc.rc_claimed_at <> "" || rc.rc_session <> None then
++      ("link claim", rc.rc_claimed_at)
++    else if rc.rc_minted_at <> "" then ("link mint", rc.rc_minted_at)
++    else ("run config", "") in
++  match context_json rc with
++  | `Assoc fs ->
++      `Assoc (fs @ [("source", `Assoc [("verb", json_str verb);
++                                       ("ts", json_str ts)])])
++  | other -> other
++
++let desks_json rcs =
++  let desks =
++    List.sort_uniq String.compare
++      (List.filter_map
++         (fun rc -> if rc.rc_desk = "" then None else Some rc.rc_desk) rcs) in
++  List.map (fun d ->
++    `Assoc [("desk", json_str d);
++            ("run_ids", `List (List.map json_str
++              (List.map (fun rc -> rc.rc_id)
++                 (List.filter (fun rc -> rc.rc_desk = d) rcs))))]) desks
++
++(* ---------- by-session index (derived, rebuildable) ---------- *)
++let contains_sub s sub =
++  let n = String.length s and m = String.length sub in
++  let rec loop i = i + m <= n && (String.sub s i m = sub || loop (i + 1)) in
++  m = 0 || loop 0
++
++let valid_index_key s =
++  s <> "" && s <> "." && s <> ".."
++  && not (contains_sub s "/") && not (contains_sub s "\\")
++  && not (contains_sub s "..") && s.[0] <> '.'
++
++(* Rebuilt from runs/ on every view: deleting by-session/
++   loses nothing. Stale entries for sessions no run config
++   claims any more are removed. Returns the entry count. *)
++let rebuild_by_session dir rcs =
++  let bd = by_session_dir dir in
++  ensure_dir bd;
++  let wanted =
++    List.filter_map (fun rc ->
++      match rc.rc_session with
++      | Some s when valid_index_key s -> Some (s, rc.rc_id)
++      | _ -> None) rcs in
++  (try
++     Sys.readdir bd |> Array.iter (fun name ->
++       if not (List.mem_assoc name wanted) then
++         (try Unix.unlink (Filename.concat bd name) with _ -> ()))
++   with _ -> ());
++  List.iter (fun (s, run_id) ->
++    write_file_atomic (Filename.concat bd s) (run_id ^ "\n")) wanted;
++  List.length wanted
++
++let derivations_count dir =
++  let dd = derivations_dir_of dir in
++  if not (Sys.file_exists dd) then 0
++  else (try Array.length (Sys.readdir dd) with _ -> 0)
++
++(* ---------- the view ---------- *)
++let view ~source =
++  let dir = ensure_config () in
++  let t = load_thresholds dir in
++  let rcs = list_run_configs dir in
++  let n_by = rebuild_by_session dir rcs in
++  let contexts =
++    List.map (if source then source_context_json else context_json) rcs in
++  `Assoc [("ok", `Bool true); ("config_dir", json_str dir);
++          ("thresholds", thresholds_json t);
++          ("contexts", `List contexts);
++          ("desks", `List (desks_json rcs));
++          ("by_session_entries", `Int n_by);
++          ("derivations", `Int (derivations_count dir))]
+diff --git a/src/quest/harness.ml b/src/quest/harness.ml
+index 41418bc..d475d12 100644
+--- a/src/quest/harness.ml
++++ b/src/quest/harness.ml
+@@ -1711,6 +1711,7 @@ let do_record_init args =
+                                  ("path", json_str path)])
+            "An InitRecord already exists for that run-id; refusing to overwrite." 1;
+        ensure_dir dir;
++       ignore (Config.ensure_config ());
+        let opt_fields = List.filter_map (fun x -> x) [
+          (match fl.ri_session with Some s -> Some ("session_id", json_str s) | None -> None);
+          (match fl.ri_pid with Some p -> Some ("pid", `Int p) | None -> None);
+diff --git a/src/quest/main.ml b/src/quest/main.ml
+index 396a902..79d3aac 100644
+--- a/src/quest/main.ml
++++ b/src/quest/main.ml
+@@ -71,6 +71,25 @@ let split_flags args =
+ let require_reason fl =
+   match fl.reason with Some r when r <> "" -> r | _ -> usage "--reason is required"
+ 
++(* ---------- config door (config.1) ---------- *)
++let parse_config_flags args =
++  let rec loop source fmt fmt_set = function
++    | [] -> (source, fmt)
++    | "--source" :: rest ->
++        if source then usage "duplicate flag --source";
++        loop true fmt fmt_set rest
++    | "--format" :: v :: rest ->
++        if fmt_set then usage "duplicate flag --format";
++        if v <> "json" && v <> "table" then usage "--format must be json or table";
++        loop source v true rest
++    | ["--format"] -> usage "--format needs a value"
++    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
++        (match String.index_opt f '=' with
++         | Some _ -> usage ("unknown flag form: " ^ f)
++         | None -> usage ("unknown flag: " ^ f))
++    | stray :: _ -> usage ("stray positional: " ^ stray) in
++  loop false "json" false args
++
+ let with_warnings id is_write fields =
+   match warnings_of id is_write with
+   | [] -> `Assoc fields
+@@ -351,6 +370,7 @@ let help_q = "bp3 q - quest/exp state. Doors:\n\
+   bp3 q <quest> c|r|u|d ...    exp door for one quest\n\
+   bp3 q icebox r [term...]     search frozen icebox entries (read-only)\n\
+   bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias\n\
++  bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)\n\
+   bp3 q hooks                  harness hook emitter (fail-open)\n\
+ Run bp3 q <door> -h for that door's verbs, edges, and flags.\n"
+ 
+@@ -389,6 +409,11 @@ let help_worktree = "bp3 worktree - documented alias of bp3 harness desk, machin
+   bp3 harness desk list [--quest <quest>]\n\
+ Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
+ 
++let help_config = "bp3 config - view the machine-local bp3 config store (<git-common-dir>/bp3/, never committed):\n\
++  bp3 config [--source] [--format json|table]   thresholds plus contexts folded from runs/<run_id>.json\n\
++  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
++Example: bp3 config --source\n"
++
+ let is_help = function "-h" | "--help" -> true | _ -> false
+ 
+ (* Exp 5 guard: an older-MAJOR binary never writes in a newer repo.
+@@ -413,6 +438,10 @@ let run argv =
+   | "-h" :: _ | "--help" :: _ -> print_string help_q; 0
+   | "--version" :: _ -> print_endline bp3_version; 0
+   | "harness" :: rest -> Harness.run rest
++  | "config" :: (h :: _) when is_help h -> print_string help_config; 0
++  | "config" :: rest ->
++      let (source, fmt) = parse_config_flags rest in
++      print_verdict ~fmt (Config.view ~source); 0
+   | "worktree" :: (h :: _) when is_help h -> print_string help_worktree; 0
+   | "icebox" :: (h :: _) when is_help h -> print_string help_icebox; 0
+   | "icebox" :: ("r" | "read") :: (h :: _) when is_help h -> print_string help_icebox; 0
+diff --git a/src/quest/store.ml b/src/quest/store.ml
+index e2689cb..7295195 100644
+--- a/src/quest/store.ml
++++ b/src/quest/store.ml
+@@ -16,7 +16,7 @@ let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
+    addressed again (the token would parse as the door or
+    verb instead), so creation refuses it; reads stay total. *)
+ let reserved_slugs =
+-  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo";
++  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo"; "config";
+     "supervisor"; "init-check"; "find-tape"; "watch"; "desk"; "backtest"; "b";
+     "c"; "create"; "r"; "read"; "u"; "update"; "d"; "delete";
+     "s"; "i"; "f"; "w";
+diff --git a/src/quest/worktree.ml b/src/quest/worktree.ml
+index 90de385..20eca37 100644
+--- a/src/quest/worktree.ml
++++ b/src/quest/worktree.ml
+@@ -279,6 +279,7 @@ let prepare_verdict r existing =
+ let do_prepare quest exp run_id commit path_override =
+   Store.check_creatable quest;
+   Store.check_creatable exp;
++  ignore (Config.ensure_config ());
+   let default_path = derive_path quest exp run_id in
+   match load_record run_id with
+   | Some r ->
+@@ -310,6 +311,7 @@ let quest_run_id quest = "quest-" ^ quest
+ 
+ let do_prepare_quest quest =
+   Store.check_creatable quest;
++  ignore (Config.ensure_config ());
+   let run_id = quest_run_id quest in
+   match load_record run_id with
+   | Some r ->
+diff --git a/test/completion.sh b/test/completion.sh
+index f3b1e67..22ae184 100755
+--- a/test/completion.sh
++++ b/test/completion.sh
+@@ -84,7 +84,9 @@ has "$out" json; has "$out" table; has "$out" tree
+ out=$(_bp3_candidates q toy-drive "")
+ has "$out" r; has "$out" u
+ out=$(_bp3_candidates "")
+-has "$out" harness; has "$out" worktree
++has "$out" harness; has "$out" worktree; has "$out" config
++out=$(_bp3_candidates config "")
++has "$out" --source; has "$out" --format
+ out=$(_bp3_candidates harness "")
+ has "$out" desk; has "$out" supervisor; has "$out" find-tape
+ out=$(_bp3_candidates harness desk "")
+diff --git a/test/config.sh b/test/config.sh
+new file mode 100755
+index 0000000..25745a3
+--- /dev/null
++++ b/test/config.sh
+@@ -0,0 +1,134 @@
++#!/usr/bin/env bash
++set -euo pipefail
++root=$(cd "$(dirname "$0")/.." && pwd)
++work=$(mktemp -d)
++trap 'rm -rf "$work"' EXIT
++mkdir -p "$work/repo/bin" "$work/repo/plans"
++cp "$root/bin/bp3" "$work/repo/bin/"
++cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
++cp "$root"/plans/*.yaml "$work/repo/plans/"
++cd "$work/repo"
++git init -q -b master
++git config user.email t@t.t; git config user.name t
++echo base > a.txt; git add .; git commit -qm base
++
++export BP3_HARNESS=muse-code BP3_MODEL=test-model
++q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
++h() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness "$@"; }
++c() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 config "$@"; }
++fail() { echo "FAIL: $*" >&2; exit 1; }
++store="$work/repo/.git/bp3"
++
++# --- help: documented flags, exit 0, no state read ---
++out=$(c -h) || fail "config -h exit"
++echo "$out" | grep -q -- "--source" || fail "config help names --source: $out"
++echo "$out" | grep -q -- "--format" || fail "config help names --format: $out"
++[ ! -e "$store" ] || fail "config -h created the store"
++
++# --- strict argv: dup, unknown, =-form, stray, bad format value ---
++if out=$(c --source --source 2>&1); then fail "dup --source accepted"; fi
++echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "dup --source code: $out"
++if out=$(c --bogus 2>&1); then fail "unknown flag accepted"; fi
++echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "unknown flag code: $out"
++if out=$(c --format=json 2>&1); then fail "--flag=value accepted"; fi
++if out=$(c stray 2>&1); then fail "stray positional accepted"; fi
++if out=$(c --format xml 2>&1); then fail "bad --format value accepted"; fi
++[ ! -e "$store" ] || fail "usage errors created the store"
++
++# --- outside a git repo: no store, typed refusal; help still works ---
++mkdir -p "$work/nogit/bin"
++cp "$root/bin/bp3" "$work/nogit/bin/"
++if out=$(BP3_Q_BIN="$work/repo/q-bin" "$work/nogit/bin/bp3" config 2>&1); then fail "config outside git accepted"; fi
++echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "outside-git code: $out"
++BP3_Q_BIN="$work/repo/q-bin" "$work/nogit/bin/bp3" config -h >/dev/null || fail "config -h outside git"
++
++# --- first write creates the tree (zero setup) ---
++out=$(h record-init --run-id R0 --harness muse-code --quest demo --exp exp-1)
++echo "$out" | jq -e '.ok == true' >/dev/null || fail "record-init: $out"
++[ -f "$store/config.json" ] || fail "first write did not create config.json"
++for d in runs links by-session desks run-lifecycle-derivations; do
++  [ -d "$store/$d" ] || fail "first write did not create $d/"
++done
++jq -e '.thresholds.setup_slow_s == 180 and .thresholds.depth_cap == 3 and (has("contexts") | not)' \
++  "$store/config.json" >/dev/null || fail "default config.json shape: $(cat "$store/config.json")"
++[ -z "$(git status --porcelain)" ] || fail "config tree dirtied git status: $(git status --porcelain)"
++
++# --- view: defaults, empty contexts, derivations folded in ---
++out=$(c)
++echo "$out" | jq -e '.ok == true and .thresholds.setup_slow_s == 180 and .thresholds.depth_cap == 3
++  and .contexts == [] and .desks == [] and .by_session_entries == 0 and .derivations >= 1' \
++  >/dev/null || fail "empty view: $out"
++echo "$out" | jq -e '.config_dir | endswith(".git/bp3")' >/dev/null || fail "config_dir: $out"
++out=$(c --format table) || fail "config --format table exit"
++echo "$out" | grep -q "contexts" || fail "table view names contexts: $out"
++
++# --- run configs fold into contexts; provenance per context ---
++cat > "$store/runs/run-a.json" <<'JSON'
++{"run_id":"run-a","kind":"edge","graph":"g1","node":"n1","edge":"handoff","state":"minted","desk":".bp3/worktrees/g1/n1/run-a","creator":{"run_id":"root-1","depth":2,"harness":"muse-code","model":"m","minted_at":"2026-11-16T00:00:00Z","token_hash":"sha256:x"}}
++JSON
++cat > "$store/runs/run-b.json" <<'JSON'
++{"run_id":"run-b","kind":"edge","graph":"g1","node":"n2","edge":"grade","state":"claimed","desk":".bp3/worktrees/g1/n2/run-b","creator":{"run_id":"root-1","depth":2,"harness":"muse-code","model":"m","minted_at":"2026-11-16T00:00:30Z","token_hash":"sha256:y"},"claim":{"session_id":"sess-b","pid":48151,"cwd":"/tmp/desk-b","claimed_at":"2026-11-16T00:01:00Z"}}
++JSON
++out=$(c)
++echo "$out" | jq -e '(.contexts | length) == 2
++  and .contexts[0].run_id == "run-a" and .contexts[0].session_id == null and .contexts[0].state == "minted"
++  and .contexts[1].run_id == "run-b" and .contexts[1].session_id == "sess-b" and .contexts[1].edge == "grade"
++  and (.desks | length) == 2 and .by_session_entries == 1' >/dev/null || fail "contexts view: $out"
++out=$(c --source)
++echo "$out" | jq -e '.contexts[0].source.verb == "link mint" and .contexts[0].source.ts == "2026-11-16T00:00:00Z"
++  and .contexts[1].source.verb == "link claim" and .contexts[1].source.ts == "2026-11-16T00:01:00Z"' \
++  >/dev/null || fail "--source provenance: $out"
++
++# --- by-session index: derived, rebuilt after deletion ---
++[ "$(cat "$store/by-session/sess-b")" = "run-b" ] || fail "by-session index content"
++rm -rf "$store/by-session"
++out=$(c)
++echo "$out" | jq -e '(.contexts | length) == 2 and .by_session_entries == 1' >/dev/null \
++  || fail "view after by-session deletion: $out"
++[ "$(cat "$store/by-session/sess-b")" = "run-b" ] || fail "by-session index not rebuilt"
++
++# --- a torn run config is skipped, never folded ---
++echo '{not json' > "$store/runs/z-torn.json"
++out=$(c)
++echo "$out" | jq -e '(.contexts | length) == 2' >/dev/null || fail "torn run config folded: $out"
++rm "$store/runs/z-torn.json"
++
++# --- thresholds are local and honored by the view ---
++jq '.thresholds.setup_slow_s = 42' "$store/config.json" > "$store/config.json.tmp"
++mv "$store/config.json.tmp" "$store/config.json"
++out=$(c)
++echo "$out" | jq -e '.thresholds.setup_slow_s == 42 and .thresholds.depth_cap == 3' >/dev/null \
++  || fail "edited threshold not honored: $out"
++[ -z "$(git status --porcelain)" ] || fail "threshold edit dirtied git status"
++
++# --- desk prepare is also a first-write verb (fresh repo) ---
++mkdir -p "$work/repo2/bin" "$work/repo2/plans"
++cp "$root/bin/bp3" "$work/repo2/bin/"
++cp "$root"/plans/*.yaml "$work/repo2/plans/"
++cd "$work/repo2"
++git init -q -b master
++git config user.email t@t.t; git config user.name t
++echo base > a.txt; git add .; git commit -qm base
++BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q c demo >/dev/null
++out=$(BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness desk prepare demo exp-1 --run D1)
++echo "$out" | jq -e '.ok == true' >/dev/null || fail "desk prepare repo2: $out"
++[ -f "$work/repo2/.git/bp3/config.json" ] || fail "desk prepare did not create the config tree"
++cd "$work/repo"
++
++# --- all worktrees resolve the same tree ---
++git worktree add -q "$work/wt2" -b wt2
++mkdir -p "$work/wt2/bin"
++cp "$root/bin/bp3" "$work/wt2/bin/"
++main_dir=$(c | jq -r .config_dir)
++wt_dir=$(BP3_Q_BIN="$work/repo/q-bin" "$work/wt2/bin/bp3" config | jq -r .config_dir)
++[ "$main_dir" = "$wt_dir" ] || fail "worktree config_dir differs: $main_dir vs $wt_dir"
++out=$(BP3_Q_BIN="$work/repo/q-bin" "$work/wt2/bin/bp3" config)
++echo "$out" | jq -e '(.contexts | length) == 2' >/dev/null || fail "worktree view contexts: $out"
++
++# --- legacy doors fail open: no config required, no new warnings ---
++out=$(q c demo)
++echo "$out" | jq -e '.ok == true and (has("warnings") | not)' >/dev/null || fail "legacy create changed: $out"
++if out=$(q c config 2>&1); then fail "quest named config accepted"; fi
++echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved config slug code: $out"
++
++echo "config tests: ok"
+=== QUEST ===
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+| tape | tape | the harness session recording (unchanged) |
+
+States rest in the root worker's read. Edges are
+subagents. A child holds nothing across edges;
+context is claimed, never remembered.
+
+Edge names (settled red-ink names round, owner —
+option A; rides rename.1, old ledgers keep old
+words and the rename table maps them):
+
+| Coded today | Settled name | Caller does |
+|---|---|---|
+| `submit` | `handoff` | author binds the finished commit |
+| `review` | `grade` | reviewer grades the exact commit (`ship\|needs_fix`) |
+| `check` | `verify` | machine checks (`pass\|fail`) |
+| `land` | `land` | merge into the graph branch |
+| state `submitted` | state `handed_off` | verb/state rhyme: `handoff` hands off, node rests `handed_off` |
+| `block` | `block` | park for a human decision |
+| `resume` | `resume` | human answer re-enters (`BP3_DECIDER=human`) |
+
+Link mint/claim are verbs, not flags:
+`bp3 harness link mint --kind node|edge …` and
+`bp3 harness link claim <token>`. A node link
+carries no edge name — the node worker executes
+no transition when it claims.
+
+Door letter settled: `bp3 g`, not `bp3 t`.
+Nodes form a DAG (shared deps, diamonds — a tree
+allows one parent), scheduled by BFS ready-set
+waves; the *execution* is a tree of workers.
+Tree survives as a view (`--format tree`) and as
+the worker-tree shape, never as the addressed
+noun.
+
+## Success picture
+
+A root worker dispatches a node with a one-line
+brief: "claim this link, do this edge." The child
+claims, works, calls its own edge, dies. Ready
+nodes in a ready-set build and grade in parallel
+desks; landing is a serial queue. The rollup
+shows every node's wall, wait, and dwell time.
+The grader joins any tape's session-id to run-id
+in one lookup. At the end, everything on live
+surfaces — CLI, skills, workflows, records —
+speaks graph/node/state/edge and answers to
+`bp3 g` and `/bp3g`.
+
+## Scope
+
+| In | Out |
+|---|---|
+| `bp3 harness link` mint/claim, CAS claim store, by-session index, context resolution; run config replaces InitRecord (`creator:{}`/`claim:{}`/`tape_path`), `record-init` retires, lifecycle fold reads the run config | rewriting landed quests' ledger history text |
+| ready-set scheduling, per-node timing derived from ledger + derivations, local thresholds | anything committed for metrics; timing judgments stay in `<git-common-dir>/bp3/` |
+| setup timing measured always; optimize only when setup > 3 min (`W_SETUP_SLOW`) | desk pools (killed 2026-11-16; ad hoc desks, measured) |
+| generated ASCII/mermaid diagram from live rollup | writing into harness session logs (tapes stay harness-written) |
+| rename last: `bp3 g`, `bp3g` skills, graph terms on live surfaces | rewriting landed quests' ledger history text |
+| session-id discovery: muse, pi; graceful floor (pid+cwd+window) | adversarial threat model (links are for confused children, not attackers) |
+
+## Timing gates (in-system, local)
+
+- Per node: `wall` (first handoff → land), `wait`
+  (create → first handoff), `dwell` per state,
+  cycles. Derived from ledger timestamps, shown
+  on read, thresholds local, never committed.
+- Per Run setup: desk create → first bp3 answer;
+  `W_SETUP_SLOW` when > 3 minutes.
+- Scorecards report wall minutes AND tokens per
+  node. Visibility, not caps.
+
+## Context layer (kubectl pattern, settled red-ink round 1)
+
+One door per noun, nested as the canonical address:
+`bp3 g <graph> n <node> e <edge>`. Bare `bp3 e …`
+is the claimed shorthand. A context layer resolves
+=== runs ===
+total 0
+drwxr-xr-x@ 4 whycz  staff  128 Nov 16 16:34 .
+drwxr-xr-x@ 4 whycz  staff  128 Nov 16 16:25 ..
+drwxr-xr-x@ 4 whycz  staff  128 Nov 16 16:32 20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1
+drwxr-xr-x@ 3 whycz  staff   96 Nov 16 16:34 20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1
+=== handoff notes ===
+# config.1 (bp3-config) — author run notes
+
+Built the machine-local bp3 config store and its view door:
+
+- New `src/quest/config.ml` (module `Config`): `config_dir` resolves
+  `<git-common-dir>/bp3/` (canonicalized, so `/var` vs `/private/var`
+  spellings and every worktree agree); `ensure_config` creates the
+  tree (`config.json`, `runs/`, `links/`, `by-session/`, `desks/`,
+  `run-lifecycle-derivations/`) with defaults and never overwrites an
+  existing `config.json`; run configs fold into contexts; the
+  by-session index is rebuilt from `runs/` on every view; a torn run
+  config is skipped, never folded.
+- `bp3 config [--source] [--format json|table]` door in `main.ml`
+  (+ `bin/bp3` dispatch, completions, `config` as a reserved slug).
+  `config.json` holds machine settings only
+  (`thresholds.setup_slow_s=180`, `thresholds.depth_cap=3`, the
+  mvp.3/mvp.1 gates); contexts are views, never stored there.
+  `--source` names the writing verb (`link mint`/`link claim`) and
+  timestamp per context. Outside a git repo: `E_NOT_FOUND`.
+- First-write wiring: `harness record-init` and `harness desk
+  prepare` now call `ensure_config`, so the tree appears on the
+  first bp3 write with zero setup.
+- `test/config.sh` (wired into `make check` + shellcheck) covers:
+  help/strict-argv parity, outside-git refusal, first-write tree,
+  contexts + provenance, by-session rebuild after deletion, torn
+  config tolerance, local threshold edits honored, desk-prepare
+  first write, worktree-shared tree, legacy doors failing open.
+
+Verification: `test/config.sh` ok, `test/completion.sh` ok, full
+`make check` exit 0 in this worktree.
+
+Lessons:
+
+- git-common-dir spelling differs by entry point (relative `.git`
+  from the main worktree, canonical absolute from a linked one);
+  canonicalize once in `config_dir` or worktrees disagree on the
+  store's name while sharing its files.
+- The config door must not read state for `-h`, and usage errors
+  must not create the tree; both are asserted in the fixture.
+- Nothing needed migrating: derivations already lived under the
+  tree, and desk records stay where worktree put them — this exp
+  names and views the store rather than moving it.
+=== ledgers ===
+experiments
+QUEST.md
+=== git status ===
+=== derivations ===
+20261115T215646Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T215646Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T215646Z-review-muse-code-muse-wonder-1.0-c1.json
+20261115T215646Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220235Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T220235Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220706Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T220706Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220706Z-check-muse-code-muse-wonder-1.0-c1.json
+20261115T220706Z-check-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220706Z-review-muse-code-muse-wonder-1.0-c1.json
+20261115T220706Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T221254Z-land-muse-code-muse-wonder-1.0-c1.json
+20261115T221254Z-land-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T221412Z-submit-muse-code-muse-wonder-1.0-c1.json
+20261115T221412Z-submit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T222344Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T222344Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T222344Z-check-muse-code-muse-wonder-1.0-c1.json
+20261115T222344Z-check-muse-code-muse-wonder-1.0-c1.jsonl
+{"kind":"init_record","run_id":"20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1","harness":"muse-code","ts":"2026-11-16T21:24:15Z","quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-config-1-bp3-config","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","model":"muse-wonder-1.0"}
+{"kind":"tape_binding","run_id":"20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1","tape_path":"/Users/whycz/.local/share/muse/sessions/2026/11/11/01a1cbc0-ae53-75b3-8e53-0aae0b18151d/subagent/1c18551d-d277-72e4-8125-0c379bd88b5c/session.jsonl","ts":"2026-11-16T21:33:48Z"}
+=== find ledger ===
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/QUEST.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-rename-1-bp3g-rename/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-verify-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-verify-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212019Z-verify-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212019Z-verify-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T194936Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T194936Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212019Z-audit-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212019Z-audit-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-grade-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-grade-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-audit-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-audit-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212019Z-grade-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212019Z-grade-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212257Z-land-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212257Z-land-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-grade-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-grade-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-verify-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-verify-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-audit-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-audit-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T191513Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T191513Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T194825Z-land-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T194825Z-land-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-3-ready-set-timing/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-4-diagram-emit/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/EXPERIMENT.md
+=== grep run_id in docs ===
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log:/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log:/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log:{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-config-1-bp3-config","state":"handed_off","cycle":1,"commit":"229a6bacc7d044c1d35745ca88e3138d024117d1","legal_edges":["grade","verify","block","delete"],"run_id":"20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1"}
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1/tape.log:20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1/tape.log:docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1:
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1/tape.log:drwxr-xr-x@ 4 whycz  staff  128 Nov 16 16:32 20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1/tape.log:{"kind":"init_record","run_id":"20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1","harness":"muse-code","ts":"2026-11-16T21:24:15Z","quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-config-1-bp3-config","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","model":"muse-wonder-1.0"}
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1/tape.log:{"kind":"tape_binding","run_id":"20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1","tape_path":"/Users/whycz/.local/share/muse/sessions/2026/11/11/01a1cbc0-ae53-75b3-8e53-0aae0b18151d/subagent/1c18551d-d277-72e4-8125-0c379bd88b5c/session.jsonl","ts":"2026-11-16T21:33:48Z"}
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1/tape.log:docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1/tape.log:docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md
+=== handoff tape head ===
+total 96
+drwxr-xr-x@ 4 whycz  staff    128 Nov 16 16:32 .
+drwxr-xr-x@ 4 whycz  staff    128 Nov 16 16:34 ..
+-rw-r--r--@ 1 whycz  staff   2193 Nov 16 16:32 notes.md
+-rw-r--r--@ 1 whycz  staff  41483 Nov 16 16:32 tape.log
+total 0
+drwxr-xr-x@ 3 whycz  staff  96 Nov 16 16:25 .
+drwxr-xr-x@ 3 whycz  staff  96 Nov 16 16:25 ..
+-rw-r--r--@ 1 whycz  staff   0 Nov 16 16:25 tape.log
+== exp state ==
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-config-1-bp3-config","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null}
+== harness verbs ==
+499:                     let run_id = if rec_.run_id <> "" then rec_.run_id else file_id in
+556:  let run_id = rf.rf_view.rv_id in
+637:let run_json v =
+658:  let runs0 = List.map (fun f -> f.rf_view) folds0 in
+671:    let runs = List.map (fun f -> f.rf_view) folds in
+672:    let run_warns = List.concat_map (fun v -> v.rv_warnings) runs in
+1252:  let run_needles = dedup (
+1310:             let run = (match record with Some rec_ -> rec_.run_id | None ->
+1435:  let run_needles = dedup (
+1492:           let run = (match record with Some rec_ -> rec_.run_id | None ->
+636:(* ---------- verdict helpers ---------- *)
+1720:         (match fl.ri_desk with Some s -> Some ("desk", json_str s) | None -> None);
+2064:(* ---------- help (docstrings beside dispatch) ---------- *)
+=== bp3 config ===
+{"ok":true,"config_dir":"/Users/whycz/m/bp3/.git/bp3","thresholds":{"setup_slow_s":180,"depth_cap":3},"contexts":[],"desks":[],"by_session_entries":0,"derivations":256}
+=== env ===
+OLDPWD=/Users/whycz/m/bp3
+PWD=/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+=== verify commit ===
+229a6bacc7d044c1d35745ca88e3138d024117d1 feat(config.1): add bp3 config store and view door
+=== build ===
+Entering directory '/Users/whycz/m/bp3'
+Error: Don't know how to build src/quest/main.exe
+Leaving directory '/Users/whycz/m/bp3'
+=== bp3 config json ===
+{"ok":true,"config_dir":"/Users/whycz/m/bp3/.git/bp3","thresholds":{"setup_slow_s":180,"depth_cap":3},"contexts":[],"desks":[],"by_session_entries":0,"derivations":256}
+=== bp3 config --source ===
+{"ok":true,"config_dir":"/Users/whycz/m/bp3/.git/bp3","thresholds":{"setup_slow_s":180,"depth_cap":3},"contexts":[],"desks":[],"by_session_entries":0,"derivations":256}
+=== bp3 config --format table ===
+ok: true
+config_dir: /Users/whycz/m/bp3/.git/bp3
+thresholds: {"setup_slow_s":180,"depth_cap":3}
+contexts:
+desks:
+by_session_entries: 0
+derivations: 256
+=== run config tests ===
+config tests: ok
+config.sh exit:0
+=== completion ===
+completion tests: ok
+=== q read exp ===
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-config-1-bp3-config","state":"handed_off","fin":null,"cycle":1,"commit":"229a6bacc7d044c1d35745ca88e3138d024117d1","legal_edges":["grade","verify","block","delete"],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"+","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"u","path":"src/quest/worktree.ml"},{"change":"u","path":"test/completion.sh"},{"change":"+","path":"test/config.sh"}]}
+=== handoff tape tail ===
+?? src/quest/config.ml
+?? test/config.sh
+--- log ---
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+test(mig.2): add traverse conduction smoke drive
+
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/EXPERIMENT.md
+M  Makefile
+M  bin/bp3
+M  completions/_bp3
+M  completions/bp3.bash
+A  src/quest/config.ml
+M  src/quest/harness.ml
+M  src/quest/main.ml
+M  src/quest/store.ml
+M  src/quest/worktree.ml
+M  test/completion.sh
+A  test/config.sh
+[quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines 229a6ba] feat(config.1): add bp3 config store and view door
+ 11 files changed, 448 insertions(+), 6 deletions(-)
+ create mode 100644 src/quest/config.ml
+ create mode 100755 test/config.sh
+229a6bacc7d044c1d35745ca88e3138d024117d1
+TREE_STATE_DONE
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-config-1-bp3-config","state":"handed_off","cycle":1,"commit":"229a6bacc7d044c1d35745ca88e3138d024117d1","legal_edges":["grade","verify","block","delete"],"run_id":"20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1"}
+HANDOFF_EXIT=0
+=== derivation jsonl full ===
+{"kind":"init_record","run_id":"20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1","harness":"muse-code","ts":"2026-11-16T21:24:15Z","quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-config-1-bp3-config","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","model":"muse-wonder-1.0"}
+{"kind":"tape_binding","run_id":"20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1","tape_path":"/Users/whycz/.local/share/muse/sessions/2026/11/11/01a1cbc0-ae53-75b3-8e53-0aae0b18151d/subagent/1c18551d-d277-72e4-8125-0c379bd88b5c/session.jsonl","ts":"2026-11-16T21:33:48Z"}
+=== git status porcelain ===
+status-exit:0
+=== config dir ===
+by-session
+config.json
+desks
+links
+pi-sessions
+run-lifecycle-derivations
+runs
+{"thresholds":{"setup_slow_s":180,"depth_cap":3}}
+=== config.ml ensure ===
+16:let config_dir () =
+66:type thresholds = { setup_slow_s : int; depth_cap : int }
+68:let default_thresholds = { setup_slow_s = 180; depth_cap = 3 }
+71:  `Assoc [("setup_slow_s", `Int t.setup_slow_s); ("depth_cap", `Int t.depth_cap)]
+99:      { setup_slow_s = jint scope "setup_slow_s" default_thresholds.setup_slow_s;
+107:  match config_dir () with
+115:let ensure_config () =
+116:  match config_dir () with
+254:  let dir = ensure_config () in
+260:  `Assoc [("ok", `Bool true); ("config_dir", json_str dir);
+    1024 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1/tape.log

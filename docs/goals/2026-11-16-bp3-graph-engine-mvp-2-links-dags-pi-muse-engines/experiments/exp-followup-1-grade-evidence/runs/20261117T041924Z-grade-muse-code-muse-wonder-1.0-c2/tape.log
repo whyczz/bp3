@@ -1,0 +1,450 @@
+drwxr-xr-x@ 2 whycz  staff  64 Nov 16 23:19 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T041924Z-grade-muse-code-muse-wonder-1.0-c2
+=== git status ===
+exit:0
+=== git log -1 ===
+8411e0a fix(followup.1): make run-folder validation trustworthy
+=== HEAD ===
+8411e0a61f8f0e72ff17caa630ea93345cba3d90
+=== show stat ===
+commit 8411e0a61f8f0e72ff17caa630ea93345cba3d90
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 23:14:13 2026 -0500
+
+    fix(followup.1): make run-folder validation trustworthy
+    
+    For humans: the cycle-1 grade false-failed adherence: run folder present because the validations transport could carry the existing handoff folder in prose the validator could not read. The transport now emits one canonical shell one-liner and the validator reads presence tolerantly, while a folder missing tape.log or notes.md still fails.
+    
+    For LLMs: folderLines accepts array or newline string; lineHasFile affirms presence (yes/present/contains) and vetoes on affirmed absence (=no/missing/not found). Brief prescribes the exact for-loop one-liner verbatim. Regression block feeds canonical, prose, string, empty, and missing-file variants. Renders synced.
+
+ .agents/workflows/induct-grade.js         | 39 +++++++++++++++++++++----
+ skills/traverse/workflows/induct-grade.js | 39 +++++++++++++++++++++----
+ test/induct-grade.test.mjs                | 47 +++++++++++++++++++++++++++++++
+ 3 files changed, 115 insertions(+), 10 deletions(-)
+=== EXPERIMENT.md ===
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: followup.1
+status: proposed
+---
+
+# followup.1 - grade-evidence: missing evidence is not a defect
+
+## TL;DR
+
+Papercut found live (config.1, cycle 1, owner
+notified): the grade workflow's audit child can
+return matrix rows with no typed evidence
+("row carried no typed evidence"). A row without
+evidence cannot pass, so the verdict degrades to
+fix-first — and at `max_cycles: 1` that escalates
+straight to `blocked` and pages the human, for a
+grader paperwork failure on a green product.
+
+Fix the evidence contract in the grade workflow:
+every matrix row must carry typed evidence
+(command/file/ledger) or the audit re-runs its
+own collection. Evidence-missing is a grader
+internal retry; it never reaches the FSM as a
+verdict, never burns an author cycle, and never
+pages the human. Defects and evidence gaps take
+different roads.
+
+## Demo (design trace)
+
+```text
+before: audit row {case: "local only", evidence: none}
+  -> verdict missing -> fix-first at cap -> blocked -> human paged
+  (config tests were green the whole time)
+
+after:  audit row without typed evidence
+  -> audit re-collects (one internal retry, named rows)
+  -> row carries typed evidence -> judged pass/fail on merits
+  -> human paged only for actual decisions
+```
+
+## Diagram
+
+```text
+audit child -> rows -> each row typed evidence?
+                          | no              | yes
+                          v                 v
+                    re-collect (audit)   judge on merits
+                    (never an FSM        (ship / needs_fix /
+                     verdict)             blocked only at cap)
+```
+
+## Pseudocode
+
+```python
+def audit(exp, commit):
+    rows = collect_rows(exp, commit)
+    for row in rows:
+        if not typed(row.evidence):            # command|file|ledger + quote
+            rows = recollect(rows, missing=[row.case])   # audit-internal
+    assert all(typed(r.evidence) for r in rows)  # or explicit audit failure
+    return judge(rows)                           # verdicts only from evidence
+```
+
+| Field | Value |
+|---|---|
+| Intent | a human is paged for decisions, never for grader paperwork |
+| Lane | standard |
+| Output | grade workflow evidence contract + regression tests; audit retry semantics named in the traverse skill surface |
+| Depends on | mig.2 (traverse workflows), config.1 (the live papercut) |
+
+## Amendment (owner-locked 2026-11-17): grade validations
+
+Live again at mvp.3 (owner notified, then owner
+directed the root fix and locked the name):
+the audit child ran `git status --porcelain`,
+the tree was clean, output was empty, and it
+quoted that empty output verbatim (`quote: ""`).
+`typedEvidence` requires a non-empty quote, so
+the row degraded to `missing` and paged the
+human a second time for grader paperwork.
+
+Owner design, locked: **grade validations**.
+Each validation is a plug (Phoenix-plug style):
+deterministic code, ctx in, one typed evidence
+row out, expectation declared in the validation
+itself. Silence can be the expectation.
+
+```text
+grade workflow
+  -> validations pipeline (deterministic, pre-audit)
+       validate_git_clean            git status --porcelain, expect empty
+       validate_clean_commit         git show + porcelain
+       validate_run_folder_present   tape.log + notes.md exist
+       validate_handoff_by_child     ledger handoff line
+       validate_env_run_id_stamped   ledger run_id
+     -> adherence rows minted by code, token for empty
+        stdout is "(empty stdout, exit 0)", machine-minted
+  -> audit child (LLM) builds ONLY acceptance rows
+  -> normalize (unchanged anti-slop) -> review/check verdicts
+```
+
+```python
+def validate_git_clean(ctx) -> Row:
+    out = run("git status --porcelain", cwd=ctx.desk)
+    ok = (out == "")                      # silence IS the pass condition
+    return Row("adherence: no hand-edited state", rung=2,
+               evidence={kind: "command",
+                         ref: "git status --porcelain",
+                         quote: "(empty stdout, exit 0)" if ok else out},
+               verdict="pass" if ok else "fail")
+```
+
+Rules: adherence rows are never hand-quoted by
+an LLM again. Acceptance rows remain the audit
+child's; an untyped acceptance row is still an
+audit-internal re-collect, then an explicit
+audit failure — never an FSM verdict. A second
+papercut in the same run joins scope: review
+and check children cast verdicts in parallel;
+the first negative moves state and the second
+cast eats `E_ILLEGAL_EDGE`. That race must read
+as a named, expected race in the outcome, not
+an unexplained refusal. This node is pulled
+forward ahead of mvp.4 at owner direction:
+mvp.3's re-grade depends on the fixed grader.
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| untyped row produced | the audit re-collects the named rows internally; the FSM sees no verdict until every row carries typed evidence (command/file/ledger + quote) |
+| evidence still uncollectable | the grade returns an explicit audit failure naming the row and the collection error — distinguishable from a product `needs_fix` in outcome, reason, and ledger text |
+| real defect still gates | a fixture with a genuinely failing case grades `needs_fix` (or blocks at cap) exactly as before |
+| regression: config.1 shape | a replay of the config.1 cycle-1 scenario (green product, lazy audit) approves without paging the human |
+| cycle accounting | an audit retry does not increment the exp cycle and writes no author-facing verdict |
+| validations mint adherence rows | all adherence rows (git-clean, clean commit, run folder present, handoff by child, env run-id stamped) are produced by the deterministic validations pipeline before the audit child spawns; the audit brief no longer asks the LLM for adherence rows |
+| regression: mvp.3 empty-stdout trap | a fixture reproducing the mvp.3 row (`git status --porcelain` clean, empty output) grades on merits with quote `"(empty stdout, exit 0)"`; no `missing` downgrade, no `blocked` page |
+| verdict race named | when one verdict child moves state first, the other child's refused cast is reported as an expected verdict race in the outcome/refusals, never as an unexplained failure |
+
+## Cycle 2 fix (owner A, 2026-11-17)
+
+Cycle-1 grade on `5cce4cc`: the validations
+pipeline worked for git-clean (pass, quote
+`"(empty stdout, exit 0)"`), the verdict race
+read as expected, and all acceptance rows
+passed. One validation false-failed:
+`adherence: run folder present` quoted
+"no run folder with tape.log and notes.md"
+while `runs/20261117T033939Z-handoff-.../`
+on disk holds exactly `tape.log` + `notes.md`.
+Named fix, verbatim for cycle 2: make
+`validate_run_folder_present` trustworthy —
+the observation transport must emit canonical
+`<folder> tape=yes|no notes=yes|no` lines
+(one shell one-liner, not free-form prose)
+and/or the validation must parse the transport
+variants tolerantly; add a regression test
+feeding transport variants (canonical lines,
+prose-shaped lines, empty list) and proving
+the existing handoff folder passes. Do not
+weaken the fail case: a folder missing
+`tape.log` or `notes.md` still fails.
+
+## Acceptance test (goal block)
+
+- **Objective:** missing evidence is a grader
+  retry, never a human page.
+- **Prove by:** grade fixtures — (a) audit stub
+  returning one untyped row, (b) genuinely
+  failing case — driven through the public grade
+  workflow; observe outcomes and cycle counts.
+- **Done when:** (a) approves or retries without
+  touching the FSM cycle, (b) still gates,
+  observed.
+
+## Tests
+
+Known cases: untyped-row recollection, explicit
+audit failure shape, real-defect parity, cycle
+count unchanged across audit retries.
+
+Property-based: for any matrix, no verdict is
+emitted while a row lacks typed evidence
+(generator over row/evidence shapes).
+
+## Context
+
+Found live at config.1's first grade: the product
+was green (`test/config.sh` ok), the audit simply
+didn't attach receipts, and `max_cycles: 1` turned
+paperwork into an owner page. Owner ruled during
+the run: notify papercuts and add followups to
+fix them. This is that followup.
+
+=== ledger tail ===
+tail: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/ledger.jsonl: No such file or directory
+=== find ledger ===
+EXPERIMENT.md
+runs
+---
+=== git diff ===
+commit 8411e0a61f8f0e72ff17caa630ea93345cba3d90
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 23:14:13 2026 -0500
+
+    fix(followup.1): make run-folder validation trustworthy
+    
+    For humans: the cycle-1 grade false-failed adherence: run folder present because the validations transport could carry the existing handoff folder in prose the validator could not read. The transport now emits one canonical shell one-liner and the validator reads presence tolerantly, while a folder missing tape.log or notes.md still fails.
+    
+    For LLMs: folderLines accepts array or newline string; lineHasFile affirms presence (yes/present/contains) and vetoes on affirmed absence (=no/missing/not found). Brief prescribes the exact for-loop one-liner verbatim. Regression block feeds canonical, prose, string, empty, and missing-file variants. Renders synced.
+
+ .agents/workflows/induct-grade.js         | 39 +++++++++++++++++++++----
+ skills/traverse/workflows/induct-grade.js | 39 +++++++++++++++++++++----
+ test/induct-grade.test.mjs                | 47 +++++++++++++++++++++++++++++++
+ 3 files changed, 115 insertions(+), 10 deletions(-)
+=== diff full ===
+commit 8411e0a61f8f0e72ff17caa630ea93345cba3d90
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 23:14:13 2026 -0500
+
+    fix(followup.1): make run-folder validation trustworthy
+    
+    For humans: the cycle-1 grade false-failed adherence: run folder present because the validations transport could carry the existing handoff folder in prose the validator could not read. The transport now emits one canonical shell one-liner and the validator reads presence tolerantly, while a folder missing tape.log or notes.md still fails.
+    
+    For LLMs: folderLines accepts array or newline string; lineHasFile affirms presence (yes/present/contains) and vetoes on affirmed absence (=no/missing/not found). Brief prescribes the exact for-loop one-liner verbatim. Regression block feeds canonical, prose, string, empty, and missing-file variants. Renders synced.
+
+diff --git a/.agents/workflows/induct-grade.js b/.agents/workflows/induct-grade.js
+index f207625..6f7ca63 100644
+--- a/.agents/workflows/induct-grade.js
++++ b/.agents/workflows/induct-grade.js
+@@ -134,10 +134,33 @@ function validate_clean_commit(ctx) {
+   };
+ }
+ 
++// Run-folder lines arrive from one shell one-liner as canonical
++// `<folder> tape=yes|no notes=yes|no` lines. A transport may
++// still carry prose-shaped lines, so presence is read
++// tolerantly: only affirmed presence counts, and an affirmed
++// absence (missing, =no) never passes.
++function folderLines(raw) {
++  const parts = Array.isArray(raw) ? raw
++    : typeof raw === "string" ? raw.split(/\r?\n/) : [];
++  return parts.filter(function (l) {
++    return typeof l === "string" && l.trim() !== "";
++  }).map(function (l) { return l.trim(); });
++}
++
++function lineHasFile(line, stem) {
++  const s = String(line).toLowerCase();
++  const eq = s.match(new RegExp(stem + "\\s*=\\s*(yes|no)\\b"));
++  if (eq) return eq[1] === "yes";
++  if (new RegExp("(missing|absent|without|no)\\b[^,;]{0,40}" + stem + "\\b").test(s)) return false;
++  if (new RegExp(stem + "\\b[^,;]{0,40}\\b(missing|absent|not present|not found)\\b").test(s)) return false;
++  if (new RegExp(stem + "(?:\\.\\w+)?\\b[^,;]{0,40}\\b(present|exists|found|yes)\\b").test(s)) return true;
++  return new RegExp(stem + "(?:\\.log|\\.md)?\\b").test(s);
++}
++
+ function validate_run_folder_present(ctx) {
+-  const lines = Array.isArray(ctx.obs.run_folders) ? ctx.obs.run_folders : [];
++  const lines = folderLines(ctx.obs.run_folders);
+   const complete = lines.filter(function (l) {
+-    return typeof l === "string" && l.indexOf("tape=yes") >= 0 && l.indexOf("notes=yes") >= 0;
++    return lineHasFile(l, "tape") && lineHasFile(l, "notes");
+   });
+   const handoff = complete.filter(function (l) { return l.indexOf("-handoff-") >= 0; });
+   const chosen = handoff[0] || complete[0] || "";
+@@ -531,9 +554,15 @@ export default async function workflow(host) {
+       "summarize, never edit any file, and do not call any `bp3 q u` " +
+       "update edge): (1) `git status --porcelain` for git_clean; " +
+       "(2) `git show --stat " + commit + "` for git_show; " +
+-      "(3) for run_folders, one line per folder under `" + expDir +
+-      "/runs/` in the form `<folder> tape=yes|no notes=yes|no` by " +
+-      "testing tape.log and notes.md in each folder; (4) for " +
++      "(3) for run_folders, run exactly this one shell one-liner " +
++      "verbatim from the quest worktree and return its stdout lines " +
++      "unchanged as the run_folders array (one line per folder, " +
++      "`<folder> tape=yes|no notes=yes|no`; never reformat its lines " +
++      "into prose): `for d in " + expDir + "/runs/*/; do " +
++      "[ -d \"$d\" ] || continue; n=$(basename \"$d\"); " +
++      "if [ -f \"$d/tape.log\" ]; then t=yes; else t=no; fi; " +
++      "if [ -f \"$d/notes.md\" ]; then u=yes; else u=no; fi; " +
++      "echo \"$n tape=$t notes=$u\"; done`; (4) for " +
+       "handoff_line, the verbatim last handoff line of `" + expDir +
+       "/ledger.jsonl` on the exp branch (`git show bp3/exp/" + quest +
+       "/" + exp + ":" + expDir + "/ledger.jsonl`), or an empty string " +
+diff --git a/skills/traverse/workflows/induct-grade.js b/skills/traverse/workflows/induct-grade.js
+index f207625..6f7ca63 100644
+--- a/skills/traverse/workflows/induct-grade.js
++++ b/skills/traverse/workflows/induct-grade.js
+@@ -134,10 +134,33 @@ function validate_clean_commit(ctx) {
+   };
+ }
+ 
++// Run-folder lines arrive from one shell one-liner as canonical
++// `<folder> tape=yes|no notes=yes|no` lines. A transport may
++// still carry prose-shaped lines, so presence is read
++// tolerantly: only affirmed presence counts, and an affirmed
++// absence (missing, =no) never passes.
++function folderLines(raw) {
++  const parts = Array.isArray(raw) ? raw
++    : typeof raw === "string" ? raw.split(/\r?\n/) : [];
++  return parts.filter(function (l) {
++    return typeof l === "string" && l.trim() !== "";
++  }).map(function (l) { return l.trim(); });
++}
++
++function lineHasFile(line, stem) {
++  const s = String(line).toLowerCase();
++  const eq = s.match(new RegExp(stem + "\\s*=\\s*(yes|no)\\b"));
++  if (eq) return eq[1] === "yes";
++  if (new RegExp("(missing|absent|without|no)\\b[^,;]{0,40}" + stem + "\\b").test(s)) return false;
++  if (new RegExp(stem + "\\b[^,;]{0,40}\\b(missing|absent|not present|not found)\\b").test(s)) return false;
++  if (new RegExp(stem + "(?:\\.\\w+)?\\b[^,;]{0,40}\\b(present|exists|found|yes)\\b").test(s)) return true;
++  return new RegExp(stem + "(?:\\.log|\\.md)?\\b").test(s);
++}
++
+ function validate_run_folder_present(ctx) {
+-  const lines = Array.isArray(ctx.obs.run_folders) ? ctx.obs.run_folders : [];
++  const lines = folderLines(ctx.obs.run_folders);
+   const complete = lines.filter(function (l) {
+-    return typeof l === "string" && l.indexOf("tape=yes") >= 0 && l.indexOf("notes=yes") >= 0;
++    return lineHasFile(l, "tape") && lineHasFile(l, "notes");
+   });
+   const handoff = complete.filter(function (l) { return l.indexOf("-handoff-") >= 0; });
+   const chosen = handoff[0] || complete[0] || "";
+@@ -531,9 +554,15 @@ export default async function workflow(host) {
+       "summarize, never edit any file, and do not call any `bp3 q u` " +
+       "update edge): (1) `git status --porcelain` for git_clean; " +
+       "(2) `git show --stat " + commit + "` for git_show; " +
+-      "(3) for run_folders, one line per folder under `" + expDir +
+-      "/runs/` in the form `<folder> tape=yes|no notes=yes|no` by " +
+-      "testing tape.log and notes.md in each folder; (4) for " +
++      "(3) for run_folders, run exactly this one shell one-liner " +
++      "verbatim from the quest worktree and return its stdout lines " +
++      "unchanged as the run_folders array (one line per folder, " +
++      "`<folder> tape=yes|no notes=yes|no`; never reformat its lines " +
++      "into prose): `for d in " + expDir + "/runs/*/; do " +
++      "[ -d \"$d\" ] || continue; n=$(basename \"$d\"); " +
++      "if [ -f \"$d/tape.log\" ]; then t=yes; else t=no; fi; " +
++      "if [ -f \"$d/notes.md\" ]; then u=yes; else u=no; fi; " +
++      "echo \"$n tape=$t notes=$u\"; done`; (4) for " +
+       "handoff_line, the verbatim last handoff line of `" + expDir +
+       "/ledger.jsonl` on the exp branch (`git show bp3/exp/" + quest +
+       "/" + exp + ":" + expDir + "/ledger.jsonl`), or an empty string " +
+diff --git a/test/induct-grade.test.mjs b/test/induct-grade.test.mjs
+index 2786b2f..d83fadc 100644
+--- a/test/induct-grade.test.mjs
++++ b/test/induct-grade.test.mjs
+@@ -510,5 +510,52 @@ function rungRow(name, rung, verdict, quote) {
+     "refused cast reported as an expected verdict race");
+ }
+ 
++// --- run-folder transport variants (followup.1 cycle 2): the
++// --- existing handoff folder passes canonical and
++// --- prose-shaped lines; a folder missing a file still fails ---
++{
++  const HANDOFF = "20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1";
++  async function runFolderCase(runFolders) {
++    const { host, inputs } = mockHost({
++      reads: [handedOff, approved],
++      auditRows: [passRow("acceptance: a")],
++      validationsObs: { ...GOOD_OBS, run_folders: runFolders },
++    });
++    const result = await workflow(host);
++    return { result, inputs };
++  }
++  {
++    const { result, inputs } = await runFolderCase([HANDOFF + " tape=yes notes=yes"]);
++    const row = rowNamed(result, "adherence: run folder present");
++    assert(row && row.verdict === "pass" && row.evidence.quote.includes(HANDOFF),
++      "canonical line passes the existing handoff folder");
++    assert(inputs.validations.includes("for d in"),
++      "validations transport carries the run-folder one-liner");
++    assert(inputs.validations.includes("never reformat its lines"),
++      "validations transport forbids prose reformatting");
++  }
++  for (const line of [
++    HANDOFF + ": tape.log present, notes.md present",
++    HANDOFF + " tape: yes, notes: yes",
++    HANDOFF + "/ contains tape.log and notes.md",
++  ]) {
++    const { result } = await runFolderCase([line]);
++    assert(rowNamed(result, "adherence: run folder present").verdict === "pass",
++      "prose-shaped line passes: " + line);
++  }
++  {
++    const { result } = await runFolderCase(HANDOFF + " tape=yes notes=yes\n20260101T000000Z-verify-muse-code-test-model-c1 tape=yes notes=no");
++    assert(rowNamed(result, "adherence: run folder present").verdict === "pass",
++      "newline string transport passes");
++  }
++  for (const bad of [[], [HANDOFF + " tape=yes notes=no"], [HANDOFF + " tape=no notes=yes"],
++                     [HANDOFF + ": tape.log present, notes.md missing"]]) {
++    const { result } = await runFolderCase(bad);
++    assert(rowNamed(result, "adherence: run folder present").verdict === "fail",
++      "folder missing a file still fails: " + JSON.stringify(bad));
++    assert(result.outcome === "needs_fix", "missing-file folder still gates");
++  }
++}
++
+ if (failures > 0) process.exit(1);
+ console.log("induct-grade tests: ok");
+=== tests ===
+induct-grade tests: ok
+test-exit:0
+=== renders identical ===
+renders-identical
+=== handoff folder ===
+notes.md
+tape.log
+=== canonical one-liner ===
+20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1 tape=yes notes=yes
+20261117T035432Z-node-muse-code-muse-wonder-1.0-c1 tape=yes notes=yes
+20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1 tape=yes notes=yes
+20261117T035551Z-verify-muse-code-muse-wonder-1.0-c1 tape=yes notes=yes
+20261117T040644Z-handoff-muse-code-muse-wonder-1.0-c2 tape=yes notes=yes
+20261117T041834Z-node-muse-code-muse-wonder-1.0-c2 tape=yes notes=yes
+20261117T041924Z-grade-muse-code-muse-wonder-1.0-c2 tape=yes notes=no
+20261117T041930Z-verify-muse-code-muse-wonder-1.0-c2 tape=yes notes=no
+=== ledger via branch ===
+{"ts":"2026-11-16T23:02:14Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"unknown","model":"unknown","bp3_version":"0.2.0","exp_type":"default"}
+{"ts":"2026-11-17T03:51:11Z","edge":"handoff","from":"todo","to":"handed_off","cycle":1,"commit":"5cce4cc8c272a32c9a7e850cb9acea79411a026b","verdict":null,"reason":"grade validations pipeline, audit re-collect, audit_failure outcome, named verdict race; make check green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1"}
+{"ts":"2026-11-17T04:00:52Z","edge":"grade","from":"handed_off","to":"blocked","cycle":1,"commit":"5cce4cc8c272a32c9a7e850cb9acea79411a026b","verdict":"needs_fix","reason":"gated adherence row run folder present fail in matrix; any gated fail gates per contract","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1"}
+{"ts":"2026-11-17T04:06:09Z","edge":"resume","from":"blocked","to":"todo","cycle":2,"commit":null,"verdict":null,"reason":"Owner chose A: resume cycle 2 to fix validate_run_folder_present false fail (run folder exists on disk with tape.log+notes.md; likely transport/parsing mismatch); git-clean validation passed, all acceptance rows pass on 5cce4cc","harness":"muse-code","model":"none","bp3_version":"0.2.0","run_id":"20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1"}
+{"ts":"2026-11-17T04:14:19Z","edge":"handoff","from":"todo","to":"handed_off","cycle":2,"commit":"8411e0a61f8f0e72ff17caa630ea93345cba3d90","verdict":null,"reason":"cycle-2: canonical one-liner transport plus tolerant run-folder validation; missing-file still fails","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T040644Z-handoff-muse-code-muse-wonder-1.0-c2"}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-followup-1-grade-evidence","state":"approved","cycle":2,"commit":"8411e0a61f8f0e72ff17caa630ea93345cba3d90","legal_edges":["land","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-1-grade-evidence","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-1-grade-evidence","edge":"verify","run_id":"20261117T041930Z-verify-muse-code-muse-wonder-1.0-c2","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T041930Z-verify-muse-code-muse-wonder-1.0-c2","warnings":["W_CONTEXT_ENV_MISMATCH"]}

@@ -1,0 +1,23 @@
+# Audit notes — exp-config-1-bp3-config @ 3c47fe532642369348656be958eb577fc662881d
+
+Lessons:
+- Cycle-2 scopes the thresholds claim in the door doc (src/quest/main.ml): honored by the view today; enforcement in edge verdicts lands with mvp.1 (depth cap) and mvp.3 (W_SETUP_SLOW). The view honoring a local edit is tested; no dead Config.thresholds accessor remains.
+- ensure_dir now swallows only EEXIST, so mkdir failures are attributed at their site (EACCES case in test/config.sh) instead of surfacing later misattributed.
+- Matrix decided at rungs 2-3 (committed code/diff, fresh test and live-door runs, exp ledger). No rung 5b whole-tape escalation; the harness tape was located via find-tape for the build run but no entry read was needed to decide any row.
+- Derivations corroborate the build run: <git-common-dir>/bp3/run-lifecycle-derivations/20261116T230116Z-handoff-muse-code-muse-wonder-1.0-c2.jsonl holds its init_record and tape_binding at the existing path, and the live view counts derivations.
+
+```json
+[
+  {"case": "zero setup", "rung": 3, "evidence": {"kind": "command", "ref": "./test/config.sh", "quote": "config tests: ok"}, "verdict": "pass"},
+  {"case": "viewable", "rung": 3, "evidence": {"kind": "command", "ref": "./bin/bp3 config --source", "quote": "{\"ok\":true,\"config_dir\":\"/Users/whycz/m/bp3/.git/bp3\",\"thresholds\":{\"setup_slow_s\":180,\"depth_cap\":3},\"contexts\":[],\"desks\":[],\"by_session_entries\":0,\"derivations\":260}"}, "verdict": "pass"},
+  {"case": "local only", "rung": 3, "evidence": {"kind": "command", "ref": "./test/config.sh", "quote": "config tests: ok"}, "verdict": "pass"},
+  {"case": "thresholds local", "rung": 3, "evidence": {"kind": "command", "ref": "./test/config.sh", "quote": "config tests: ok"}, "verdict": "pass"},
+  {"case": "survives worktrees", "rung": 3, "evidence": {"kind": "command", "ref": "./test/config.sh", "quote": "config tests: ok"}, "verdict": "pass"},
+  {"case": "derivations folded in", "rung": 3, "evidence": {"kind": "command", "ref": "cat /Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T230116Z-handoff-muse-code-muse-wonder-1.0-c2.jsonl", "quote": "{\"kind\":\"init_record\",\"run_id\":\"20261116T230116Z-handoff-muse-code-muse-wonder-1.0-c2\",\"harness\":\"muse-code\",\"ts\":\"2026-11-16T23:01:33Z\",\"quest\":\"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines\",\"exp\":\"exp-config-1-bp3-config\",\"desk\":\".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines\",\"model\":\"muse-wonder-1.0\"}"}, "verdict": "pass"},
+  {"case": "adherence: handoff edge called by the child directly", "rung": 2, "evidence": {"kind": "ledger", "ref": "exp ledger handoff line for run 20261116T230116Z-handoff-muse-code-muse-wonder-1.0-c2", "quote": "{\"ts\":\"2026-11-16T23:08:43Z\",\"edge\":\"handoff\",\"from\":\"todo\",\"to\":\"handed_off\",\"cycle\":2,\"commit\":\"3c47fe532642369348656be958eb577fc662881d\",\"verdict\":null,\"reason\":\"cycle 2: attribute mkdir failures, scope thresholds claim to mvp.1/mvp.3, tracked-files evidence\",\"harness\":\"muse-code\",\"model\":\"muse-wonder-1.0\",\"bp3_version\":\"0.2.0\",\"run_id\":\"20261116T230116Z-handoff-muse-code-muse-wonder-1.0-c2\"}"}, "verdict": "pass"},
+  {"case": "adherence: env-set run-id stamped by bp3", "rung": 2, "evidence": {"kind": "ledger", "ref": "exp ledger handoff line for run 20261116T230116Z-handoff-muse-code-muse-wonder-1.0-c2", "quote": "{\"ts\":\"2026-11-16T23:08:43Z\",\"edge\":\"handoff\",\"from\":\"todo\",\"to\":\"handed_off\",\"cycle\":2,\"commit\":\"3c47fe532642369348656be958eb577fc662881d\",\"verdict\":null,\"reason\":\"cycle 2: attribute mkdir failures, scope thresholds claim to mvp.1/mvp.3, tracked-files evidence\",\"harness\":\"muse-code\",\"model\":\"muse-wonder-1.0\",\"bp3_version\":\"0.2.0\",\"run_id\":\"20261116T230116Z-handoff-muse-code-muse-wonder-1.0-c2\"}"}, "verdict": "pass"},
+  {"case": "adherence: clean commit", "rung": 2, "evidence": {"kind": "command", "ref": "git rev-parse HEAD", "quote": "3c47fe532642369348656be958eb577fc662881d"}, "verdict": "pass"},
+  {"case": "adherence: tape.log and notes.md present in its run folder", "rung": 2, "evidence": {"kind": "file", "ref": "docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T230116Z-handoff-muse-code-muse-wonder-1.0-c2/", "quote": "notes.md\ntape.log"}, "verdict": "pass"},
+  {"case": "adherence: no hand-edited state", "rung": 2, "evidence": {"kind": "command", "ref": "git show --name-only --format= HEAD", "quote": "src/quest/config.ml\nsrc/quest/main.ml\ntest/config.sh"}, "verdict": "pass"}
+]
+```

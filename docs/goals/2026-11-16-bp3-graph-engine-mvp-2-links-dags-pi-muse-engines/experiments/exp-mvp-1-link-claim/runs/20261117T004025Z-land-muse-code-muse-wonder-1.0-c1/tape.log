@@ -1,0 +1,14 @@
+# Land run notes — exp-mvp-1-link-claim
+
+- Claimed the one-time harness link successfully; returned run_id `20261117T004025Z-land-muse-code-muse-wonder-1.0-c1` as expected.
+- Verified the concrete run folder did not pre-exist before creating it, avoiding any overwrite/reuse collision.
+- Kept all subsequent shell output teed to `tape.log` as verbatim evidence; tape text is not parsed into facts.
+- Invoked the `land` state edge directly via `bp3 q u` with BP3_RUN_ID/BP3_QUEST/BP3_EXP/BP3_HARNESS/BP3_MODEL set, per the child contract.
+- Lesson: always check the exact run-folder path under the quest worktree first — the conductor checkout is a different location — and capture the claim output before proceeding.
+--- notes.md written ---
+total 16
+drwxr-xr-x@ 4 whycz  staff  128 Nov 16 19:40 .
+drwxr-xr-x@ 7 whycz  staff  224 Nov 16 19:40 ..
+-rw-r--r--@ 1 whycz  staff  723 Nov 16 19:40 notes.md
+-rw-r--r--@ 1 whycz  staff  748 Nov 16 19:40 tape.log
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-1-link-claim","state":"landed","fin":"exp_fin","cycle":1,"commit":"09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3","legal_edges":[],"run_id":"20261117T004025Z-land-muse-code-muse-wonder-1.0-c1"}

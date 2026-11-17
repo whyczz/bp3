@@ -105,8 +105,8 @@ let graph_view q =
         else if List.exists (fun (_, s) -> s.st = "blocked") node_states then "blocked"
         else "active" in
       (* Report word for the graph finish line: rollup stays [landed];
-         [graph_fin] names promotion of that rollup to master. *)
-      let fin = if rollup = "landed" then `String "graph_fin" else `Null in
+         [goal_fin] names promotion of that rollup to master. *)
+      let fin = if rollup = "landed" then `String "goal_fin" else `Null in
       (`Assoc ([
         ("graph", json_str q); ("state", json_str qs.st);
         ("nodes", `List (List.map (fun (e, s, deps, t) -> node_json q e s deps t) node_infos));

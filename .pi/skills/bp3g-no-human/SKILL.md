@@ -45,7 +45,7 @@ graph up it. Names below reuse the node's words: `fleet`,
 `footprint`, `merge order`, and `check-in report`.
 
 - Footprint: the paths a graph declares it will touch —
-  every path named in its GRAPH.md Scope and in each
+  every path named in its GOAL.md Scope and in each
   node's Output. Two footprints overlap when they name
   the same path, or one names a directory the other
   names a path under. A graph with no declared footprint
@@ -54,7 +54,7 @@ graph up it. Names below reuse the node's words: `fleet`,
   own conductor loop at the same time, desks per child,
   one graph per checkout. A parked graph never holds up
   a disjoint graph; parking stops only its own graph.
-- The fleet never merges: graphs ready for `graph_fin`
+- The fleet never merges: graphs ready for `goal_fin`
   are only listed, in merge order, for the owner to
   promote one at a time in that order.
 
@@ -70,7 +70,7 @@ graph up it. Names below reuse the node's words: `fleet`,
   pages a question to the owner. A decision only a human
   can make is not asked for; the work parks (below) and
   waits for morning.
-- No-human never promotes or pushes: `graph_fin` stays the
+- No-human never promotes or pushes: `goal_fin` stays the
   owner gate. A graph whose nodes all reach `node_fin`
   stops there; promotion waits for the owner.
 
@@ -117,7 +117,7 @@ graph up it. Names below reuse the node's words: `fleet`,
    report for the whole fleet, from `bp3 g r`, the run
    registry, and `bp3 harness desk list` — never from
    memory or tape text:
-   - graphs ready for `graph_fin`, listed in the
+   - graphs ready for `goal_fin`, listed in the
      predeclared merge order (fleet never merges);
    - nodes at `node_fin` (state `landed`), per graph;
    - parked items from all graphs in one check-in list,

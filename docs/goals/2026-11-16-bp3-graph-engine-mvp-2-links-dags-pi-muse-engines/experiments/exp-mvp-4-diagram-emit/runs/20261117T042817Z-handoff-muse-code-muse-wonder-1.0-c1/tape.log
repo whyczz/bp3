@@ -1,0 +1,3302 @@
+created docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-4-diagram-emit/runs/20261117T042817Z-handoff-muse-code-muse-wonder-1.0-c1
+=== store head ===
+(* store — identity, plans, ledger fold: the truth layer. *)
+open Gitx
+
+(* ---------- slugs / identity ---------- *)
+let valid_slug s =
+  let n = String.length s in
+  n >= 1 &&
+  (let ok c = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c = '-' in
+   let rec loop i = i >= n || (ok s.[i] && loop (i + 1)) in
+   ((s.[0] >= 'a' && s.[0] <= 'z') || (s.[0] >= '0' && s.[0] <= '9')) && loop 1)
+
+let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
+
+(* Door and verb spellings across every bp3 door. A created
+   quest or exp carrying one of these slugs could never be
+   addressed again (the token would parse as the door or
+   verb instead), so creation refuses it; reads stay total. *)
+let reserved_slugs =
+  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo"; "config"; "e"; "dep";
+    "supervisor"; "init-check"; "find-tape"; "watch"; "desk"; "backtest"; "b";
+    "c"; "create"; "r"; "read"; "u"; "update"; "d"; "delete";
+    "s"; "i"; "f"; "w";
+    "derive"; "inspect"; "remove"; "prepare"; "check"; "exit";
+    "release"; "list" ]
+
+let check_creatable s =
+  check_slug s;
+  if List.mem s reserved_slugs then
+    usage ("reserved slug: " ^ s ^ " names a bp3 door or verb")
+
+=== grep store ===
+167:let fold_edge = function
+176:  let depends_on = ref [] in
+182:        let edge = fold_edge (get_str j "edge" "") in
+190:          (try match Yojson.Safe.Util.member "depends_on" j with
+191:             | `List xs -> depends_on := List.map (function `String x -> x | _ -> "") xs
+213:  (s, !quest_type, !depends_on)
+353:(* ---------- schedule and timing (mvp.3) ---------- *)
+356:   and per-node timing are derived on read from ledger
+379:type timing = { t_wall : int option; t_wait : int option;
+382:let timing_of_text text =
+395:        let edge = fold_edge (get_str j "edge" "") in
+426:type sched_node = { n_id : string; n_state : string; n_deps : string list }
+428:let sched_waves nodes =
+442:let sched_starved nodes =
+=== wc ===
+     408 src/quest/config.ml
+     125 src/quest/gitx.ml
+    2695 src/quest/harness.ml
+     394 src/quest/hooks.ml
+     744 src/quest/main.ml
+     372 src/quest/render.ml
+     522 src/quest/store.ml
+     547 src/quest/worktree.ml
+     202 bin/bp3
+    6009 total
+(* store — identity, plans, ledger fold: the truth layer. *)
+open Gitx
+
+(* ---------- slugs / identity ---------- *)
+let valid_slug s =
+  let n = String.length s in
+  n >= 1 &&
+  (let ok c = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c = '-' in
+   let rec loop i = i >= n || (ok s.[i] && loop (i + 1)) in
+   ((s.[0] >= 'a' && s.[0] <= 'z') || (s.[0] >= '0' && s.[0] <= '9')) && loop 1)
+
+let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
+
+(* Door and verb spellings across every bp3 door. A created
+   quest or exp carrying one of these slugs could never be
+   addressed again (the token would parse as the door or
+   verb instead), so creation refuses it; reads stay total. *)
+let reserved_slugs =
+  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo"; "config"; "e"; "dep";
+    "supervisor"; "init-check"; "find-tape"; "watch"; "desk"; "backtest"; "b";
+    "c"; "create"; "r"; "read"; "u"; "update"; "d"; "delete";
+    "s"; "i"; "f"; "w";
+    "derive"; "inspect"; "remove"; "prepare"; "check"; "exit";
+    "release"; "list" ]
+
+let check_creatable s =
+  check_slug s;
+  if List.mem s reserved_slugs then
+    usage ("reserved slug: " ^ s ^ " names a bp3 door or verb")
+
+type identity = { harness : string; model : string; decider_human : bool; incomplete : bool; run_id : string option }
+
+let run_id_of_env () =
+  match Sys.getenv_opt "BP3_RUN_ID" with Some v when v <> "" -> Some v | _ -> None
+
+(* The claimed run-id (mvp.2 context resolution), set by the
+   CLI door once per call when a rung resolves. The claim
+   wins over the env hint; env alone keeps the legacy
+   stamping for unclaimed callers. *)
+let resolved_run_id : string option ref = ref None
+let context_warnings : string list ref = ref []
+
+let effective_run_id () =
+  match !resolved_run_id with Some _ as r -> r | None -> run_id_of_env ()
+
+let stamp_run_id = function
+  | `Assoc fs ->
+      (match effective_run_id () with
+       | Some r ->
+           `Assoc (List.filter (fun (k, _) -> k <> "run_id") fs
+                   @ [("run_id", json_str r)])
+       | None -> `Assoc fs)
+  | v -> v
+
+let identity () =
+  let h = Sys.getenv_opt "BP3_HARNESS" in
+  (match h with
+   | Some v when v <> "" ->
+       if not (List.mem v ["muse-code"; "codex"; "muse"; "human"]) then
+         err "E_IDENTITY" (`Assoc [("harness", json_str v)])
+           "BP3_HARNESS must be one of muse-code, codex, muse, human." 2
+   | _ -> ());
+  let decider_human = (Sys.getenv_opt "BP3_DECIDER" = Some "human") in
+  let harness = match h with Some v when v <> "" -> v | _ -> "unknown" in
+  let model =
+    if decider_human then "none"
+    else match Sys.getenv_opt "BP3_MODEL" with Some v when v <> "" -> v | _ -> "unknown" in
+  let incomplete = harness = "unknown" || model = "unknown" in
+  { harness; model; decider_human; incomplete; run_id = run_id_of_env () }
+
+let parse_version s =
+  try List.map int_of_string (String.split_on_char '.' s) with _ -> [0]
+
+let rec version_cmp a b =
+  match a, b with
+  | [], [] -> 0
+  | [], _ -> version_cmp [0] b
+  | _, [] -> version_cmp a [0]
+  | x :: xs, y :: ys -> if x <> y then compare x y else version_cmp xs ys
+
+let version_major v = match parse_version v with m :: _ -> m | [] -> 0
+
+(* ---------- plans ---------- *)
+type knobs = { max_cycles : int; grade_required : bool; verify_required : bool }
+
+let contains_sub s sub =
+  let n = String.length s and m = String.length sub in
+  let rec loop i = i + m <= n && (String.sub s i m = sub || loop (i + 1)) in
+  m = 0 || loop 0
+
+let plan_knobs_from_text text =
+  (* reject stages:/edges: keys at line start (after spaces) *)
+  let lines = String.split_on_char '\n' text in
+  List.iter (fun ln ->
+    let t = String.trim ln in
+    if t = "stages:" || (String.length t > 7 && String.sub t 0 7 = "stages:") ||
+       t = "edges:" || (String.length t > 6 && String.sub t 0 6 = "edges:") then
+      err "E_INVALID_PLAN" (`Assoc []) "Plan contains stages:/edges: keys; plans carry knobs only." 1
+  ) lines;
+  let max_cycles =
+    try
+      let re = Str.regexp "max_cycles:[ \t]*\\([0-9]+\\)" in
+      ignore (Str.search_forward re text 0);
+      int_of_string (Str.matched_group 1 text)
+    with _ -> 1 in
+  let grade_required =
+    (* look at grade section: 'required: false' after 'grade:' *)
+    if contains_sub text "required: false" && contains_sub text "grade:" then false
+    else if contains_sub text "grade.required: false" then false
+    else true in
+  let grade_required =
+    if contains_sub text "required: false" then
+      (* only counts if a grade: key exists or grade_required spelling *)
+      grade_required else grade_required in
+  let verify_required =
+    not (contains_sub text "verify: optional" || contains_sub text "verify: none"
+         || contains_sub text "verify:optional" || contains_sub text "verify:none") in
+  { max_cycles; grade_required; verify_required }
+
+let load_plan_file path =
+  let full = Filename.concat root path in
+  if not (Sys.file_exists full) then
+    err "E_INVALID_PLAN" (`Assoc [("plan", json_str path)]) ("Plan file missing: " ^ path) 1;
+  plan_knobs_from_text (read_file_or full "")
+
+let quest_knobs quest_type = load_plan_file ("plans/" ^ quest_type ^ ".yaml")
+
+let effective_knobs ~quest_type ~exp_type =
+  if exp_type = "default" || exp_type = "" then quest_knobs quest_type
+  else load_plan_file ("plans/exp-" ^ exp_type ^ ".yaml")
+
+(* ---------- ledger fold ---------- *)
+type exp_state = {
+  mutable st : string;
+  mutable cycle : int;
+  mutable bound : string option;
+  mutable has_bound : bool;
+  mutable grade_ok : bool;
+  mutable verify_ok : bool;
+  mutable blocked_reason : string;
+  mutable blocked_checkpoint : string option;
+  mutable blocked_since : string;
+  mutable last_commit : string option;
+  mutable exp_type : string;
+}
+
+let fresh_state () = {
+  st = "todo"; cycle = 1; bound = None; has_bound = false;
+  grade_ok = false; verify_ok = false;
+  blocked_reason = ""; blocked_checkpoint = None; blocked_since = "";
+  last_commit = None; exp_type = "default";
+}
+
+let get_str j key default =
+  try match Yojson.Safe.Util.member key j with `String s -> s | _ -> default
+  with _ -> default
+let get_int j key default =
+  try match Yojson.Safe.Util.member key j with `Int n -> n | _ -> default
+  with _ -> default
+let get_opt j key =
+  try match Yojson.Safe.Util.member key j with `String s -> Some s | _ -> None
+  with _ -> None
+
+(* The one compat mapping (mig.1): pre-rename ledger strings fold
+   to the new words here and nowhere else; new ledger lines already
+   carry the new words. *)
+let fold_edge = function
+  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+  | e -> e
+
+let fold_state_name = function "submitted" -> "handed_off" | s -> s
+
+let fold_ledger text =
+  let s = fresh_state () in
+  let quest_type = ref "default" in
+  let depends_on = ref [] in
+  String.split_on_char '\n' text |> List.iter (fun ln ->
+    let ln = String.trim ln in
+    if ln <> "" then
+      try
+        let j = Yojson.Safe.from_string ln in
+        let edge = fold_edge (get_str j "edge" "") in
+        let to_ = fold_state_name (get_str j "to" "") in
+        let cyc = get_int j "cycle" s.cycle in
+        if edge = "create" || edge = "dep" then begin
+          if edge = "create" then begin
+            s.exp_type <- get_str j "exp_type" (get_str j "quest_type" "default");
+            quest_type := get_str j "quest_type" !quest_type
+          end;
+          (try match Yojson.Safe.Util.member "depends_on" j with
+             | `List xs -> depends_on := List.map (function `String x -> x | _ -> "") xs
+             | _ -> () with _ -> ())
+        end;
+        if to_ <> "" then s.st <- to_;
+        s.cycle <- cyc;
+        (match get_opt j "commit" with Some c -> s.last_commit <- Some c; s.bound <- Some c; s.has_bound <- true | None -> ());
+        if edge = "handoff" then begin s.grade_ok <- false; s.verify_ok <- false end;
+        if edge = "grade" && get_str j "verdict" "" = "ship" then s.grade_ok <- true;
+        if edge = "verify" && get_str j "verdict" "" = "pass" then s.verify_ok <- true;
+        if (edge = "grade" && get_str j "verdict" "" = "needs_fix") ||
+           (edge = "verify" && get_str j "verdict" "" = "fail") then begin
+          s.grade_ok <- false; s.verify_ok <- false
+        end;
+        if edge = "resume" then begin s.bound <- None; s.has_bound <- false; s.grade_ok <- false; s.verify_ok <- false end;
+        if to_ = "blocked" then begin
+          s.blocked_reason <- get_str j "reason" "";
+          s.blocked_checkpoint <- get_opt j "checkpoint";
+          s.blocked_since <- get_str j "ts" ""
+        end
+      with _ ->
+        err "E_INVALID_PLAN" (`Assoc []) "Malformed ledger line." 1
+  );
+  (s, !quest_type, !depends_on)
+
+let ledger_text branch path =
+  match ref_tip branch with
+  | None -> None
+  | Some tip -> (match git_show tip path with Some t -> Some (tip, t) | None -> Some (tip, ""))
+
+let quest_branch q = "refs/heads/bp3/quest/" ^ q
+let exp_branch q e = "refs/heads/bp3/exp/" ^ q ^ "/" ^ e
+let quest_dir q = "docs/quests/" ^ q
+let quest_ledger_path q = quest_dir q ^ "/ledger.jsonl"
+let exp_dir q e = quest_dir q ^ "/experiments/" ^ e
+let exp_ledger_path q e = exp_dir q e ^ "/ledger.jsonl"
+let exp_state_path q e = exp_dir q e ^ "/state.yaml"
+
+let list_refs prefix =
+  let out, code = git_out ["for-each-ref"; "--format=%(refname)"; prefix] in
+  if code <> 0 then [] else
+  String.split_on_char '\n' out |> List.map String.trim |> List.filter (fun s -> s <> "")
+
+let list_quests () =
+  list_refs "refs/heads/bp3/quest/" |> List.map (fun r ->
+    let p = "refs/heads/bp3/quest/" in String.sub r (String.length p) (String.length r - String.length p))
+
+let list_exps q =
+  let p = "refs/heads/bp3/exp/" ^ q ^ "/" in
+  list_refs p |> List.map (fun r -> String.sub r (String.length p) (String.length r - String.length p))
+
+(* newest bp3_version stamped in any quest/exp ledger in this repo *)
+let newest_bp3_version () =
+  let from_text acc text =
+    List.fold_left (fun acc line ->
+      try
+        match Yojson.Safe.from_string line with
+        | `Assoc fs ->
+            (match List.assoc_opt "bp3_version" fs with
+             | Some (`String v) ->
+                 (match acc with
+                  | Some cur when version_cmp (parse_version cur) (parse_version v) >= 0 -> acc
+                  | _ -> Some v)
+             | _ -> acc)
+        | _ -> acc
+      with _ -> acc) acc (String.split_on_char '\n' text) in
+  List.fold_left (fun acc q ->
+    let acc = match ledger_text (quest_branch q) (quest_ledger_path q) with
+      | Some (_, t) -> from_text acc t | None -> acc in
+    List.fold_left (fun acc e ->
+      match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+      | Some (_, t) -> from_text acc t | None -> acc) acc (list_exps q))
+    None (list_quests ())
+
+let version_ahead () =
+  match newest_bp3_version () with
+  | Some v when version_cmp (parse_version v) (parse_version bp3_version) > 0 -> Some v
+  | _ -> None
+
+let warnings_of id is_write =
+  (if is_write && id.incomplete then ["W_IDENTITY_UNKNOWN"] else [])
+  @ (match version_ahead () with Some _ -> ["W_VERSION_AHEAD"] | None -> [])
+
+let fold_exp q e =
+  match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+  | None -> None
+  | Some (tip, text) -> let (s, _, _) = fold_ledger text in Some (tip, s, text)
+
+let fold_quest q =
+  match ledger_text (quest_branch q) (quest_ledger_path q) with
+  | None -> None
+  | Some (tip, text) -> let (s, qt, deps) = fold_ledger text in Some (tip, s, qt, deps, text)
+
+let legal_edges st =
+  match st with
+  | "todo" -> ["handoff"; "block"; "delete"]
+  | "handed_off" -> ["grade"; "verify"; "block"; "delete"]
+  | "approved" -> ["land"; "block"; "delete"]
+  | "blocked" -> ["resume"; "delete"]
+  | _ -> []
+
+let state_yaml q e s =
+  Printf.sprintf "quest: %s\nexp: %s\nstate: %s\ncycle: %d\ncommit: %s\n"
+    q e s.st s.cycle (match s.last_commit with Some c -> c | None -> "none")
+
+let ledger_line ~edge ~from ~to_ ~cycle ~commit ~verdict ~reason ~id
+    ?checkpoint ?extra () =
+  let base = [
+    ("ts", json_str (now_ts ()));
+    ("edge", json_str edge);
+    ("from", json_str from);
+    ("to", json_str to_);
+    ("cycle", `Int cycle);
+    ("commit", (match commit with Some c -> json_str c | None -> `Null));
+    ("verdict", (match verdict with Some v -> json_str v | None -> `Null));
+    ("reason", json_str reason);
+    ("harness", json_str id.harness);
+    ("model", json_str id.model);
+    ("bp3_version", json_str bp3_version);
+  ] in
+  let base = match id.run_id with Some r -> base @ [("run_id", json_str r)] | None -> base in
+  let base = match checkpoint with Some c -> base @ [("checkpoint", json_str c)] | None -> base in
+  let base = base @ (match extra with Some xs -> xs | None -> []) in
+  Yojson.Safe.to_string (`Assoc base)
+
+let append_exp_line q e line new_state =
+  let branch = exp_branch q e in
+  match ledger_text branch (exp_ledger_path q e) with
+  | None -> not_found "exp" e
+  | Some (tip, text) ->
+      let new_text = (if String.trim text = "" then "" else
+        (if text.[String.length text - 1] = '\n' then text else text ^ "\n")) ^ line ^ "\n" in
+      commit_files ~branch ~base_tip:tip ~expect_tip:tip
+        ~files:[(exp_ledger_path q e, new_text); (exp_state_path q e, state_yaml q e new_state)]
+        ~msg:("bp3: " ^ e)
+
+let make_checkpoint () =
+  let idx = tmp_path "ckpt-index" in
+  Unix.putenv "GIT_INDEX_FILE" idx;
+  let head = head_sha () in
+  ignore (run_status (git ["read-tree"; head]));
+  ignore (run_status (git ["add"; "-A"]));
+  let treef = tmp_path "ckpt-tree" in
+  ignore (Sys.command (String.concat " " (List.map Filename.quote (git ["write-tree"]))
+      ^ " > " ^ Filename.quote treef ^ " 2>/dev/null"));
+  let tree = String.trim (read_file_or treef "") in
+  let msgf = write_tmp "bp3 checkpoint" in
+  let cf = tmp_path "ckpt-commit" in
+  ignore (Sys.command (String.concat " " (List.map Filename.quote (git ["commit-tree"; tree; "-p"; head]))
+      ^ " < " ^ Filename.quote msgf ^ " > " ^ Filename.quote cf ^ " 2>/dev/null"));
+  Unix.putenv "GIT_INDEX_FILE" "";
+  String.trim (read_file_or cf "")
+
+let dep_satisfied dep =
+  match fold_quest dep with
+  | None -> false
+  | Some (_, qs, _, _, _) ->
+      if qs.st = "deleted" then false
+      else
+        let exps = list_exps dep in
+        exps <> [] && List.for_all (fun e ->
+          match fold_exp dep e with Some (_, s, _) -> s.st = "landed" || s.st = "deleted" | None -> false) exps
+
+(* ---------- schedule and timing (mvp.3) ---------- *)
+(* Node deps live in exp ledger records (create and dep
+   lines); ready-set waves, the ready set, starved sets,
+   and per-node timing are derived on read from ledger
+   timestamps and never written to any committed file. *)
+let days_from_civil y m d =
+  let y = if m <= 2 then y - 1 else y in
+  let era = (if y >= 0 then y else y - 399) / 400 in
+  let yoe = y - era * 400 in
+  let mp = if m > 2 then m - 3 else m + 9 in
+  let doy = (153 * mp + 2) / 5 + d - 1 in
+  let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy in
+  era * 146097 + doe - 719468
+
+let ts_epoch s =
+  try
+    if String.length s <> 20 || s.[4] <> '-' || s.[7] <> '-' || s.[10] <> 'T'
+       || s.[13] <> ':' || s.[16] <> ':' || s.[19] <> 'Z' then None
+    else
+      let num a b = int_of_string (String.sub s a b) in
+      let days = days_from_civil (num 0 4) (num 5 2) (num 8 2) in
+      Some (days * 86400 + (num 11 2) * 3600 + (num 14 2) * 60 + (num 17 2))
+  with _ -> None
+
+let deps_of_text text = let (_, _, deps) = fold_ledger text in deps
+
+type timing = { t_wall : int option; t_wait : int option;
+                t_dwell : (string * int) list }
+
+let timing_of_text text =
+  let created = ref None and first_handoff = ref None and landed = ref None in
+  let dwell : (string, int) Hashtbl.t = Hashtbl.create 8 in
+  let order = ref [] in
+  let cur = ref "" and since = ref None in
+  let add_dwell st secs =
+    if not (Hashtbl.mem dwell st) then order := !order @ [st];
+    Hashtbl.replace dwell st ((try Hashtbl.find dwell st with _ -> 0) + secs) in
+  String.split_on_char '\n' text |> List.iter (fun ln ->
+    let ln = String.trim ln in
+    if ln <> "" then
+      try
+        let j = Yojson.Safe.from_string ln in
+        let edge = fold_edge (get_str j "edge" "") in
+        let to_ = fold_state_name (get_str j "to" "") in
+        (match ts_epoch (get_str j "ts" "") with
+         | None -> ()
+         | Some t ->
+             if edge = "create" && !created = None then created := Some t;
+             if edge = "handoff" && !first_handoff = None then first_handoff := Some t;
+             if to_ = "landed" && !landed = None then landed := Some t;
+             if to_ <> "" then begin
+               (match !since with
+                | Some t0 when !cur <> "" -> add_dwell !cur (t - t0)
+                | _ -> ());
+               cur := to_; since := Some t
+             end)
+      with _ -> ());
+  let sub a b = match a, b with Some x, Some y -> Some (x - y) | _ -> None in
+  { t_wall = sub !landed !first_handoff; t_wait = sub !first_handoff !created;
+    t_dwell = List.sort compare
+      (List.map (fun st -> (st, Hashtbl.find dwell st)) !order) }
+
+let dep_cycle_through graph start =
+  let deps_of n = match List.assoc_opt n graph with Some ds -> ds | None -> [] in
+  let rec visit path n =
+    if n = start && path <> [] then Some (List.rev (n :: path))
+    else if List.mem n path then None
+    else List.fold_left (fun acc d ->
+      match acc with Some _ -> acc | None -> visit (n :: path) d) None (deps_of n) in
+  (match visit [] start with
+   | Some (_ :: _ :: _ as cyc) -> Some cyc
+   | _ -> None)
+
+type sched_node = { n_id : string; n_state : string; n_deps : string list }
+
+let sched_waves nodes =
+  let done0 = List.filter_map (fun n ->
+    if n.n_state = "landed" || n.n_state = "deleted" then Some n.n_id else None) nodes in
+  let todo = List.filter (fun n -> n.n_state = "todo") nodes in
+  let rec loop finished acc =
+    let layer = List.filter (fun n ->
+      not (List.mem n.n_id finished)
+      && List.for_all (fun d -> List.mem d finished) n.n_deps) todo in
+    match layer with
+    | [] -> List.rev acc
+    | _ -> loop (finished @ List.map (fun n -> n.n_id) layer)
+             ((List.sort String.compare (List.map (fun n -> n.n_id) layer)) :: acc) in
+  loop done0 []
+
+let sched_starved nodes =
+  let dependents d =
+    List.filter_map (fun n -> if List.mem d n.n_deps then Some n.n_id else None) nodes in
+  List.filter_map (fun b ->
+    if b.n_state <> "blocked" then None
+    else
+      let seen = ref [b.n_id] and frontier = ref [b.n_id] in
+      while !frontier <> [] do
+        let next = List.concat_map dependents !frontier in
+        frontier := List.filter (fun x -> not (List.mem x !seen)) next;
+        seen := !seen @ !frontier
+      done;
+      let starved = List.sort String.compare
+        (List.filter (fun id ->
+           id <> b.n_id
+           && (match List.find_opt (fun n -> n.n_id = id) nodes with
+               | Some n -> n.n_state = "todo" | None -> false)) !seen) in
+      if starved = [] then None else Some (b.n_id, starved)) nodes
+
+(* ---------- icebox reader ---------- *)
+(* Frozen entries are plain files, not state: read-only, dumb
+   line parsing, malformed files degrade to [-] fields. *)
+type icebox_entry = {
+  slug : string; date : string; status : string;
+  promoted : string option; title : string; text : string;
+}
+
+let parse_icebox_entry slug text =
+  let lines = String.split_on_char '\n' text in
+  let fm_lines = match lines with
+    | first :: rest when String.trim first = "---" ->
+        let rec take acc = function
+          | [] -> []
+          | l :: _ when String.trim l = "---" -> List.rev acc
+          | l :: r -> take (l :: acc) r in
+        take [] rest
+    | _ -> [] in
+  let field k =
+    let rec go = function
+      | [] -> None
+      | l :: r ->
+          (match String.index_opt l ':' with
+           | Some i when String.trim (String.sub l 0 i) = k ->
+               let v = String.trim (String.sub l (i + 1) (String.length l - i - 1)) in
+               if v = "" then None else Some v
+           | _ -> go r) in
+    go fm_lines in
+  let or_dash = function Some v -> v | None -> "-" in
+  let promoted = match field "promoted" with Some "null" -> None | other -> other in
+  let title =
+    let rec go = function
+      | [] -> "-"
+      | l :: r when String.length l >= 2 && String.sub l 0 2 = "# " ->
+          let t = String.trim (String.sub l 2 (String.length l - 2)) in
+          if t = "" then go r else t
+      | _ :: r -> go r in
+    go lines in
+  { slug; date = or_dash (field "date"); status = or_dash (field "status");
+    promoted; title; text }
+
+let list_icebox_entries () =
+  let dir = Filename.concat root "docs/icebox" in
+  let names = try Array.to_list (Sys.readdir dir) with _ -> [] in
+  names
+  |> List.filter (fun n -> n <> "README.md" && Filename.check_suffix n ".md"
+      && not (try Sys.is_directory (Filename.concat dir n) with _ -> false))
+  |> List.sort String.compare
+  |> List.map (fun n ->
+       parse_icebox_entry (Filename.remove_extension n)
+         (read_file_or (Filename.concat dir n) ""))
+
+let icebox_matches e terms =
+  let hay = String.lowercase_ascii (e.slug ^ "\n" ^ e.title ^ "\n" ^ e.text) in
+  List.for_all (fun t -> contains_sub hay (String.lowercase_ascii t)) terms
+
+let icebox_entry_json e =
+  `Assoc [("slug", json_str e.slug); ("date", json_str e.date);
+          ("status", json_str e.status);
+          ("promoted", (match e.promoted with Some p -> json_str p | None -> `Null));
+          ("title", json_str e.title)]
+
+=== main.ml ===
+(* bp3 q — quest/exp FSM CLI. Only writer of quest state.
+   Doors and the FSM judge live here; plumbing in Gitx,
+   truth in Store, presentation in Render. *)
+open Gitx
+open Store
+open Render
+
+(* ---------- argv parsing ---------- *)
+type flags = {
+  reason : string option; commit : string option; verdict : string option;
+  target : string option; typ : string option; depends_on : string option;
+  fmt : string;
+}
+
+let parse_flags args =
+  let rec loop acc = function
+    | [] -> acc
+    | "--reason" :: v :: rest -> add acc "reason" v rest
+    | "--commit" :: v :: rest -> add acc "commit" v rest
+    | "--verdict" :: v :: rest -> add acc "verdict" v rest
+    | "--target" :: v :: rest -> add acc "target" v rest
+    | "--type" :: v :: rest -> add acc "type" v rest
+    | "--depends-on" :: v :: rest -> add acc "depends-on" v rest
+    | "--format" :: v :: rest -> add acc "format" v rest
+    | "--reason" :: [] | "--commit" :: [] | "--verdict" :: [] | "--target" :: []
+    | "--type" :: [] | "--depends-on" :: [] | "--format" :: [] ->
+        usage "flag needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray)
+  and add acc name v rest =
+    let has = match name with
+      | "reason" -> acc.reason <> None | "commit" -> acc.commit <> None
+      | "verdict" -> acc.verdict <> None | "target" -> acc.target <> None
+      | "type" -> acc.typ <> None | "depends-on" -> acc.depends_on <> None
+      | "format" -> acc.fmt <> "json" || List.mem "--format" [] | _ -> false in
+    (* duplicate detection for format needs explicit tracking; handled below *)
+    ignore has;
+    match name with
+    | "reason" -> if acc.reason <> None then usage "duplicate flag --reason" else loop { acc with reason = Some v } rest
+    | "commit" -> if acc.commit <> None then usage "duplicate flag --commit" else loop { acc with commit = Some v } rest
+    | "verdict" -> if acc.verdict <> None then usage "duplicate flag --verdict" else loop { acc with verdict = Some v } rest
+    | "target" -> if acc.target <> None then usage "duplicate flag --target" else loop { acc with target = Some v } rest
+    | "type" -> if acc.typ <> None then usage "duplicate flag --type" else loop { acc with typ = Some v } rest
+    | "depends-on" -> if acc.depends_on <> None then usage "duplicate flag --depends-on" else loop { acc with depends_on = Some v } rest
+    | "format" ->
+        if v <> "json" && v <> "table" && v <> "tree" then usage "--format must be json, table, or tree";
+        loop { acc with fmt = v } rest
+    | _ -> usage ("unknown flag --" ^ name)
+  in
+  (* pre-scan for duplicate --format *)
+  let rec count n = function
+    | [] -> n | "--format" :: _ :: r -> count (n + 1) r | _ :: r -> count n r in
+  if count 0 args > 1 then usage "duplicate flag --format";
+  loop { reason = None; commit = None; verdict = None; target = None;
+         typ = None; depends_on = None; fmt = "json" } args
+
+let split_flags args =
+  (* separate positionals (before first --flag) from flags; any positional
+     after a flag value that is not consumed is stray -> caught in parse *)
+  let rec go pos flags = function
+    | [] -> (List.rev pos, flags)
+    | a :: rest when String.length a >= 2 && a.[0] = '-' && a.[1] = '-' ->
+        (List.rev pos, a :: rest @ flags)
+    | a :: rest -> go (a :: pos) flags rest in
+  let (pos, fl) = go [] [] args in
+  (pos, parse_flags fl)
+
+let require_reason fl =
+  match fl.reason with Some r when r <> "" -> r | _ -> usage "--reason is required"
+
+(* ---------- config door (config.1) ---------- *)
+let parse_config_flags args =
+  let rec loop source fmt fmt_set = function
+    | [] -> (source, fmt)
+    | "--source" :: rest ->
+        if source then usage "duplicate flag --source";
+        loop true fmt fmt_set rest
+    | "--format" :: v :: rest ->
+        if fmt_set then usage "duplicate flag --format";
+        if v <> "json" && v <> "table" then usage "--format must be json or table";
+        loop source v true rest
+    | ["--format"] -> usage "--format needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray) in
+  loop false "json" false args
+
+let with_warnings id is_write fields =
+  match warnings_of id is_write with
+  | [] -> `Assoc fields
+  | ws -> `Assoc (fields @ [("warnings", `List (List.map json_str ws))])
+
+let illegal state edge =
+  err "E_ILLEGAL_EDGE"
+    (`Assoc [("state", json_str state); ("edge", json_str edge);
+             ("legal_edges", `List (List.map json_str (legal_edges state)))])
+    "Pick a legal edge from legal_edges for the current state." 1
+
+(* ---------- operations ---------- *)
+let do_quest_create quest fl id =
+  check_creatable quest;
+  let qtype = (match fl.typ with Some t -> t | None -> "default") in
+  let _ = quest_knobs qtype in
+  if ref_tip (quest_branch quest) <> None then
+    err "E_EXISTS" (`Assoc [("quest", json_str quest)]) "Quest already exists." 1;
+  let deps = match fl.depends_on with
+    | Some s when s <> "" -> String.split_on_char ',' s |> List.map String.trim
+    | _ -> [] in
+  List.iter check_slug deps;
+  let head = head_sha () in
+  let qpath = quest_dir quest ^ "/QUEST.md" in
+  let existing_quest_md = git_show head qpath in
+  let quest_md = match existing_quest_md with
+    | Some c -> c
+    | None -> Printf.sprintf "---\nstatus: proposed\nquest_type: %s\n---\n\n# %s\n\n## Success picture\n\nTODO\n" qtype quest in
+  let line = ledger_line ~edge:"create" ~from:"" ~to_:"proposed" ~cycle:1
+    ~commit:None ~verdict:None ~reason:"" ~id
+    ~extra:[("quest_type", json_str qtype);
+            ("depends_on", `List (List.map json_str deps))] () in
+  let existing_ledger = git_show head (quest_ledger_path quest) in
+  let ledger = (match existing_ledger with Some t when String.trim t <> "" -> t ^ (if t.[String.length t-1] = '\n' then "" else "\n") | _ -> "") ^ line ^ "\n" in
+  let _new_tip = create_branch_commit ~branch:(quest_branch quest) ~base_tip:head
+    ~files:[(qpath, quest_md); (quest_ledger_path quest, ledger)] ~msg:("bp3: create quest " ^ quest) in
+  with_warnings id true [("ok", `Bool true); ("quest", json_str quest); ("state", json_str "proposed")]
+
+let do_quest_delete quest fl id =
+  check_slug quest;
+  let reason = require_reason fl in
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  let (view, _, _, qs) = quest_view quest in
+  ignore view;
+  if qs.st = "deleted" then illegal "deleted" "delete";
+  let exps = list_exps quest in
+  let any_blocked = List.exists (fun e ->
+    match fold_exp quest e with Some (_, s, _) -> s.st = "blocked" | None -> false) exps in
+  if any_blocked && not id.decider_human then
+    err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest)])
+      "An exp is blocked; a human decision is required (BP3_DECIDER=human)." 1;
+  (match ledger_text (quest_branch quest) (quest_ledger_path quest) with
+   | None -> not_found "quest" quest
+   | Some (tip, text) ->
+       let line = ledger_line ~edge:"delete" ~from:qs.st ~to_:"deleted" ~cycle:1
+         ~commit:None ~verdict:None ~reason ~id () in
+       let new_text = text ^ (if text = "" || text.[String.length text-1] = '\n' then "" else "\n") ^ line ^ "\n" in
+       ignore (commit_files ~branch:(quest_branch quest) ~base_tip:tip ~expect_tip:tip
+         ~files:[(quest_ledger_path quest, new_text)] ~msg:("bp3: delete quest " ^ quest)));
+  with_warnings id true [("ok", `Bool true); ("quest", json_str quest); ("state", json_str "deleted")]
+
+(* Node deps (mvp.3): declared at exp create, editable
+   through the dep verb, always read back from ledger
+   records. A dep cycle refuses at write time naming
+   the cycle; deps stay mutable-but-logged. *)
+let parse_dep_list = function
+  | Some s when s <> "" ->
+      List.fold_right (fun d acc ->
+        let d = String.trim d in if d = "" || List.mem d acc then acc else d :: acc)
+        (String.split_on_char ',' s) []
+  | _ -> []
+
+let dep_graph quest =
+  List.map (fun e ->
+    match fold_exp quest e with
+    | Some (_, _, text) -> (e, deps_of_text text)
+    | None -> (e, [])) (list_exps quest)
+
+let validate_deps quest self deps =
+  List.iter check_slug deps;
+  List.iter (fun d ->
+    if fold_exp quest d = None then not_found "exp" d) deps;
+  let graph = (self, deps) :: List.filter (fun (e, _) -> e <> self) (dep_graph quest) in
+  match dep_cycle_through graph self with
+  | Some cyc ->
+      err "E_DEP_CYCLE" (`Assoc [("quest", json_str quest); ("exp", json_str self);
+        ("cycle", `List (List.map json_str cyc))])
+        "Dep cycle refused at write time; break the named cycle." 1
+  | None -> ()
+
+let do_exp_create quest exp fl id =
+  check_slug quest; check_creatable exp;
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  let etype = (match fl.typ with Some t -> t | None -> "default") in
+  (* validate exp plan exists for non-default *)
+  (match fold_quest quest with
+   | Some (_, _, qt, _, _) -> ignore (effective_knobs ~quest_type:qt ~exp_type:etype)
+   | None -> ());
+  if ref_tip (exp_branch quest exp) <> None then
+    err "E_EXISTS" (`Assoc [("quest", json_str quest); ("exp", json_str exp)]) "Exp already exists." 1;
+  let deps = parse_dep_list fl.depends_on in
+  validate_deps quest exp deps;
+  let qtip = (match ref_tip (quest_branch quest) with Some t -> t | None -> not_found "quest" quest) in
+  let st = fresh_state () in
+  let line = ledger_line ~edge:"create" ~from:"" ~to_:"todo" ~cycle:1
+    ~commit:None ~verdict:None ~reason:"" ~id
+    ~extra:[("exp_type", json_str etype);
+            ("depends_on", `List (List.map json_str deps))] () in
+  let _ = create_branch_commit ~branch:(exp_branch quest exp) ~base_tip:qtip
+    ~files:[(exp_ledger_path quest exp, line ^ "\n");
+            (exp_state_path quest exp, state_yaml quest exp st)]
+    ~msg:("bp3: create exp " ^ exp) in
+  with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+    ("exp", json_str exp); ("state", json_str "todo"); ("cycle", `Int 1);
+    ("deps", `List (List.map json_str deps));
+    ("legal_edges", `List (List.map json_str (legal_edges "todo")))]
+
+let do_exp_dep quest exp fl id =
+  check_slug quest; check_slug exp;
+  let reason = require_reason fl in
+  let deps = match fl.depends_on with
+    | Some _ -> parse_dep_list fl.depends_on
+    | None -> usage "dep needs --depends-on <a,b> (empty clears)" in
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  (match fold_exp quest exp with
+   | None -> not_found "exp" exp
+   | Some (_, s, _) ->
+       validate_deps quest exp deps;
+       let line = ledger_line ~edge:"dep" ~from:s.st ~to_:s.st ~cycle:s.cycle
+         ~commit:s.last_commit ~verdict:None ~reason ~id
+         ~extra:[("depends_on", `List (List.map json_str deps))] () in
+       ignore (append_exp_line quest exp line s));
+  (match fold_exp quest exp with
+   | Some (_, s, text) ->
+       with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+         ("exp", json_str exp); ("state", json_str s.st); ("cycle", `Int s.cycle);
+         ("deps", `List (List.map json_str (deps_of_text text)));
+         ("legal_edges", `List (List.map json_str (legal_edges s.st)))]
+   | None -> not_found "exp" exp)
+
+let do_exp_delete quest exp fl id =
+  check_slug quest; check_slug exp;
+  let reason = require_reason fl in
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  (match fold_exp quest exp with
+   | None -> not_found "exp" exp
+   | Some (_, s, _) ->
+       if s.st = "landed" || s.st = "deleted" then illegal s.st "delete";
+       if s.st = "blocked" && not id.decider_human then
+         err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest); ("exp", json_str exp)])
+           "Deleting a blocked exp requires a human (BP3_DECIDER=human)." 1;
+       let ns = { s with st = "deleted" } in
+       let line = ledger_line ~edge:"delete" ~from:s.st ~to_:"deleted" ~cycle:s.cycle
+         ~commit:s.last_commit ~verdict:None ~reason ~id () in
+       ignore (append_exp_line quest exp line ns));
+  with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+    ("exp", json_str exp); ("state", json_str "deleted")]
+
+let do_update quest exp edge fl id =
+  check_slug quest; check_slug exp;
+  let reason = require_reason fl in
+  if not (List.mem edge ["handoff"; "grade"; "verify"; "land"; "block"; "resume"]) then
+    usage ("unknown edge: " ^ edge);
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  let (_, s, _) = (match fold_exp quest exp with Some v -> v | None -> not_found "exp" exp) in
+  let (_, qt, deps) = (match fold_quest quest with Some (_, _, a, b, _) -> ((), a, b) | None -> not_found "quest" quest) in
+  let knobs = effective_knobs ~quest_type:qt ~exp_type:s.exp_type in
+  let finish ns line =
+    ignore (append_exp_line quest exp line ns);
+    with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+      ("exp", json_str exp); ("state", json_str ns.st); ("cycle", `Int ns.cycle);
+      ("commit", (match ns.last_commit with Some c -> json_str c | None -> `Null));
+      ("legal_edges", `List (List.map json_str (legal_edges ns.st)))] in
+  match edge with
+  | "handoff" ->
+      if s.st <> "todo" then illegal s.st edge;
+      let raw = (match fl.commit with Some c -> c | None -> usage "--commit is required for handoff") in
+      let full = (match resolve_commit raw with Some f -> f
+        | None -> err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str raw)])
+            "Commit does not exist; bind an existing commit." 1) in
+      if worktree_dirty () then
+        err "E_DIRTY_TREE" (`Assoc []) "Worktree is dirty; clean it and retry." 1;
+      let blocked_by = List.filter (fun d -> not (dep_satisfied d)) deps in
+      if blocked_by <> [] then
+        err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str blocked_by))])
+          "Dependencies are not landed yet." 1;
+      let node_deps = (match fold_exp quest exp with
+        | Some (_, _, text) -> deps_of_text text | None -> []) in
+      let node_blocked = List.filter (fun d ->
+        match fold_exp quest d with
+        | Some (_, ds, _) -> ds.st <> "landed" && ds.st <> "deleted"
+        | None -> true) node_deps in
+      if node_blocked <> [] then
+        err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str node_blocked))])
+          "Node deps are not landed yet." 1;
+      let approved_now = (not knobs.grade_required) && (not knobs.verify_required) in
+      let ns = { s with st = (if approved_now then "approved" else "handed_off");
+                 bound = Some full; has_bound = true; last_commit = Some full;
+                 grade_ok = false; verify_ok = false } in
+      let line = ledger_line ~edge ~from:s.st ~to_:ns.st ~cycle:s.cycle
+        ~commit:(Some full) ~verdict:None ~reason ~id () in
+      finish ns line
+  | "grade" | "verify" ->
+      if s.st <> "handed_off" then illegal s.st edge;
+      let v = (match fl.verdict with Some v -> v | None -> usage "--verdict is required") in
+      let valid = if edge = "grade" then (v = "ship" || v = "needs_fix") else (v = "pass" || v = "fail") in
+      if not valid then usage ("invalid verdict for " ^ edge ^ ": " ^ v);
+      (match fl.commit with
+       | Some c ->
+           let rc = (match resolve_commit c with Some f -> f | None -> c) in
+           let bound = (match s.bound with Some b -> b | None -> "") in
+           if rc <> bound then
+             err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str c); ("bound", json_str bound)])
+               "Verdict must bind the exact current commit; re-read and retry." 1
+       | None -> ());
+      let positive = (v = "ship" || v = "pass") in
+      if not positive then begin
+        let (nst, ncyc) =
+          if s.cycle >= knobs.max_cycles then ("blocked", s.cycle) else ("todo", s.cycle + 1) in
+        let ns = { s with st = nst; cycle = ncyc; grade_ok = false; verify_ok = false } in
+        if nst = "blocked" then begin ns.blocked_reason <- reason; ns.blocked_since <- now_ts () end;
+        let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:ncyc
+          ~commit:s.last_commit ~verdict:(Some v) ~reason ~id () in
+        let base = finish ns line in
+        if nst = "blocked" then
+          (match base with `Assoc fs -> `Assoc (fs @ [("human_action_required", `Bool true)]) | o -> o)
+        else base
+      end else begin
+        let ns = { s with grade_ok = (if edge = "grade" then true else s.grade_ok);
+                          verify_ok = (if edge = "verify" then true else s.verify_ok) } in
+        let now_approved =
+          ((not knobs.grade_required) || ns.grade_ok) &&
+          ((not knobs.verify_required) || ns.verify_ok) in
+        let nst = if now_approved then "approved" else "handed_off" in
+        let ns = { ns with st = nst } in
+        let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:s.cycle
+          ~commit:s.last_commit ~verdict:(Some v) ~reason ~id () in
+        finish ns line
+      end
+  | "land" ->
+      if s.st <> "approved" then illegal s.st edge;
+      (match fl.commit with
+       | Some c ->
+           let rc = (match resolve_commit c with Some f -> f | None -> c) in
+           let bound = (match s.bound with Some b -> b | None -> "") in
+           if rc <> bound then
+             err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str c)])
+               "Verdict must bind the exact current commit." 1
+       | None -> ());
+      (* 1. landed line on exp branch *)
+      let ns = { s with st = "landed" } in
+      let line = ledger_line ~edge ~from:s.st ~to_:"landed" ~cycle:s.cycle
+        ~commit:s.last_commit ~verdict:None ~reason ~id () in
+      ignore (append_exp_line quest exp line ns);
+      let exp_tip = (match ref_tip (exp_branch quest exp) with Some t -> t | None -> "") in
+      let qbranch = quest_branch quest in
+      let qtip = (match ref_tip qbranch with Some t -> t | None -> "") in
+      if is_ancestor qtip exp_tip then begin
+        if run_status (git ["update-ref"; qbranch; exp_tip; qtip]) <> 0 then
+          err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
+        with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+          ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+          ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
+          ("legal_edges", `List [])]
+      end else begin
+        let tree_out, code = git_out ["merge-tree"; "--write-tree"; qtip; exp_tip] in
+        let tree = (match String.split_on_char '\n' tree_out with t :: _ -> String.trim t | [] -> "") in
+        if code <> 0 || tree = "" then begin
+          let ns2 = { s with st = "todo" } in
+          let line2 = ledger_line ~edge:"land" ~from:"approved" ~to_:"todo" ~cycle:s.cycle
+            ~commit:s.last_commit ~verdict:None ~reason ~id () in
+          ignore (append_exp_line quest exp line2 ns2);
+          `Assoc [("ok", `Bool true); ("quest", json_str quest); ("exp", json_str exp);
+            ("state", json_str "todo"); ("cycle", `Int s.cycle);
+            ("facts", `Assoc [("land_conflict", `Bool true)]);
+            ("legal_edges", `List (List.map json_str (legal_edges "todo")))]
+        end else begin
+          let msgf = write_tmp ("bp3: land " ^ exp) in
+          let cf = tmp_path "merge-commit" in
+          ignore (Sys.command (String.concat " " (List.map Filename.quote
+              (git ["commit-tree"; tree; "-p"; qtip; "-p"; exp_tip]))
+            ^ " < " ^ Filename.quote msgf ^ " > " ^ Filename.quote cf ^ " 2>/dev/null"));
+          let mtip = String.trim (read_file_or cf "") in
+          if run_status (git ["update-ref"; qbranch; mtip; qtip]) <> 0 then
+            err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
+          with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+            ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+            ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
+            ("legal_edges", `List [])]
+        end
+      end
+  | "block" ->
+      if not (List.mem s.st ["todo"; "handed_off"; "approved"]) then illegal s.st edge;
+      let checkpoint = if worktree_dirty () then Some (make_checkpoint ()) else None in
+      let ns = { s with st = "blocked"; blocked_reason = reason;
+                 blocked_checkpoint = checkpoint; blocked_since = now_ts () } in
+      let line = ledger_line ~edge ~from:s.st ~to_:"blocked" ~cycle:s.cycle
+        ~commit:s.last_commit ~verdict:None ~reason ~id ?checkpoint () in
+      let base = finish ns line in
+      (match base with `Assoc fs -> `Assoc (fs @ [("human_action_required", `Bool true)]) | o -> o)
+  | "resume" ->
+      if s.st <> "blocked" then illegal s.st edge;
+      if not id.decider_human then
+        err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest); ("exp", json_str exp)])
+          "Resume requires a human decision (BP3_DECIDER=human)." 1;
+      let ncyc = if s.has_bound then s.cycle + 1 else s.cycle in
+      let ns = { s with st = "todo"; cycle = ncyc; bound = None; has_bound = false;
+                 grade_ok = false; verify_ok = false } in
+      let line = ledger_line ~edge ~from:s.st ~to_:"todo" ~cycle:ncyc
+        ~commit:None ~verdict:None ~reason ~id () in
+      finish ns line
+  | _ -> usage ("unknown edge: " ^ edge)
+
+(* ---------- context door (mvp.2: bp3 e) ---------- *)
+let no_context amb =
+  match amb with
+  | Some ids ->
+      err "E_NO_CONTEXT"
+        (`Assoc [("run_ids", `List (List.map json_str ids));
+                 ("live_run_ids", `List (List.map json_str ids));
+                 ("desk", json_str (Sys.getcwd ()));
+                 ("source", json_str "desk")])
+        "Desk holds more than one live claimed run and no session rung resolves; refusing to guess. Claim a link for one run, or address the call explicitly." 1
+  | None ->
+      err "E_NO_CONTEXT"
+        (`Assoc [("desk", json_str (Sys.getcwd ()))])
+        "No claimed context resolves for this call (no session claim, no desk context). Claim a link first, or address the call explicitly." 1
+
+let with_context v (rc : Config.run_config) source =
+  match v with
+  | `Assoc fs ->
+      `Assoc (fs @ [("graph", json_str rc.Config.rc_graph);
+                    ("node", json_str rc.Config.rc_node);
+                    ("source", json_str source);
+                    ("source_rung", json_str source);
+                    ("context", Config.resolved_context_json rc source)])
+  | other -> other
+
+let do_e_bare (rc : Config.run_config) source =
+  let graph = rc.Config.rc_graph and node = rc.Config.rc_node in
+  let (state, legal) =
+    match fold_exp graph node with
+    | Some (_, s, _) -> (json_str s.st, List.map json_str (legal_edges s.st))
+    | None -> (`Null, []) in
+  let thresholds =
+    match Config.config_dir () with
+    | Some dir -> Config.thresholds_json (Config.load_thresholds dir)
+    | None -> Config.thresholds_json Config.default_thresholds in
+  `Assoc [("ok", `Bool true);
+          ("graph", json_str graph); ("quest", json_str graph);
+          ("node", json_str node); ("exp", json_str node);
+          ("edge", (match rc.Config.rc_edge with Some e -> json_str e | None -> `Null));
+          ("run_id", json_str rc.Config.rc_id);
+          ("kind", json_str rc.Config.rc_kind);
+          ("desk", json_str rc.Config.rc_desk);
+          ("session_id", (match rc.Config.rc_session with Some s -> json_str s | None -> `Null));
+          ("source", json_str source); ("source_rung", json_str source);
+          ("state", state); ("legal_edges", `List legal);
+          ("context", Config.resolved_context_json rc source);
+          ("thresholds", thresholds)]
+
+let do_e ctx_rc ctx_source ctx_amb id = function
+  | [] ->
+      (match ctx_rc with
+       | Some rc -> print_verdict ~fmt:"json" (do_e_bare rc ctx_source); 0
+       | None -> no_context ctx_amb)
+  | edge :: tail ->
+      let (pos, fl) = split_flags tail in
+      if pos <> [] then usage "stray positional in e";
+      (match ctx_rc with
+       | Some rc ->
+           let v = do_update rc.Config.rc_graph rc.Config.rc_node edge fl id in
+           print_verdict ~fmt:fl.fmt (with_context v rc ctx_source); 0
+       | None -> no_context ctx_amb)
+
+(* ---------- main dispatch ---------- *)
+let normalize_verb = function
+  | "c" | "create" -> "c" | "r" | "read" -> "r"
+  | "u" | "update" -> "u" | "d" | "delete" -> "d"
+  | other -> other
+
+let is_verb = function "c" | "create" | "r" | "read" | "u" | "update" | "d" | "delete" -> true | _ -> false
+
+(* icebox door: bp3 q icebox r [term...] | r <slug> (read-only) *)
+let do_icebox = function
+  | verb_raw :: rest when is_verb verb_raw ->
+      if normalize_verb verb_raw <> "r" then usage "icebox door is read-only: only r";
+      let (terms, fl) = split_flags rest in
+      let entries = list_icebox_entries () in
+      let print_list () =
+        let hits = List.filter (fun e -> icebox_matches e terms) entries in
+        print_verdict ~fmt:fl.fmt (`Assoc [("ok", `Bool true);
+          ("entries", `List (List.map icebox_entry_json hits))]); 0 in
+      (match terms with
+       | [slug] ->
+           (match List.find_opt (fun e -> e.slug = slug) entries with
+            | Some e -> print_string e.text; 0
+            | None -> print_list ())
+       | _ -> print_list ())
+  | _ -> usage "icebox door verbs are r"
+
+(* ---------- help (docstrings beside dispatch; Exp 4) ---------- *)
+let help_q = "bp3 q - quest/exp state. Doors:\n\
+  bp3 q c|r|d ...              quest door (create, read, delete)\n\
+  bp3 q <quest> c|r|u|d ...    exp door for one quest\n\
+  bp3 q icebox r [term...]     search frozen icebox entries (read-only)\n\
+  bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)\n\
+  bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias\n\
+  bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)\n\
+  bp3 q hooks                  harness hook emitter (fail-open)\n\
+Run bp3 q <door> -h for that door's verbs, edges, and flags.\n"
+
+let help_quest_door = "bp3 q <quest door> - verbs:\n\
+  bp3 q c <quest> [--type <quest_type>] [--depends-on <a,b>]   create a quest\n\
+  bp3 q r [<quest>] [--format json|table|tree]                 list quests, or read one\n\
+  bp3 q d <quest> --reason <why>                               delete a quest\n\
+Long forms: create, read, delete. Example: bp3 q c my-quest --type default\n"
+
+let help_exp_door = "bp3 q <quest> <exp door> - verbs:\n\
+  bp3 q <quest> c <exp> [--type <exp_type>] [--depends-on <a,b>]   create an exp, deps name exps in the same quest\n\
+  bp3 q <quest> r [<exp>] [--format json|table|tree]           read the quest, or one exp\n\
+  bp3 q <quest> u <exp> <edge> [flags]                         take an FSM edge (see u -h)\n\
+  bp3 q <quest> d <exp> --reason <why>                         delete an exp\n\
+  bp3 q <quest> dep <exp> --depends-on <a,b> --reason <why>    redeclare an exp's deps (mutable-but-logged)\n\
+Long forms: create, read, update, delete. Example: bp3 q my-quest r exp-1\n"
+
+let help_dep = "bp3 q <quest> dep <exp> - redeclare an exp's node deps (mvp.3):\n\
+  bp3 q <quest> dep <exp> --depends-on <a,b> --reason <why>   set deps; --depends-on \"\" clears them\n\
+  Deps name exps in the same quest, are read back from the exp ledger, and a cycle refuses at write time (E_DEP_CYCLE) naming the cycle. The dep line is logged with the exp state and cycle, so a mid-flight edit stays on the record.\n\
+Example: bp3 q my-quest dep exp-2 --depends-on exp-1 --reason \"needs exp-1 first\"\n"
+
+let help_update = "bp3 q <quest> u <exp> <edge> - edges and their flags:\n\
+  edges: handoff grade verify land block resume\n\
+  handoff --commit <sha> --reason <why>    bind a clean commit for grade\n\
+  grade  --verdict ship|needs_fix --reason <why>\n\
+  verify --verdict pass|fail --reason <why>\n\
+  land   --reason <why>                    land an approved exp\n\
+  block  --reason <why>                    park for a human decision\n\
+  resume --reason <why>                    human only: unblock\n\
+Shared flags: --format json|table|tree, --target <name>.\n\
+Example: bp3 q my-quest u exp-1 handoff --commit abc123 --reason \"ready\"\n"
+
+let help_e = "bp3 e - claimed edge door (mvp.2): context is resolved, never carried:\n\
+  bp3 e                                    print the resolved context, its source rung (session|desk), state, and legal edges\n\
+  bp3 e <edge> [flags]                     take the claimed run's edge: handoff grade verify land block resume (same flags as bp3 q <quest> u <exp> <edge>)\n\
+  Resolution: session claim first, desk context second, checked against cwd; no rung refuses E_NO_CONTEXT, an ambiguous desk refuses E_NO_CONTEXT naming the live run_ids. Env BP3_RUN_ID is a hint only: a mismatch warns W_CONTEXT_ENV_MISMATCH and the claim wins; an unclaimed explicit edge call warns W_CONTEXT_UNCLAIMED.\n\
+Example: bp3 e handoff --commit abc123 --reason \"ready\"\n"
+
+let help_icebox = "bp3 q icebox r - search frozen icebox entries (read-only):\n\
+  bp3 q icebox r [term...] [--format json|table|tree]   list entries matching all terms\n\
+  bp3 q icebox r <slug>                                 print one entry in full\n\
+Example: bp3 q icebox r table completion\n"
+
+let help_worktree = "bp3 worktree - documented alias of bp3 harness desk, machine-local desks, never ledgered:\n\
+  verbs: derive, create, inspect, remove, prepare, check, exit, release, list\n\
+  bp3 harness desk prepare <quest> <exp> --run <run-id> [--commit <sha>] [--path <dir>]\n\
+  bp3 harness desk list [--quest <quest>]\n\
+Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
+
+let help_config = "bp3 config - view the machine-local bp3 config store (<git-common-dir>/bp3/, never committed):\n\
+  bp3 config [--source] [--format json|table]   thresholds plus contexts folded from runs/<run_id>.json\n\
+  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. The depth cap is enforced at link mint (mvp.1, E_DEPTH); W_SETUP_SLOW fires on the quest rollup when a claimed Run's setup_wall_s exceeds setup_slow_s (mvp.3, local only). First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
+Example: bp3 config --source\n"
+
+let is_help = function "-h" | "--help" -> true | _ -> false
+
+(* Exp 5 guard: an older-MAJOR binary never writes in a newer repo.
+   Newer MINOR/PATCH only warns (warnings_of carries W_VERSION_AHEAD). *)
+let guard_write argv =
+  let is_write = match argv with
+    | v :: _ when is_verb v -> let n = normalize_verb v in n = "c" || n = "d"
+    | _q :: v :: _ when is_verb v -> normalize_verb v <> "r"
+    | _ -> false in
+  if is_write && not (List.exists is_help (List.filteri (fun i _ -> i < 3) argv)) then
+    match version_ahead () with
+    | Some v when version_major v > version_major bp3_version ->
+        err "E_VERSION_AHEAD"
+          (`Assoc [("binary", json_str bp3_version); ("repo", json_str v)])
+          "Repo was stamped by a newer MAJOR bp3; upgrade bp3 before writing." 1
+    | _ -> ()
+
+let run argv =
+  let base_id = identity () in
+  (* Context resolution (mvp.2): session rung, then desk
+     rung. Explicit addresses always win for the target;
+     a resolved claim wins the run-id stamp over the env
+     hint. Help and the machine doors resolve nothing. *)
+  let help_invoked =
+    List.exists is_help (List.filteri (fun i _ -> i < 3) argv) in
+  let context_door = match argv with
+    | "harness" :: _ | "config" :: _ | "worktree" :: _ | "hooks" :: _
+    | "init-repo" :: _ | [] -> false
+    | _ -> not help_invoked in
+  let (ctx_rc, ctx_source, ctx_amb) =
+    if not context_door then (None, "", None)
+    else match Config.resolve_context () with
+      | Config.Resolved (rc, src) -> (Some rc, src, None)
+      | Config.Ambiguous (ids, _) -> (None, "", Some ids)
+      | Config.No_context -> (None, "", None) in
+  let id = match ctx_rc with
+    | Some rc -> { base_id with run_id = Some rc.Config.rc_id }
+    | None -> base_id in
+  Store.resolved_run_id :=
+    (match ctx_rc with Some rc -> Some rc.Config.rc_id | None -> None);
+  let edge_call = match argv with
+    | "e" :: _ :: _ -> true
+    | _q :: v :: _e :: _edge :: _ when is_verb v && normalize_verb v = "u" -> true
+    | _ -> false in
+  Store.context_warnings :=
+    (match ctx_rc with
+     | Some rc ->
+         (match base_id.run_id with
+          | Some env when env <> "" && env <> rc.Config.rc_id ->
+              ["W_CONTEXT_ENV_MISMATCH"]
+          | _ -> [])
+     | None ->
+         if edge_call && ctx_amb = None then ["W_CONTEXT_UNCLAIMED"] else []);
+  guard_write argv;
+  match argv with
+  | "-h" :: _ | "--help" :: _ -> print_string help_q; 0
+  | "--version" :: _ -> print_endline bp3_version; 0
+  | "harness" :: rest -> Harness.run rest
+  | "config" :: (h :: _) when is_help h -> print_string help_config; 0
+  | "config" :: rest ->
+      let (source, fmt) = parse_config_flags rest in
+      print_verdict ~fmt (Config.view ~source); 0
+  | "e" :: (h :: _) when is_help h -> print_string help_e; 0
+  | "e" :: _edge :: (h :: _) when is_help h -> print_string help_e; 0
+  | "e" :: rest -> do_e ctx_rc ctx_source ctx_amb id rest
+  | "worktree" :: (h :: _) when is_help h -> print_string help_worktree; 0
+  | "icebox" :: (h :: _) when is_help h -> print_string help_icebox; 0
+  | "icebox" :: ("r" | "read") :: (h :: _) when is_help h -> print_string help_icebox; 0
+  | first :: (h :: _) when is_verb first && is_help h -> print_string help_quest_door; 0
+  | _quest :: (h :: _) when is_help h -> print_string help_exp_door; 0
+  | _quest :: verb_raw :: (h :: _) when is_verb verb_raw && is_help h ->
+      print_string (if normalize_verb verb_raw = "u" then help_update else help_exp_door); 0
+  | "worktree" :: rest ->
+      (* documented alias of harness desk (mvp.6): same store,
+         same verdicts; new callers use bp3 harness desk *)
+      print_verdict ~fmt:"json" (Worktree.run rest); 0
+  | "init-repo" :: _ ->
+      (* Exp 6: scaffold plans/ into the caller's repo; never clobber differing plans *)
+      let plans = [("plans/default.yaml", "quest_type: default\nmax_cycles: 1\ngrade:\n  required: true\nverify: required\n");
+                   ("plans/direct.yaml", "quest_type: direct\nmax_cycles: 0\ngrade:\n  required: false\nverify: required\n")] in
+      (try Unix.mkdir (Filename.concat root "plans") 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+      List.iter (fun (rel, content) ->
+        let path = Filename.concat root rel in
+        if Sys.file_exists path then begin
+          let existing = let ic = open_in_bin path in
+            let s = really_input_string ic (in_channel_length ic) in close_in ic; s in
+          if existing <> content then
+            err "E_EXISTS" (`Assoc [("plan", json_str rel)])
+              "Plan already exists with different content; refusing to overwrite." 1
+        end else begin
+          let oc = open_out_bin path in output_string oc content; close_out oc
+        end) plans;
+      print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true);
+        ("plans", `List (List.map (fun (p, _) -> json_str p) plans))]); 0
+  | "hooks" :: _ ->
+      (* fail-open emitter: Hooks.handle never raises, always exit 0 *)
+      print_endline (Yojson.Safe.to_string (Hooks.handle ())); 0
+  | "icebox" :: rest -> do_icebox rest
+  | [] -> usage "no command"
+  | first :: rest when is_verb first ->
+      let verb = normalize_verb first in
+      (match verb, rest with
+       | "c", quest :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in quest create";
+           let v = do_quest_create quest fl id in print_verdict ~fmt:fl.fmt v; 0
+       | "c", [] -> usage "quest create needs a quest name"
+       | "r", [] ->
+           let qs = List.map (fun q ->
+             let (view, _, _, _) = quest_view q in view) (list_quests ()) in
+           print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true); ("quests", `List qs)]); 0
+       | "r", [quest] ->
+           let (pos, fl) = ( [quest], { reason=None; commit=None; verdict=None; target=None; typ=None; depends_on=None; fmt="json" } ) in
+           ignore pos;
+           (* re-parse: quest may be followed by --format in original rest; handled below *)
+           ignore fl;
+           let (view, _, _, _) = quest_view quest in
+           print_verdict ~fmt:"json" (`Assoc (("ok", `Bool true) ::
+             (match view with `Assoc fs -> fs | _ -> []))); 0
+       | "r", quest :: tail ->
+           let (pos, fl) = split_flags (quest :: tail) in
+           (match pos with
+            | [q] ->
+                let (view, _, _, _) = quest_view q in
+                print_verdict ~fmt:fl.fmt (`Assoc (("ok", `Bool true) ::
+                  (match view with `Assoc fs -> fs | _ -> []))); 0
+            | _ -> usage "quest read takes at most one quest")
+       | "d", quest :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in quest delete";
+           let v = do_quest_delete quest fl id in print_verdict ~fmt:fl.fmt v; 0
+       | "d", [] -> usage "quest delete needs a quest name"
+       | _ -> usage "quest door verbs are c, r, d")
+  | _q :: "dep" :: (h :: _) when is_help h -> print_string help_dep; 0
+  | quest :: "dep" :: exp :: tail ->
+      let (pos, fl) = split_flags tail in
+      if pos <> [] then usage "stray positional in dep";
+      let v = do_exp_dep quest exp fl id in print_verdict ~fmt:fl.fmt v; 0
+  | quest :: verb_raw :: rest when is_verb verb_raw ->
+      let verb = normalize_verb verb_raw in
+      (match verb, rest with
+       | "c", exp :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in exp create";
+           let v = do_exp_create quest exp fl id in print_verdict ~fmt:fl.fmt v; 0
+       | "c", [] -> usage "exp create needs an exp name"
+       | "r", [] ->
+           let (view, _, _, _) = quest_view quest in
+           print_verdict ~fmt:"json" (`Assoc (("ok", `Bool true) ::
+             (match view with `Assoc fs -> fs | _ -> []))); 0
+       | "r", [exp] ->
+           (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+           (match fold_exp quest exp with
+            | None -> not_found "exp" exp
+            | Some (_, s, text) -> print_verdict ~fmt:"json" (exp_verdict quest exp s (deps_of_text text) (timing_of_text text)); 0)
+       | "r", exp :: tail ->
+           let (pos, fl) = split_flags (exp :: tail) in
+           (match pos with
+            | [e] ->
+                (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+                (match fold_exp quest e with
+                 | None -> not_found "exp" e
+                 | Some (_, s, text) -> print_verdict ~fmt:fl.fmt (exp_verdict quest e s (deps_of_text text) (timing_of_text text)); 0)
+            | _ -> usage "exp read takes at most one exp")
+       | "u", exp :: edge :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in update";
+           let v = do_update quest exp edge fl id in
+           let v = match ctx_rc with
+             | Some rc -> with_context v rc ctx_source | None -> v in
+           print_verdict ~fmt:fl.fmt v; 0
+       | "u", _ -> usage "update needs <exp> <edge>"
+       | "d", exp :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in exp delete";
+           let v = do_exp_delete quest exp fl id in print_verdict ~fmt:fl.fmt v; 0
+       | "d", [] -> usage "exp delete needs an exp name"
+       | _ -> usage "exp door verbs are c, r, u, d")
+  | _ -> usage "expected: q c|r|d ... or q <quest> c|r|u|d ..."
+
+let () =
+  let argv = List.tl (Array.to_list Sys.argv) in
+  try exit (run argv)
+  with Verdict (code, v) ->
+    print_endline (Yojson.Safe.to_string (stamp_run_id v));
+    exit code
+
+
+=== render.ml ===
+(* render — verdict builders and the human tree view. *)
+open Gitx
+open Store
+
+(* ---------- verdict builders ---------- *)
+(* The proposed changeset of the bound commit: what a reviewer is
+   actually being asked to judge, visible before land. Diff of the
+   commit against its first parent. +/-/u alphabet, same as tree. *)
+let commit_changes = function
+  | None -> None (* unsure: nothing bound yet *)
+  | Some c ->
+      let out, code = git_out ["diff-tree"; "--no-commit-id"; "--name-status"; "-r"; c] in
+      if code <> 0 then None (* unsure: unreadable diff *) else
+      Some (List.filter_map (fun line ->
+        match String.split_on_char '\t' line with
+        | [st; path] ->
+            let kind = if st = "" then "u" else
+              (match st.[0] with 'A' -> "+" | 'D' -> "-" | _ -> "u") in
+            Some (`Assoc [("change", json_str kind); ("path", json_str path)])
+        | [st; _old; path] -> (* rename/copy: show the new path as updated *)
+            let kind = if st <> "" && st.[0] = 'C' then "+" else "u" in
+            Some (`Assoc [("change", json_str kind); ("path", json_str path)])
+        | _ -> None)
+      (List.filter (fun l -> l <> "") (String.split_on_char '\n' out)))
+
+(* Report word for an exp finish line: state stays [landed]. *)
+let exp_fin s = if s.st = "landed" then `String "exp_fin" else `Null
+
+let opt_int = function Some n -> `Int n | None -> `Null
+
+let exp_json _q e s deps (t : timing) =
+  `Assoc [
+    ("exp", json_str e); ("state", json_str s.st); ("fin", exp_fin s); ("cycle", `Int s.cycle);
+    ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
+    ("deps", `List (List.map json_str deps));
+    ("timing", `Assoc [("wall_s", opt_int t.t_wall); ("wait_s", opt_int t.t_wait);
+                       ("dwell_s", `Assoc (List.map (fun (st, secs) -> (st, `Int secs)) t.t_dwell));
+                       ("cycles", `Int s.cycle)]);
+    ("legal_edges", `List (List.map json_str (legal_edges s.st)));
+    ("changes", (match commit_changes s.last_commit with
+       | Some xs -> `List xs | None -> `Null)); (* null = unsure *)
+  ]
+
+let exp_verdict quest e s deps t =
+  match exp_json quest e s deps t with
+  | `Assoc fs -> `Assoc (("ok", `Bool true) :: ("quest", json_str quest) :: fs)
+  | other -> other
+
+(* Setup per dispatched Run (mvp.3): desk-side mint to the
+   first bp3 answer (the claim), from machine-local run
+   configs only; never a committed field. *)
+let setup_json q =
+  match Config.config_dir () with
+  | None -> ([], false)
+  | Some dir ->
+      let thresholds = Config.load_thresholds dir in
+      let entries = List.filter_map (fun (rc : Config.run_config) ->
+        if rc.Config.rc_graph <> q then None
+        else match ts_epoch rc.Config.rc_minted_at, ts_epoch rc.Config.rc_claimed_at with
+          | Some m, Some c ->
+              Some (`Assoc [("run_id", json_str rc.Config.rc_id);
+                            ("node", json_str rc.Config.rc_node);
+                            ("edge", (match rc.Config.rc_edge with Some e -> json_str e | None -> `Null));
+                            ("setup_wall_s", `Int (c - m))], c - m)
+          | _ -> None) (Config.list_run_configs dir) in
+      (List.map fst entries,
+       List.exists (fun (_, secs) -> secs > thresholds.Config.setup_slow_s) entries)
+
+let quest_view q =
+  match fold_quest q with
+  | None -> not_found "quest" q
+  | Some (_, qs, _qt, _deps, _) ->
+      let exps = list_exps q in
+      let exp_infos = List.map (fun e ->
+        match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+        | Some (_, text) ->
+            let (s, _, deps) = fold_ledger text in (e, s, deps, timing_of_text text)
+        | None -> (e, fresh_state (), [], timing_of_text "")) exps in
+      let exp_states = List.map (fun (e, s, _, _) -> (e, s)) exp_infos in
+      let sched = List.map (fun (e, s, deps, _) ->
+        { n_id = e; n_state = s.st; n_deps = deps }) exp_infos in
+      let waves = sched_waves sched in
+      let ready = match waves with w :: _ -> w | [] -> [] in
+      let starved = sched_starved sched in
+      let (setup, setup_slow) = setup_json q in
+      let inbox = List.filter_map (fun (e, s) ->
+        if s.st = "blocked" then Some (`Assoc [
+          ("quest", json_str q); ("exp", json_str e);
+          ("reason", json_str s.blocked_reason);
+          ("checkpoint", (match s.blocked_checkpoint with Some c -> json_str c | None -> `Null));
+          ("cycle", `Int s.cycle); ("since", json_str s.blocked_since);
+        ]) else None) exp_states in
+      let rollup =
+        if qs.st = "deleted" then "deleted"
+        else if exp_states <> [] && List.for_all (fun (_, s) -> s.st = "landed" || s.st = "deleted") exp_states then "landed"
+        else if List.exists (fun (_, s) -> s.st = "blocked") exp_states then "blocked"
+        else "active" in
+      (* Report word for the quest finish line: rollup stays [landed];
+         [quest_fin] names promotion of that rollup to master. *)
+      let fin = if rollup = "landed" then `String "quest_fin" else `Null in
+      (`Assoc ([
+        ("quest", json_str q); ("state", json_str qs.st);
+        ("exps", `List (List.map (fun (e, s, deps, t) -> exp_json q e s deps t) exp_infos));
+        ("ready_set_waves", `List (List.map (fun w -> `List (List.map json_str w)) waves));
+        ("ready", `List (List.map json_str ready));
+        ("starved", `List (List.map (fun (b, ids) ->
+           `Assoc [("blocked", json_str b); ("starved", `List (List.map json_str ids))]) starved));
+        ("setup", `List setup);
+        ("rollup", json_str rollup); ("fin", fin); ("inbox", `List inbox);
+      ] @ (if setup_slow then [("warnings", `List [json_str "W_SETUP_SLOW"])] else [])),
+       inbox, rollup, qs)
+
+let tree_marker = function
+  | "todo" -> "+"
+  | "handed_off" | "approved" | "blocked" -> "u"
+  | "deleted" -> "-"
+  | _ -> " " (* landed: clean, like git status *)
+
+let short_commit = function
+  | Some c when String.length c > 7 -> String.sub c 0 7
+  | Some c -> c
+  | None -> "-"
+
+(* tree(1)-style rendering: quest is the root, exps are branches,
+   and each exp's proposed files expand per directory, like the
+   tree command walks a filesystem. *)
+type pnode = { pname : string; pchange : string option; pkids : pnode list ref }
+
+let build_ptree xs =
+  let roots : pnode list ref = ref [] in
+  let find_dir siblings name =
+    match List.find_opt (fun nd -> nd.pname = name && nd.pchange = None) !siblings with
+    | Some nd -> nd
+    | None ->
+        let nd = { pname = name; pchange = None; pkids = ref [] } in
+        siblings := !siblings @ [nd]; nd in
+  List.iter (fun item ->
+    match item with
+    | `Assoc fs ->
+        let c k = match List.assoc_opt k fs with Some (`String x) -> x | _ -> "?" in
+        let rec go siblings = function
+          | [] -> ()
+          | [f] -> siblings := !siblings @ [{ pname = f; pchange = Some (c "change"); pkids = ref [] }]
+          | d :: rest -> go (find_dir siblings d).pkids rest in
+        go roots (String.split_on_char '/' (c "path"))
+    | _ -> ()) xs;
+  !roots
+
+let rec render_ptree ?(keep_open = false) prefix nodes =
+  let n = List.length nodes in
+  List.iteri (fun i nd ->
+    let last = i = n - 1 && not keep_open in
+    Printf.printf "%s%s%s\n" prefix (if last then "└── " else "├── ")
+      (match nd.pchange with Some ch -> ch ^ " " ^ nd.pname | None -> nd.pname);
+    render_ptree ~keep_open:false (prefix ^ (if last then "    " else "│   ")) !(nd.pkids)) nodes
+
+let file_leaves prefix = function
+  | Some (`List xs) -> render_ptree prefix (build_ptree xs)
+  | _ -> Printf.printf "%s└── ? changes unknown\n" prefix
+
+let file_leaves_open prefix = function
+  | Some (`List xs) -> render_ptree ~keep_open:true prefix (build_ptree xs)
+  | _ -> Printf.printf "%s├── ? changes unknown\n" prefix
+
+let render_tree fields =
+  let get k = List.assoc_opt k fields in
+  let str k = match get k with Some (`String s) -> s | _ -> "?" in
+  Printf.printf "%s [%s] rollup: %s%s%s\n" (str "quest") (str "state") (str "rollup")
+    (match get "fin" with Some (`String f) -> " (" ^ f ^ ")" | _ -> "")
+    (match get "ready" with
+     | Some (`List (_ :: _ as xs)) ->
+         " ready: " ^ String.concat ", "
+           (List.map (function `String x -> x | o -> Yojson.Safe.to_string o) xs)
+     | _ -> "");
+  let exps = match get "exps" with Some (`List xs) -> xs | _ -> [] in
+  let n = List.length exps in
+  List.iteri (fun i item ->
+    match item with
+    | `Assoc fs ->
+        let g k = List.assoc_opt k fs in
+        let s k = match g k with Some (`String x) -> x | _ -> "?" in
+        let state = s "state" in
+        let cycle = match g "cycle" with Some (`Int c) -> c | _ -> 0 in
+        let commit = match g "commit" with Some (`String c) -> Some c | _ -> None in
+        let last = i = n - 1 in
+        let branch = if last then "└── " else "├── " in
+        let prefix = if last then "    " else "│   " in
+        let owed = if state = "blocked" then "  (human owed)" else "" in
+        let counts = match g "changes" with
+          | Some (`List xs) when xs <> [] ->
+              let cnt k = List.length (List.filter (fun item ->
+                match item with `Assoc fs ->
+                  (match List.assoc_opt "change" fs with Some (`String x) -> x = k | _ -> false)
+                | _ -> false) xs) in
+              Printf.sprintf "  [+%d u%d -%d]" (cnt "+") (cnt "u") (cnt "-")
+          | Some (`List []) -> ""
+          | _ -> "  [?]" in
+        let fin = match g "fin" with Some (`String f) -> " (" ^ f ^ ")" | _ -> "" in
+        Printf.printf "%s%s %s - %s%s, cycle %d, commit %s%s%s\n"
+          branch (tree_marker state) (s "exp") state fin cycle (short_commit commit) counts owed;
+        file_leaves prefix (g "changes")
+    | _ -> ()) exps;
+  (match get "inbox" with
+   | Some (`List (_ :: _ as xs)) ->
+       Printf.printf "human owed:\n";
+       List.iter (fun item ->
+         match item with
+         | `Assoc fs ->
+             let s k = match List.assoc_opt k fs with Some (`String x) -> x | _ -> "?" in
+             Printf.printf "  u %s - %S (since %s)\n" (s "exp") (s "reason") (s "since")
+         | _ -> ()) xs
+   | _ -> ())
+
+let render_tree_exp fields =
+  let g k = List.assoc_opt k fields in
+  let s k = match g k with Some (`String x) -> x | _ -> "?" in
+  let state = s "state" in
+  let cycle = match g "cycle" with Some (`Int c) -> c | _ -> 0 in
+  let commit = match g "commit" with Some (`String c) -> Some c | _ -> None in
+  let legal = match g "legal_edges" with
+    | Some (`List xs) ->
+        String.concat ", " (List.map (function `String x -> x | o -> Yojson.Safe.to_string o) xs)
+    | _ -> "" in
+  Printf.printf "%s\n└── %s %s - %s%s, cycle %d, commit %s\n"
+    (s "quest") (tree_marker state) (s "exp") state
+    (match g "fin" with Some (`String f) -> " (" ^ f ^ ")" | _ -> "") cycle
+    (short_commit commit);
+  file_leaves_open "    " (g "changes");
+  Printf.printf "    └── legal: %s\n" (if legal = "" then "none" else legal)
+
+(* ---------- table rendering ---------- *)
+(* Column model per flat shape: widths come from content, so a long
+   path widens the table instead of truncating. Plain ASCII, two
+   spaces between columns, last column unpadded. *)
+let pad_to w s =
+  let n = String.length s in
+  if n >= w then s else s ^ String.make (w - n) ' '
+
+let render_rows headers rows =
+  let widths = List.mapi (fun i h ->
+    List.fold_left (fun w row ->
+      match List.nth_opt row i with Some c -> max w (String.length c) | None -> w)
+      (String.length h) rows) headers in
+  let last = List.length headers - 1 in
+  let line cells =
+    String.concat "  " (List.mapi (fun i c ->
+      if i = last then c
+      else match List.nth_opt widths i with Some w -> pad_to w c | None -> c) cells) in
+  Printf.printf "%s\n" (line headers);
+  List.iter (fun row -> Printf.printf "%s\n" (line row)) rows
+
+(* Same counts word as the tree view: [+n um -d] without brackets. *)
+let change_counts = function
+  | `List xs ->
+      let cnt k = List.length (List.filter (fun item ->
+        match item with
+        | `Assoc fs ->
+            (match List.assoc_opt "change" fs with Some (`String x) -> x = k | _ -> false)
+        | _ -> false) xs) in
+      Printf.sprintf "+%d u%d -%d" (cnt "+") (cnt "u") (cnt "-")
+  | _ -> "?"
+
+let cell_str fs k =
+  match List.assoc_opt k fs with Some (`String x) -> x | _ -> "?"
+
+let cell_cycle fs =
+  match List.assoc_opt "cycle" fs with Some (`Int c) -> string_of_int c | _ -> "?"
+
+let cell_commit fs =
+  match List.assoc_opt "commit" fs with
+  | Some (`String c) -> short_commit (Some c)
+  | _ -> "-"
+
+let cell_changes fs =
+  change_counts (match List.assoc_opt "changes" fs with Some v -> v | None -> `Null)
+
+let render_table_quest fields =
+  let get k = List.assoc_opt k fields in
+  let str k = match get k with Some (`String s) -> s | _ -> "?" in
+  Printf.printf "quest %s [%s] rollup: %s%s\n" (str "quest") (str "state") (str "rollup")
+    (match get "ready" with
+     | Some (`List (_ :: _ as xs)) ->
+         " ready: " ^ String.concat ", "
+           (List.map (function `String x -> x | o -> Yojson.Safe.to_string o) xs)
+     | _ -> "");
+  let exps = match get "exps" with Some (`List xs) -> xs | _ -> [] in
+  let rows = List.filter_map (fun item ->
+    match item with
+    | `Assoc fs ->
+        Some [cell_str fs "exp"; cell_str fs "state"; cell_cycle fs;
+              cell_commit fs; cell_changes fs]
+    | _ -> None) exps in
+  render_rows ["exp"; "state"; "cycle"; "commit"; "changes"] rows
+
+let render_table_exp fields =
+  let g k = List.assoc_opt k fields in
+  let s k = match g k with Some (`String x) -> x | _ -> "?" in
+  let cycle = match g "cycle" with Some (`Int c) -> c | _ -> 0 in
+  let commit = match g "commit" with Some (`String c) -> Some c | _ -> None in
+  let legal = match g "legal_edges" with
+    | Some (`List xs) ->
+        String.concat ", " (List.map (function `String x -> x | o -> Yojson.Safe.to_string o) xs)
+    | _ -> "" in
+  Printf.printf "%s / %s — %s, cycle %d, commit %s, legal: %s\n"
+    (s "quest") (s "exp") (s "state") cycle (short_commit commit)
+    (if legal = "" then "none" else legal);
+  (match g "changes" with
+   | Some (`List xs) ->
+       let rows = List.filter_map (fun item ->
+         match item with
+         | `Assoc fs -> Some [cell_str fs "change"; cell_str fs "path"]
+         | _ -> None) xs in
+       render_rows ["change"; "path"] rows
+   | _ -> Printf.printf "? changes unknown\n")
+
+let render_table_icebox fields =
+  let entries = match List.assoc_opt "entries" fields with Some (`List xs) -> xs | _ -> [] in
+  let rows = List.filter_map (fun item ->
+    match item with
+    | `Assoc fs ->
+        Some [cell_str fs "slug"; cell_str fs "date"; cell_str fs "status";
+              (match List.assoc_opt "promoted" fs with Some (`String p) -> p | _ -> "-");
+              cell_str fs "title"]
+    | _ -> None) entries in
+  render_rows ["slug"; "date"; "status"; "promoted"; "title"] rows
+
+let print_verdict ~fmt v =
+  let v = stamp_run_id v in
+  (* Warnings merge once, in order: the verdict's own, the
+     context warnings (mvp.2), then Exp 5's version warning.
+     No warnings anywhere keeps the field absent. *)
+  let v = match v with
+    | `Assoc fs ->
+        let existing = match List.assoc_opt "warnings" fs with
+          | Some (`List xs) ->
+              List.filter_map (function `String s -> Some s | _ -> None) xs
+          | _ -> [] in
+        let merged =
+          List.fold_left (fun acc w ->
+            if List.mem w acc then acc else acc @ [w]) existing
+            (!context_warnings
+             @ (match version_ahead () with
+                | Some _ -> ["W_VERSION_AHEAD"] | None -> [])) in
+        if merged = [] then v
+        else `Assoc (List.filter (fun (k, _) -> k <> "warnings") fs
+                     @ [("warnings", `List (List.map json_str merged))])
+    | _ -> v in
+  match fmt, v with
+  | "tree", `Assoc fields when List.mem_assoc "exps" fields ->
+      render_tree fields
+  | "tree", `Assoc fields when List.mem_assoc "exp" fields ->
+      render_tree_exp fields
+  | "table", `Assoc fields when List.mem_assoc "exps" fields ->
+      render_table_quest fields
+  | "table", `Assoc fields when List.mem_assoc "exp" fields
+      && List.mem_assoc "changes" fields ->
+      render_table_exp fields
+  | "table", `Assoc fields when List.mem_assoc "entries" fields ->
+      render_table_icebox fields
+  | "table", `Assoc fields ->
+      List.iter (fun (k, v) ->
+        match v with
+        | `List xs ->
+            Printf.printf "%s:\n" k;
+            List.iter (fun item ->
+              match item with
+              | `Assoc fs -> Printf.printf "  %s\n" (String.concat " " (List.map (fun (a, b) -> a ^ "=" ^ Yojson.Safe.to_string b) fs))
+              | other -> Printf.printf "  %s\n" (Yojson.Safe.to_string other)) xs
+        | other -> Printf.printf "%s: %s\n" k (match other with `String s -> s | o -> Yojson.Safe.to_string o)
+      ) fields
+  | _, _ -> print_endline (Yojson.Safe.to_string v)
+
+=== gitx.ml ===
+(* gitx — shell/git plumbing for bp3 q. No quest knowledge. *)
+(* bp3 q — quest/exp FSM CLI. Only writer of quest state. *)
+let bp3_version = "0.2.0"
+
+exception Verdict of (int * Yojson.Safe.t)
+
+let json_str s = `String s
+let err code facts guidance exit_code =
+  raise (Verdict (exit_code, `Assoc [
+    ("ok", `Bool false);
+    ("error", `Assoc [
+      ("code", json_str code);
+      ("facts", facts);
+      ("guidance", json_str guidance);
+    ]);
+  ]))
+
+let usage msg = err "E_USAGE" (`Assoc [("detail", json_str msg)]) ("Fix the call: " ^ msg) 2
+let not_found what name =
+  err "E_NOT_FOUND" (`Assoc [(what, json_str name)]) (what ^ " not found: " ^ name) 2
+
+(* ---------- shell / git helpers ---------- *)
+let root =
+  match Sys.getenv_opt "BP3_ROOT" with
+  | Some r when r <> "" -> r
+  | _ -> Sys.getcwd ()
+
+let tmp_counter = ref 0
+let tmp_path tag =
+  incr tmp_counter;
+  Filename.concat (Filename.get_temp_dir_name ())
+    (Printf.sprintf "bp3q-%d-%d-%s" (Unix.getpid ()) !tmp_counter tag)
+
+let read_file_or path default =
+  try
+    let ic = open_in_bin path in
+    let n = in_channel_length ic in
+    let s = really_input_string ic n in
+    close_in ic; s
+  with _ -> default
+
+let write_tmp content =
+  let p = tmp_path "data" in
+  let oc = open_out_bin p in
+  output_string oc content; close_out oc; p
+
+let run_capture args =
+  let outf = tmp_path "out" in
+  let cmd = String.concat " " (List.map Filename.quote args)
+    ^ " > " ^ Filename.quote outf ^ " 2>/dev/null" in
+  let code = Sys.command cmd in
+  let out = read_file_or outf "" in
+  (String.trim out, code)
+
+let run_status args = snd (run_capture args)
+let git args = "git" :: "-C" :: root :: args
+let git_out args = run_capture (git args)
+let git_ok args = run_status (git args) = 0
+
+let git_show ref_ path =
+  let out, code = git_out ["show"; ref_ ^ ":" ^ path] in
+  if code = 0 then Some out else None
+
+let ref_tip refname =
+  let out, code = git_out ["rev-parse"; "--verify"; "-q"; refname ^ "^{commit}"] in
+  if code = 0 && out <> "" then Some out else None
+
+let resolve_commit sha =
+  let out, code = git_out ["rev-parse"; "--verify"; "-q"; sha ^ "^{commit}"] in
+  if code = 0 && out <> "" then Some out else None
+
+let worktree_dirty () =
+  let out, _ = git_out ["status"; "--porcelain"] in
+  String.trim out <> ""
+
+let head_sha () =
+  match ref_tip "HEAD" with Some s -> s | None -> usage "repository has no HEAD commit"
+
+let is_ancestor a b = git_ok ["merge-base"; "--is-ancestor"; a; b]
+
+let now_ts () =
+  let t = Unix.gmtime (Unix.time ()) in
+  Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02dZ"
+    (t.Unix.tm_year + 1900) (t.Unix.tm_mon + 1) t.Unix.tm_mday
+    t.Unix.tm_hour t.Unix.tm_min t.Unix.tm_sec
+
+(* Write files into a branch via plumbing; CAS on old tip.
+   files: (path, content) list. Returns new tip or E_STALE_WORLD. *)
+let commit_files ~branch ~base_tip ~expect_tip ~files ~msg =
+  let idx = tmp_path "index" in
+  Unix.putenv "GIT_INDEX_FILE" idx;
+  let cleanup () = (try Unix.unlink idx with _ -> ()); Unix.putenv "GIT_INDEX_FILE" "" in
+  let fail () = cleanup (); err "E_STALE_WORLD" (`Assoc [("branch", json_str branch)])
+    "Branch tip moved; re-read and retry." 1 in
+  if run_status (git ["read-tree"; base_tip]) <> 0 then fail ();
+  List.iter (fun (path, content) ->
+    let cf = write_tmp content in
+    let blobfile = tmp_path "blobout" in
+    let cmd = String.concat " " (List.map Filename.quote (git ["hash-object"; "-w"; "--stdin"]))
+      ^ " < " ^ Filename.quote cf ^ " > " ^ Filename.quote blobfile ^ " 2>/dev/null" in
+    if Sys.command cmd <> 0 then fail ();
+    let blob = String.trim (read_file_or blobfile "") in
+    if run_status (git ["update-index"; "--add"; "--cacheinfo";
+                        "100644," ^ blob ^ "," ^ path]) <> 0 then fail ()
+  ) files;
+  let treef = tmp_path "tree" in
+  if Sys.command (String.concat " " (List.map Filename.quote (git ["write-tree"]))
+      ^ " > " ^ Filename.quote treef ^ " 2>/dev/null") <> 0 then fail ();
+  let tree = String.trim (read_file_or treef "") in
+  let msgf = write_tmp msg in
+  let commitf = tmp_path "commit" in
+  let cargs = git (["commit-tree"; tree; "-p"; base_tip]) in
+  if Sys.command (String.concat " " (List.map Filename.quote cargs)
+      ^ " < " ^ Filename.quote msgf ^ " > " ^ Filename.quote commitf ^ " 2>/dev/null") <> 0 then fail ();
+  let new_tip = String.trim (read_file_or commitf "") in
+  cleanup ();
+  let code = run_status (git ["update-ref"; branch; new_tip; expect_tip]) in
+  if code <> 0 then err "E_STALE_WORLD" (`Assoc [("branch", json_str branch)])
+    "Branch tip moved; re-read and retry." 1;
+  new_tip
+
+let create_branch_commit ~branch ~base_tip ~files ~msg =
+  (* branch must not exist; update-ref with zero old value *)
+  commit_files ~branch ~base_tip ~expect_tip:"0000000000000000000000000000000000000000" ~files ~msg
+
+=== bin/bp3 ===
+#!/usr/bin/env bash
+# bp3 project tooling (pre-binary). The OCaml CLI absorbs these subcommands
+# later; the interface stays: bp3 skills install --harness=<name|all>.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+src_dir="$root/skills"
+
+# harness -> skills_dir. Sources are plain Markdown: no templating in bp3.
+# The render is a copy plus a GENERATED notice after the frontmatter.
+harness_target() {
+  case "$1" in
+    pi)     echo ".pi/skills" ;;
+    claude) echo ".claude/skills" ;;
+    codex)  echo ".agents/skills" ;;
+    muse)   echo ".agents/skills" ;;
+    *) return 1 ;;
+  esac
+}
+
+install_one() {
+  local skill="$1" harness="$2" target_dir dest
+  target_dir="$(harness_target "$harness")"
+  dest="$root/$target_dir/$skill"
+  mkdir -p "$dest"
+  awk -v h="$harness" -v s="$skill" '
+    /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
+    { print }' "$src_dir/$skill/SKILL.md" > "$dest/SKILL.md"
+  echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness)"
+}
+
+skills_install() {
+  local harness="all"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --harness=*) harness="${1#--harness=}" ;;
+      --harness) [ $# -ge 2 ] || { echo '--harness needs a value' >&2; exit 2; }; harness="$2"; shift ;;
+      *) echo "unknown arg: $1" >&2; exit 2 ;;
+    esac
+    shift
+  done
+
+  local harnesses
+  if [ "$harness" = "all" ]; then
+    harnesses="pi claude codex muse"
+  else
+    harnesses="$harness"
+  fi
+
+  # Preflight every source and the selected harness before writing any render.
+  "$root/scripts/check-skills" "$src_dir"
+  local h
+  for h in $harnesses; do
+    harness_target "$h" >/dev/null || { echo "unknown harness: $h" >&2; exit 2; }
+  done
+
+  # Pi discovers .agents as well as .pi. Prefer our Pi copies per project,
+  # without deleting Codex/Muse skills or hiding unrelated .agents skills.
+  local settings_plan='' existing='{}' ids
+  case " $harnesses " in
+    *" pi "*)
+      if [ -e "$root/.pi/settings.json" ]; then
+        existing="$(jq -sce 'select(length == 1) | .[0] | select(type == "object")' "$root/.pi/settings.json")" || { echo 'invalid .pi/settings.json' >&2; exit 1; }
+      fi
+      ids="$(find "$src_dir" -mindepth 2 -maxdepth 2 -name SKILL.md | while IFS= read -r file; do basename "$(dirname "$file")"; done | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')"
+      settings_plan="$(jq -ce --argjson ids "$ids" '
+        if has("skills") and (.skills | type != "array" or any(.[]; type != "string")) then error("skills must be an array of strings") else . end |
+        (.skills // []) as $existing |
+        .skills = ($existing + [$ids[] | "!**/.agents/skills/" + . + "/SKILL.md" | select(. as $p | $existing | index($p) | not)])
+      ' <<< "$existing")" || { echo 'invalid .pi/settings.json skills list' >&2; exit 1; }
+      ;;
+  esac
+
+  # The traverse saved workflows ship with the traverse skill. They are
+  # plain copies (no render notice); the target is the project workflows
+  # dir every harness discovers. Absent source means nothing to copy.
+  local workflow_names="node-loop induct-grade quest-land induct-node"
+
+  local skill_dir skill
+  for skill_dir in "$src_dir"/*/; do
+    skill="$(basename "$skill_dir")"
+    [ -f "$skill_dir/SKILL.md" ] || continue
+    for h in $harnesses; do
+      install_one "$skill" "$h"
+    done
+  done
+  if [ -n "$settings_plan" ]; then
+    printf '%s\n' "$settings_plan" | jq . > "$root/.pi/settings.json"
+  fi
+  local workflow_name
+  for workflow_name in $workflow_names; do
+    if [ -f "$src_dir/traverse/workflows/$workflow_name.js" ]; then
+      mkdir -p "$root/.agents/workflows"
+      cp "$src_dir/traverse/workflows/$workflow_name.js" "$root/.agents/workflows/$workflow_name.js"
+      echo "installed $workflow_name -> .agents/workflows/$workflow_name.js"
+    fi
+  done
+  # Muse hook registration: one fail-open emitter command for
+  # every event. Repos without this file never fire hooks.
+  mkdir -p "$root/.claude"
+  cat > "$root/.claude/hooks.json" <<'HOOKS_JSON'
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostLLMCall": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SubagentStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}]
+  }
+}
+HOOKS_JSON
+  echo "installed hooks -> .claude/hooks.json"
+  # Claude Code loads hooks from settings.json, not hooks.json
+  # (live probe 2026-11-14: hooks.json alone never fired; the
+  # same hooks under settings.json produced ledger event lines).
+  # Merge into any existing settings, preserving other keys.
+  local claude_settings="$root/.claude/settings.json"
+  local existing_settings='{}'
+  if [ -e "$claude_settings" ]; then
+    existing_settings="$(cat "$claude_settings")"
+  fi
+  printf '%s\n' "$existing_settings" | jq --slurpfile hj "$root/.claude/hooks.json" \
+    '.hooks = $hj[0].hooks' > "$claude_settings.tmp"
+  mv "$claude_settings.tmp" "$claude_settings"
+  echo "installed hooks -> .claude/settings.json"
+  # Muse hook registration: project tier .muse/hooks.json at the
+  # workspace root (live probe 2026-11-13: fires in the main session
+  # and in workflow children; no settings merge needed).
+  case " $harnesses " in
+    *" muse "*)
+      mkdir -p "$root/.muse"
+      cp "$root/.claude/hooks.json" "$root/.muse/hooks.json"
+      echo "installed hooks -> .muse/hooks.json"
+      ;;
+  esac
+  # Note: codex and muse share .agents/skills; under --harness=all the muse
+  # render (same dir) is written last. Invocation text differs only in the
+  # trigger line; both harnesses accept the skill by name.
+  # Tab completion delivery: copy the scripts into an existing zsh
+  # completions dir when one is found (BP3_COMPLETIONS_DIR overrides the
+  # search); otherwise print the path to add. Never edit a shell rc file.
+  local comp_src="$root/completions/_bp3" comp_bash_src="$root/completions/bp3.bash"
+  if [ -f "$comp_src" ]; then
+    local comp_dest=''
+    if [ -n "${BP3_COMPLETIONS_DIR:-}" ]; then
+      comp_dest="$BP3_COMPLETIONS_DIR"
+    else
+      local cand
+      for cand in "${ZDOTDIR:-$HOME}/.zsh/completions" "$HOME/.zsh/completions" \
+        /opt/homebrew/share/zsh/site-functions /usr/local/share/zsh/site-functions \
+        "$HOME/.local/share/zsh/site-functions"; do
+        if [ -d "$cand" ]; then comp_dest="$cand"; break; fi
+      done
+    fi
+    if [ -n "$comp_dest" ]; then
+      mkdir -p "$comp_dest"
+      cp "$comp_src" "$comp_dest/_bp3"
+      echo "installed _bp3 -> $comp_dest/_bp3"
+      echo "completion: source $comp_bash_src (bash)"
+    else
+      echo "completion: add $root/completions to fpath (zsh: fpath=($root/completions \$fpath); compinit) or source $comp_bash_src (bash)"
+    fi
+  fi
+}
+
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+case "${1:-}" in
+  -h|--help) printf '%s\n' "$usage_text"; printf '%s\n' '  bp3 q -h for quest/exp doors'; exit 0 ;;
+  q|quest) shift
+    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" "$@" ;;
+  e) shift
+    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" e "$@" ;;
+  harness) shift
+    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" harness "$@" ;;
+  config) shift
+    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" config "$@" ;;
+  worktree) shift
+    q_bin="${BP3_Q_BIN:-$root/_build/default/src/quest/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/quest/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" worktree "$@" ;;
+  init) shift; skills_install "$@" ;;
+  skills)
+    shift
+    case "${1:-}" in
+      install) shift; skills_install "$@" ;;
+      *) echo "$usage_text" >&2; exit 2 ;;
+    esac
+    ;;
+  *) echo "$usage_text" >&2; exit 2 ;;
+esac
+=== test/ready.sh ===
+#!/usr/bin/env bash
+# mvp.3: node deps, ready-set waves, starved sets, derived
+# timing, setup gate, serial land. Fixture graphs are built
+# through bp3 q itself; timing fixtures write ledger lines
+# with fixed timestamps through git plumbing.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+lk() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+commit_on_exp() { # $1 quest $2 exp $3 path $4 content -> new tip
+  local branch="refs/heads/bp3/exp/$1/$2" tip blob tree new_tip idx="$work/idx-$1-$2"
+  tip=$(git rev-parse "$branch"); rm -f "$idx"
+  blob=$(printf '%s' "$4" | git hash-object -w --stdin)
+  GIT_INDEX_FILE="$idx" git read-tree "$tip"
+  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$3"
+  tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+  new_tip=$(printf 'work %s\n' "$2" | git commit-tree "$tree" -p "$tip")
+  git update-ref "$branch" "$new_tip" "$tip"; rm -f "$idx"
+  printf '%s' "$new_tip"
+}
+land_exp() { # $1 quest $2 exp $3 path
+  local c; c=$(commit_on_exp "$1" "$2" "$3" "content-$2")
+  q "$1" u "$2" handoff --commit "$c" --reason work >/dev/null
+  q "$1" u "$2" grade --verdict ship --reason ok >/dev/null
+  q "$1" u "$2" verify --verdict pass --reason ok >/dev/null
+  q "$1" u "$2" land --reason ship >/dev/null
+}
+exp_ledger() { git show "bp3/exp/$1/$2:docs/quests/$1/experiments/$2/ledger.jsonl"; }
+
+# --- diamond: deps declared, waves, ready, handoff gate ---
+q c sched >/dev/null
+q sched c na >/dev/null; q sched c nb >/dev/null; q sched c nd >/dev/null
+out=$(q sched c nc --depends-on na,nb)
+echo "$out" | jq -e '.ok == true and .deps == ["na","nb"]' >/dev/null || fail "create deps: $out"
+out=$(q sched r nc)
+echo "$out" | jq -e '.deps == ["na","nb"] and .state == "todo"' >/dev/null || fail "deps read from record: $out"
+out=$(q r sched)
+echo "$out" | jq -e '.ready_set_waves == [["na","nb","nd"],["nc"]] and .ready == ["na","nb","nd"] and .starved == []' >/dev/null || fail "diamond waves: $out"
+echo w > w.txt; git add w.txt; git commit -qm w; W=$(git rev-parse HEAD)
+if out=$(q sched u nc handoff --commit "$W" --reason early 2>&1); then fail "dep-blocked handoff accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DEPENDENCY" and (.error.facts.blocked_by == ["na","nb"])' >/dev/null || fail "handoff gate: $out"
+land_exp sched na fa.txt; land_exp sched nb fb.txt
+out=$(q r sched)
+echo "$out" | jq -e '.ready == ["nc","nd"] and .ready_set_waves == [["nc","nd"]]' >/dev/null || fail "ready after land: $out"
+
+# --- cycle refused at write time, naming the cycle ---
+q sched c nx >/dev/null
+q sched dep nx --depends-on nc --reason "chain" >/dev/null
+before=$(exp_ledger sched nc | wc -l)
+if out=$(q sched dep nc --depends-on nx --reason loop 2>&1); then fail "cycle dep accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DEP_CYCLE" and (.error.facts.cycle | index("nc") != null) and (.error.facts.cycle | index("nx") != null)' >/dev/null || fail "cycle facts: $out"
+[ "$(exp_ledger sched nc | wc -l)" = "$before" ] || fail "cycle refusal ledgered"
+if out=$(q sched dep na --depends-on na --reason self 2>&1); then fail "self dep accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DEP_CYCLE"' >/dev/null || fail "self cycle code: $out"
+if out=$(q sched c ghost --depends-on nope 2>&1); then fail "unknown dep accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "unknown dep code: $out"
+
+# --- deps mutable-but-logged, mid-flight edit on the record ---
+out=$(q sched dep nd --depends-on na --reason "nd waits for na")
+echo "$out" | jq -e '.ok == true and .deps == ["na"] and .state == "todo"' >/dev/null || fail "dep edit: $out"
+exp_ledger sched nd | tail -1 | jq -e '.edge == "dep" and .from == "todo" and .to == "todo" and .depends_on == ["na"]' >/dev/null || fail "dep line logged"
+out=$(q sched u nd handoff --commit "$W" --reason work)
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "nd handoff (dep landed): $out"
+out=$(q sched dep nd --depends-on nb --reason "mid-flight swap")
+echo "$out" | jq -e '.ok == true and .state == "handed_off" and .deps == ["nb"]' >/dev/null || fail "mid-flight dep edit: $out"
+exp_ledger sched nd | tail -1 | jq -e '.edge == "dep" and .from == "handed_off" and .to == "handed_off" and .cycle == 1 and .depends_on == ["nb"]' >/dev/null || fail "mid-flight dep line carries state+cycle"
+
+# --- blocked blast radius: starved dependents, independents ready ---
+q c blast >/dev/null
+q blast c bx >/dev/null; q blast c bw >/dev/null
+q blast c by --depends-on bx >/dev/null; q blast c bz --depends-on by >/dev/null
+q blast u bx block --reason "choose storage" >/dev/null
+out=$(q r blast)
+echo "$out" | jq -e '.ready == ["bw"] and .starved == [{"blocked":"bx","starved":["by","bz"]}] and ([.inbox[] | select(.exp == "bx")] | length == 1)' >/dev/null || fail "starved rollup: $out"
+if out=$(q blast u by handoff --commit "$W" --reason early 2>&1); then fail "starved handoff accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DEPENDENCY"' >/dev/null || fail "starved handoff gate: $out"
+
+# --- timing derived from ledger timestamps, hand-checked ---
+q c timing >/dev/null; q timing c tm >/dev/null
+tip=$(git rev-parse bp3/exp/timing/tm); idx="$work/idx-tm"; rm -f "$idx"
+cat > "$work/tm-ledger.jsonl" <<EOF
+{"ts":"2026-01-01T00:00:00Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"t","model":"t","bp3_version":"0.2.0","exp_type":"default"}
+{"ts":"2026-01-01T00:10:00Z","edge":"handoff","from":"todo","to":"handed_off","cycle":1,"commit":"$W","verdict":null,"reason":"work","harness":"t","model":"t","bp3_version":"0.2.0"}
+{"ts":"2026-01-01T00:20:00Z","edge":"grade","from":"handed_off","to":"handed_off","cycle":1,"commit":"$W","verdict":"ship","reason":"ok","harness":"t","model":"t","bp3_version":"0.2.0"}
+{"ts":"2026-01-01T00:30:00Z","edge":"verify","from":"handed_off","to":"approved","cycle":1,"commit":"$W","verdict":"pass","reason":"ok","harness":"t","model":"t","bp3_version":"0.2.0"}
+{"ts":"2026-01-01T00:51:00Z","edge":"land","from":"approved","to":"landed","cycle":1,"commit":"$W","verdict":null,"reason":"ship","harness":"t","model":"t","bp3_version":"0.2.0"}
+EOF
+blob=$(git hash-object -w "$work/tm-ledger.jsonl")
+GIT_INDEX_FILE="$idx" git read-tree "$tip"
+GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,docs/quests/timing/experiments/tm/ledger.jsonl"
+tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+nt=$(git commit-tree "$tree" -p "$tip" -m "timing fixture")
+git update-ref refs/heads/bp3/exp/timing/tm "$nt" "$tip"; rm -f "$idx"
+out=$(q timing r tm)
+echo "$out" | jq -e '.state == "landed" and .timing.wait_s == 600 and .timing.wall_s == 2460 and .timing.dwell_s == {"todo":600,"handed_off":1200,"approved":1260} and .timing.cycles == 1' >/dev/null || fail "timing math: $out"
+out2=$(q r timing)
+echo "$out2" | jq -e '(.exps[] | select(.exp == "tm") | .timing.wall_s == 2460)' >/dev/null || fail "rollup timing: $out2"
+before=$(git rev-parse bp3/exp/timing/tm)
+q timing r tm >/dev/null; q r timing >/dev/null
+[ "$(git rev-parse bp3/exp/timing/tm)" = "$before" ] || fail "timing read wrote state"
+dirty=$(git status --porcelain | wc -l | tr -d ' ')
+[ "$dirty" = "0" ] || fail "timing read dirtied worktree: $dirty entries"
+echo "timing read clean: tip unchanged, worktree entries: $dirty"
+# No hand-edited state: reads derive timing from ledger timestamps
+# and setup from machine-local run configs; neither writes a tracked
+# ledger/state file. Counts are echoed so the check carries a
+# quotable line (an empty porcelain output is not typed evidence).
+tracked_state=$(git ls-files | grep -c -E 'ledger\.jsonl|state\.yaml' || true)
+echo "tracked ledger/state files on fixture tip: $tracked_state"
+
+# --- setup measured per Run; slow fixture fires locally only ---
+out=$(lk mint --kind edge --graph sched --node na --edge handoff --desk "$work/repo")
+RID=$(echo "$out" | jq -r .run_id); TOK=$(echo "$out" | jq -r .token)
+out=$(MUSE_SESSION_ID=sess-fast lk claim "$TOK")
+echo "$out" | jq -e '.ok == true and .state == "claimed"' >/dev/null || fail "fast claim: $out"
+rm -f .bp3-context.json
+out=$(q r sched)
+echo "$out" | jq -e --arg r "$RID" '(.setup[] | select(.run_id == $r) | .setup_wall_s >= 0 and .setup_wall_s < 180) and (has("warnings") | not or (.warnings | index("W_SETUP_SLOW") == null))' >/dev/null || fail "fast setup: $out"
+out=$(lk mint --kind edge --graph sched --node nb --edge handoff --desk "$work/repo")
+SRID=$(echo "$out" | jq -r .run_id)
+jq '.state = "claimed" | .creator.minted_at = "2026-01-01T00:00:00Z" | .claim = {"session_id":"sess-slow","pid":1,"cwd":"/tmp","claimed_at":"2026-01-01T00:10:00Z"}' ".git/bp3/runs/$SRID.json" > "$work/slow.json"
+cp "$work/slow.json" ".git/bp3/runs/$SRID.json"
+out=$(q r sched)
+echo "$out" | jq -e --arg r "$SRID" '(.setup[] | select(.run_id == $r) | .setup_wall_s == 600) and (.warnings | index("W_SETUP_SLOW") != null)' >/dev/null || fail "slow setup gate: $out"
+for e in na nb nc nd nx; do
+  exp_ledger sched "$e" | grep -q setup_wall && fail "setup leaked into ledger $e"
+done
+
+# --- serial land: second land re-checks against the new tip ---
+q c serial >/dev/null; q serial c sl-a >/dev/null; q serial c sl-b >/dev/null
+CA=$(commit_on_exp serial sl-a sa.txt "A"); CB=$(commit_on_exp serial sl-b sb.txt "B")
+for e in sl-a sl-b; do
+  c=$CA; [ "$e" = sl-b ] && c=$CB
+  q serial u "$e" handoff --commit "$c" --reason work >/dev/null
+  q serial u "$e" grade --verdict ship --reason ok >/dev/null
+  q serial u "$e" verify --verdict pass --reason ok >/dev/null
+done
+out=$(q serial u sl-a land --reason first)
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "first land: $out"
+tip1=$(git rev-parse bp3/quest/serial)
+out=$(q serial r sl-b)
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "second still approved: $out"
+out=$(q serial u sl-b land --reason second)
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "second land: $out"
+git merge-base --is-ancestor "$tip1" bp3/quest/serial || fail "second land did not build on first tip"
+git merge-base --is-ancestor "$CB" bp3/quest/serial || fail "second reviewed commit not in quest tip"
+[ "$(git show bp3/quest/serial:sa.txt)" = "A" ] && [ "$(git show bp3/quest/serial:sb.txt)" = "B" ] || fail "serial merge lost files"
+
+# --- help: dep verb and flags documented at their doors ---
+out=$(q sched dep -h) || fail "dep -h exit"
+echo "$out" | grep -q -- "--depends-on" || fail "dep help flags: $out"
+echo "$out" | grep -q "E_DEP_CYCLE" || fail "dep help cycle: $out"
+out=$(q sched -h) || fail "exp door -h exit"
+echo "$out" | grep -q "dep" || fail "exp door help dep: $out"
+echo "$out" | grep -q -- "--depends-on" || fail "exp door help depends-on: $out"
+
+echo "ready tests: ok"
+=== test/q.sh head ===
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+quest_alias() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 quest "$@"; }
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+# --- create / read verdict shapes, both spellings ---
+out=$(q c demo)
+echo "$out" | jq -e '.ok == true and .quest == "demo" and .state == "proposed"' >/dev/null || fail "quest create shape: $out"
+out=$(q create demo2)
+echo "$out" | jq -e '.ok == true and .state == "proposed"' >/dev/null || fail "quest create alias: $out"
+out=$(quest_alias r demo)
+echo "$out" | jq -e '.ok == true and .quest == "demo" and .state == "proposed" and (.exps | type == "array") and (.inbox | type == "array") and has("rollup")' >/dev/null || fail "quest read shape: $out"
+out=$(q r)
+echo "$out" | jq -e '.ok == true and (.quests | length >= 2)' >/dev/null || fail "quest list: $out"
+
+out=$(q demo c parser-fix)
+echo "$out" | jq -e '.ok == true and .state == "todo" and .cycle == 1' >/dev/null || fail "exp create: $out"
+out=$(q demo create parser-fix2)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "exp create alias: $out"
+out=$(q demo r parser-fix)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "exp read: $out"
+out=$(q demo read parser-fix)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "exp read alias: $out"
+
+# --- strict argv: dup flag, unknown flag, stray positional -> usage before write ---
+before=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+if out=$(q demo u parser-fix handoff --commit abc --reason x --reason y 2>&1); then fail "dup flag accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "dup flag code: $out"
+if out=$(q demo u parser-fix handoff --commit abc --reason x --bogus y 2>&1); then fail "unknown flag accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "unknown flag code: $out"
+if out=$(q demo u parser-fix handoff extra --commit abc --reason x 2>&1); then fail "stray positional accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "stray code: $out"
+after=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+[ "$before" = "$after" ] || fail "strict argv wrote to ledger"
+
+# --- refusal: land from todo, ledger unchanged ---
+if out=$(q demo u parser-fix land --reason "too early" 2>&1); then fail "land from todo accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "todo" and .error.facts.edge == "land" and (.error.facts.legal_edges | index("handoff") != null) and (.error.guidance | length > 0)' >/dev/null || fail "illegal edge facts: $out"
+after=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+[ "$before" = "$after" ] || fail "refusal ledgered"
+
+# --- identity: unset -> unknown + warning; invalid -> fail fast ---
+out=$(env -u BP3_HARNESS -u BP3_MODEL BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q demo c id-exp)
+echo "$out" | jq -e '.ok == true and (.warnings | index("W_IDENTITY_UNKNOWN") != null)' >/dev/null || fail "identity warning: $out"
+git show bp3/exp/demo/id-exp:docs/quests/demo/experiments/id-exp/ledger.jsonl | tail -1 | jq -e '.harness == "unknown" and .model == "unknown" and .bp3_version == "0.2.0"' >/dev/null || fail "identity ledger unknown"
+if out=$(BP3_HARNESS=bogus BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q demo r parser-fix 2>&1); then fail "invalid harness accepted"; fi
+echo "$out" | jq -e '.error.code == "E_IDENTITY"' >/dev/null || fail "identity code: $out"
+
+# --- run-id: BP3_RUN_ID from env stamps verdict + ledger; unset is absent ---
+out=$(BP3_RUN_ID=run-42 BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q c runq)
+echo "$out" | jq -e '.ok == true and .run_id == "run-42"' >/dev/null || fail "run-id quest verdict: $out"
+out=$(BP3_RUN_ID=run-42 BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq c rid-exp)
+echo "$out" | jq -e '.ok == true and .run_id == "run-42"' >/dev/null || fail "run-id exp verdict: $out"
+git show bp3/exp/runq/rid-exp:docs/quests/runq/experiments/rid-exp/ledger.jsonl | tail -1 | jq -e '.run_id == "run-42" and .harness == "muse-code"' >/dev/null || fail "run-id ledger set"
+out=$(BP3_RUN_ID=run-42 BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq r rid-exp)
+echo "$out" | jq -e '.ok == true and .run_id == "run-42"' >/dev/null || fail "run-id read verdict: $out"
+out=$(env -u BP3_RUN_ID BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq c rid-unset)
+echo "$out" | jq -e '.ok == true and (has("run_id") | not)' >/dev/null || fail "run-id unset verdict: $out"
+git show bp3/exp/runq/rid-unset:docs/quests/runq/experiments/rid-unset/ledger.jsonl | tail -1 | jq -e 'has("run_id") | not' >/dev/null || fail "run-id ledger unset"
+out=$(env -u BP3_RUN_ID BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq r rid-unset)
+echo "$out" | jq -e '.ok == true and (has("run_id") | not)' >/dev/null || fail "run-id unset read verdict: $out"
+out=$(env -u BP3_HARNESS -u BP3_MODEL -u BP3_RUN_ID BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq c rid-unknown)
+echo "$out" | jq -e '.ok == true and (has("run_id") | not) and (.warnings | index("W_IDENTITY_UNKNOWN") != null)' >/dev/null || fail "run-id unset identity warning: $out"
+git show bp3/exp/runq/rid-unknown:docs/quests/runq/experiments/rid-unknown/ledger.jsonl | tail -1 | jq -e '(has("run_id") | not) and .harness == "unknown"' >/dev/null || fail "run-id unset unknown ledger"
+
+# --- happy path handoff/grade/verify/land (alias spellings mixed) ---
+echo work > b.txt; git add b.txt; git commit -qm work
+B=$(git rev-parse HEAD)
+out=$(q demo u parser-fix handoff --commit "$B" --reason "first cut")
+echo "$out" | jq -e '.ok == true and .state == "handed_off" and .cycle == 1' >/dev/null || fail "handoff: $out"
+out=$(q demo update parser-fix grade --verdict ship --reason "looks right")
+echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "grade ship stays handed_off until verify: $out"
+out=$(q demo u parser-fix verify --verdict pass --reason "green")
+echo "$out" | jq -e '.ok == true and .state == "approved"' >/dev/null || fail "verify pass approves: $out"
+out=$(q demo u parser-fix land --reason "ship it")
+echo "$out" | jq -e '.ok == true and .state == "landed" and .fin == "exp_fin"' >/dev/null || fail "land: $out"
+out=$(q r demo)
+echo "$out" | jq -e '.ok == true and (.exps[] | select(.exp == "parser-fix") | .state == "landed" and .fin == "exp_fin")' >/dev/null || fail "read after land: $out"
+
+# --- mig.1 compat: frozen pre-rename ledger folds to new words, file untouched ---
+out=$(q demo c compat-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "compat create: $out"
+append_ledger_line() { # $1 exp $2 json-line
+  local br="bp3/exp/demo/$1" path="docs/quests/demo/experiments/$1/ledger.jsonl" tip idx led blob tree nt
+  tip=$(git rev-parse "$br")
+  led=$(git show "$br:$path")
+  idx=$(mktemp)
+  GIT_INDEX_FILE="$idx" git read-tree "$tip"
+  blob=$(printf '%s\n%s\n' "$led" "$2" | git hash-object -w --stdin)
+  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$path"
+  tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+  nt=$(git commit-tree "$tree" -p "$tip" -m "compat fixture $1")
+  git update-ref "refs/heads/$br" "$nt" "$tip"
+  rm -f "$idx"
+}
+compat_tip_before=$(git rev-parse bp3/exp/demo/compat-exp)
+append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:00:00Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":null,\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+out=$(q demo r compat-exp)
+echo "$out" | jq -e --arg c "$B" '.state == "handed_off" and .cycle == 1 and .commit == $c and (.legal_edges | index("grade") != null) and (.legal_edges | index("verify") != null)' >/dev/null || fail "compat old submit folds handed_off: $out"
+append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:01:00Z\",\"edge\":\"review\",\"from\":\"submitted\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"ship\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:02:00Z\",\"edge\":\"check\",\"from\":\"submitted\",\"to\":\"approved\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"pass\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+out=$(q demo r compat-exp)
+echo "$out" | jq -e '.state == "approved" and .cycle == 1' >/dev/null || fail "compat old grade/verify fold approved: $out"
+# reads never rewrite the frozen file
+q demo r compat-exp >/dev/null
+=== completions ===
+# bp3 bash completion: static verbs/edges/flags, dynamic quest/exp names.
+# Candidates come from _bp3_candidates (words after bp3, last word is the
+# current one); completion fails silently on any error.
+# shellcheck shell=bash
+
+_bp3_flags='--format --reason --commit --verdict --target --type --depends-on'
+_bp3_edges='handoff grade verify land block resume'
+_bp3_quest_verbs='c r d create read delete'
+_bp3_exp_verbs='c r u d create read update delete'
+_bp3_format_values='json table tree'
+_bp3_verdict_values='ship needs_fix pass fail'
+
+_bp3_words() {
+  # Print the words of a space-separated list, one per line.
+  local w
+  # shellcheck disable=SC2086 # the list is split on purpose
+  for w in $1; do printf '%s\n' "$w"; done
+}
+
+_bp3_filter() {
+  # _bp3_filter <current>: print stdin lines starting with <current>.
+  local cur="$1" line
+  while IFS= read -r line; do
+    case "$line" in
+      "$cur"*) printf '%s\n' "$line" ;;
+    esac
+  done
+}
+
+_bp3_cmd() {
+  if [ -n "${BP3_COMPLETION_BP3:-}" ]; then
+    [ -x "$BP3_COMPLETION_BP3" ] || return 1
+    printf '%s\n' "$BP3_COMPLETION_BP3"
+  elif command -v bp3 >/dev/null 2>&1; then
+    printf '%s\n' 'bp3'
+  elif [ -x ./bin/bp3 ]; then
+    printf '%s\n' './bin/bp3'
+  else
+    return 1
+  fi
+}
+
+_bp3_quests() {
+  local cmd
+  cmd="$(_bp3_cmd)" || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  "$cmd" q r 2>/dev/null | jq -r '.quests[]?.quest // empty' 2>/dev/null || true
+}
+
+_bp3_exps() {
+  local cmd quest="$1"
+  cmd="$(_bp3_cmd)" || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  "$cmd" q "$quest" r 2>/dev/null | jq -r '.exps[]?.exp // empty' 2>/dev/null || true
+}
+
+_bp3_is_verb() {
+  case "$1" in
+    c|create|r|read|u|update|d|delete) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_bp3_candidates() {
+  local -a words=("$@")
+  local n=${#words[@]} cur='' prev_last=''
+  if [ "$n" -gt 0 ]; then cur="${words[$((n - 1))]}"; fi
+  if [ "$n" -gt 1 ]; then prev_last="${words[$((n - 2))]}"; fi
+
+  case "$prev_last" in
+    --format) _bp3_words "$_bp3_format_values" | _bp3_filter "$cur"; return 0 ;;
+    --verdict) _bp3_words "$_bp3_verdict_values" | _bp3_filter "$cur"; return 0 ;;
+    --reason|--commit|--target|--type|--depends-on) return 0 ;;
+  esac
+
+  case "$cur" in
+    --format=*)
+      local v
+      for v in $_bp3_format_values; do printf '%s\n' "--format=$v"; done | _bp3_filter "$cur"
+      return 0 ;;
+    --verdict=*)
+      local v
+      for v in $_bp3_verdict_values; do printf '%s\n' "--verdict=$v"; done | _bp3_filter "$cur"
+      return 0 ;;
+    --*|-*)
+      _bp3_words "$_bp3_flags" | _bp3_filter "$cur"
+      return 0 ;;
+  esac
+
+  # Completed words before the current one.
+  local -a a=()
+  local i
+  for ((i = 0; i < n - 1; i++)); do a+=("${words[$i]}"); done
+
+  local has_q=0
+  if [ "${#a[@]}" -gt 0 ] && { [ "${a[0]}" = 'q' ] || [ "${a[0]}" = 'quest' ]; }; then
+    has_q=1
+    local -a rest=()
+    local j
+    for ((j = 1; j < ${#a[@]}; j++)); do rest+=("${a[$j]}"); done
+    a=()
+    for ((j = 0; j < ${#rest[@]}; j++)); do a+=("${rest[$j]}"); done
+  fi
+
+  if [ "$has_q" -eq 0 ]; then
+    if [ "${#a[@]}" -eq 0 ]; then
+      printf '%s\n' q quest e init skills harness worktree config | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'config' ]; then
+      printf '%s\n' --source --format -h --help | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'e' ]; then
+      _bp3_words "$_bp3_edges" | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'skills' ]; then
+      printf '%s\n' install | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'harness' ]; then
+      printf '%s\n' supervisor init-check find-tape watch desk s i f w d | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'harness' ] && { [ "${a[1]}" = 'desk' ] || [ "${a[1]}" = 'd' ]; }; then
+      printf '%s\n' derive create inspect remove prepare check exit release list | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'worktree' ]; then
+      printf '%s\n' derive create inspect remove prepare check exit release list | _bp3_filter "$cur"
+    fi
+    return 0
+  fi
+
+  _bp3_cmd >/dev/null 2>&1 || return 0
+
+  if [ "${#a[@]}" -eq 0 ]; then
+    _bp3_quests | _bp3_filter "$cur"
+    return 0
+  fi
+
+  if _bp3_is_verb "${a[0]}"; then
+    if [ "${#a[@]}" -eq 1 ]; then
+      case "${a[0]}" in
+        r|read|d|delete) _bp3_quests | _bp3_filter "$cur" ;;
+        *) : ;;
+      esac
+    fi
+    return 0
+  fi
+
+  # a[0] is a quest name.
+  if [ "${#a[@]}" -eq 1 ]; then
+    _bp3_words "$_bp3_exp_verbs" | _bp3_filter "$cur"
+    return 0
+  fi
+
+  if [ "${#a[@]}" -eq 2 ]; then
+    case "${a[1]}" in
+      r|read|d|delete|u|update) _bp3_exps "${a[0]}" | _bp3_filter "$cur" ;;
+      *) : ;;
+    esac
+    return 0
+  fi
+
+  if [ "${#a[@]}" -eq 3 ] && { [ "${a[1]}" = 'u' ] || [ "${a[1]}" = 'update' ]; }; then
+    _bp3_words "$_bp3_edges" | _bp3_filter "$cur"
+    return 0
+  fi
+
+  return 0
+}
+
+_bp3() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  local -a cands=()
+  local line
+  while IFS= read -r line; do
+    [ -n "$line" ] && cands+=("$line")
+  done < <(_bp3_candidates "${COMP_WORDS[@]:1}" 2>/dev/null)
+  COMPREPLY=()
+  if [ "${#cands[@]}" -gt 0 ]; then
+    # Candidates already match the current word; compgen keeps COMPREPLY exact.
+    while IFS= read -r line; do
+      COMPREPLY+=("$line")
+    done < <(compgen -W "${cands[*]}" -- "$cur" 2>/dev/null)
+  fi
+  return 0
+}
+
+complete -F _bp3 bp3 2>/dev/null || true
+#compdef bp3
+# bp3 zsh completion: static verbs/edges/flags, dynamic quest/exp names.
+# Candidates come from _bp3_candidates (words after bp3, last word is the
+# current one); completion fails silently on any error.
+
+_bp3_flags=(--format --reason --commit --verdict --target --type --depends-on)
+_bp3_edges=(handoff grade verify land block resume)
+_bp3_quest_verbs=(c r d create read delete)
+_bp3_exp_verbs=(c r u d create read update delete)
+_bp3_format_values=(json table tree)
+_bp3_verdict_values=(ship needs_fix pass fail)
+
+_bp3_filter() {
+  local cur="$1" line
+  while IFS= read -r line; do
+    case "$line" in
+      "$cur"*) printf '%s\n' "$line" ;;
+    esac
+  done
+}
+
+_bp3_words() {
+  local w
+  for w in "$@"; do printf '%s\n' "$w"; done
+}
+
+_bp3_cmd() {
+  if [ -n "${BP3_COMPLETION_BP3:-}" ]; then
+    [ -x "$BP3_COMPLETION_BP3" ] || return 1
+    printf '%s\n' "$BP3_COMPLETION_BP3"
+  elif command -v bp3 >/dev/null 2>&1; then
+    printf '%s\n' 'bp3'
+  elif [ -x ./bin/bp3 ]; then
+    printf '%s\n' './bin/bp3'
+  else
+    return 1
+  fi
+}
+
+_bp3_quests() {
+  local cmd
+  cmd="$(_bp3_cmd)" || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  "$cmd" q r 2>/dev/null | jq -r '.quests[]?.quest // empty' 2>/dev/null || true
+}
+
+_bp3_exps() {
+  local cmd quest="$1"
+  cmd="$(_bp3_cmd)" || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  "$cmd" q "$quest" r 2>/dev/null | jq -r '.exps[]?.exp // empty' 2>/dev/null || true
+}
+
+_bp3_is_verb() {
+  case "$1" in
+    c|create|r|read|u|update|d|delete) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_bp3_candidates() {
+  local -a words=("$@")
+  local n=${#words[@]} cur='' prev_last=''
+  if [ "$n" -gt 0 ]; then cur="${words[$n]}"; fi
+  if [ "$n" -gt 1 ]; then prev_last="${words[$((n - 1))]}"; fi
+
+  case "$prev_last" in
+    --format) _bp3_words "${_bp3_format_values[@]}" | _bp3_filter "$cur"; return 0 ;;
+    --verdict) _bp3_words "${_bp3_verdict_values[@]}" | _bp3_filter "$cur"; return 0 ;;
+    --reason|--commit|--target|--type|--depends-on) return 0 ;;
+  esac
+
+  case "$cur" in
+    --format=*)
+      local v
+      for v in "${_bp3_format_values[@]}"; do printf '%s\n' "--format=$v"; done | _bp3_filter "$cur"
+      return 0 ;;
+    --verdict=*)
+      local v
+      for v in "${_bp3_verdict_values[@]}"; do printf '%s\n' "--verdict=$v"; done | _bp3_filter "$cur"
+      return 0 ;;
+    --*|-*)
+      _bp3_words "${_bp3_flags[@]}" | _bp3_filter "$cur"
+      return 0 ;;
+  esac
+
+  local -a a=()
+  local i
+  for ((i = 1; i < n; i++)); do a+=("${words[$i]}"); done
+
+  local has_q=0
+  if [ "${#a[@]}" -gt 0 ] && { [ "${a[1]}" = 'q' ] || [ "${a[1]}" = 'quest' ]; }; then
+    has_q=1
+    local -a rest=()
+    local j
+    for ((j = 2; j <= ${#a[@]}; j++)); do rest+=("${a[$j]}"); done
+    a=()
+    for ((j = 1; j <= ${#rest[@]}; j++)); do a+=("${rest[$j]}"); done
+  fi
+
+  if [ "$has_q" -eq 0 ]; then
+    if [ "${#a[@]}" -eq 0 ]; then
+      printf '%s\n' q quest e init skills harness worktree config | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'config' ]; then
+      printf '%s\n' --source --format -h --help | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'e' ]; then
+      _bp3_words "$_bp3_edges" | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'skills' ]; then
+      printf '%s\n' install | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'harness' ]; then
+      printf '%s\n' supervisor init-check find-tape watch desk s i f w d | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 2 ] && [ "${a[1]}" = 'harness' ] && { [ "${a[2]}" = 'desk' ] || [ "${a[2]}" = 'd' ]; }; then
+      printf '%s\n' derive create inspect remove prepare check exit release list | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'worktree' ]; then
+      printf '%s\n' derive create inspect remove prepare check exit release list | _bp3_filter "$cur"
+    fi
+    return 0
+  fi
+
+  _bp3_cmd >/dev/null 2>&1 || return 0
+(the node worker's loop; mvp.3 generalizes it).
+
+### Milestone: config — the local store
+
+### config.1 - bp3-config — [record](experiments/exp-config-1-bp3-config/EXPERIMENT.md)
+The machine-local hard store, named: `bp3 config`
+tree under the git common dir (contexts, desks,
+local thresholds, claims, by-session index,
+derivations). Written only by bp3 verbs, viewed
+via `bp3 config`, never committed, zero setup.
+
+### Milestone: mvp — link, context, schedule, diagram
+
+### mvp.1 - link-claim — [record](experiments/exp-mvp-1-link-claim/EXPERIMENT.md)
+`bp3 harness link`: mint a one-time link for one
+edge execution; child claims as first action. CAS
+in the common-dir store (one winner,
+`E_LINK_SPENT` names the first claimant). Claim
+records caller facts and the by-session index.
+
+### mvp.2 - context-resolution — [record](experiments/exp-mvp-2-context-resolution/EXPERIMENT.md)
+bp3 resolves graph/node/edge/run from the claim
+store (session, then desk) and stamps verdicts
+and ledger lines. No env ritual, no retyped
+context. Env is a hint only.
+
+### mvp.3 - ready-set-timing — [record](experiments/exp-mvp-3-ready-set-timing/EXPERIMENT.md)
+BFS ready-set waves from node deps; rollup emits ready
+nodes and per-node wall/wait/dwell; setup timing
+per Run with the 3-minute `W_SETUP_SLOW` gate.
+Parallel build/grade in per-node desks, serial
+land queue semantics stated and readied. Named
+deliverable: `induct-node` — one workflow run per
+node owning the whole FSM loop (the old
+induct-exp / induct-grade / quest-land become
+phases inside it); the root worker dispatches
+ready-set waves and handles blocked + graph_fin only.
+
+### mvp.4 - diagram-emit — [record](experiments/exp-mvp-4-diagram-emit/EXPERIMENT.md)
+Generated ASCII + mermaid from a live rollup:
+nodes with state/cycle, deps as ready-set waves, blocked
+nodes naming what they starve.
+
+### mvp.5 - blocked-fail-fast — [record](experiments/exp-mvp-5-blocked-fail-fast/EXPERIMENT.md)
+No parked workers. An edge worker completes its
+edge or fails it immediately; the node worker
+records the decision point through `block` and
+exits when a human is required. `needs_fix` below
+the cycle cap rides automatically, a dead edge
+worker is replaced from derived `orphaned`, and a
+fresh node worker resumes from bp3 after `resume`.
+
+### Milestone: dogfood — use it ourselves
+
+### dogfood.1 - link-drive — [record](experiments/exp-dogfood-1-link-drive/EXPERIMENT.md)
+A/B proof on the flappy node: old brief vs link
+brief on both harnesses, seeded setup attacks
+refusing at claim. Metrics are the acceptance.
+
+### dogfood.2 - parallel-drive — [record](experiments/exp-dogfood-2-parallel-drive/EXPERIMENT.md)
+Two independent flappy-variant nodes, one ready-set,
+parallel desks, parallel build+grade, serial
+land. Scorecard: wall and tokens per node.
+
+### Milestone: rename — migrate everything, last
+
+### rename.1 - bp3g-rename — [record](experiments/exp-rename-1-bp3g-rename/EXPERIMENT.md)
+Full rename on live surfaces: `bp3 g` CLI door,
+graph/node/state/edge/dep vocabulary, skills
+become the `bp3g` family (`/bp3g` conducts,
+`bp3g` variants for framing/no-human), launcher
+workflows, templates. (Edge verbs and the
+`submitted -> handed_off` state already migrated
+in mig.1; this node is nouns, doors, and skills.)
+The rename table in Terms is the
+mapping, and every live surface takes the new
+verbs in this one change. Old terms grep to zero
+on live surfaces; landed ledger text is history
+and keeps the old edge words.
+
+### Milestone: followup — papercuts found live
+
+### followup.1 - grade-evidence — [record](experiments/exp-followup-1-grade-evidence/EXPERIMENT.md)
+
+### followup.2 - workflow-birth — [record](experiments/exp-followup-2-workflow-birth/EXPERIMENT.md)
+Renders must track workflow sources: a dispatch
+never launches a desk render older than its
+source (re-render or `E_RENDER_STALE`). mvp.1's
+grade died on a stale render calling the retired
+`record-init`; owner fix path A formalized.
+Missing evidence is not a defect: grade-audit
+rows must carry typed evidence or the audit
+re-collects internally. Evidence gaps never burn
+an author cycle or page the human (config.1
+cycle-1 papercut).
+
+### Milestone: landing
+
+### landing.1 - landing-wrapup — [record](experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md)
+Scorecard (timing included), findings
+disposition, landing walkthrough actually run
+(red-ink-quest-landing-demo diligence), for the
+owner's promotion review.
+
+## Scorecard
+
+Fields: claims observed (minted/claimed/spent),
+context resolutions, per-node wall/wait/dwell,
+setup wall per Run, ready-set wall vs serial estimate,
+tokens per node, drives observed per harness,
+human-active minutes — or "unmeasured", never zero.
+
+## Exp diagram
+
+```text
+mig.1 ──────────────┐ (verbs first; everything after speaks handoff/grade)
+config.1 ─► mvp.1 ─► mvp.2 ─┬─► mvp.3 ─► mvp.4
+                            ├─► mvp.5 ────────┐
+                            └─► dogfood.1 ─► dogfood.2 ─► rename.1 ─► landing.1
+                                              ▲
+                            mvp.3 ────────────┘ (and mvp.5, dogfood.1 feed it)
+
+ready-set waves: [mig.1, config.1] -> [mig.2, mvp.1] -> [mvp.2] -> [mvp.3, dogfood.1]
+         -> [mvp.4, mvp.5] -> [dogfood.2] -> [rename.1] -> [followup.1, followup.2] -> [landing.1]
+rename.1 = nouns/doors/skills only; verbs already migrated in mig.1
+```
+=== config.ml head ===
+(* config — the machine-local bp3 config store (config.1):
+   <git-common-dir>/bp3/ holding config.json (machine
+   settings only: local thresholds and gates), the per-run
+   configs runs/<run_id>.json (one canonical record per
+   Run; the shape is defined here, its writers are link
+   mint/claim and bind-tape in mvp.1), links/, claims/, the
+   derived by-session index, desks/, and the supervisor's
+   run-lifecycle-derivations. Written only by bp3 verbs,
+   never hand-edited, never committed; every worktree of
+   the repo resolves the same tree through the git common
+   dir, while contexts stay per-session. bp3 config views
+   the store; contexts are folded from runs/, never stored
+   in config.json. Thresholds are stored and viewed here;
+   verdicts beyond the view consume them when their verbs
+   land (depth cap at link mint in mvp.1, W_SETUP_SLOW in
+   mvp.3). *)
+open Gitx
+
+(* ---------- layout ---------- *)
+let config_dir () =
+  let out, code = git_out ["rev-parse"; "--git-common-dir"] in
+  if code <> 0 || String.trim out = "" then None
+  else
+    let common = String.trim out in
+    let abs =
+      if Filename.is_relative common then Filename.concat root common
+      else common in
+    (* one spelling per store: /var and /private/var are the
+       same tree on this host, and worktrees must agree *)
+    let canon = try Unix.realpath abs with _ -> abs in
+    Some (Filename.concat canon "bp3")
+
+let runs_dir dir = Filename.concat dir "runs"
+let links_dir dir = Filename.concat dir "links"
+let claims_dir dir = Filename.concat dir "claims"
+let by_session_dir dir = Filename.concat dir "by-session"
+let desks_dir dir = Filename.concat dir "desks"
+let derivations_dir_of dir = Filename.concat dir "run-lifecycle-derivations"
+let config_file dir = Filename.concat dir "config.json"
+
+(* Only an already-existing directory is benign; any other
+   mkdir failure is the caller's diagnosis, raised here at
+   the site that caused it (worktree.ml's ensure_dir rule). *)
+let ensure_dir dir =
+  let parent = Filename.dirname dir in
+  (try Unix.mkdir parent 0o755
+   with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+  (try Unix.mkdir dir 0o755
+   with Unix.Unix_error (Unix.EEXIST, _, _) -> ())
+
+(* Single-write temp file in the same directory, fsynced,
+   then renamed over the target (followup.1 discipline):
+   a reader sees the old snapshot or the new one, never a
+   torn one. *)
+let write_counter = ref 0
+
+let write_file_atomic path content =
+  incr write_counter;
+  let tmp = Printf.sprintf "%s.tmp.%d.%d" path (Unix.getpid ()) !write_counter in
+  let fd = Unix.openfile tmp [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC] 0o644 in
+  (try
+     let n = Unix.write_substring fd content 0 (String.length content) in
+     if n <> String.length content then
+       raise (Unix.Unix_error (Unix.EIO, "write", path));
+     Unix.fsync fd
+   with e ->
+     (try Unix.close fd with _ -> ());
+     (try Unix.unlink tmp with _ -> ());
+     raise e);
+  Unix.close fd;
+  Sys.rename tmp path
+
+(* ---------- thresholds (machine settings only) ---------- *)
+type thresholds = { setup_slow_s : int; depth_cap : int }
+
+let default_thresholds = { setup_slow_s = 180; depth_cap = 3 }
+
+let thresholds_json t =
+  `Assoc [("setup_slow_s", `Int t.setup_slow_s); ("depth_cap", `Int t.depth_cap)]
+
+=== dune ===
+(executable (name main) (libraries yojson unix str))
+=== ls test ===
+completion.sh
+config.sh
+context.sh
+harness.sh
+hooks.sh
+induct-grade.test.mjs
+induct-node.test.mjs
+install.sh
+link.sh
+node-loop.test.mjs
+pi-discovery.mjs
+q.sh
+quest-land.test.mjs
+ready.sh
+release.sh
+skills.sh
+tape.sh
+traverse-conduct.test.mjs
+traverse.sh
+worktree.sh
+=== completion.sh ===
+#!/usr/bin/env bash
+# Tab completion fixture: static lists pin against src/quest/main.ml,
+# scripted candidate traces (bash and zsh), silent failure, delivery.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+# --- static lists: every spelling in the scripts exists in main.ml ---
+main_ml="$root/src/quest/main.ml"
+for shell_file in "$root/completions/_bp3" "$root/completions/bp3.bash"; do
+  [ -f "$shell_file" ] || fail "missing completion script: $shell_file"
+  flags=$(sed -n 's/^_bp3_flags=//p' "$shell_file" | tr -d "()'" | tr ' ' '\n' | sed '/^$/d')
+  for flag in $flags; do
+    grep -q -- "\"$flag\"" "$main_ml" || fail "flag $flag in $shell_file not in main.ml"
+  done
+  # Reverse: every flag main.ml parses is completed.
+  for flag in $(sed -n '/^let parse_flags/,/^let split_flags/p' "$main_ml" | grep -o '"--[a-z-]*"' | tr -d '"' | sort -u); do
+    echo "$flags" | grep -qx -- "$flag" || fail "flag $flag in main.ml not in $shell_file"
+  done
+  edges=$(sed -n 's/^_bp3_edges=//p' "$shell_file" | tr -d "()'" | tr ' ' '\n' | sed '/^$/d')
+  for edge in $edges; do
+    grep -q "\"$edge\"" "$main_ml" || fail "edge $edge in $shell_file not in main.ml"
+  done
+  for edge in handoff grade verify land block resume; do
+    echo "$edges" | grep -qx -- "$edge" || fail "edge $edge in main.ml not in $shell_file"
+  done
+  for verb in c create r read u update d delete; do
+    grep -qw -- "$verb" "$shell_file" || fail "verb $verb not in $shell_file"
+    grep -q "\"$verb\"" "$main_ml" || fail "verb $verb not in main.ml"
+  done
+done
+grep -q '#compdef bp3' "$root/completions/_bp3" || fail "zsh script lacks #compdef bp3"
+grep -q 'compadd' "$root/completions/_bp3" || fail "zsh script lacks compadd"
+grep -q 'complete -F _bp3 bp3' "$root/completions/bp3.bash" || fail "bash script lacks complete -F _bp3 bp3"
+
+# --- scratch repo with live quests/exps ---
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+export BP3_Q_BIN="$work/repo/q-bin"
+export BP3_COMPLETION_BP3="$work/repo/bin/bp3"
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+q c toy-drive >/dev/null
+q c demo >/dev/null
+q toy-drive c parser-fix >/dev/null
+q toy-drive c skill-probe >/dev/null
+
+has() { # has <candidates> <word>
+  echo "$1" | grep -qx -- "$2" || fail "candidates [$1] missing $2"
+}
+lacks() {
+  if echo "$1" | grep -qx -- "$2"; then fail "candidates [$1] unexpectedly has $2"; fi
+}
+
+# --- bash traces ---
+# shellcheck disable=SC1091
+source "$root/completions/bp3.bash"
+out=$(_bp3_candidates q "toy-")
+has "$out" toy-drive; lacks "$out" demo
+out=$(_bp3_candidates q "")
+has "$out" toy-drive; has "$out" demo; lacks "$out" r
+out=$(_bp3_candidates q r "")
+has "$out" toy-drive
+out=$(_bp3_candidates q toy-drive r "")
+has "$out" parser-fix; has "$out" skill-probe
+out=$(_bp3_candidates q toy-drive r "parser-")
+has "$out" parser-fix; lacks "$out" skill-probe
+out=$(_bp3_candidates q toy-drive u parser-fix "")
+for edge in handoff grade verify land block resume; do has "$out" "$edge"; done
+out=$(_bp3_candidates q toy-drive r parser-fix "--f")
+has "$out" --format; lacks "$out" --reason
+out=$(_bp3_candidates q toy-drive r parser-fix --format "")
+has "$out" json; has "$out" table; has "$out" tree
+out=$(_bp3_candidates q toy-drive "")
+has "$out" r; has "$out" u
+out=$(_bp3_candidates "")
+has "$out" harness; has "$out" worktree; has "$out" config
+out=$(_bp3_candidates config "")
+has "$out" --source; has "$out" --format
+out=$(_bp3_candidates harness "")
+has "$out" desk; has "$out" supervisor; has "$out" find-tape
+out=$(_bp3_candidates harness desk "")
+for v in derive create inspect remove prepare check exit release list; do has "$out" "$v"; done
+out=$(_bp3_candidates harness d "")
+has "$out" prepare; has "$out" release
+
+# --- zsh traces (same candidate logic) ---
+if command -v zsh >/dev/null 2>&1; then
+  zcand() { zsh -c 'source "$1"; shift; _bp3_candidates "$@"' _ "$root/completions/_bp3" "$@"; }
+  out=$(zcand q "toy-")
+  has "$out" toy-drive; lacks "$out" demo
+  out=$(zcand q toy-drive r "")
+  has "$out" parser-fix; has "$out" skill-probe
+  out=$(zcand q toy-drive u parser-fix "")
+  for edge in handoff grade verify land block resume; do has "$out" "$edge"; done
+  out=$(zcand q toy-drive r parser-fix "--f")
+  has "$out" --format
+fi
+
+# --- silent failure: unbuilt binary / non-bp3 cwd says nothing ---
+mkdir -p "$work/nowhere"
+cd "$work/nowhere"
+err="$work/err.txt"
+out=$(BP3_COMPLETION_BP3="$work/no-such-bp3" _bp3_candidates q "" 2>"$err")
+[ -z "$out" ] || fail "silent failure produced candidates: $out"
+[ ! -s "$err" ] || fail "silent failure made noise: $(cat "$err")"
+if command -v zsh >/dev/null 2>&1; then
+  out=$(BP3_COMPLETION_BP3="$work/no-such-bp3" zsh -c 'source "$1"; shift; _bp3_candidates "$@"' _ "$root/completions/_bp3" q "" 2>"$err")
+  [ -z "$out" ] || fail "zsh silent failure produced candidates: $out"
+  [ ! -s "$err" ] || fail "zsh silent failure made noise: $(cat "$err")"
+fi
+
+# --- delivery: bp3 init copies _bp3, edits no rc file ---
+mkdir -p "$work/delivery" "$work/dest" "$work/home"
+cp -R "$root/bin" "$root/completions" "$root/skills" "$root/scripts" "$work/delivery/"
+out=$(HOME="$work/home" BP3_COMPLETIONS_DIR="$work/dest" "$work/delivery/bin/bp3" init --harness=muse)
+echo "$out" | grep -q "installed _bp3 -> $work/dest/_bp3" || fail "delivery did not install _bp3: $out"
+cmp "$root/completions/_bp3" "$work/dest/_bp3" || fail "delivered _bp3 differs from source"
+[ ! -e "$work/home/.zshrc" ] || fail "delivery edited .zshrc"
+[ ! -e "$work/home/.bashrc" ] || fail "delivery edited .bashrc"
+
+echo "completion tests: ok"
+221:       let line = ledger_line ~edge:"dep" ~from:s.st ~to_:s.st ~cycle:s.cycle
+457:       | Some rc -> print_verdict ~fmt:"json" (do_e_bare rc ctx_source); 0
+465:           print_verdict ~fmt:fl.fmt (with_context v rc ctx_source); 0
+484:        print_verdict ~fmt:fl.fmt (`Assoc [("ok", `Bool true);
+495:let help_q = "bp3 q - quest/exp state. Doors:\n\
+505:let help_quest_door = "bp3 q <quest door> - verbs:\n\
+511:let help_exp_door = "bp3 q <quest> <exp door> - verbs:\n\
+519:let help_dep = "bp3 q <quest> dep <exp> - redeclare an exp's node deps (mvp.3):\n\
+524:let help_update = "bp3 q <quest> u <exp> <edge> - edges and their flags:\n\
+535:let help_e = "bp3 e - claimed edge door (mvp.2): context is resolved, never carried:\n\
+541:let help_icebox = "bp3 q icebox r - search frozen icebox entries (read-only):\n\
+546:let help_worktree = "bp3 worktree - documented alias of bp3 harness desk, machine-local desks, never ledgered:\n\
+552:let help_config = "bp3 config - view the machine-local bp3 config store (<git-common-dir>/bp3/, never committed):\n\
+574:let run argv =
+580:  let help_invoked =
+585:    | _ -> not help_invoked in
+612:  | "-h" :: _ | "--help" :: _ -> print_string help_q; 0
+615:  | "config" :: (h :: _) when is_help h -> print_string help_config; 0
+618:      print_verdict ~fmt (Config.view ~source); 0
+619:  | "e" :: (h :: _) when is_help h -> print_string help_e; 0
+620:  | "e" :: _edge :: (h :: _) when is_help h -> print_string help_e; 0
+622:  | "worktree" :: (h :: _) when is_help h -> print_string help_worktree; 0
+623:  | "icebox" :: (h :: _) when is_help h -> print_string help_icebox; 0
+624:  | "icebox" :: ("r" | "read") :: (h :: _) when is_help h -> print_string help_icebox; 0
+625:  | first :: (h :: _) when is_verb first && is_help h -> print_string help_quest_door; 0
+626:  | _quest :: (h :: _) when is_help h -> print_string help_exp_door; 0
+628:      print_string (if normalize_verb verb_raw = "u" then help_update else help_exp_door); 0
+632:      print_verdict ~fmt:"json" (Worktree.run rest); 0
+649:      print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true);
+662:           let v = do_quest_create quest fl id in print_verdict ~fmt:fl.fmt v; 0
+667:           print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true); ("quests", `List qs)]); 0
+674:           print_verdict ~fmt:"json" (`Assoc (("ok", `Bool true) ::
+681:                print_verdict ~fmt:fl.fmt (`Assoc (("ok", `Bool true) ::
+687:           let v = do_quest_delete quest fl id in print_verdict ~fmt:fl.fmt v; 0
+690:  | _q :: "dep" :: (h :: _) when is_help h -> print_string help_dep; 0
+691:  | quest :: "dep" :: exp :: tail ->
+693:      if pos <> [] then usage "stray positional in dep";
+694:      let v = do_exp_dep quest exp fl id in print_verdict ~fmt:fl.fmt v; 0
+701:           let v = do_exp_create quest exp fl id in print_verdict ~fmt:fl.fmt v; 0
+705:           print_verdict ~fmt:"json" (`Assoc (("ok", `Bool true) ::
+711:            | Some (_, s, text) -> print_verdict ~fmt:"json" (exp_verdict quest exp s (deps_of_text text) (timing_of_text text)); 0)
+719:                 | Some (_, s, text) -> print_verdict ~fmt:fl.fmt (exp_verdict quest e s (deps_of_text text) (timing_of_text text)); 0)
+727:           print_verdict ~fmt:fl.fmt v; 0
+732:           let v = do_exp_delete quest exp fl id in print_verdict ~fmt:fl.fmt v; 0
+===
+                let (view, _, _, _) = quest_view q in
+                print_verdict ~fmt:fl.fmt (`Assoc (("ok", `Bool true) ::
+                  (match view with `Assoc fs -> fs | _ -> []))); 0
+            | _ -> usage "quest read takes at most one quest")
+       | "d", quest :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in quest delete";
+           let v = do_quest_delete quest fl id in print_verdict ~fmt:fl.fmt v; 0
+       | "d", [] -> usage "quest delete needs a quest name"
+       | _ -> usage "quest door verbs are c, r, d")
+  | _q :: "dep" :: (h :: _) when is_help h -> print_string help_dep; 0
+  | quest :: "dep" :: exp :: tail ->
+      let (pos, fl) = split_flags tail in
+      if pos <> [] then usage "stray positional in dep";
+      let v = do_exp_dep quest exp fl id in print_verdict ~fmt:fl.fmt v; 0
+  | quest :: verb_raw :: rest when is_verb verb_raw ->
+      let verb = normalize_verb verb_raw in
+      (match verb, rest with
+       | "c", exp :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in exp create";
+           let v = do_exp_create quest exp fl id in print_verdict ~fmt:fl.fmt v; 0
+       | "c", [] -> usage "exp create needs an exp name"
+       | "r", [] ->
+           let (view, _, _, _) = quest_view quest in
+           print_verdict ~fmt:"json" (`Assoc (("ok", `Bool true) ::
+             (match view with `Assoc fs -> fs | _ -> []))); 0
+       | "r", [exp] ->
+           (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+           (match fold_exp quest exp with
+            | None -> not_found "exp" exp
+            | Some (_, s, text) -> print_verdict ~fmt:"json" (exp_verdict quest exp s (deps_of_text text) (timing_of_text text)); 0)
+       | "r", exp :: tail ->
+           let (pos, fl) = split_flags (exp :: tail) in
+           (match pos with
+            | [e] ->
+                (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+                (match fold_exp quest e with
+                 | None -> not_found "exp" e
+                 | Some (_, s, text) -> print_verdict ~fmt:fl.fmt (exp_verdict quest e s (deps_of_text text) (timing_of_text text)); 0)
+            | _ -> usage "exp read takes at most one exp")
+       | "u", exp :: edge :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in update";
+           let v = do_update quest exp edge fl id in
+           let v = match ctx_rc with
+             | Some rc -> with_context v rc ctx_source | None -> v in
+           print_verdict ~fmt:fl.fmt v; 0
+       | "u", _ -> usage "update needs <exp> <edge>"
+       | "d", exp :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in exp delete";
+           let v = do_exp_delete quest exp fl id in print_verdict ~fmt:fl.fmt v; 0
+       | "d", [] -> usage "exp delete needs an exp name"
+       | _ -> usage "exp door verbs are c, r, u, d")
+  | _ -> usage "expected: q c|r|d ... or q <quest> c|r|u|d ..."
+
+let () =
+  let argv = List.tl (Array.to_list Sys.argv) in
+  try exit (run argv)
+  with Verdict (code, v) ->
+    print_endline (Yojson.Safe.to_string (stamp_run_id v));
+    exit code
+
+
+edited src/quest/store.ml
+edited src/quest/render.ml
+edited src/quest/main.ml
+edited src/quest/main.ml
+edited src/quest/main.ml
+edited src/quest/main.ml
+edited src/quest/main.ml
+all edits ok
+BUILD_EXIT:0
+quest 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines diagram (generated from live state at 2026-11-17T04:30:09Z)
+rollup: active
+nodes:
+  exp-config-1-bp3-config (landed, cycle 2, exp_fin)
+  exp-dogfood-1-link-drive (todo, cycle 1)
+  exp-dogfood-2-parallel-drive (todo, cycle 1)
+  exp-followup-1-grade-evidence (landed, cycle 2, exp_fin)
+  exp-followup-2-workflow-birth (todo, cycle 1)
+  exp-landing-1-landing-wrapup (todo, cycle 1)
+  exp-mig-1-handoff-verbs (landed, cycle 1, exp_fin)
+  exp-mig-2-traverse-rename (landed, cycle 2, exp_fin)
+  exp-mvp-1-link-claim (landed, cycle 1, exp_fin)
+  exp-mvp-2-context-resolution (landed, cycle 1, exp_fin)
+  exp-mvp-3-ready-set-timing (landed, cycle 2, exp_fin)
+  exp-mvp-4-diagram-emit (todo, cycle 1)
+  exp-mvp-5-blocked-fail-fast (todo, cycle 1)
+  exp-rename-1-bp3g-rename (todo, cycle 1)
+deps:
+  (none)
+waves:
+  wave 1: exp-dogfood-1-link-drive, exp-dogfood-2-parallel-drive, exp-followup-2-workflow-birth, exp-landing-1-landing-wrapup, exp-mvp-4-diagram-emit, exp-mvp-5-blocked-fail-fast, exp-rename-1-bp3g-rename
+starved:
+  (none)
+---MERMAID---
+%% generated from live state at 2026-11-17T04:30:10Z
+%% quest 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines rollup: active
+graph LR
+  exp_config_1_bp3_config["exp-config-1-bp3-config (landed, cycle 2, exp_fin)"]
+  exp_dogfood_1_link_drive["exp-dogfood-1-link-drive (todo, cycle 1)"]
+  exp_dogfood_2_parallel_drive["exp-dogfood-2-parallel-drive (todo, cycle 1)"]
+  exp_followup_1_grade_evidence["exp-followup-1-grade-evidence (landed, cycle 2, exp_fin)"]
+  exp_followup_2_workflow_birth["exp-followup-2-workflow-birth (todo, cycle 1)"]
+  exp_landing_1_landing_wrapup["exp-landing-1-landing-wrapup (todo, cycle 1)"]
+  exp_mig_1_handoff_verbs["exp-mig-1-handoff-verbs (landed, cycle 1, exp_fin)"]
+  exp_mig_2_traverse_rename["exp-mig-2-traverse-rename (landed, cycle 2, exp_fin)"]
+  exp_mvp_1_link_claim["exp-mvp-1-link-claim (landed, cycle 1, exp_fin)"]
+  exp_mvp_2_context_resolution["exp-mvp-2-context-resolution (landed, cycle 1, exp_fin)"]
+  exp_mvp_3_ready_set_timing["exp-mvp-3-ready-set-timing (landed, cycle 2, exp_fin)"]
+  exp_mvp_4_diagram_emit["exp-mvp-4-diagram-emit (todo, cycle 1)"]
+  exp_mvp_5_blocked_fail_fast["exp-mvp-5-blocked-fail-fast (todo, cycle 1)"]
+  exp_rename_1_bp3g_rename["exp-rename-1-bp3g-rename (todo, cycle 1)"]
+  subgraph wave_1["wave 1"]
+    exp_dogfood_1_link_drive
+    exp_dogfood_2_parallel_drive
+    exp_followup_2_workflow_birth
+    exp_landing_1_landing_wrapup
+    exp_mvp_4_diagram_emit
+    exp_mvp_5_blocked_fail_fast
+    exp_rename_1_bp3g_rename
+  end
+---HELP---
+bp3 q <quest> diagram - generated graph diagram from the live rollup (mvp.4):
+bp3 q <quest> diagram [--format ascii|mermaid|json]   emit the diagram (default ascii)
+Nodes carry state and cycle (landed nodes carry exp_fin), deps are drawn once, todo nodes are grouped into ready-set waves, and a blocked node names the dependents it starves. Output is generated at call time from live state; its header carries the rollup timestamp (generated_at). ascii suits terminals and records, mermaid suits rendered docs, json carries the same facts plus both texts for diffing.
+Example: bp3 q my-quest diagram --format mermaid
+---JSON-HEAD---
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","format":"json","generated_at":"2026-11-17T04:30:10Z","rollup":"active","exps":[{"exp":"exp-config-1-bp3-config","state":"landed","fin":"exp_fin","cycle":2,"commit":"3c47fe532642369348656be958eb577fc662881d","deps":[],"timing":{"wall_s":6135,"wait_s":8448,"dwell_s":{"approved":67,"blocked":5080,"handed_off":536,"todo":8900},"cycles":2},"legal_edges":[],"changes":[{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"}]},{"exp":"exp-dogfood-1-link-drive","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-dogfood-2-parallel-drive","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"
+edited completions/bp3.bash
+edited completions/_bp3
+edited Makefile
+edited Makefile
+Makefile:14:	./test/ready.sh test/diagram.sh
+Makefile:15:	./test/diagram.sh
+completions/bp3.bash:9:_bp3_exp_verbs='c r u d create read update delete dep diagram'
+completions/_bp3:9:_bp3_exp_verbs=(c r u d create read update delete dep diagram)
+.PHONY: check test lint release publish install
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/ready.sh test/diagram.sh
+	./test/diagram.sh
+	./test/harness.sh
+	./test/config.sh
+	./test/link.sh
+	./test/context.sh
+	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/traverse.sh
+	./test/completion.sh
+	./test/release.sh
+	./test/install.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	node --check skills/traverse/workflows/induct-node.js
+	node --check skills/traverse/workflows/node-loop.js
+	node --check skills/traverse/workflows/induct-grade.js
+	node --check skills/traverse/workflows/quest-land.js
+
+fixed
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/ready.sh
+	./test/diagram.sh
+	./test/harness.sh
+	./test/config.sh
+	./test/link.sh
+	./test/context.sh
+	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/traverse.sh
+	./test/completion.sh
+	./test/release.sh
+	./test/install.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	node --check skills/traverse/workflows/induct-node.js
+	node --check skills/traverse/workflows/node-loop.js
+build the q binary first: dune build src/quest/main.exe
+FAIL: q -h exit
+DIAGRAM_TEST_EXIT:1
+fixed
+diagram tests: ok
+EXIT:0
+# Run notes — exp-mvp-4-diagram-emit (handoff, cycle 1)
+
+- Claimed link first; run_id matched the brief. The run
+  folder did not exist, so it was created fresh.
+- `read_file` resolves against the conductor checkout, not
+  this worktree: live sources were read through bash in the
+  worktree instead. Future children in desks should do the
+  same or use absolute worktree paths.
+- Diagram renders one `quest_view` snapshot per call, so
+  ascii and mermaid of the same moment cannot drift; the
+  json form carries both texts for fact diffing.
+- Mermaid node ids sanitize `-` to `_`; labels keep the
+  real slug, state, cycle, and `exp_fin`.
+- Fixture proof lives in `test/diagram.sh`: diamond waves,
+  blocked-starves in both formats, read-only, strict argv.
+ M Makefile
+ M completions/_bp3
+ M completions/bp3.bash
+ M src/quest/main.ml
+ M src/quest/render.ml
+ M src/quest/store.ml
+?? test/diagram.sh
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.126542ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (205.211834ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (223.291583ms)
+✔ roles route model/thinking into the child env: override > role > conductor (441.85875ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (162.753833ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1398.146416ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (2988.759542ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (114964.946125ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (213.855167ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.391041ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (288.305542ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (21.77125ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 120999.667375
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+MAKE_CHECK_EXIT:0
+[quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines fe6efe7] feat(mvp.4): diagram verb — generated ascii/mermaid from live rollup
+ 7 files changed, 265 insertions(+), 4 deletions(-)
+ create mode 100755 test/diagram.sh
+fe6efe79513040a1ad8b7a8d7e2d275f961d7415
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-4-diagram-emit","state":"handed_off","cycle":1,"commit":"fe6efe79513040a1ad8b7a8d7e2d275f961d7415","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-4-diagram-emit","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-4-diagram-emit","edge":"handoff","run_id":"20261117T042817Z-handoff-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T042817Z-handoff-muse-code-muse-wonder-1.0-c1"}
+HANDOFF_EXIT:0

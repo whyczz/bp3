@@ -36,7 +36,7 @@ echo change >> a.txt; git add .; git commit -qm change
 out=$(bp3 g dogfood u node-1 handoff --commit HEAD --reason "esc3 dogfood") || fail "esc3 handoff: $out"
 echo "$out" | grep -q '"state":"handed_off"' || fail "esc3 handed_off: $out"
 out=$(bp3 g r dogfood) || fail "esc3 read: $out"
-git -C "$root" rev-parse -q --verify refs/heads/bp3/quest/dogfood >/dev/null 2>&1 && fail "dogfood graph leaked into home repo refs"
+git -C "$root" rev-parse -q --verify refs/heads/bp3/goal/dogfood >/dev/null 2>&1 && fail "dogfood graph leaked into home repo refs"
 
 # init-repo refuses differing plans
 echo "graph_type: mine" > plans/default.yaml

@@ -1,0 +1,320 @@
+drwxr-xr-x@ 2 whycz  staff  64 Nov 17 01:53 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/runs/20261117T065327Z-node-muse-code-muse-wonder-1.0-c1
+=== git log ===
+5140695 feat(dogfood.2): parallel-drive proof — two variants, one ready-set
+adfd7b0 test(dogfood.1): link-drive A/B proof — one-line brief, attacks refuse
+f5b434d test(mvp.5): Pi process-tree proof — bubble once, tree dead, fresh revival
+3ce9c2d docs(mvp.5): name cycle-2 Pi process-tree proof fix
+4d00100 feat(mvp.5): blocked-fail-fast — typed failure blocks once, orphans replaced, bubble carries facts
+=== HEAD ===
+51406951173971043235443104c703e78a9eda2c
+=== status ===
+=== common-dir ===
+/Users/whycz/m/bp3/.git
+=== show stat ===
+commit 51406951173971043235443104c703e78a9eda2c
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 01:48:48 2026 -0500
+
+    feat(dogfood.2): parallel-drive proof — two variants, one ready-set
+    
+    For humans: two flappy variants now build and grade in parallel from one ready-set and land serially, with a scorecard showing the wall time saved (about 3.2s on the fixture drive). Tokens are named as unreported rather than invented, since the rollup has no per-node token field.
+    
+    For LLMs: test/dogfood-parallel.sh drives flappy-day/flappy-night in separate desks with separate link claims, asserts overlapping author intervals, per-session context isolation, desk/branch isolation, the full handoff/grade/verify matrix, serial land on the new tip, a same-file land_conflict fixture, and blocked-sibling starvation; wired into make check and shellcheck. The drive exposed a same-second link-mint collision: two mints generated one run-id and the second overwrote the first run config. src/quest/harness.ml now reserves the minted run config with O_EXCL and retries on the next second, preserving the run-id spelling; explicit --run-id still refuses E_EXISTS.
+
+ Makefile                 |   3 +-
+ src/quest/harness.ml     |  50 +++++++----
+ test/dogfood-parallel.sh | 222 +++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 256 insertions(+), 19 deletions(-)
+=== quest head ===
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+| tape | tape | the harness session recording (unchanged) |
+
+States rest in the root worker's read. Edges are
+subagents. A child holds nothing across edges;
+context is claimed, never remembered.
+
+Edge names (settled red-ink names round, owner —
+option A; rides rename.1, old ledgers keep old
+words and the rename table maps them):
+
+| Coded today | Settled name | Caller does |
+|---|---|---|
+| `submit` | `handoff` | author binds the finished commit |
+| `review` | `grade` | reviewer grades the exact commit (`ship\|needs_fix`) |
+| `check` | `verify` | machine checks (`pass\|fail`) |
+| `land` | `land` | merge into the graph branch |
+| state `submitted` | state `handed_off` | verb/state rhyme: `handoff` hands off, node rests `handed_off` |
+| `block` | `block` | park for a human decision |
+| `resume` | `resume` | human answer re-enters (`BP3_DECIDER=human`) |
+
+Link mint/claim are verbs, not flags:
+`bp3 harness link mint --kind node|edge …` and
+`bp3 harness link claim <token>`. A node link
+carries no edge name — the node worker executes
+no transition when it claims.
+
+Door letter settled: `bp3 g`, not `bp3 t`.
+Nodes form a DAG (shared deps, diamonds — a tree
+allows one parent), scheduled by BFS ready-set
+waves; the *execution* is a tree of workers.
+Tree survives as a view (`--format tree`) and as
+the worker-tree shape, never as the addressed
+noun.
+
+## Success picture
+
+A root worker dispatches a node with a one-line
+brief: "claim this link, do this edge." The child
+claims, works, calls its own edge, dies. Ready
+nodes in a ready-set build and grade in parallel
+desks; landing is a serial queue. The rollup
+shows every node's wall, wait, and dwell time.
+The grader joins any tape's session-id to run-id
+in one lookup. At the end, everything on live
+surfaces — CLI, skills, workflows, records —
+speaks graph/node/state/edge and answers to
+`bp3 g` and `/bp3g`.
+
+## Scope
+
+| In | Out |
+|---|---|
+| `bp3 harness link` mint/claim, CAS claim store, by-session index, context resolution; run config replaces InitRecord (`creator:{}`/`claim:{}`/`tape_path`), `record-init` retires, lifecycle fold reads the run config | rewriting landed quests' ledger history text |
+| ready-set scheduling, per-node timing derived from ledger + derivations, local thresholds | anything committed for metrics; timing judgments stay in `<git-common-dir>/bp3/` |
+| setup timing measured always; optimize only when setup > 3 min (`W_SETUP_SLOW`) | desk pools (killed 2026-11-16; ad hoc desks, measured) |
+| generated ASCII/mermaid diagram from live rollup | writing into harness session logs (tapes stay harness-written) |
+| rename last: `bp3 g`, `bp3g` skills, graph terms on live surfaces | rewriting landed quests' ledger history text |
+| session-id discovery: muse, pi; graceful floor (pid+cwd+window) | adversarial threat model (links are for confused children, not attackers) |
+
+## Timing gates (in-system, local)
+
+- Per node: `wall` (first handoff → land), `wait`
+  (create → first handoff), `dwell` per state,
+  cycles. Derived from ledger timestamps, shown
+  on read, thresholds local, never committed.
+- Per Run setup: desk create → first bp3 answer;
+  `W_SETUP_SLOW` when > 3 minutes.
+- Scorecards report wall minutes AND tokens per
+  node. Visibility, not caps.
+
+## Context layer (kubectl pattern, settled red-ink round 1)
+
+One door per noun, nested as the canonical address:
+`bp3 g <graph> n <node> e <edge>`. Bare `bp3 e …`
+is the claimed shorthand. A context layer resolves
+=== diff harness.ml ===
+commit 51406951173971043235443104c703e78a9eda2c
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 01:48:48 2026 -0500
+
+    feat(dogfood.2): parallel-drive proof — two variants, one ready-set
+    
+    For humans: two flappy variants now build and grade in parallel from one ready-set and land serially, with a scorecard showing the wall time saved (about 3.2s on the fixture drive). Tokens are named as unreported rather than invented, since the rollup has no per-node token field.
+    
+    For LLMs: test/dogfood-parallel.sh drives flappy-day/flappy-night in separate desks with separate link claims, asserts overlapping author intervals, per-session context isolation, desk/branch isolation, the full handoff/grade/verify matrix, serial land on the new tip, a same-file land_conflict fixture, and blocked-sibling starvation; wired into make check and shellcheck. The drive exposed a same-second link-mint collision: two mints generated one run-id and the second overwrote the first run config. src/quest/harness.ml now reserves the minted run config with O_EXCL and retries on the next second, preserving the run-id spelling; explicit --run-id still refuses E_EXISTS.
+
+diff --git a/src/quest/harness.ml b/src/quest/harness.ml
+index 4803fb4..621956a 100644
+--- a/src/quest/harness.ml
++++ b/src/quest/harness.ml
+@@ -2227,22 +2227,6 @@ let do_link_mint args =
+   let model_v = if model_v = "" then "unknown" else model_v in
+   let desk = match fl.m_desk with Some d -> d | None -> Sys.getcwd () in
+   let edge_label = match edge with Some e -> e | None -> "node" in
+-  let run_id = match fl.m_run with
+-    | Some r when r <> "" ->
+-        if Config.load_run_config_json dir r <> None then
+-          err "E_EXISTS" (`Assoc [("run_id", json_str r)])
+-            "A run config already exists for that run-id." 1;
+-        r
+-    | _ ->
+-        let rec gen tries =
+-          let cand = Printf.sprintf "%s-%s-%s-%s-c%d" (compact_ts ())
+-            edge_label (slug_keep harness_v) (slug_keep model_v) fl.m_cycle in
+-          if Config.load_run_config_json dir cand = None then cand
+-          else if tries <= 0 then
+-            err "E_EXISTS" (`Assoc [("run_id", json_str cand)])
+-              "Minted run-id collided; retry." 1
+-          else begin ignore (Unix.select [] [] [] 1.0); gen (tries - 1) end in
+-        gen 5 in
+   let token = mint_token () in
+   let token_hash = "sha256:" ^ sha256_hex token in
+   let creator = [
+@@ -2253,7 +2237,7 @@ let do_link_mint args =
+     ("minted_at", json_str (now_ts ()));
+     ("token_hash", json_str token_hash);
+   ] @ (match fl.m_thinking with Some t -> [("thinking", json_str t)] | None -> []) in
+-  let fields = [
++  let fields_of run_id = [
+     ("run_id", json_str run_id);
+     ("kind", json_str kind);
+     ("graph", json_str graph);
+@@ -2262,7 +2246,37 @@ let do_link_mint args =
+     ("desk", json_str desk);
+     ("creator", `Assoc creator);
+   ] @ (match edge with Some e -> [("edge", json_str e)] | None -> []) in
+-  Config.save_run_config_json dir run_id (`Assoc fields);
++  (* Reserve the run config with O_EXCL: two mints in the same
++     second share a timestamp candidate, so a check-then-rename
++     write lets the second mint overwrite the first. *)
++  let write_minted run_id =
++    let path = Config.run_config_path dir run_id in
++    let content = Yojson.Safe.to_string (`Assoc (fields_of run_id)) ^ "\n" in
++    let fd = Unix.openfile path
++      [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_EXCL] 0o644 in
++    (try write_one fd path content; Unix.fsync fd
++     with e ->
++       (try Unix.close fd with _ -> ());
++       (try Unix.unlink path with _ -> ());
++       raise e);
++    Unix.close fd in
++  let run_id = match fl.m_run with
++    | Some r when r <> "" ->
++        (try write_minted r; r
++         with Unix.Unix_error (Unix.EEXIST, _, _) ->
++           err "E_EXISTS" (`Assoc [("run_id", json_str r)])
++             "A run config already exists for that run-id." 1)
++    | _ ->
++        let rec gen tries =
++          let cand = Printf.sprintf "%s-%s-%s-%s-c%d" (compact_ts ())
++            edge_label (slug_keep harness_v) (slug_keep model_v) fl.m_cycle in
++          try write_minted cand; cand
++          with Unix.Unix_error (Unix.EEXIST, _, _) ->
++            if tries <= 0 then
++              err "E_EXISTS" (`Assoc [("run_id", json_str cand)])
++                "Minted run-id collided; retry." 1
++            else begin ignore (Unix.select [] [] [] 1.0); gen (tries - 1) end in
++        gen 5 in
+   let hash_hex = sha256_hex token in
+   Config.write_file_atomic
+     (Filename.concat (Config.links_dir dir) hash_hex) (run_id ^ "\n");
+=== test file head ===
+     222 test/dogfood-parallel.sh
+4:# build and grade in parallel, then land through the serial
+5:# queue. The scorecard is computed from the workers' own
+93:# --- parallel author workers: claim, build, handoff, grade, verify ---
+101:  tok=$(echo "$mint" | jq -r .token); rid=$(echo "$mint" | jq -r .run_id)
+109:  es "$session" grade --verdict ship --reason "artifact checked" > "$work/$node.grade.json"
+120:# true parallelism: intervals overlap, different claims and desks
+124:  || fail "author intervals do not overlap: day $day_start-$day_end night $night_start-$night_end"
+130:# isolation: each desk and each exp branch holds only its variant
+148:  jq -e '.state == "handed_off"' "$work/$n.grade.json" >/dev/null || fail "$n grade state"
+153:    | jq -s -e '([.[] | select(.edge == "grade" and .verdict == "ship")] | length == 1)
+155:    || fail "$n grade matrix ledger"
+172:# --- scorecard: wall from the run itself, timing from the rollup ---
+173:ready_wall_ms=$(( (day_end > night_end ? day_end : night_end) - (day_start < night_start ? day_start : night_start) ))
+175:(( ready_wall_ms < serial_sum_ms )) \
+176:  || fail "ready-set wall $ready_wall_ms not below serial sum $serial_sum_ms"
+178:echo "$out" | jq -e '(.exps[] | select(.exp == "flappy-day") | .state == "landed" and (.timing.wall_s | type == "number"))
+179:  and (.exps[] | select(.exp == "flappy-night") | .state == "landed" and (.timing.wall_s | type == "number"))
+181:  || fail "rollup scorecard fields: $out"
+182:jq -n --argjson ready_wall_ms "$ready_wall_ms" --argjson serial_sum_ms "$serial_sum_ms" \
+183:  --arg day_wall_s "$(echo "$out" | jq -r '.exps[] | select(.exp == "flappy-day") | .timing.wall_s')" \
+184:  --arg night_wall_s "$(echo "$out" | jq -r '.exps[] | select(.exp == "flappy-night") | .timing.wall_s')" \
+185:  '{ready_wall_ms: $ready_wall_ms, serial_sum_ms: $serial_sum_ms,
+186:    wall_saved_ms: ($serial_sum_ms - $ready_wall_ms),
+187:    nodes: {"flappy-day": {wall_s: ($day_wall_s | tonumber)},
+188:            "flappy-night": {wall_s: ($night_wall_s | tonumber)}},
+189:    tokens: null,
+190:    tokens_note: "bp3 rollup reports no per-node token field; tokens are not invented"}' \
+191:  > "$work/scorecard.json"
+192:jq -e '.wall_saved_ms > 0 and .tokens == null and (.tokens_note | length > 0)' "$work/scorecard.json" >/dev/null \
+193:  || fail "scorecard: $(cat "$work/scorecard.json")"
+194:echo "scorecard: $(cat "$work/scorecard.json")"
+203:  q conf u "$n" grade --verdict ship --reason ok >/dev/null
+209:echo "$out" | jq -e '.ok == true and .state == "todo" and .facts.land_conflict == true' >/dev/null \
+213:# --- blocked variant starves only its dependents ---
+219:echo "$out" | jq -e '.ready == ["bw"] and .starved == [{"blocked":"bx","starved":["by"]}]' >/dev/null \
+220:  || fail "blocked sibling isolation: $out"
+=== derivation log ===
+ls: /Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261117T065327Z-node-muse-code-muse-wonder-1.0-c1.jsonl: No such file or directory
+cat: /Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261117T065327Z-node-muse-code-muse-wonder-1.0-c1.jsonl: No such file or directory
+=== env ===
+OLDPWD=/Users/whycz/m/bp3
+PWD=/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+=== run dogfood-parallel ===
+scorecard: {
+  "ready_wall_ms": 3944,
+  "serial_sum_ms": 6870,
+  "wall_saved_ms": 2926,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 2
+    },
+    "flappy-night": {
+      "wall_s": 1
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+dogfood-parallel tests: ok
+exit:0
+=== grep pi/muse bubble in exp test ===
+(no matches, exit 1)
+=== make check (tail) ===
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (123 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+make: *** [check] Terminated: 15
+make_exit:124

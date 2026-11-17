@@ -1,0 +1,126 @@
+drwxr-xr-x@ 2 whycz  staff  64 Nov 16 22:54 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T035432Z-node-muse-code-muse-wonder-1.0-c1
+=== ENV ===
+=== git log bound ===
+5cce4cc feat(followup.1): grade validations, audit re-collect, named verdict race
+6e2dd7c docs(followup.1): amend grade-evidence with grade validations design
+105cbea test(mvp.3): quotable no-hand-edited-state guard for cycle-2 grade
+b765d07 feat(mvp.3): ready-set waves, node deps, derived timing, setup gate, induct-node loop
+b2250e3 chore: sync installed workflow renders with committed sources
+=== git show stat ===
+commit 5cce4cc8c272a32c9a7e850cb9acea79411a026b
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 22:51:05 2026 -0500
+
+    feat(followup.1): grade validations, audit re-collect, named verdict race
+
+ .agents/skills/traverse/SKILL.md          |  35 ++++
+ .agents/workflows/induct-grade.js         | 323 +++++++++++++++++++++++++++---
+ .claude/skills/traverse/SKILL.md          |  35 ++++
+ .pi/skills/traverse/SKILL.md              |  35 ++++
+ skills/traverse/SKILL.md                  |  18 ++
+ skills/traverse/workflows/induct-grade.js | 323 +++++++++++++++++++++++++++---
+ test/induct-grade.test.mjs                | 181 ++++++++++++++---
+ test/traverse-conduct.test.mjs            |   8 +
+ 8 files changed, 870 insertions(+), 88 deletions(-)
+=== HEAD ===
+5cce4cc8c272a32c9a7e850cb9acea79411a026b
+=== status ===
+(status done)
+=== common dir ===
+/Users/whycz/m/bp3/.git
+=== DIFF NAMES ===
+ .agents/skills/traverse/SKILL.md          |  35 ++++
+ .agents/workflows/induct-grade.js         | 323 +++++++++++++++++++++++++++---
+ .claude/skills/traverse/SKILL.md          |  35 ++++
+ .pi/skills/traverse/SKILL.md              |  35 ++++
+ skills/traverse/SKILL.md                  |  18 ++
+ skills/traverse/workflows/induct-grade.js | 323 +++++++++++++++++++++++++++---
+ test/induct-grade.test.mjs                | 181 ++++++++++++++---
+ test/traverse-conduct.test.mjs            |   8 +
+ 8 files changed, 870 insertions(+), 88 deletions(-)
+=== SKILL DIFF ===
+commit 5cce4cc8c272a32c9a7e850cb9acea79411a026b
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 22:51:05 2026 -0500
+
+    feat(followup.1): grade validations, audit re-collect, named verdict race
+
+diff --git a/skills/traverse/SKILL.md b/skills/traverse/SKILL.md
+index 5375294..b59fe1e 100644
+--- a/skills/traverse/SKILL.md
++++ b/skills/traverse/SKILL.md
+@@ -117,6 +117,24 @@ above stays the one conductor procedure.
+    is always safe, so a killed grade is simply dispatched
+    again — no attempt bookkeeping here.
+ 
++   Grade evidence contract (followup.1): inside
++   `induct-grade`, a deterministic grade validations
++   pipeline mints every adherence row in code before the
++   audit child spawns (empty stdout quoted as
++   `(empty stdout, exit 0)`, never hand-quoted); the audit
++   builds only acceptance rows. A row without typed
++   evidence is re-collected once inside the audit (named
++   rows) and never reaches the FSM: it casts no verdict,
++   burns no author cycle, and pages no human. Evidence
++   still uncollectable returns outcome `audit_failure`,
++   naming the row and the collection error — quote it as
++   grader paperwork, never as a product `needs_fix`, and
++   simply re-dispatch the grade. When grade and verify
++   cast in parallel and the second cast is refused with
++   `E_ILLEGAL_EDGE` after the first moved state, the
++   outcome names it an expected verdict race; re-read and
++   judge from the fresh state.
++
+    Cycle autonomy: when a grade returns `needs_fix` (or a
+    verify returns `fail`) and the re-read shows the exp back
+    in `todo` below the cycle cap, the conductor dispatches
+=== RUN induct-grade tests ===
+induct-grade tests: ok
+EXIT:0
+=== RUN traverse-conduct tests ===
+traverse-conduct tests: ok
+EXIT:0
+=== git show traverse test diff ===
+commit 5cce4cc8c272a32c9a7e850cb9acea79411a026b
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 22:51:05 2026 -0500
+
+    feat(followup.1): grade validations, audit re-collect, named verdict race
+
+diff --git a/test/traverse-conduct.test.mjs b/test/traverse-conduct.test.mjs
+index 5de7f60..0187462 100644
+--- a/test/traverse-conduct.test.mjs
++++ b/test/traverse-conduct.test.mjs
+@@ -34,6 +34,14 @@ function fixtureHost() {
+   const host = {
+     args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: null },
+     async agent({ label, input }) {
++      if (label.startsWith("validations")) {
++        return JSON.stringify({
++          git_clean: { stdout: "", exit: 0 },
++          git_show: { stdout: COMMIT + " subject\n", exit: 0 },
++          run_folders: ["20260101T000000Z-handoff-muse-code-test-model-c1 tape=yes notes=yes"],
++          handoff_line: '{"edge":"handoff","run_id":"r-build","commit":"' + COMMIT + '"}',
++        });
++      }
+       // Stage children first: their briefs mention harness
+       // commands (find-tape in the ladder text) without calling them.
+       const stage = label.split(" ")[0];
+=== renders in sync ===
+induct-grade renders identical
+=== derivation log ===
+ls: /Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261117T035432Z-node-muse-code-muse-wonder-1.0-c1.jsonl: No such file or directory
+=== live porcelain ===
+stdout=[] exit=0
+=== exp state ===
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-followup-1-grade-evidence","state":"handed_off","fin":null,"cycle":1,"commit":"5cce4cc8c272a32c9a7e850cb9acea79411a026b","deps":[],"timing":{"wall_s":null,"wait_s":17337,"dwell_s":{"todo":17337},"cycles":1},"legal_edges":["grade","verify","block","delete"],"changes":[{"change":"u","path":".agents/skills/traverse/SKILL.md"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":".claude/skills/traverse/SKILL.md"},{"change":"u","path":".pi/skills/traverse/SKILL.md"},{"change":"u","path":"skills/traverse/SKILL.md"},{"change":"u","path":"skills/traverse/workflows/induct-grade.js"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/traverse-conduct.test.mjs"}],"run_id":"20261117T035432Z-node-muse-code-muse-wonder-1.0-c1"}
+=== run folder ===
+total 24
+-rw-r--r--@ 1 whycz  staff  2538 Nov 16 22:55 notes.md
+-rw-r--r--@ 1 whycz  staff  6251 Nov 16 22:55 tape.log
+=== notes head ===
+# Audit notes — exp-followup-1-grade-evidence @ 5cce4cc
+
+Lessons: grade decided at rungs 1–3 (records, bound-commit diff/code,
+tests run); zero whole-tape reads. The deterministic validations
+plugs, one audit-internal re-collect, explicit `audit_failure`, and

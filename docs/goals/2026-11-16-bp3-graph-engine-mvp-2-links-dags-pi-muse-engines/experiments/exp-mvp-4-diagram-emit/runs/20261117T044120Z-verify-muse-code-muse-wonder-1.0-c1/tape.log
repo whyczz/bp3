@@ -1,0 +1,394 @@
+drwxr-xr-x@ 2 whycz  staff  64 Nov 16 23:41 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-4-diagram-emit/runs/20261117T044120Z-verify-muse-code-muse-wonder-1.0-c1
+=== git status --porcelain ===
+exit:0
+=== git log --oneline -3 ===
+fe6efe7 feat(mvp.4): diagram verb — generated ascii/mermaid from live rollup
+8411e0a fix(followup.1): make run-folder validation trustworthy
+0aa087d docs(followup.1): name cycle-2 fix for run-folder validation false fail
+=== git show --stat HEAD ===
+commit fe6efe79513040a1ad8b7a8d7e2d275f961d7415
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 23:37:54 2026 -0500
+
+    feat(mvp.4): diagram verb — generated ascii/mermaid from live rollup
+
+ Makefile             |   3 +-
+ completions/_bp3     |   2 +-
+ completions/bp3.bash |   2 +-
+ src/quest/main.ml    |  56 ++++++++++++++++++++++++++++
+ src/quest/render.ml  | 103 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/quest/store.ml   |   2 +-
+ test/diagram.sh      | 101 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 7 files changed, 265 insertions(+), 4 deletions(-)
+=== HEAD ===
+fe6efe79513040a1ad8b7a8d7e2d275f961d7415
+=== runs listing ===
+notes.md
+tape.log
+=== ledger handoff ===
+grep: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-4-diagram-emit/ledger.jsonl: No such file or directory
+=== exp record ===
+EXPERIMENT.md
+runs
+=== quest dir ===
+experiments
+QUEST.md
+=== find ledger ===
+=== EXPERIMENT.md ===
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: mvp.4
+status: proposed
+---
+
+# mvp.4 - diagram-emit: the graph draws itself
+
+## TL;DR
+
+From a live rollup, emit the graph diagram in
+ASCII (terminals, tapes, records) and mermaid
+(rendered docs): nodes annotated with state and
+cycle, deps grouped into ready-set waves, blocked nodes
+naming what they starve, landed nodes marked
+`exp_fin`-equivalent in the new vocabulary.
+Generated every time — hand-drawn diagrams rot.
+
+## Demo (design trace)
+
+```text
+bp3 <door> <graph> diagram --format ascii
+  A(landed) ─dep─► C(handed_off c2)
+  B(blocked) ─dep─► D(todo, starved by B)
+
+bp3 <door> <graph> diagram --format mermaid
+  graph LR ... (same facts, mermaid source)
+```
+
+## Diagram
+
+```text
+rollup (ledger fold) ─► layering (mvp.3) ─► ascii emitter
+                                        └─► mermaid emitter
+```
+
+## Pseudocode
+
+```python
+def diagram(graph, fmt):
+    view = rollup(graph)           # states, cycles, starved sets
+    layers = ready-set waves(view.nodes)   # mvp.3
+    return emit_ascii(layers, view) if fmt == "ascii" else emit_mermaid(layers, view)
+```
+
+| Field | Value |
+|---|---|
+| Intent | structure is visible at a glance, always current |
+| Lane | micro |
+| Output | diagram verb with ascii + mermaid formats |
+| Depends on | mvp.3 |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| ascii current | output reflects live states/cycles at call time; rerunning after a node moves changes exactly that node |
+| mermaid equivalent | mermaid source carries the same nodes, deps, states as the ascii of the same moment |
+| ready-set waves + starvation | ready-set layers visible; a blocked node's starved dependents named on both formats |
+| honest labels | generated output states it is generated from live state with the rollup timestamp |
+
+## Acceptance test (goal block)
+
+- **Objective:** anyone can see the graph's
+  shape and status without reading ledgers.
+- **Prove by:** run both formats against the
+  fixture graphs of mvp.3 and one live graph;
+  diff facts between formats.
+- **Done when:** both formats match the rollup
+  facts exactly, observed.
+
+## Tests
+
+Golden fixtures per graph shape; property: every
+node and dep in the rollup appears exactly once
+per format; state annotation equals fold output.
+
+## Context
+
+The design sessions kept redrawing this diagram
+by hand (states at rest, edges as subagents).
+Generated diagrams make the convention
+self-documenting and give blocked gates a picture
+worth paging with.
+=== ./test/diagram.sh ===
+diagram tests: ok
+exit:0
+=== diagram ascii ===
+quest 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines diagram (generated from live state at 2026-11-17T04:41:52Z)
+rollup: active
+nodes:
+  exp-config-1-bp3-config (landed, cycle 2, exp_fin)
+  exp-dogfood-1-link-drive (todo, cycle 1)
+  exp-dogfood-2-parallel-drive (todo, cycle 1)
+  exp-followup-1-grade-evidence (landed, cycle 2, exp_fin)
+  exp-followup-2-workflow-birth (todo, cycle 1)
+  exp-landing-1-landing-wrapup (todo, cycle 1)
+  exp-mig-1-handoff-verbs (landed, cycle 1, exp_fin)
+  exp-mig-2-traverse-rename (landed, cycle 2, exp_fin)
+  exp-mvp-1-link-claim (landed, cycle 1, exp_fin)
+  exp-mvp-2-context-resolution (landed, cycle 1, exp_fin)
+  exp-mvp-3-ready-set-timing (landed, cycle 2, exp_fin)
+  exp-mvp-4-diagram-emit (handed_off, cycle 1)
+  exp-mvp-5-blocked-fail-fast (todo, cycle 1)
+  exp-rename-1-bp3g-rename (todo, cycle 1)
+deps:
+  (none)
+waves:
+  wave 1: exp-dogfood-1-link-drive, exp-dogfood-2-parallel-drive, exp-followup-2-workflow-birth, exp-landing-1-landing-wrapup, exp-mvp-5-blocked-fail-fast, exp-rename-1-bp3g-rename
+starved:
+  (none)
+exit:0
+=== diagram mermaid ===
+%% generated from live state at 2026-11-17T04:41:52Z
+%% quest 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines rollup: active
+graph LR
+  exp_config_1_bp3_config["exp-config-1-bp3-config (landed, cycle 2, exp_fin)"]
+  exp_dogfood_1_link_drive["exp-dogfood-1-link-drive (todo, cycle 1)"]
+  exp_dogfood_2_parallel_drive["exp-dogfood-2-parallel-drive (todo, cycle 1)"]
+  exp_followup_1_grade_evidence["exp-followup-1-grade-evidence (landed, cycle 2, exp_fin)"]
+  exp_followup_2_workflow_birth["exp-followup-2-workflow-birth (todo, cycle 1)"]
+  exp_landing_1_landing_wrapup["exp-landing-1-landing-wrapup (todo, cycle 1)"]
+  exp_mig_1_handoff_verbs["exp-mig-1-handoff-verbs (landed, cycle 1, exp_fin)"]
+  exp_mig_2_traverse_rename["exp-mig-2-traverse-rename (landed, cycle 2, exp_fin)"]
+  exp_mvp_1_link_claim["exp-mvp-1-link-claim (landed, cycle 1, exp_fin)"]
+  exp_mvp_2_context_resolution["exp-mvp-2-context-resolution (landed, cycle 1, exp_fin)"]
+  exp_mvp_3_ready_set_timing["exp-mvp-3-ready-set-timing (landed, cycle 2, exp_fin)"]
+  exp_mvp_4_diagram_emit["exp-mvp-4-diagram-emit (handed_off, cycle 1)"]
+  exp_mvp_5_blocked_fail_fast["exp-mvp-5-blocked-fail-fast (todo, cycle 1)"]
+  exp_rename_1_bp3g_rename["exp-rename-1-bp3g-rename (todo, cycle 1)"]
+  subgraph wave_1["wave 1"]
+    exp_dogfood_1_link_drive
+    exp_dogfood_2_parallel_drive
+    exp_followup_2_workflow_birth
+    exp_landing_1_landing_wrapup
+    exp_mvp_5_blocked_fail_fast
+    exp_rename_1_bp3g_rename
+  end
+exit:0
+=== diagram json ===
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","format":"json","generated_at":"2026-11-17T04:41:53Z","rollup":"active","exps":[{"exp":"exp-config-1-bp3-config","state":"landed","fin":"exp_fin","cycle":2,"commit":"3c47fe532642369348656be958eb577fc662881d","deps":[],"timing":{"wall_s":6135,"wait_s":8448,"dwell_s":{"approved":67,"blocked":5080,"handed_off":536,"todo":8900},"cycles":2},"legal_edges":[],"changes":[{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"}]},{"exp":"exp-dogfood-1-link-drive","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-dogfood-2-parallel-drive","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-followup-1-grade-evidence","state":"landed","fin":"exp_fin","cycle":2,"commit":"8411e0a61f8f0e72ff17caa630ea93345cba3d90","deps":[],"timing":{"wall_s":1816,"wait_s":17337,"dwell_s":{"approved":70,"blocked":317,"handed_off":939,"todo":17827},"cycles":2},"legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"skills/traverse/workflows/induct-grade.js"},{"change":"u","path":"test/induct-grade.test.mjs"}]},{"exp":"exp-followup-2-workflow-birth","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-landing-1-landing-wrapup","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mig-1-handoff-verbs","state":"landed","fin":"exp_fin","cycle":1,"commit":"44196725860125de048415ff6a4be350a90c033b","deps":[],"timing":{"wall_s":863,"wait_s":1376,"dwell_s":{"approved":68,"handed_off":795,"todo":1376},"cycles":1},"legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"u","path":".agents/skills/naming/SKILL.md"},{"change":"u","path":".agents/skills/quest/SKILL.md"},{"change":"u","path":".agents/skills/red-ink/SKILL.md"},{"change":"u","path":".agents/skills/using-bp3/SKILL.md"},{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".claude/skills/naming/SKILL.md"},{"change":"u","path":".claude/skills/quest/SKILL.md"},{"change":"u","path":".claude/skills/red-ink/SKILL.md"},{"change":"u","path":".claude/skills/using-bp3/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/naming/SKILL.md"},{"change":"u","path":".pi/skills/quest/SKILL.md"},{"change":"u","path":".pi/skills/red-ink/SKILL.md"},{"change":"u","path":".pi/skills/using-bp3/SKILL.md"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/roles/author.md"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"skills/naming/SKILL.md"},{"change":"u","path":"skills/quest/SKILL.md"},{"change":"u","path":"skills/red-ink/SKILL.md"},{"change":"u","path":"skills/using-bp3/SKILL.md"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"u","path":"test/completion.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/hooks.sh"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/install.sh"},{"change":"u","path":"test/q.sh"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/tape.sh"},{"change":"u","path":"test/worktree.sh"}]},{"exp":"exp-mig-2-traverse-rename","state":"landed","fin":"exp_fin","cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","deps":[],"timing":{"wall_s":5241,"wait_s":2660,"dwell_s":{"approved":63,"blocked":3928,"handed_off":838,"todo":3072},"cycles":2},"legal_edges":[],"changes":[{"change":"+","path":"test/traverse-conduct.test.mjs"},{"change":"u","path":"test/traverse.sh"}]},{"exp":"exp-mvp-1-link-claim","state":"landed","fin":"exp_fin","cycle":1,"commit":"09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3","deps":[],"timing":{"wall_s":3167,"wait_s":16553,"dwell_s":{"approved":61,"handed_off":3106,"todo":16553},"cycles":1},"legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"extensions/bp3-pi/README.md"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/src/contract.ts"},{"change":"u","path":"extensions/bp3-pi/src/dispatcher.ts"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"skills/traverse/workflows/induct-grade.js"},{"change":"u","path":"skills/traverse/workflows/node-loop.js"},{"change":"u","path":"skills/traverse/workflows/quest-land.js"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"+","path":"test/link.sh"},{"change":"u","path":"test/node-loop.test.mjs"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/traverse-conduct.test.mjs"}]},{"exp":"exp-mvp-2-context-resolution","state":"landed","fin":"exp_fin","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","deps":[],"timing":{"wall_s":1990,"wait_s":21098,"dwell_s":{"approved":1315,"handed_off":675,"todo":21098},"cycles":1},"legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"+","path":"test/context.sh"}]},{"exp":"exp-mvp-3-ready-set-timing","state":"landed","fin":"exp_fin","cycle":2,"commit":"105cbea174e8b204413cf2428aea78eec2e344d0","deps":[],"timing":{"wall_s":4941,"wait_s":28377,"dwell_s":{"approved":74,"blocked":252,"handed_off":3665,"todo":29327},"cycles":2},"legal_edges":[],"changes":[{"change":"u","path":"test/ready.sh"}]},{"exp":"exp-mvp-4-diagram-emit","state":"handed_off","fin":null,"cycle":1,"commit":"fe6efe79513040a1ad8b7a8d7e2d275f961d7415","deps":[],"timing":{"wall_s":null,"wait_s":33940,"dwell_s":{"todo":33940},"cycles":1},"legal_edges":["grade","verify","block","delete"],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"+","path":"test/diagram.sh"}]},{"exp":"exp-mvp-5-blocked-fail-fast","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-rename-1-bp3g-rename","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null}],"deps":[],"ready_set_waves":[["exp-dogfood-1-link-drive","exp-dogfood-2-parallel-drive","exp-followup-2-workflow-birth","exp-landing-1-landing-wrapup","exp-mvp-5-blocked-fail-fast","exp-rename-1-bp3g-rename"]],"ready":["exp-dogfood-1-link-drive","exp-dogfood-2-parallel-drive","exp-followup-2-workflow-birth","exp-landing-1-landing-wrapup","exp-mvp-5-blocked-fail-fast","exp-rename-1-bp3g-rename"],"starved":[],"diagram_ascii":"quest 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines diagram (generated from live state at 2026-11-17T04:41:53Z)\nrollup: active\nnodes:\n  exp-config-1-bp3-config (landed, cycle 2, exp_fin)\n  exp-dogfood-1-link-drive (todo, cycle 1)\n  exp-dogfood-2-parallel-drive (todo, cycle 1)\n  exp-followup-1-grade-evidence (landed, cycle 2, exp_fin)\n  exp-followup-2-workflow-birth (todo, cycle 1)\n  exp-landing-1-landing-wrapup (todo, cycle 1)\n  exp-mig-1-handoff-verbs (landed, cycle 1, exp_fin)\n  exp-mig-2-traverse-rename (landed, cycle 2, exp_fin)\n  exp-mvp-1-link-claim (landed, cycle 1, exp_fin)\n  exp-mvp-2-context-resolution (landed, cycle 1, exp_fin)\n  exp-mvp-3-ready-set-timing (landed, cycle 2, exp_fin)\n  exp-mvp-4-diagram-emit (handed_off, cycle 1)\n  exp-mvp-5-blocked-fail-fast (todo, cycle 1)\n  exp-rename-1-bp3g-rename (todo, cycle 1)\ndeps:\n  (none)\nwaves:\n  wave 1: exp-dogfood-1-link-drive, exp-dogfood-2-parallel-drive, exp-followup-2-workflow-birth, exp-landing-1-landing-wrapup, exp-mvp-5-blocked-fail-fast, exp-rename-1-bp3g-rename\nstarved:\n  (none)\n","diagram_mermaid":"%% generated from live state at 2026-11-17T04:41:53Z\n%% quest 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines rollup: active\ngraph LR\n  exp_config_1_bp3_config[\"exp-config-1-bp3-config (landed, cycle 2, exp_fin)\"]\n  exp_dogfood_1_link_drive[\"exp-dogfood-1-link-drive (todo, cycle 1)\"]\n  exp_dogfood_2_parallel_drive[\"exp-dogfood-2-parallel-drive (todo, cycle 1)\"]\n  exp_followup_1_grade_evidence[\"exp-followup-1-grade-evidence (landed, cycle 2, exp_fin)\"]\n  exp_followup_2_workflow_birth[\"exp-followup-2-workflow-birth (todo, cycle 1)\"]\n  exp_landing_1_landing_wrapup[\"exp-landing-1-landing-wrapup (todo, cycle 1)\"]\n  exp_mig_1_handoff_verbs[\"exp-mig-1-handoff-verbs (landed, cycle 1, exp_fin)\"]\n  exp_mig_2_traverse_rename[\"exp-mig-2-traverse-rename (landed, cycle 2, exp_fin)\"]\n  exp_mvp_1_link_claim[\"exp-mvp-1-link-claim (landed, cycle 1, exp_fin)\"]\n  exp_mvp_2_context_resolution[\"exp-mvp-2-context-resolution (landed, cycle 1, exp_fin)\"]\n  exp_mvp_3_ready_set_timing[\"exp-mvp-3-ready-set-timing (landed, cycle 2, exp_fin)\"]\n  exp_mvp_4_diagram_emit[\"exp-mvp-4-diagram-emit (handed_off, cycle 1)\"]\n  exp_mvp_5_blocked_fail_fast[\"exp-mvp-5-blocked-fail-fast (todo, cycle 1)\"]\n  exp_rename_1_bp3g_rename[\"exp-rename-1-bp3g-rename (todo, cycle 1)\"]\n  subgraph wave_1[\"wave 1\"]\n    exp_dogfood_1_link_drive\n    exp_dogfood_2_parallel_drive\n    exp_followup_2_workflow_birth\n    exp_landing_1_landing_wrapup\n    exp_mvp_5_blocked_fail_fast\n    exp_rename_1_bp3g_rename\n  end\n","run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1"}
+exit:0
+# verify notes — exp-mvp-4-diagram-emit c1
+
+- Fresh: git status clean, HEAD == bound commit fe6efe7.
+- Fresh: ./test/diagram.sh -> "diagram tests: ok" (exit 0).
+- Fresh: ascii/mermaid/json all emit live rollup; node shows (handed_off, cycle 1); honest "generated from live state at <ts>" label; waves + starved sections present.
+- Lesson: judge on rerun output, not the handoff matrix; ledger.jsonl path in matrix does not exist as a file — state corroborated via live diagram json instead.
+- Verdict: pass.
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-4-diagram-emit","state":"handed_off","cycle":1,"commit":"fe6efe79513040a1ad8b7a8d7e2d275f961d7415","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-4-diagram-emit","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-4-diagram-emit","edge":"grade","run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1","warnings":["W_CONTEXT_ENV_MISMATCH"]}
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"expected: q c|r|d ... or q <quest> c|r|u|d ..."},"guidance":"Fix the call: expected: q c|r|d ... or q <quest> c|r|u|d ..."},"run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1"}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-4-diagram-emit","state":"handed_off","fin":null,"cycle":1,"commit":"fe6efe79513040a1ad8b7a8d7e2d275f961d7415","deps":[],"timing":{"wall_s":null,"wait_s":33940,"dwell_s":{"handed_off":245,"todo":33940},"cycles":1},"legal_edges":["grade","verify","block","delete"],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"+","path":"test/diagram.sh"}],"run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1"}
+
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-4-diagram-emit","state":"handed_off","cycle":1,"commit":"fe6efe79513040a1ad8b7a8d7e2d275f961d7415","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-4-diagram-emit","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-4-diagram-emit","edge":"grade","run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1","warnings":["W_CONTEXT_ENV_MISMATCH"]}
+bp3 harness - harness machinery door. Verbs:
+bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]   passive loop: tell -> watch -> judge -> finalize
+bp3 harness init-check [--engine muse-code|pi]   probe tape sources; blindness is W_SUPERVISOR_BLIND, never blocking
+bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]   InitRecord-first run-id -> tape; --session-id <id> is a reverse lookup
+bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]   blocking watch: sole TERM/KILL owner
+bp3 harness desk <verb> ...                      machine-local desks: derive, create, inspect, remove, prepare, check, exit, release, list
+bp3 harness link mint|claim|lookup|cleanup ...   one-time link binding: mint a link, the child claims it once (E_LINK_SPENT, E_DEPTH)
+bp3 harness record-init ...                      retired (E_RETIRED): use link mint/claim; the run config is the InitRecord-equivalent
+bp3 harness bind-tape --run-id <id> --tape-path <p>   launcher binds a finished child's session tape (into the run config when claimed)
+bp3 harness backtest [--engine muse-code|pi] [--corpus <dir>]   replay the fold over stored tapes; findings, not a gate
+Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init, t=bind-tape, b=backtest, l=link. Example: bp3 harness supervisor toy --timeout-seconds 1800
+---
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"unknown harness verb: context"},"guidance":"Fix the call: unknown harness verb: context"},"run_id":"20261117T044120Z-verify-muse-code-muse-wonder-1.0-c1"}
+
+bp3 q - quest/exp state. Doors:
+bp3 q c|r|d ...              quest door (create, read, delete)
+bp3 q <quest> c|r|u|d ...    exp door for one quest
+bp3 q <quest> diagram ...    generated graph diagram from the live rollup (mvp.4)
+bp3 q icebox r [term...]     search frozen icebox entries (read-only)
+bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)
+bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias
+bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)
+bp3 q hooks                  harness hook emitter (fail-open)
+Run bp3 q <door> -h for that door's verbs, edges, and flags.
+bp3 q <quest> u <exp> <edge> - edges and their flags:
+edges: handoff grade verify land block resume
+handoff --commit <sha> --reason <why>    bind a clean commit for grade
+grade  --verdict ship|needs_fix --reason <why>
+verify --verdict pass|fail --reason <why>
+land   --reason <why>                    land an approved exp
+block  --reason <why>                    park for a human decision
+resume --reason <why>                    human only: unblock
+Shared flags: --format json|table|tree, --target <name>.
+Example: bp3 q my-quest u exp-1 handoff --commit abc123 --reason "ready"
+/Users/whycz/m/bp3/.git
+by-session
+claims
+config.json
+desks
+links
+pi-sessions
+run-lifecycle-derivations
+runs
+/Users/whycz/m/bp3/.git/bp3/desks/.bp3_worktrees_2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/context
+/Users/whycz/m/bp3/.git/bp3/runs/20261117T044120Z-verify-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/runs/20261117T044013Z-node-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/runs/20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/runs/20261117T042817Z-handoff-muse-code-muse-wonder-1.0-c1.json
+{"run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1","graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-4-diagram-emit","edge":"grade"}
+
+20261117T003239Z-node-muse-code-muse-wonder-1.0-c1.claim
+20261117T003626Z-grade-muse-code-muse-wonder-1.0-c1.claim
+20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1.claim
+20261117T004025Z-land-muse-code-muse-wonder-1.0-c1.claim
+20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1.claim
+20261117T010557Z-node-muse-code-muse-wonder-1.0-c1.claim
+20261117T010735Z-grade-muse-code-muse-wonder-1.0-c1.claim
+20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1.claim
+20261117T011548Z-land-muse-code-muse-wonder-1.0-c1.claim
+20261117T013825Z-handoff-muse-code-muse-wonder-1.0-c1.claim
+/Users/whycz/m/bp3/.git/bp3/runs/20261117T044120Z-verify-muse-code-muse-wonder-1.0-c1.json
+{"run_id":"20261117T044120Z-verify-muse-code-muse-wonder-1.0-c1","kind":"edge","graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-4-diagram-emit","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","creator":{"run_id":"","depth":0,"harness":"muse-code","model":"muse-wonder-1.0","minted_at":"2026-11-17T04:41:20Z","token_hash":"sha256:c3462bbb70b595ff19edab28b2cfaed15fc7558bdf8433e51567026bd5d2f850"},"edge":"verify","state":"claimed","claim":{"pid":28493,"cwd":"/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","claimed_at":"2026-11-17T04:41:30Z","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d"}}
+bp3 e - claimed edge door (mvp.2): context is resolved, never carried:
+bp3 e                                    print the resolved context, its source rung (session|desk), state, and legal edges
+bp3 e <edge> [flags]                     take the claimed run's edge: handoff grade verify land block resume (same flags as bp3 q <quest> u <exp> <edge>)
+Resolution: session claim first, desk context second, checked against cwd; no rung refuses E_NO_CONTEXT, an ambiguous desk refuses E_NO_CONTEXT naming the live run_ids. Env BP3_RUN_ID is a hint only: a mismatch warns W_CONTEXT_ENV_MISMATCH and the claim wins; an unclaimed explicit edge call warns W_CONTEXT_UNCLAIMED.
+Example: bp3 e handoff --commit abc123 --reason "ready"
+bp3 harness link - one-time link binding (mvp.1):
+bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]
+bp3 harness link claim <token> [--session-id <s>]
+bp3 harness link lookup --session-id <s> (or --run-id <id>)
+bp3 harness link cleanup --graph <g>
+Mint writes runs/<run_id>.json (state minted; creator: parent run_id, depth, harness, model, minted_at, token_hash) and links/<token_hash> -> run_id, and returns the one-time token. Depth beyond the machine depth cap (config thresholds.depth_cap, default 3) refuses E_DEPTH. Claim is a compare-and-swap on an O_EXCL claim marker: exactly one winner completes the run config (state claimed; claim: session_id when offered, pid, cwd, claimed_at), writes the by-session index and the desk context; a second claim refuses E_LINK_SPENT naming first_claim (session_id, pid, ts) forever. Session-id discovery: --session-id, else BP3_SESSION_ID, MUSE_SESSION_ID/MUSE_THREAD_ID, PI_SESSION_ID/PI_SESSION_FILE; with none offered the claim still succeeds on pid+cwd. Lookup resolves session-id to run-id, graph, node, edge in one call. Cleanup removes only still-minted run configs of one graph. Run config writes are single-write temp+fsync+rename; a torn run config is never read as valid.
+Example: bp3 harness link claim bp3link_7f3a
+---
+01a1cbc0-ae53-75b3-8e53-0aae0b18151d
+20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1
+
+{"run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1","kind":"edge","graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-4-diagram-emit","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","creator":{"run_id":"","depth":0,"harness":"muse-code","model":"muse-wonder-1.0","minted_at":"2026-11-17T04:41:15Z","token_hash":"sha256:438803fa50a46b0778781493322dda3a536735f1a5c570470bc9e2fb9df2c81e"},"edge":"grade","state":"claimed","claim":{"pid":28534,"cwd":"/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","claimed_at":"2026-11-17T04:41:31Z","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d"}}
+/Users/whycz/m/bp3/.git/bp3/pi-sessions/20261116T064116Z-demo-pi-openai-gpt-6-1-sol-c1/2026-11-16T06-41-16-291Z_01a1e316-ac02-75aa-a819-b56a197126fa.jsonl
+/Users/whycz/m/bp3/.git/bp3/pi-sessions/20261116T064322Z-demo-pi-openai-gpt-6-1-sol-c1/2026-11-16T06-43-22-274Z_01a1e318-9821-770b-8ca7-31694d5bcc91.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T065016Z-land-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T011324Z-audit-muse-code-muse-wonder-1.0-c2.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T030300Z-audit-muse-code-muse-wonder-1.0-c4.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T045445Z-submit-muse-code-muse-wonder-1.0-c6.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T045728Z-check-muse-code-muse-wonder-1.0-c6.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T194825Z-land-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261115T215646Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T012738Z-review-muse-code-muse-wonder-1.0-c3.jsonl
+by-session
+claims
+config.json
+desks
+links
+pi-sessions
+run-lifecycle-derivations
+runs
+_build
+.
+..
+.agents
+.claude
+.git
+.gitignore
+.muse
+.pi
+AGENTS.md
+bin
+Brewfile
+CLAUDE.md
+completions
+docs
+dune-project
+extensions
+Makefile
+plans
+readme.md
+release.conf
+scripts
+skills
+src
+test
+{"ok":true,"config_dir":"/Users/whycz/m/bp3/.git/bp3","thresholds":{"setup_slow_s":180,"depth_cap":3},"contexts":[{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-1-link-claim","edge":null,"run_id":"20261117T003239Z-node-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"node","parent_run_id":"","depth":0},{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-1-link-claim","edge":"grade","run_id":"20261117T003626Z-grade-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0},{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-1-link-claim","edge":"verify","run_id":"20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"clai
+/Users/whycz/m/bp3/.git/bp3/runs/20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1.json:1:{"run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1","kind":"edge","graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-4-diagram-emit","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","creator":{"run_id":"","depth":0,"harness":"muse-code","model":"muse-wonder-1.0","minted_at":"2026-11-17T04:41:15Z","token_hash":"sha256:438803fa50a46b0778781493322dda3a536735f1a5c570470bc9e2fb9df2c81e"},"edge":"grade","state":"claimed","claim":{"pid":28534,"cwd":"/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","claimed_at":"2026-11-17T04:41:31Z","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d"}}
+/Users/whycz/m/bp3/.git/bp3/desks/.bp3_worktrees_2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+/Users/whycz/m/bp3/.git/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+/Users/whycz/m/bp3/.git/refs/heads/quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+.agents/skills/add-bp3-skill/SKILL.md
+.agents/skills/add-yap-skill/SKILL.md
+.agents/skills/icebox/SKILL.md
+.agents/skills/naming/SKILL.md
+.agents/skills/quest/SKILL.md
+.agents/skills/red-ink-quest-landing-demo/SKILL.md
+.agents/skills/red-ink/SKILL.md
+.agents/skills/traverse-no-human/SKILL.md
+.agents/skills/traverse/SKILL.md
+.agents/skills/using-bp3/SKILL.md
+.agents/workflows/induct-grade.js
+.agents/workflows/induct-node.js
+.agents/workflows/node-loop.js
+.agents/workflows/quest-land.js
+.claude/hooks.json
+.claude/settings.json
+.claude/skills/add-bp3-skill/SKILL.md
+.claude/skills/add-yap-skill/SKILL.md
+.claude/skills/icebox/SKILL.md
+.claude/skills/naming/SKILL.md
+fe6efe7 feat(mvp.4): diagram verb — generated ascii/mermaid from live rollup
+8411e0a fix(followup.1): make run-folder validation trustworthy
+0aa087d docs(followup.1): name cycle-2 fix for run-folder validation false fail
+5cce4cc feat(followup.1): grade validations, audit re-collect, named verdict race
+6e2dd7c docs(followup.1): amend grade-evidence with grade validations design
+docs/quests/2026-11-09-bp3-land-verdicts/ledger.jsonl
+docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-1-induct-grade/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-2-induct-exp-slim/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-3-conductor/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-4-desks/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-5-grade-matrix-fix/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/ledger.jsonl
+notes.md
+tape.log
+src/quest/store.ml:1:(* store — identity, plans, ledger fold: the truth layer. *)
+src/quest/store.ml:132:(* ---------- ledger fold ---------- *)
+src/quest/store.ml:164:(* The one compat mapping (mig.1): pre-rename ledger strings fold
+src/quest/store.ml:165:   to the new words here and nowhere else; new ledger lines already
+src/quest/store.ml:173:let fold_ledger text =
+src/quest/store.ml:211:        err "E_INVALID_PLAN" (`Assoc []) "Malformed ledger line." 1
+src/quest/store.ml:215:let ledger_text branch path =
+src/quest/store.ml:223:let quest_ledger_path q = quest_dir q ^ "/ledger.jsonl"
+src/quest/store.ml:225:let exp_ledger_path q e = exp_dir q e ^ "/ledger.jsonl"
+src/quest/store.ml:241:(* newest bp3_version stamped in any quest/exp ledger in this repo *)
+src/quest/store.ml:257:    let acc = match ledger_text (quest_branch q) (quest_ledger_path q) with
+src/quest/store.ml:260:      match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+src/quest/store.ml:274:  match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+src/quest/store.ml:276:  | Some (tip, text) -> let (s, _, _) = fold_ledger text in Some (tip, s, text)
+src/quest/store.ml:279:  match ledger_text (quest_branch q) (quest_ledger_path q) with
+src/quest/store.ml:281:  | Some (tip, text) -> let (s, qt, deps) = fold_ledger text in Some (tip, s, qt, deps, text)
+src/quest/store.ml:295:let ledger_line ~edge ~from ~to_ ~cycle ~commit ~verdict ~reason ~id
+src/quest/store.ml:317:  match ledger_text branch (exp_ledger_path q e) with
+src/quest/store.ml:323:        ~files:[(exp_ledger_path q e, new_text); (exp_state_path q e, state_yaml q e new_state)]
+src/quest/store.ml:354:(* Node deps live in exp ledger records (create and dep
+refs/heads/bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-2-cli-scaffold
+refs/heads/bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-3-fsm
+refs/heads/bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-4-tape-hooks
+refs/heads/bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-5-muse-engine
+refs/heads/bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-6-hooks
+refs/heads/bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-7-live-hooks
+refs/heads/bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-1-rendered-tables
+refs/heads/bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-2-tab-completion
+refs/heads/bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-3-icebox-search
+refs/heads/bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-4-help
+221:let exp_branch q e = "refs/heads/bp3/exp/" ^ q ^ "/" ^ e
+260:      match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+274:  match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+316:  let branch = exp_branch q e in
+{"ts":"2026-11-16T19:12:20Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"unknown","model":"unknown","bp3_version":"0.2.0","exp_type":"default"}
+{"ts":"2026-11-17T04:38:00Z","edge":"handoff","from":"todo","to":"handed_off","cycle":1,"commit":"fe6efe79513040a1ad8b7a8d7e2d275f961d7415","verdict":null,"reason":"diagram verb: ascii/mermaid/json from live rollup, waves + starved, tests green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T042817Z-handoff-muse-code-muse-wonder-1.0-c1"}
+{"ts":"2026-11-17T04:42:05Z","edge":"verify","from":"handed_off","to":"handed_off","cycle":1,"commit":"fe6efe79513040a1ad8b7a8d7e2d275f961d7415","verdict":"pass","reason":"diagram ascii/mermaid/json from live rollup verified fresh: tests ok, waves+starved, honest labels","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1"}
+{"ts":"2026-11-17T04:42:25Z","edge":"verify","from":"handed_off","to":"handed_off","cycle":1,"commit":"fe6efe79513040a1ad8b7a8d7e2d275f961d7415","verdict":"pass","reason":"diagram ascii/mermaid/json from live rollup verified fresh: tests ok, waves+starved, honest labels","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1"}

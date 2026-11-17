@@ -1,0 +1,19 @@
+# Audit notes — exp-config-1-bp3-config @ 229a6bacc7d044c1d35745ca88e3138d024117d1
+
+Lessons: config tree resolves via git-common-dir with canonicalization so worktrees agree; first-write verbs (record-init, desk prepare) create defaults with zero setup; by-session is derived and rebuilt on every view. Tape read was limited to handoff-run tail/derivation pointers; no whole-tape read.
+
+```json
+[
+  {"case": "zero setup", "rung": 3, "evidence": {"kind": "command", "ref": "./test/config.sh", "quote": "config tests: ok"}, "verdict": "pass"},
+  {"case": "viewable", "rung": 3, "evidence": {"kind": "command", "ref": "BP3_Q_BIN=_build/default/src/quest/main.exe ./bin/bp3 config --source", "quote": "{\"ok\":true,\"config_dir\":\"/Users/whycz/m/bp3/.git/bp3\",\"thresholds\":{\"setup_slow_s\":180,\"depth_cap\":3},\"contexts\":[],\"desks\":[],\"by_session_entries\":0,\"derivations\":256}"}, "verdict": "pass"},
+  {"case": "local only", "rung": 3, "evidence": {"kind": "command", "ref": "git status --porcelain", "quote": ""}, "verdict": "pass"},
+  {"case": "thresholds local", "rung": 3, "evidence": {"kind": "command", "ref": "./test/config.sh", "quote": "config tests: ok"}, "verdict": "pass"},
+  {"case": "survives worktrees", "rung": 3, "evidence": {"kind": "command", "ref": "./test/config.sh", "quote": "config tests: ok"}, "verdict": "pass"},
+  {"case": "derivations folded in", "rung": 3, "evidence": {"kind": "command", "ref": "cat /Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1.jsonl", "quote": "{\"kind\":\"init_record\",\"run_id\":\"20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1\",\"harness\":\"muse-code\",\"ts\":\"2026-11-16T21:24:15Z\",\"quest\":\"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines\",\"exp\":\"exp-config-1-bp3-config\",\"desk\":\".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines\",\"model\":\"muse-wonder-1.0\"}"}, "verdict": "pass"},
+  {"case": "adherence: handoff edge called by the child directly", "rung": 2, "evidence": {"kind": "command", "ref": "tail -n 30 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log", "quote": "{\"ok\":true,\"quest\":\"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines\",\"exp\":\"exp-config-1-bp3-config\",\"state\":\"handed_off\",\"cycle\":1,\"commit\":\"229a6bacc7d044c1d35745ca88e3138d024117d1\",\"legal_edges\":[\"grade\",\"verify\",\"block\",\"delete\"],\"run_id\":\"20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1\"}"}, "verdict": "pass"},
+  {"case": "adherence: env-set run-id stamped by bp3", "rung": 2, "evidence": {"kind": "ledger", "ref": "exp ledger handoff line for run 20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1", "quote": "{\"ok\":true,\"quest\":\"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines\",\"exp\":\"exp-config-1-bp3-config\",\"state\":\"handed_off\",\"cycle\":1,\"commit\":\"229a6bacc7d044c1d35745ca88e3138d024117d1\",\"legal_edges\":[\"grade\",\"verify\",\"block\",\"delete\"],\"run_id\":\"20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1\"}"}, "verdict": "pass"},
+  {"case": "adherence: clean commit", "rung": 2, "evidence": {"kind": "command", "ref": "git rev-parse HEAD && git status --porcelain", "quote": "229a6bacc7d044c1d35745ca88e3138d024117d1"}, "verdict": "pass"},
+  {"case": "adherence: tape.log and notes.md present in its run folder", "rung": 2, "evidence": {"kind": "file", "ref": "docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1/", "quote": "notes.md\ntape.log"}, "verdict": "pass"},
+  {"case": "adherence: no hand-edited state", "rung": 2, "evidence": {"kind": "command", "ref": "git status --porcelain", "quote": ""}, "verdict": "pass"}
+]
+```

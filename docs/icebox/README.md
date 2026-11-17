@@ -16,5 +16,5 @@ know — so that when we are ready, promoting it to a Quest with
 
 Entries live flat here as `YYYY-MM-DD-<slug>.md`. Nothing in
 this folder is state; the ledger never points here. When an
-entry thaws, it becomes a Quest under `docs/quests/` and the
+entry thaws, it becomes a Quest under `docs/goals/` and the
 entry is marked `promoted: <quest path>` — never deleted.

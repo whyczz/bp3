@@ -1,0 +1,520 @@
+=== verify run 20261117T082024Z-verify-muse-code-muse-wonder-1.0-c2 ===
+claim run_id=20261117T082024Z-verify-muse-code-muse-wonder-1.0-c2 commit=7a0dfca3d413f17647d6beb63ad267d25ff881ac
+--- rung1 quest/exp records ---
+experiments
+QUEST.md
+--- exp dir ---
+EXPERIMENT.md
+runs
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: dogfood.2
+status: proposed
+---
+
+# dogfood.2 - parallel-drive: one ready-set, two flappy variants
+
+## TL;DR
+
+Prove BFS scheduling end to end: two independent
+flappy-variant nodes in one ready-set build and grade
+in parallel (separate ad hoc desks, separate
+claims), then land through the serial queue. The
+scorecard reports wall minutes and tokens per
+node and for the ready-set — the North Star made
+visible. Variants live in separate run folders so
+the land queue is boring by construction.
+
+## Demo (design trace)
+
+```text
+ready-set [flappy-day, flappy-night] (no deps between them)
+  t0: both claimed, both building in parallel desks
+  t1: both graded in parallel (read-only)
+  t2: land flappy-day; t3: land flappy-night (serial, re-checked)
+report: ready-set wall < sum(node walls); both landed
+```
+
+## Diagram
+
+```text
+        ┌─ flappy-day ──► approved ─┐
+ready-set ─┤                            ├─► land queue ─► both landed
+        └─ flappy-night ─► approved ─┘
+one blocked variant would starve only its dependents (none here)
+```
+
+## Pseudocode
+
+```python
+desks = [adhoc_desk(), adhoc_desk()]
+parallel([drive(n, desk) for n, desk in zip(ready-set, desks)])
+for n in approved_in_order: land(n)   # serial, mergeability re-checked
+```
+
+| Field | Value |
+|---|---|
+| Intent | parallel wall-clock savings, measured; isolation without pools |
+| Lane | standard |
+| Output | two landed variant nodes; ready-set timing/token scorecard |
+| Depends on | mvp.3, mvp.5, dogfood.1 |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| true parallelism | both author Runs' tapes overlap in wall time (timestamps), different desks, different claims |
+| isolation | no cross-node file or context bleed (each desk's diff contains only its variant; contexts resolve per claim) |
+| serial land | land edges execute one at a time; second land re-checks against the new tip and succeeds |
+| scorecard honest | ready-set wall, per-node wall/tokens reported from system timing (mvp.3); ready-set wall < serial sum or the shortfall is named with cause |
+| quality floor unchanged | full grade matrix per node, `make check` green; no rung skipped for speed |
+| Pi tree death + revival | seed one Pi node with a human-blocking edge: its edge worker dies, node worker records `blocked` and exits, root receives one bubble, and no descendant process remains. After the owner answer + `resume`, root spawns a fresh Pi tree and the node continues; the sibling node is unaffected |
+| Muse parity bubble | the equivalent Muse node workflow returns the same terminal blocked bubble and exits; revival launches a fresh workflow, never resumes the old run's agents |
+| env-set run-id (standing ruling) | per-claim stamps as in mvp.2 |
+
+## Cycle 2 fix (owner A, 2026-11-17)
+
+Cycle-1 grade on `5140695`: parallelism,
+isolation, serial land, and scorecard rows
+passed; two gated rows had no coverage —
+`Pi tree death + revival` and `Muse parity
+bubble` inside the parallel drive. Owner
+chose A: prove bubbles here. Named fix,
+verbatim for cycle 2: extend the parallel
+drive so one seeded node takes a human-
+blocking edge in each engine form — Pi edge
+worker dies, node worker records `blocked`
+and exits, root receives exactly one bubble,
+no descendant process remains, and after
+owner answer + `resume` a fresh Pi tree
+continues the node; the Muse node workflow
+returns the same terminal bubble and revives
+as a fresh workflow. The sibling node stays
+unaffected throughout (timestamps/process
+evidence, not state inference). mvp.5's base
+mechanisms may be reused; the parallel-
+context coverage is this exp's to prove.
+
+## Acceptance test (goal block)
+
+- **Objective:** two nodes land in materially
+  less wall time than the serial railway would
+  take, at full quality.
+- **Prove by:** overlapping tape timestamps,
+  land-queue ledger order, timing scorecard.
+- **Done when:** both variants landed, ready-set
+  wall and tokens reported from the system,
+  observed.
+
+## Tests
+
+The drive is the test. Conflict case seeded in a
+fixture (not the live drive): two nodes touching
+one file must serialize at land with a named
+conflict, never a silent overwrite.
+
+## Context
+
+The supervisor quest's 23 nodes ran strictly
+serially; most followups were independent. This
+is the recovery of those hours, with receipts.
+Desks are ad hoc per the 2026-11-16 ruling; setup
+timing watches the 3-minute gate.
+--- rung2 git status ---
+GIT_STATUS_EXIT:0
+--- git HEAD ---
+7a0dfca3d413f17647d6beb63ad267d25ff881ac
+--- git show bound commit (stat) ---
+7a0dfca feat(dogfood.2): bubble proof in the parallel drive — Pi and Muse, sibling unaffected
+ test/dogfood-parallel.sh | 210 +++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 210 insertions(+)
+--- ledger tail ---
+tail: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/ledger.jsonl: No such file or directory
+--- find ledger ---
+--- state files ---
+total 408
+drwxr-xr-x@  4 whycz  staff     128 Nov 17 03:04 .
+drwxr-xr-x@ 10 whycz  staff     320 Nov 17 03:20 ..
+-rw-r--r--@  1 whycz  staff    2175 Nov 17 03:04 notes.md
+-rw-r--r--@  1 whycz  staff  152649 Nov 17 03:07 tape.log
+# exp-dogfood-2-parallel-drive — handoff run notes (cycle 2)
+
+- Name chosen: bubble drive inside `test/dogfood-parallel.sh`,
+  reusing the repo words `bubble` (terminal bubble, mvp.5),
+  `seeded` (the acceptance's seeded node), and `sibling`
+  (blocked-sibling isolation). No new file name was coined;
+  the proof rides the exp's own drive, as cycle 1's grade
+  required coverage in this exp, not elsewhere.
+- Fix at the root of the cycle-1 grade: the two gated rows
+  (`Pi tree death + revival`, `Muse parity bubble`) had no
+  artifact in this exp. The drive now seeds one node per
+  engine form in a parallel ready-set:
+  - Pi (`bubpi`): real node/edge OS processes claiming real
+    links in parallel with a sibling. Edge worker returns a
+    typed `E_DECISION` failure and dies; node worker calls
+    `block` once, emits exactly one facts-only bubble, exits.
+    Death is checked on the process table (`kill(pid, 0)`),
+    not inferred from state. After `BP3_DECIDER=human resume`,
+    a fresh Pi tree (new run-id, new pid) drives the node to
+    `handed_off`; the sibling stays `handed_off` throughout.
+  - Muse (`bubcl`): the real `induct-node` workflow run in
+    parallel for seeded + sibling nodes against real bp3.
+    Seeded returns the same terminal `blocked` bubble
+    (reason verbatim, `last_edge: handoff`, one block, failed
+    edge never retried) and exits; sibling lands. Revival is
+    a second workflow invocation with disjoint run-ids; the
+    old host's agent-call count is frozen, proving no old
+    agent is resumed.
+- Two papercuts found while driving: claims write
+  `.bp3-context.json` at the desk root, so Pi handoffs from
+  the repo tripped `E_DIRTY_TREE` (fixed in-fixture by
+  ignoring that file, as `test/pi-tree.test.mjs` does); and
+  workflow briefs carry backticked desk paths before the
+  `Run exactly` command, so command extraction must anchor
+  on `Run exactly`, not the first backtick pair.
+- Observed on the passing drive: ready wall 3982 ms vs
+  serial sum 6970 ms; bubble scorecard
+  `pi_bubble: blocked, claude_bubble: blocked,
+  claude_fresh: landed, sibling_claude: landed`.
+  Tokens stay `null` with the cycle-1 named cause.
+--- git status again ---
+exit:0
+--- rung3 bash test/dogfood-parallel.sh ---
+scorecard: {
+  "ready_wall_ms": 4011,
+  "serial_sum_ms": 7022,
+  "wall_saved_ms": 3011,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 2
+    },
+    "flappy-night": {
+      "wall_s": 2
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+bubble scorecard: {"pi_bubble":"blocked","pi_fresh_run":"20261117T082110Z-node-pi-test-model-c1","pi_wall_ms":2365,"claude_bubble":"blocked","claude_fresh":"landed","sibling_pi":"handed_off","sibling_claude":"landed"}
+dogfood-parallel tests: ok
+DOGFOOD_EXIT:0
+--- rung3 make check ---
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check test/pi-tree.test.mjs
+node --check skills/traverse/workflows/induct-node.js
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (123 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/ready.sh
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/diagram.sh
+diagram tests: ok
+./test/blocked.sh
+blocked tests: ok
+node test/pi-tree.test.mjs
+pi-tree tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 46775 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 47392 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 48901 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 45450 Terminated: 15          sleep 60
+./test/harness.sh: line 502: 62341 Terminated: 15          sleep 60
+--- rung2 git show bound commit header ---
+commit 7a0dfca3d413f17647d6beb63ad267d25ff881ac
+Author:     whycz <whyczz@gmail.com>
+AuthorDate: Tue Nov 17 03:04:53 2026 -0500
+Commit:     whycz <whyczz@gmail.com>
+CommitDate: Tue Nov 17 03:04:53 2026 -0500
+
+    feat(dogfood.2): bubble proof in the parallel drive — Pi and Muse, sibling unaffected
+    
+    For humans: the parallel drive now proves the blocked bubble in both engine forms — a seeded node blocks, its whole worker tree dies, and a fresh tree revives it after the human answer, while its sibling keeps moving and lands.
+    
+    For LLMs: test/dogfood-parallel.sh gains an embedded bubble drive: Pi form spawns real node/edge processes claiming real links (typed E_DECISION failure, one facts-only bubble, process-table death, fresh run-id/pid after resume); Muse form runs the real induct-node workflow in parallel against real bp3 (same blocked bubble, one block, fresh workflow with disjoint run-ids, old host agent count frozen). Sibling unaffected in both forms. make check green.
+--- diff stat vs parent ---
+ test/dogfood-parallel.sh | 210 +++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 210 insertions(+)
+./test/harness.sh: line 597: 63248 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/dogfood-link.sh
+dogfood-link tests: ok
+./test/dogfood-parallel.sh
+scorecard: {
+  "ready_wall_ms": 4010,
+  "serial_sum_ms": 6979,
+  "wall_saved_ms": 2969,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 2
+    },
+    "flappy-night": {
+      "wall_s": 2
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+bubble scorecard: {"pi_bubble":"blocked","pi_fresh_run":"20261117T082715Z-node-pi-test-model-c1","pi_wall_ms":2376,"claude_bubble":"blocked","claude_fresh":"landed","sibling_pi":"handed_off","sibling_claude":"landed"}
+dogfood-parallel tests: ok
+./test/context.sh
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (29.86025ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.176ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (408.611667ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (248.96175ms)
+✔ roles route model/thinking into the child env: override > role > conductor (480.551834ms)
+--- rung3 make check rerun (first output truncated) ---
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+✔ await_runs relays watch verbatim: settled on a finished Run (177.940875ms)
+node --check test/pi-tree.test.mjs
+node --check skills/traverse/workflows/induct-node.js
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (2088.104083ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (3017.065417ms)
+true
+true
+true
+true
+skills tests: ok (123 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (126966.380334ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (212.973ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.328333ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (159.337792ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (26.1665ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 133889.309458
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+q tests: ok
+./test/ready.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+MAKE_EXIT:0
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/diagram.sh
+diagram tests: ok
+./test/blocked.sh
+blocked tests: ok
+node test/pi-tree.test.mjs
+FAIL: watch dispositions grandchild orphaned: {"ok":false,"error":{"code":"E_NOT_FOUND","facts":{"run_id":"20261117T083054Z-handoff-pi-test-model-c1"},"guidance":"No tape references that run; no guess made."}}
+make: *** [check] Error 1
+MAKE_EXIT:2
+--- clean solo make check ---
+MAKE_EXIT:0
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check test/pi-tree.test.mjs
+node --check skills/traverse/workflows/induct-node.js
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (123 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/ready.sh
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/diagram.sh
+diagram tests: ok
+./test/blocked.sh
+blocked tests: ok
+node test/pi-tree.test.mjs
+pi-tree tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 59893 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 60024 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 60406 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 59376 Terminated: 15          sleep 60
+./test/harness.sh: line 502: 62374 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 62643 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/dogfood-link.sh
+dogfood-link tests: ok
+./test/dogfood-parallel.sh
+scorecard: {
+  "ready_wall_ms": 3972,
+  "serial_sum_ms": 6911,
+  "wall_saved_ms": 2939,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 2
+    },
+    "flappy-night": {
+      "wall_s": 1
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+bubble scorecard: {"pi_bubble":"blocked","pi_fresh_run":"20261117T084044Z-node-pi-test-model-c1","pi_wall_ms":2279,"claude_bubble":"blocked","claude_fresh":"landed","sibling_pi":"handed_off","sibling_claude":"landed"}
+dogfood-parallel tests: ok
+./test/context.sh
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (25.906875ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.127666ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (199.057625ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (231.972416ms)
+✔ roles route model/thinking into the child env: override > role > conductor (439.952542ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (166.287667ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1886.253834ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (2962.837208ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (118992.182833ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (219.321709ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.384792ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (204.816333ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (20.497792ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 125413.981625
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+--- final git status ---
+status:0
+--- make-check tail ---
+ℹ duration_ms 125413.981625
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+27
+--- verify edge call ---
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-2-parallel-drive","state":"approved","cycle":2,"commit":"7a0dfca3d413f17647d6beb63ad267d25ff881ac","legal_edges":["land","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","edge":"grade","run_id":"20261117T082017Z-grade-muse-code-muse-wonder-1.0-c2","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T082017Z-grade-muse-code-muse-wonder-1.0-c2","warnings":["W_CONTEXT_ENV_MISMATCH"]}
+VERIFY_EXIT:0
+status:0
+total 72
+-rw-r--r--@ 1 whycz  staff   4.4K Nov 17 03:43 make-check.log
+-rw-r--r--@ 1 whycz  staff   1.3K Nov 17 03:44 notes.md
+-rw-r--r--@ 1 whycz  staff    21K Nov 17 03:44 tape.log

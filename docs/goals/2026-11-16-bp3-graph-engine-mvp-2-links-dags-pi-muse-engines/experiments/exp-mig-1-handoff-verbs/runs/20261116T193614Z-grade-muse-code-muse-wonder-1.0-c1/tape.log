@@ -1,0 +1,353 @@
+44196725860125de048415ff6a4be350a90c033b feat(mig.1): rename FSM verbs to handoff/grade/verify
+=== RUNG1 EXPERIMENT ===
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: mig.1
+status: proposed
+---
+
+# mig.1 - handoff-verbs: migrate the words first
+
+## TL;DR
+
+First node of the quest. The FSM verbs and state
+take their settled names now — `submit -> handoff`,
+`review -> grade`, `check -> verify`, state
+`submitted -> handed_off` — in code, workflow
+briefs, and tests. Old quest files never move and
+landed ledgers are never rewritten: the fold maps
+old ledger strings on read, and new ledger lines
+write the new words. Every later node in this
+quest is then written in the final verb vocabulary;
+no double sweep, no Babel window.
+
+## Demo (design trace)
+
+```text
+before: bp3 q old-quest u exp-x submit --commit abc -> {state: submitted}
+code takes new verbs; fold gains the one compat mapping
+after:  bp3 q old-quest r exp-x        -> {state: handed_off}   (files untouched)
+        bp3 q old-quest u exp-x grade --verdict ship -> {state: approved}
+        bp3 q old-quest u exp-x submit -> E_USAGE unknown edge (old verb gone)
+this quest's own ledger: early lines say submit, later lines say
+handoff — one fold reads both, by design
+```
+
+## Diagram
+
+```text
+old ledgers (frozen files) ──► fold ──compat map──► handed_off / handoff
+new calls ──► handoff/grade/verify ──► ledger lines in new words only
+```
+
+## Pseudocode
+
+```python
+COMPAT = {"submit": "handoff", "review": "grade",
+          "check": "verify", "submitted": "handed_off"}  # fold only, nowhere else
+
+def fold_state(lines):
+    return fold([normalize(line, COMPAT) for line in lines])
+```
+
+| Field | Value |
+|---|---|
+| Intent | final verb vocabulary from day one of the quest |
+| Lane | high-blast-radius (touches every conducting surface) |
+| Output | renamed FSM verbs/state in code + workflows + tests; one fold compat mapping; surface report |
+| Depends on | none — this is the first node |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| old quest reads identically | an existing quest with `submit`/`submitted` ledger lines folds to `handed_off` with identical rollup before/after; no quest file modified (diff by path) |
+| new verbs round-trip | fixture node: `handoff -> grade -> verify -> land` under `bp3 q … u …`; old verbs refuse as unknown edges |
+| compat in one place | the old->new mapping appears only in the fold (grep shows one definition site); skills/workflows/tests contain zero old verb spellings as identifiers |
+| conducting surfaces updated | `induct-exp`/`induct-grade` briefs spell `handoff`/`grade`; outcomes read `handed_off`; full `make check` green |
+| this quest survives itself | this quest's own mixed-vocab ledger (early `submit`, later `handoff`) reads correctly at every step of this node |
+
+## Acceptance test (goal block)
+
+- **Objective:** the system speaks the new verbs
+  while every old quest remains readable,
+  untouched on disk.
+- **Prove by:** pre/post rollup diff on a landed
+  quest, fixture round-trip, grep surface report,
+  `make check`.
+- **Done when:** old quests fold identically, new
+  verbs conduct a fixture, files unmodified,
+  observed.
+
+## Tests
+
+Known cases: compat fold on a frozen pre-rename
+ledger fixture; unknown-edge refusal for old
+verbs; mixed-vocab ledger (this quest's own shape)
+folds correctly.
+
+Property-based: for any ledger written in old
+words, fold(old) == fold(migrated view) — same
+state, cycle, commit on every exp.
+
+## Context
+
+Rename was settled last (rename.1) when the
+machinery wasn't final. The verb half is final
+now — settled in the names round — and it is
+purely mechanical, so it goes first and every
+subsequent node is authored in final words. The
+noun/door/skill half (`bp3 g/n/e`, `bp3g`) still
+goes last: `bp3 e` doesn't exist until mvp.2, and
+the conducting skills can't rename mid-flight.
+
+=== QUEST ===
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-1-handoff-verbs","state":"handed_off","fin":null,"cycle":1,"commit":"44196725860125de048415ff6a4be350a90c033b","legal_edges":["grade","verify","block","delete"],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"u","path":".agents/skills/naming/SKILL.md"},{"change":"u","path":".agents/skills/quest/SKILL.md"},{"change":"u","path":".agents/skills/red-ink/SKILL.md"},{"change":"u","path":".agents/skills/using-bp3/SKILL.md"},{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".claude/skills/naming/SKILL.md"},{"change":"u","path":".claude/skills/quest/SKILL.md"},{"change":"u","path":".claude/skills/red-ink/SKILL.md"},{"change":"u","path":".claude/skills/using-bp3/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/naming/SKILL.md"},{"change":"u","path":".pi/skills/quest/SKILL.md"},{"change":"u","path":".pi/skills/red-ink/SKILL.md"},{"change":"u","path":".pi/skills/using-bp3/SKILL.md"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/roles/author.md"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"skills/naming/SKILL.md"},{"change":"u","path":"skills/quest/SKILL.md"},{"change":"u","path":"skills/red-ink/SKILL.md"},{"change":"u","path":"skills/using-bp3/SKILL.md"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"u","path":"test/completion.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/hooks.sh"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/install.sh"},{"change":"u","path":"test/q.sh"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/tape.sh"},{"change":"u","path":"test/worktree.sh"}]}
+
+{"ok":true,"quest":"2026-11-14-bp3-workflows-v2","state":"proposed","exps":[{"exp":"exp-1-induct-grade","state":"landed","fin":"exp_fin","cycle":1,"commit":"b415f4a323975eb5162626b85a7c00ae59d5153f","legal_edges":[],"changes":[{"change":"+","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"+","path":"skills/induct/workflows/induct-grade.js"},{"change":"+","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/induct.sh"},{"change":"u","path":"test/skills.sh"}]},{"exp":"exp-2-induct-exp-slim","state":"landed","fin":"exp_fin","cycle":3,"commit":"546a4b3f1abba2b180a2f713734dfbf02e5e0e70","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/quest-land.js"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/quest-land.js"}]},{"exp":"exp-3-conductor","state":"landed","fin":"exp_fin","cycle":3,"commit":"e5e09bea8d92abc8cfd38a3e318ddb30ea96b4d0","legal_edges":[],"changes":[{"change":"u","path":"docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-3-conductor/runs/20261115T013321Z-submit-muse-code-muse-wonder-1.0-c3/tape.log"}]},{"exp":"exp-4-desks","state":"landed","fin":"exp_fin","cycle":1,"commit":"caf880e1338af5ae00e1d4c6907865f76a123609","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"src/quest/gitx.ml"},{"change":"u","path":"src/quest/hooks.ml"},{"change":"u","path":"src/quest/worktree.ml"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/worktree.sh"}]},{"exp":"exp-5-grade-matrix-fix","state":"landed","fin":"exp_fin","cycle":2,"commit":"4460ea7ce67c166b7bd9bd669f4bfe658dc8e5fc","legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"test/induct-grade.test.mjs"}]},{"exp":"exp-6-cycle-autonomy","state":"landed","fin":"exp_fin","cycle":1,"commit":"b0321786cb79ea972d236b8c0290c3e5f02e0b4a","legal_edges":[],"changes":[{"change":"u","path":"docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/runs/20261115T022202Z-submit-muse-code-muse-wonder-1.0-c1/tape.log"}]},{"exp":"exp-7-landing-vocabulary","state":"landed","fin":"exp_fin","cycle":1,"commit":"3f140e631bbbb801ca0085341f5230f03cae63ff","legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":"docs/quests/2026-11-14-bp3-workflows-v2/QUEST.md"},{"change":"+","path":"docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/runs/20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1/notes.md"},{"change":"+","path":"docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/runs/20261115T022700Z-submit-muse-code-muse-wonder-1.0-c1/tape.log"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/q.sh"}]},{"exp":"exp-8-induct-solo","state":"landed","fin":"exp_fin","cycle":3,"commit":"75fb68faf86f4bf774b729768165dd6b52d3a3d5","legal_edges":[],"changes":[{"change":"+","path":"docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/20261115T031720Z-submit-muse-code-muse-wonder-1.0-c3/notes.md"},{"change":"+","path":"docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/20261115T031720Z-submit-muse-code-muse-wonder-1.0-c3/tape.log"},{"change":"+","path":"docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/runs/nohuman-drive-20261115/DAWN-REPORT.md"}]},{"exp":"exp-9-parallel-quests","state":"landed","fin":"exp_fin","cycle":1,"commit":"c29715b6848e17edc539486c438c86ebe784d7ff","legal_edges":[],"changes":[{"change":"u","path":"docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/runs/20261115T032222Z-submit-muse-code-muse-wonder-1.0-c1/tape.log"}]}],"rollup":"landed","fin":"quest_fin","inbox":[]}
+
+=== DIFFSTAT ===
+ .agents/skills/induct/SKILL.md          |  10 +-
+ .agents/skills/naming/SKILL.md          |   6 +-
+ .agents/skills/quest/SKILL.md           |   2 +-
+ .agents/skills/red-ink/SKILL.md         |   4 +-
+ .agents/skills/using-bp3/SKILL.md       |  10 +-
+ .agents/workflows/induct-exp.js         |  18 +--
+ .agents/workflows/induct-grade.js       |  56 ++++----
+ .claude/skills/induct/SKILL.md          |  10 +-
+ .claude/skills/naming/SKILL.md          |   6 +-
+ .claude/skills/quest/SKILL.md           |   2 +-
+ .claude/skills/red-ink/SKILL.md         |   4 +-
+ .claude/skills/using-bp3/SKILL.md       |  10 +-
+ .pi/skills/induct/SKILL.md              |  10 +-
+ .pi/skills/naming/SKILL.md              |   6 +-
+ .pi/skills/quest/SKILL.md               |   2 +-
+ .pi/skills/red-ink/SKILL.md             |   4 +-
+ .pi/skills/using-bp3/SKILL.md           |  10 +-
+ completions/_bp3                        |   2 +-
+ completions/bp3.bash                    |   2 +-
+ extensions/bp3-pi/index.ts              |   4 +-
+ extensions/bp3-pi/roles/author.md       |   2 +-
+ extensions/bp3-pi/test/bp3-pi.test.mjs  |  38 +++---
+ plans/default.yaml                      |   4 +-
+ plans/direct.yaml                       |   4 +-
+ skills/induct/SKILL.md                  |  10 +-
+ skills/induct/workflows/induct-exp.js   |  18 +--
+ skills/induct/workflows/induct-grade.js |  56 ++++----
+ skills/naming/SKILL.md                  |   6 +-
+ skills/quest/SKILL.md                   |   2 +-
+ skills/red-ink/SKILL.md                 |   4 +-
+ skills/using-bp3/SKILL.md               |  10 +-
+ src/quest/harness.ml                    |  20 +--
+ src/quest/main.ml                       |  48 +++----
+ src/quest/render.ml                     |   2 +-
+ src/quest/store.ml                      |  61 +++++----
+ test/completion.sh                      |  14 +-
+ test/harness.sh                         |  38 +++---
+ test/hooks.sh                           |  22 +--
+ test/induct-exp.test.mjs                |  44 +++---
+ test/induct-grade.test.mjs              |  82 +++++------
+ test/install.sh                         |   4 +-
+ test/q.sh                               | 232 +++++++++++++++++++-------------
+ test/quest-land.test.mjs                |   2 +-
+ test/tape.sh                            |  14 +-
+ test/worktree.sh                        |   2 +-
+ 45 files changed, 486 insertions(+), 431 deletions(-)
+
+=== STATUS ===
+(clean if empty)
+=== RUNG2 store.ml fold ===
+12:let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
+20:    "supervisor"; "init-check"; "find-tape"; "watch"; "desk"; "backtest"; "b";
+23:    "derive"; "inspect"; "remove"; "prepare"; "check"; "exit";
+26:let check_creatable s =
+27:  check_slug s;
+73:type knobs = { max_cycles : int; grade_required : bool; verify_required : bool }
+95:  let grade_required =
+96:    (* look at grade section: 'required: false' after 'grade:' *)
+97:    if contains_sub text "required: false" && contains_sub text "grade:" then false
+98:    else if contains_sub text "grade.required: false" then false
+100:  let grade_required =
+102:      (* only counts if a grade: key exists or grade_required spelling *)
+103:      grade_required else grade_required in
+104:  let verify_required =
+105:    not (contains_sub text "verify: optional" || contains_sub text "verify: none"
+106:         || contains_sub text "verify:optional" || contains_sub text "verify:none") in
+107:  { max_cycles; grade_required; verify_required }
+127:  mutable grade_ok : bool;
+128:  mutable verify_ok : bool;
+130:  mutable blocked_checkpoint : string option;
+138:  grade_ok = false; verify_ok = false;
+139:  blocked_reason = ""; blocked_checkpoint = None; blocked_since = "";
+156:let fold_edge = function
+157:  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+160:let fold_state_name = function "submitted" -> "handed_off" | s -> s
+171:        let edge = fold_edge (get_str j "edge" "") in
+172:        let to_ = fold_state_name (get_str j "to" "") in
+184:        if edge = "handoff" then begin s.grade_ok <- false; s.verify_ok <- false end;
+185:        if edge = "grade" && get_str j "verdict" "" = "ship" then s.grade_ok <- true;
+186:        if edge = "verify" && get_str j "verdict" "" = "pass" then s.verify_ok <- true;
+187:        if (edge = "grade" && get_str j "verdict" "" = "needs_fix") ||
+188:           (edge = "verify" && get_str j "verdict" "" = "fail") then begin
+189:          s.grade_ok <- false; s.verify_ok <- false
+191:        if edge = "resume" then begin s.bound <- None; s.has_bound <- false; s.grade_ok <- false; s.verify_ok <- false end;
+194:          s.blocked_checkpoint <- get_opt j "checkpoint";
+272:  | "todo" -> ["handoff"; "block"; "delete"]
+273:  | "handed_off" -> ["grade"; "verify"; "block"; "delete"]
+283:    ?checkpoint ?extra () =
+298:  let base = match checkpoint with Some c -> base @ [("checkpoint", json_str c)] | None -> base in
+313:let make_checkpoint () =
+323:  let msgf = write_tmp "bp3 checkpoint" in
+342:   line parsing, malformed files degrade to [-] fields. *)
+385:  |> List.filter (fun n -> n <> "README.md" && Filename.check_suffix n ".md"
+
+=== store.ml 140-200 ===
+  last_commit = None; exp_type = "default";
+}
+
+let get_str j key default =
+  try match Yojson.Safe.Util.member key j with `String s -> s | _ -> default
+  with _ -> default
+let get_int j key default =
+  try match Yojson.Safe.Util.member key j with `Int n -> n | _ -> default
+  with _ -> default
+let get_opt j key =
+  try match Yojson.Safe.Util.member key j with `String s -> Some s | _ -> None
+  with _ -> None
+
+(* The one compat mapping (mig.1): pre-rename ledger strings fold
+   to the new words here and nowhere else; new ledger lines already
+   carry the new words. *)
+let fold_edge = function
+  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+  | e -> e
+
+let fold_state_name = function "submitted" -> "handed_off" | s -> s
+
+let fold_ledger text =
+  let s = fresh_state () in
+  let quest_type = ref "default" in
+  let depends_on = ref [] in
+  String.split_on_char '\n' text |> List.iter (fun ln ->
+    let ln = String.trim ln in
+    if ln <> "" then
+      try
+        let j = Yojson.Safe.from_string ln in
+        let edge = fold_edge (get_str j "edge" "") in
+        let to_ = fold_state_name (get_str j "to" "") in
+        let cyc = get_int j "cycle" s.cycle in
+        if edge = "create" then begin
+          s.exp_type <- get_str j "exp_type" (get_str j "quest_type" "default");
+          quest_type := get_str j "quest_type" !quest_type;
+          (try match Yojson.Safe.Util.member "depends_on" j with
+             | `List xs -> depends_on := List.map (function `String x -> x | _ -> "") xs
+             | _ -> () with _ -> ())
+        end;
+        if to_ <> "" then s.st <- to_;
+        s.cycle <- cyc;
+        (match get_opt j "commit" with Some c -> s.last_commit <- Some c; s.bound <- Some c; s.has_bound <- true | None -> ());
+        if edge = "handoff" then begin s.grade_ok <- false; s.verify_ok <- false end;
+        if edge = "grade" && get_str j "verdict" "" = "ship" then s.grade_ok <- true;
+        if edge = "verify" && get_str j "verdict" "" = "pass" then s.verify_ok <- true;
+        if (edge = "grade" && get_str j "verdict" "" = "needs_fix") ||
+           (edge = "verify" && get_str j "verdict" "" = "fail") then begin
+          s.grade_ok <- false; s.verify_ok <- false
+        end;
+        if edge = "resume" then begin s.bound <- None; s.has_bound <- false; s.grade_ok <- false; s.verify_ok <- false end;
+        if to_ = "blocked" then begin
+          s.blocked_reason <- get_str j "reason" "";
+          s.blocked_checkpoint <- get_opt j "checkpoint";
+          s.blocked_since <- get_str j "ts" ""
+        end
+      with _ ->
+        err "E_INVALID_PLAN" (`Assoc []) "Malformed ledger line." 1
+  );
+  (s, !quest_type, !depends_on)
+
+let ledger_text branch path =
+  match ref_tip branch with
+  | None -> None
+  | Some tip -> (match git_show tip path with Some t -> Some (tip, t) | None -> Some (tip, ""))
+
+let quest_branch q = "refs/heads/bp3/quest/" ^ q
+let exp_branch q e = "refs/heads/bp3/exp/" ^ q ^ "/" ^ e
+let quest_dir q = "docs/quests/" ^ q
+let quest_ledger_path q = quest_dir q ^ "/ledger.jsonl"
+
+=== compat sites ===
+src/quest/worktree.ml:521:  | "check" :: rest ->
+src/quest/hooks.ml:343:                                  [("check", json_str check);
+src/quest/store.ml:23:    "derive"; "inspect"; "remove"; "prepare"; "check"; "exit";
+src/quest/store.ml:157:  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+src/quest/store.ml:160:let fold_state_name = function "submitted" -> "handed_off" | s -> s
+
+=== old verbs as edges ===
+
+=== quest paths in diff ===
+0
+0 (grep -c returned above)
+none - good
+=== RUNG3 make check ===
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (3036.642875ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (24948.410458ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (210.819125ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.262416ms)
+✔ dispatcher writes nothing itself under run-lifecycle-derivations (111.137583ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 30963.100375
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/induct.sh
+induct-exp tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+MAKE_EXIT:0
+
+=== old verb refusal ===
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"--reason is required"},"guidance":"Fix the call: --reason is required"}}
+REFUSAL_EXIT:2
+
+=== ledger handoff line ===
+{"ts":"2026-11-16T19:11:53Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"unknown","model":"unknown","bp3_version":"0.2.0","exp_type":"default"}
+{"ts":"2026-11-16T19:34:49Z","edge":"handoff","from":"todo","to":"handed_off","cycle":1,"commit":"44196725860125de048415ff6a4be350a90c033b","verdict":null,"reason":"FSM verbs renamed to handoff/grade/verify; compat fold in store","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261116T191513Z-submit-muse-code-muse-wonder-1.0-c1"}
+
+=== build run artifacts ===
+notes.md
+tape.log
+     339 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T191513Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+=== old verb refusal with reason ===
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"unknown edge: submit"},"guidance":"Fix the call: unknown edge: submit"}}
+REFUSAL_EXIT:2
+
+=== renders differ only by header ===
+4a5
+> <!-- GENERATED from skills/induct/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+DIFF_EXIT:1
+
+=== briefs spell new verbs ===
+skills/induct/workflows/induct-exp.js:6
+skills/induct/workflows/induct-grade.js:5
+no old verb identifiers in workflows
+=== GRADE CALL ===
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-1-handoff-verbs","state":"handed_off","cycle":1,"commit":"44196725860125de048415ff6a4be350a90c033b","legal_edges":["grade","verify","block","delete"],"run_id":"20261116T193614Z-grade-muse-code-muse-wonder-1.0-c1"}
+GRADE_EXIT:0
+notes.md
+tape.log

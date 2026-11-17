@@ -1,0 +1,721 @@
+drwxr-xr-x@ 2 whycz  staff  64 Nov 16 22:56 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1
+=== ls exp dir ===
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs:
+20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1
+20261117T035432Z-node-muse-code-muse-wonder-1.0-c1
+20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1
+20261117T035551Z-verify-muse-code-muse-wonder-1.0-c1
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs/20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs/20261117T035432Z-node-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs/20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1:
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs/20261117T035551Z-verify-muse-code-muse-wonder-1.0-c1:
+tape.log
+=== git status ===
+exit:0
+=== git log ===
+5cce4cc feat(followup.1): grade validations, audit re-collect, named verdict race
+6e2dd7c docs(followup.1): amend grade-evidence with grade validations design
+105cbea test(mvp.3): quotable no-hand-edited-state guard for cycle-2 grade
+b765d07 feat(mvp.3): ready-set waves, node deps, derived timing, setup gate, induct-node loop
+b2250e3 chore: sync installed workflow renders with committed sources
+=== HEAD ===
+5cce4cc8c272a32c9a7e850cb9acea79411a026b
+=== find ledger ===
+=== find EXPERIMENT ===
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-rename-1-bp3g-rename/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-2-workflow-birth/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-3-ready-set-timing/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-4-diagram-emit/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/EXPERIMENT.md
+=== quest dir ===
+experiments
+QUEST.md
+=== find ledger broader ===
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-1-induct-grade/ledger.jsonl
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/ledger.jsonl
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/ledger.jsonl
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-2-induct-exp-slim/ledger.jsonl
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-4-desks/ledger.jsonl
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/ledger.jsonl
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/ledger.jsonl
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-5-grade-matrix-fix/ledger.jsonl
+./docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-3-conductor/ledger.jsonl
+./docs/quests/2026-11-14-bp3-workflows-v2/ledger.jsonl
+./docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/ledger.jsonl
+./docs/quests/2026-11-09-bp3-land-verdicts/ledger.jsonl
+=== ls -a exp ===
+total 16
+drwxr-xr-x@  4 whycz  staff   128 Nov 16 22:40 .
+drwxr-xr-x@ 16 whycz  staff   512 Nov 16 19:41 ..
+-rw-r--r--@  1 whycz  staff  7149 Nov 16 22:39 EXPERIMENT.md
+drwxr-xr-x@  6 whycz  staff   192 Nov 16 22:56 runs
+=== git ls-files ledger ===
+docs/quests/2026-11-09-bp3-land-verdicts/ledger.jsonl
+docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-1-induct-grade/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-2-induct-exp-slim/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-3-conductor/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-4-desks/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-5-grade-matrix-fix/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/ledger.jsonl
+=== git show stat ===
+commit 5cce4cc8c272a32c9a7e850cb9acea79411a026b
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 22:51:05 2026 -0500
+
+    feat(followup.1): grade validations, audit re-collect, named verdict race
+
+ .agents/skills/traverse/SKILL.md          |  35 ++++
+ .agents/workflows/induct-grade.js         | 323 +++++++++++++++++++++++++++---
+ .claude/skills/traverse/SKILL.md          |  35 ++++
+ .pi/skills/traverse/SKILL.md              |  35 ++++
+ skills/traverse/SKILL.md                  |  18 ++
+ skills/traverse/workflows/induct-grade.js | 323 +++++++++++++++++++++++++++---
+ test/induct-grade.test.mjs                | 181 ++++++++++++++---
+ test/traverse-conduct.test.mjs            |   8 +
+ 8 files changed, 870 insertions(+), 88 deletions(-)
+=== git show log line ===
+5cce4cc8c272a32c9a7e850cb9acea79411a026b feat(followup.1): grade validations, audit re-collect, named verdict race
+=== diff name-status ===
+M	.agents/skills/traverse/SKILL.md
+M	.agents/workflows/induct-grade.js
+M	.claude/skills/traverse/SKILL.md
+M	.pi/skills/traverse/SKILL.md
+M	skills/traverse/SKILL.md
+M	skills/traverse/workflows/induct-grade.js
+M	test/induct-grade.test.mjs
+M	test/traverse-conduct.test.mjs
+=== ledger search followup ===
+=== harness ledger location ===
+ls: .bp3/: No such file or directory
+=== git status full ===
+On branch quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+nothing to commit, working tree clean
+=== check ignored runs ===
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1/tape.log
+exit:0
+=== git show induct-grade diff (first 400 lines) ===
+commit 5cce4cc8c272a32c9a7e850cb9acea79411a026b
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 22:51:05 2026 -0500
+
+    feat(followup.1): grade validations, audit re-collect, named verdict race
+
+diff --git a/skills/traverse/workflows/induct-grade.js b/skills/traverse/workflows/induct-grade.js
+index e735fac..f207625 100644
+--- a/skills/traverse/workflows/induct-grade.js
++++ b/skills/traverse/workflows/induct-grade.js
+@@ -3,17 +3,29 @@
+ // `bp3 skills install`. The grade climbs the evidence ladder
+ // (mvp.7): records, diff, tests run, style, then tape via
+ // derivation pointers (find-tape --entry); the whole tape is
+-// escalation only, blocked/confused/lying and named. Audit
+-// child builds the typed evidence matrix (acceptance rows +
+-// adherence rows, no edges), then
+-// grade and verify children run in parallel on the exact bound
+-// commit and call their verdict edges directly. Grade children
+-// never edit the work. As the link minter (mvp.1)
+-// this launcher mints each child's one-time link via
+-// `bp3 harness link mint` before that child spawns; no child
+-// writes its own proof. Returns {outcome, matrix, run_ids,
+-// refusals}; replay on the same commit is safe: the audit is
+-// read-only and re-cast verdicts bind the same commit.
++// escalation only, blocked/confused/lying and named.
++// Grade validations (followup.1): before the audit child
++// spawns, a deterministic validations pipeline mints every
++// adherence row in code (one plug per row, ctx in, one typed
++// evidence row out; silence can be the expectation and empty
++// stdout is quoted with the machine-minted token below, never
++// hand-quoted by an LLM). The audit child then builds only
++// acceptance rows. A row without typed evidence is an
++// audit-internal re-collect (one retry, named rows), never an
++// FSM verdict: it burns no author cycle and pages no human.
++// Evidence still uncollectable returns outcome
++// `audit_failure`, naming the row and the collection error,
++// with no grade/verify cast. Grade and verify children then
++// run in parallel on the exact bound commit and call their
++// verdict edges directly; a cast refused with E_ILLEGAL_EDGE
++// after its sibling moved state is a named expected verdict
++// race, not an unexplained refusal. Grade children never
++// edit the work. As the link minter (mvp.1) this launcher
++// mints each child's one-time link via `bp3 harness link
++// mint` before that child spawns; no child writes its own
++// proof. Returns {outcome, matrix, run_ids, refusals};
++// replay on the same commit is safe: the audit is read-only
++// and re-cast verdicts bind the same commit.
+ // Args are supplied by the calling traverse skill as
+ // {quest, exp, ts, harness, model, commit}; ts is a UTC compact
+ // timestamp from the caller, embedded by children in every
+@@ -74,6 +86,132 @@ function typedEvidence(ev) {
+   );
+ }
+ 
++// Machine-minted quote for command output (followup.1): an
++// empty stdout is evidence when silence is the expectation,
++// quoted with this token by code, never hand-quoted as "".
++function quoteForStdout(stdout, exit) {
++  const out = typeof stdout === "string" ? stdout : "";
++  if (out !== "") return out;
++  return "(empty stdout, exit " + String(exit) + ")";
++}
++
++function stdoutOf(obs) {
++  return obs && typeof obs.stdout === "string" ? obs.stdout : "";
++}
++
++function exitOf(obs) {
++  return obs && typeof obs.exit === "number" ? obs.exit : 1;
++}
++
++// Grade validations (followup.1, owner-locked names): each
++// plug is deterministic code — ctx in, one typed evidence
++// row out, expectation declared in the plug itself. ctx is
++// {expDir, commit, obs} where obs carries raw command output
++// gathered verbatim; plugs judge, transports never quote.
++function validate_git_clean(ctx) {
++  const stdout = stdoutOf(ctx.obs.git_clean);
++  const exit = exitOf(ctx.obs.git_clean);
++  const ok = exit === 0 && stdout === "";
++  return {
++    case: "adherence: no hand-edited state",
++    rung: "2",
++    evidence: { kind: "command", ref: "git status --porcelain", quote: quoteForStdout(stdout, exit) },
++    verdict: ok ? "pass" : "fail",
++  };
++}
++
++function validate_clean_commit(ctx) {
++  const stdout = stdoutOf(ctx.obs.git_show);
++  const exit = exitOf(ctx.obs.git_show);
++  const shown = exit === 0 && stdout.indexOf(ctx.commit) >= 0;
++  const clean = validate_git_clean(ctx).verdict === "pass";
++  const first = stdout.split("\n")[0] || "";
++  return {
++    case: "adherence: clean commit",
++    rung: "2",
++    evidence: { kind: "command", ref: "git show " + ctx.commit, quote: quoteForStdout(first, exit) },
++    verdict: shown && clean ? "pass" : "fail",
++  };
++}
++
++function validate_run_folder_present(ctx) {
++  const lines = Array.isArray(ctx.obs.run_folders) ? ctx.obs.run_folders : [];
++  const complete = lines.filter(function (l) {
++    return typeof l === "string" && l.indexOf("tape=yes") >= 0 && l.indexOf("notes=yes") >= 0;
++  });
++  const handoff = complete.filter(function (l) { return l.indexOf("-handoff-") >= 0; });
++  const chosen = handoff[0] || complete[0] || "";
++  return {
++    case: "adherence: run folder present",
++    rung: "2",
++    evidence: {
++      kind: "file",
++      ref: ctx.expDir + "/runs/",
++      quote: chosen !== "" ? chosen : "no run folder with tape.log and notes.md",
++    },
++    verdict: chosen !== "" ? "pass" : "fail",
++  };
++}
++
++function validate_handoff_by_child(ctx) {
++  const line = typeof ctx.obs.handoff_line === "string" ? ctx.obs.handoff_line : "";
++  const ok = line.indexOf('"edge":"handoff"') >= 0 || line.indexOf('"edge":"submit"') >= 0;
++  return {
++    case: "adherence: handoff by child",
++    rung: "2",
++    evidence: {
++      kind: "ledger",
++      ref: ctx.expDir + "/ledger.jsonl handoff line",
++      quote: line !== "" ? line : "(no handoff ledger line)",
++    },
++    verdict: ok ? "pass" : "fail",
++  };
++}
++
++function validate_env_run_id_stamped(ctx) {
++  const line = typeof ctx.obs.handoff_line === "string" ? ctx.obs.handoff_line : "";
++  const ok = /"run_id":"[^"]+"/.test(line);
++  return {
++    case: "adherence: env run-id stamped",
++    rung: "2",
++    evidence: {
++      kind: "ledger",
++      ref: ctx.expDir + "/ledger.jsonl handoff line",
++      quote: line !== "" ? line : "(no handoff ledger line)",
++    },
++    verdict: ok ? "pass" : "fail",
++  };
++}
++
++const GRADE_VALIDATIONS = [
++  validate_git_clean,
++  validate_clean_commit,
++  validate_run_folder_present,
++  validate_handoff_by_child,
++  validate_env_run_id_stamped,
++];
++
++function runValidations(ctx) {
++  return GRADE_VALIDATIONS.map(function (v) { return v(ctx); });
++}
++
++function rowCase(row, i) {
++  return row && typeof row.case === "string" && row.case !== ""
++    ? row.case
++    : "row " + String(i + 1);
++}
++
++// Rows the audit still owes typed evidence for. Any verdict
++// label on an untyped row is paperwork, not a judgment.
++function untypedRows(rows) {
++  if (!Array.isArray(rows)) return [];
++  const out = [];
++  rows.forEach(function (row, i) {
++    if (!typedEvidence(row ? row.evidence : null)) out.push(rowCase(row, i));
++  });
++  return out;
++}
++
+ // Deferred is a disposition, not a failure: the exp's own
+ // text defers the case to a named owning exp and the row's
+ // evidence is that deferral text. A deferral naming no owner
+@@ -376,6 +514,50 @@ export default async function workflow(host) {
+     return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+   }
+ 
++  // Grade validations pipeline (followup.1): deterministic
++  // code mints every adherence row before the audit child
++  // spawns. The probe child only transports raw command
++  // output verbatim; the plugs above judge it. A pipeline
++  // that returns no observations is grader paperwork, so it
++  // fails as an audit failure with no FSM verdict.
++  const validationsResult = await host.agent({
++    label: "validations " + exp,
++    input:
++      deskNote + "You are the grade validations transport for exp `" + exp +
++      "` of quest `" + quest + "`, bound to commit `" + commit + "`. " +
++      "Run these commands from the quest worktree and return only a JSON " +
++      "object {git_clean: {stdout, exit}, git_show: {stdout, exit}, " +
++      "run_folders, handoff_line} quoting stdout verbatim (never " +
++      "summarize, never edit any file, and do not call any `bp3 q u` " +
++      "update edge): (1) `git status --porcelain` for git_clean; " +
++      "(2) `git show --stat " + commit + "` for git_show; " +
++      "(3) for run_folders, one line per folder under `" + expDir +
++      "/runs/` in the form `<folder> tape=yes|no notes=yes|no` by " +
++      "testing tape.log and notes.md in each folder; (4) for " +
++      "handoff_line, the verbatim last handoff line of `" + expDir +
++      "/ledger.jsonl` on the exp branch (`git show bp3/exp/" + quest +
++      "/" + exp + ":" + expDir + "/ledger.jsonl`), or an empty string " +
++      "when there is none. Quote an empty stdout as an empty string; " +
++      "the validations pipeline mints its token in code.",
++  });
++  const validationsVerdict = parseVerdict(validationsResult);
++  if (
++    !validationsVerdict ||
++    typeof validationsVerdict.git_clean !== "object" ||
++    typeof validationsVerdict.git_show !== "object"
++  ) {
++    refusals.push(
++      "audit failure: grade validations pipeline returned no observations: " +
++      errorText(validationsResult)
++    );
++    return { exp: exp, outcome: "audit_failure", matrix: [], run_ids: runIds, refusals: refusals };
++  }
++  const adherence = runValidations({
++    expDir: expDir,
++    commit: commit,
++    obs: validationsVerdict,
++  });
++
+   if (!(await mintLink("audit", before.cycle))) {
+     return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+   }
+@@ -388,11 +570,12 @@ export default async function workflow(host) {
+       quest + "`, bound to commit `" + commit + "`. " +
+       tapePreamble("audit", before.cycle) +
+       " Read the exp's EXPERIMENT.md first. Build the evidence " +
+-      "matrix: one row per Acceptance case (acceptance rows), plus " +
+-      "adherence rows for the build Run that produced this commit " +
+-      "(handoff edge called by the child directly, env-set run-id " +
+-      "stamped by bp3, clean commit, tape.log and notes.md " +
+-      "present in its run folder, no hand-edited state). " + LADDER_TEXT +
++      "matrix: one row per Acceptance case (acceptance rows only). " +
++      "Adherence rows are minted by the grade validations pipeline " +
++      "before you spawn (adherence: no hand-edited state, " +
++      "adherence: clean commit, adherence: run folder present, " +
++      "adherence: handoff by child, adherence: env run-id stamped); " +
++      "never emit an adherence row. " + LADDER_TEXT +
+       "Every row " +
+       "is {case, rung: 1|2|3|4|5a|5b, evidence: {kind: file|command|ledger|grep, ref, " +
+       "quote}, verdict: pass|fail|missing|deferred}: name the rung " +
+@@ -412,15 +595,10 @@ export default async function workflow(host) {
+       "({kind: file, ref: the EXPERIMENT.md line, quote: the " +
+       "deferral line verbatim}); never mark such a case missing " +
+       "or pass for lacking this exp's artifact. A deferral that " +
+-      "names no owning exp is not deferred: emit missing. For " +
+-      "the adherence row `env-set run-id`, quote " +
+-      "the bp3-stamped ledger line for the handoff edge (the mvp.1 " +
+-      "mechanism: BP3_RUN_ID arrives via the link claim and bp3 stamps " +
+-      "it into the verdict and the ledger line): find the handoff " +
+-      "line whose run_id is the build Run that produced this commit " +
+-      "(the handoff run folder under this exp's runs/) and quote it " +
+-      "as {kind: ledger, ref: the exp ledger handoff line, quote: " +
+-      "the line verbatim}. Corroborate from the per-Run derivation " +
++      "names no owning exp is not deferred: emit missing. When a " +
++      "command's stdout is empty and its exit is 0, quote " +
++      "`(empty stdout, exit 0)` verbatim; never quote an empty " +
++      "string as evidence. Corroborate from the per-Run derivation " +
+       "log at `<git-common-dir>/bp3/run-lifecycle-derivations/" +
+       "<run-id>.jsonl` (resolve the common dir with " +
+       "`git rev-parse --git-common-dir`) when it exists. The hooks " +
+@@ -437,10 +615,79 @@ export default async function workflow(host) {
+   if (auditVerdict && typeof auditVerdict.run_id === "string" && auditVerdict.run_id) {
+     runIds.push(auditVerdict.run_id);
+   }
+-  if (!auditVerdict || !Array.isArray(auditVerdict.matrix)) {
+-    refusals.push("audit returned no matrix: " + errorText(audit));
++  let acceptance = auditVerdict && Array.isArray(auditVerdict.matrix)
++    ? auditVerdict.matrix
++    : null;
++  if (acceptance === null || acceptance.length === 0) {
++    // No matrix at all is a collection failure, not a defect.
++    refusals.push(
++      "audit failure: row \"evidence audit\" carries no typed evidence " +
++      "(collection error: " +
++      (acceptance === null ? errorText(audit) : "audit returned no matrix") +
++      "); no verdict was cast and the exp cycle is unchanged"
++    );
++    return { exp: exp, outcome: "audit_failure", matrix: adherence, run_ids: runIds, refusals: refusals };
++  }
++  // Audit-internal re-collect (followup.1): one retry naming
++  // the untyped rows, inside the same audit Run (no new mint,
++  // no FSM verdict, no cycle burn). Rows still untyped after
++  // the retry are an explicit audit failure, never needs_fix.
++  let missingTyped = untypedRows(acceptance);
++  if (missingTyped.length > 0) {
++    const recollect = await host.agent({
++      label: "audit " + exp,
++      input:
++        deskNote + "Re-collect typed evidence for exp `" + exp + "` of quest `" +
++        quest + "`, bound to commit `" + commit + "`. " +
++        tapePreamble("audit", before.cycle) +
++        " Your previous audit matrix carried no typed evidence for " +
++        "these named rows: " + missingTyped.join(", ") + ". Collect " +
++        "observed evidence for exactly those rows and reply with only " +
++        "a JSON object {ok, run_id, matrix} whose matrix holds one " +
++        "replacement row per named case, each {case, rung: " +
++        "1|2|3|4|5a|5b, evidence: {kind: file|command|ledger|grep, " +
++        "ref, quote}, verdict: pass|fail|missing|deferred} quoting " +
++        "observed evidence verbatim. When a command's stdout is " +
++        "empty and its exit is 0, quote `(empty stdout, exit 0)` " +
++        "verbatim; never quote an empty string. Judge only; do not " +
++        "edit any file and do not call any `bp3 q u` update edge.",
++    });
++    const recollectVerdict = parseVerdict(recollect);
++    if (recollectVerdict && typeof recollectVerdict.run_id === "string" && recollectVerdict.run_id) {
++      runIds.push(recollectVerdict.run_id);
++    }
++    if (recollectVerdict && Array.isArray(recollectVerdict.matrix)) {
++      const byCase = {};
++      recollectVerdict.matrix.forEach(function (row, i) {
++        byCase[rowCase(row, i)] = row;
++      });
++      acceptance = acceptance.map(function (row, i) {
++        const name = rowCase(row, i);
++        return Object.prototype.hasOwnProperty.call(byCase, name) ? byCase[name] : row;
++      });
++    }
++    missingTyped = untypedRows(acceptance);
++    if (missingTyped.length > 0) {
++      const collectionError = recollectVerdict && Array.isArray(recollectVerdict.matrix)
++        ? "re-collected row still carried no typed evidence"
++        : errorText(recollect);
++      for (const name of missingTyped) {
++        refusals.push(
++          "audit failure: row \"" + name + "\" carries no typed evidence " +
++          "after re-collect (collection error: " + collectionError +
++          "); no verdict was cast and the exp cycle is unchanged"
++        );
++      }
++      return {
++        exp: exp,
++        outcome: "audit_failure",
++        matrix: adherence.concat(normalizeMatrix(acceptance)),
++        run_ids: runIds,
++        refusals: refusals,
++      };
++    }
+   }
+-  const matrix = normalizeMatrix(auditVerdict ? auditVerdict.matrix : null);
++  const matrix = adherence.concat(normalizeMatrix(acceptance));
+   const matrixJson = JSON.stringify(matrix);
+ 
+   // Grade || verify on the exact bound commit. A gated missing
+@@ -518,7 +765,25 @@ export default async function workflow(host) {
+     return { exp: exp, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
+   }
+   const outcome = outcomeFor(after.state, matrix);
+-  if (outcome === "refused") {
++  // Verdict race (followup.1): grade and verify cast in
++  // parallel; the first cast can move state so the second
++  // cast's edge is no longer legal. When the re-read shows
++  // state moved, that E_ILLEGAL_EDGE is an expected verdict
++  // race and is named as such, never an unexplained refusal.
++  const stageEdges = ["grade", "verify"];
++  let raced = false;
++  for (let i = 0; i < stageResults.length; i++) {
++    if (textOf(stageResults[i]).indexOf("E_ILLEGAL_EDGE") >= 0 && after.state !== "handed_off") {
++      raced = true;
++      refusals.push(
++        "expected verdict race: " + stageEdges[i] + " cast refused with " +
++        "E_ILLEGAL_EDGE after the parallel verdict moved state to " +
++        after.state + "; the refused cast is expected and does not " +
++        "change the outcome"
++      );
++    }
++  }
++  if (outcome === "refused" && !raced) {
+     for (let i = 0; i < stageResults.length; i++) {
+       refusals.push(errorText(stageResults[i]));
+     }
+=== run folders detail ===
+--- docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1/
+total 280
+drwxr-xr-x@ 4 whycz  staff     128 Nov 16 22:49 .
+drwxr-xr-x@ 6 whycz  staff     192 Nov 16 22:56 ..
+-rw-r--r--@ 1 whycz  staff    2722 Nov 16 22:49 notes.md
+-rw-r--r--@ 1 whycz  staff  139034 Nov 16 22:51 tape.log
+--- docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T035432Z-node-muse-code-muse-wonder-1.0-c1/
+total 24
+drwxr-xr-x@ 4 whycz  staff   128 Nov 16 22:55 .
+drwxr-xr-x@ 6 whycz  staff   192 Nov 16 22:56 ..
+-rw-r--r--@ 1 whycz  staff  2538 Nov 16 22:55 notes.md
+-rw-r--r--@ 1 whycz  staff  6653 Nov 16 22:55 tape.log
+--- docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1/
+total 56
+drwxr-xr-x@ 3 whycz  staff     96 Nov 16 22:56 .
+drwxr-xr-x@ 6 whycz  staff    192 Nov 16 22:56 ..
+-rw-r--r--@ 1 whycz  staff  26258 Nov 16 22:56 tape.log
+--- docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T035551Z-verify-muse-code-muse-wonder-1.0-c1/
+total 48
+drwxr-xr-x@ 3 whycz  staff     96 Nov 16 22:56 .
+drwxr-xr-x@ 6 whycz  staff    192 Nov 16 22:56 ..
+-rw-r--r--@ 1 whycz  staff  21183 Nov 16 22:56 tape.log
+=== handoff notes exists? ===
+total 280
+-rw-r--r--@ 1 whycz  staff    2722 Nov 16 22:49 notes.md
+-rw-r--r--@ 1 whycz  staff  139034 Nov 16 22:51 tape.log
+=== node notes ===
+# Audit notes — exp-followup-1-grade-evidence @ 5cce4cc
+
+Lessons: grade decided at rungs 1–3 (records, bound-commit diff/code,
+tests run); zero whole-tape reads. The deterministic validations
+plugs, one audit-internal re-collect, explicit `audit_failure`, and
+the named expected verdict race are all exercised by the committed
+mock-host tests, which pass. Live corroboration: exp state
+`handed_off`, bound commit matches, `git status --porcelain`
+stdout empty exit 0. No per-Run derivation log exists yet for this
+audit run, so no rung-5a pointer was needed.
+
+```json
+[
+  {"case": "untyped row produced", "rung": "3", "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs — untyped/recollect blocks test/induct-grade.test.mjs:180-193,443-459", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "evidence still uncollectable", "rung": "3", "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs — audit_failure blocks test/induct-grade.test.mjs:182-193,461-477", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "real defect still gates", "rung": "3", "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs — fail/dirty blocks test/induct-grade.test.mjs:195-205,490-497", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "regression: config.1 shape", "rung": "3", "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs — config.1 replay test/induct-grade.test.mjs:443-459", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "cycle accounting", "rung": "3", "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs — retry mints no new link test/induct-grade.test.mjs:443-459", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "validations mint adherence rows", "rung": "3", "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs — validations precede audit test/induct-grade.test.mjs:123-168", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "regression: mvp.3 empty-stdout trap", "rung": "3", "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs — empty-stdout token test/induct-grade.test.mjs:479-488", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "verdict race named", "rung": "3", "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs — verdict race test/induct-grade.test.mjs:499-511", "quote": "induct-grade tests: ok"}, "verdict": "pass"}
+]
+```
+=== node test induct-grade ===
+induct-grade tests: ok
+exit:0
+=== grep run_folder in test ===
+51:  run_folders: ["20260101T000000Z-handoff-muse-code-test-model-c1 tape=yes notes=yes"],
+140:      edge + " run folder matches the minted run-id");
+158:  for (const name of ["adherence: no hand-edited state", "adherence: clean commit", "adherence: run folder present", "adherence: handoff by child", "adherence: env run-id stamped"]) {
+=== grep validations in test ===
+12:// exact commit). Followup.1: the validations pipeline mints
+13:// adherence rows in code before the audit spawns (empty stdout
+62:function mockHost({ reads, auditRows, auditSeq, validationsObs, stageReplies, initFails }) {
+71:      if (label.startsWith("validations")) {
+72:        order.push("validations");
+73:        inputs.validations = input;
+74:        return JSON.stringify(validationsObs || GOOD_OBS);
+127:    auditRows: [passRow("acceptance: a"), passRow("adherence: tape present")],
+131:  assert(Array.isArray(result.matrix) && result.matrix.length === 7, "matrix has 5 adherence + 2 acceptance rows, got " + result.matrix.length);
+133:  assert(order.join(",") === "validations,init,audit,init,init,grade,verify", "validations precede the audit, writer precedes each grade child, got " + order.join(","));
+154:  assert(!inputs.audit.includes("adherence rows for the build Run"),
+155:    "audit brief no longer asks the LLM for adherence rows");
+156:  assert(inputs.validations.includes("git status --porcelain"),
+157:    "validations transport runs git status --porcelain");
+158:  for (const name of ["adherence: no hand-edited state", "adherence: clean commit", "adherence: run folder present", "adherence: handoff by child", "adherence: env run-id stamped"]) {
+160:      "validations minted " + name);
+439:  assert(order.join(",") === "validations,init", "no grade child spawns after a refused mint, got " + order.join(","));
+455:  assert(order.join(",") === "validations,init,audit,recollect,init,init,grade,verify",
+484:  const row = rowNamed(result, "adherence: no hand-edited state");
+490:// --- dirty tree is a real adherence failure and still gates ---
+493:  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [passRow("acceptance: a")], validationsObs: dirty });
+495:  assert(rowNamed(result, "adherence: no hand-edited state").verdict === "fail", "dirty tree fails git-clean validation");
+496:  assert(result.outcome === "needs_fix", "real adherence defect still gates, got " + result.outcome);
+=== outcomeFor / normalize ===
+260:// deferred; a verdict outside pass|fail|missing|deferred is
+262:// (outcomeFor only asks `some` over gated rows).
+269:    row && ["pass", "fail", "missing", "deferred"].indexOf(row.verdict) >= 0
+274:    if (verdict === "pass" || verdict === "deferred") verdict = "missing";
+282:    if (verdict === "deferred" && !deferralNamesOwner(name + " " + evidence.quote)) {
+287:      verdict = "deferred";
+293:    (verdict === "pass" || verdict === "deferred") &&
+302:function normalizeMatrix(raw) {
+320:function outcomeFor(state, matrix) {
+324:  // Deferred rows are owned elsewhere and never gated here.
+326:    return r.verdict !== "pass" && r.verdict !== "deferred";
+581:      "quote}, verdict: pass|fail|missing|deferred}: name the rung " +
+588:      "evidence verbatim; a gated case with no artifact is verdict " +
+592:      "gated by this exp and defers it to a named owning exp (for " +
+593:      "example `deferred to Exp 3`), emit verdict deferred for " +
+598:      "names no owning exp is not deferred: emit missing. When a " +
+649:        "ref, quote}, verdict: pass|fail|missing|deferred} quoting " +
+693:  // Grade || verify on the exact bound commit. A gated missing
+695:  // them; deferred rows never gate.
+698:    "Rows with verdict deferred are not gated by this exp (each " +
+700:    "Any gated row with verdict fail or missing means the work " +
+719:    "every gated case needs observed evidence (a case deferred " +
+720:    "to a named successor exp is not gated here), and any open " +
+=== QUEST open questions ===
+508:| session-id exposure per harness — which resolution rung do muse/pi claims actually land on? | dogfood.1 | measured rung distribution in the A/B drive; a third rung is designed only if session+desk both fail routinely |
+509:| dep freeze rule — may deps change after a node leaves `todo`? | mvp.3 | scheduler built with deps mutable-but-logged; anomalies (or their absence) in dogfood.2 propose the freeze rule to the root worker |
+510:| Pi extension loading into spawned children — does a child pi session get `bp3-pi` tools without explicit loading? | mvp.1, proven in dogfood.1 | nested Pi claim drive either passes as-is or mvp.1 adds explicit extension loading to the spawn |
+=== conduct tests ===
+traverse-conduct tests: ok
+exit:0
+=== copies identical? ===
+diff-exit:0
+=== make check targets ===
+makefile
+Makefile
+9:check: lint
+35:test:
+=== make check ===
+=== exp branch ledger handoff ===
+{"ts":"2026-11-16T23:02:14Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"unknown","model":"unknown","bp3_version":"0.2.0","exp_type":"default"}
+{"ts":"2026-11-17T03:51:11Z","edge":"handoff","from":"todo","to":"handed_off","cycle":1,"commit":"5cce4cc8c272a32c9a7e850cb9acea79411a026b","verdict":null,"reason":"grade validations pipeline, audit re-collect, audit_failure outcome, named verdict race; make check green","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1"}
+exit:0
+=== branches ===
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-2-cli-scaffold
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-3-fsm
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-4-tape-hooks
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-5-muse-engine
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-6-hooks
+  bp3/exp/2026-11-07-bp3-mvp-engine-core/exp-7-live-hooks
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-1-rendered-tables
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-2-tab-completion
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-3-icebox-search
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-4-help
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-5-release-pattern
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-6-installable-bp3
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-7-shared-release
+  bp3/exp/2026-11-14-bp3-cli-small-fixes/exp-8-induct-worktree-default
+  bp3/exp/2026-11-14-bp3-unit-tests/exp-1-test-split-standard
+  bp3/exp/2026-11-14-bp3-unit-tests/exp-2-unit-backfill
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-1-induct-grade
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-2-induct-exp-slim
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-3-conductor
+  bp3/exp/2026-11-14-bp3-workflows-v2/exp-4-desks
+=== traverse SKILL diff ===
+commit 5cce4cc8c272a32c9a7e850cb9acea79411a026b
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 22:51:05 2026 -0500
+
+    feat(followup.1): grade validations, audit re-collect, named verdict race
+
+diff --git a/skills/traverse/SKILL.md b/skills/traverse/SKILL.md
+index 5375294..b59fe1e 100644
+--- a/skills/traverse/SKILL.md
++++ b/skills/traverse/SKILL.md
+@@ -117,6 +117,24 @@ above stays the one conductor procedure.
+    is always safe, so a killed grade is simply dispatched
+    again — no attempt bookkeeping here.
+ 
++   Grade evidence contract (followup.1): inside
++   `induct-grade`, a deterministic grade validations
++   pipeline mints every adherence row in code before the
++   audit child spawns (empty stdout quoted as
++   `(empty stdout, exit 0)`, never hand-quoted); the audit
++   builds only acceptance rows. A row without typed
++   evidence is re-collected once inside the audit (named
++   rows) and never reaches the FSM: it casts no verdict,
++   burns no author cycle, and pages no human. Evidence
++   still uncollectable returns outcome `audit_failure`,
++   naming the row and the collection error — quote it as
++   grader paperwork, never as a product `needs_fix`, and
++   simply re-dispatch the grade. When grade and verify
++   cast in parallel and the second cast is refused with
++   `E_ILLEGAL_EDGE` after the first moved state, the
++   outcome names it an expected verdict race; re-read and
++   judge from the fresh state.
++
+    Cycle autonomy: when a grade returns `needs_fix` (or a
+    verify returns `fail`) and the re-read shows the exp back
+    in `todo` below the cycle cap, the conductor dispatches
+=== grade cast ===
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-followup-1-grade-evidence","state":"blocked","cycle":1,"commit":"5cce4cc8c272a32c9a7e850cb9acea79411a026b","legal_edges":["resume","delete"],"human_action_required":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-1-grade-evidence","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-1-grade-evidence","edge":"grade","run_id":"20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1"}
+grade-exit:0
+✔ dispatcher never signals a pid: watch is the sole killer (0.382416ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (153.479417ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (22.543833ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 123440.262875
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+make-exit:0

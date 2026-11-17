@@ -1,0 +1,10 @@
+run folder created: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T194825Z-land-muse-code-muse-wonder-1.0-c1
+44196725860125de048415ff6a4be350a90c033b
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-1-handoff-verbs","state":"landed","fin":"exp_fin","cycle":1,"commit":"44196725860125de048415ff6a4be350a90c033b","legal_edges":[],"run_id":"20261116T194825Z-land-muse-code-muse-wonder-1.0-c1"}
+exit=0
+4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+886e1af docs(icebox): kill engine fan-out, addressed by graph-engine quest
+1fdb11e docs(icebox): freeze lint, portable dogfood, engine fan-out sketches
+total 16
+-rw-r--r--@ 1 whycz  staff  733 Nov 16 14:49 notes.md
+-rw-r--r--@ 1 whycz  staff  736 Nov 16 14:49 tape.log

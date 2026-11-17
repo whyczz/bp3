@@ -1,0 +1,295 @@
+created run folder 20261117T065638Z-verify-muse-code-muse-wonder-1.0-c1
+total 8
+drwxr-xr-x@ 3 whycz  staff   96 Nov 17 01:56 .
+drwxr-xr-x@ 5 whycz  staff  160 Nov 17 01:56 ..
+-rw-r--r--@ 1 whycz  staff   72 Nov 17 01:56 tape.log
+=== git status --porcelain ===
+exit:0
+=== git show --stat bound commit ===
+commit 51406951173971043235443104c703e78a9eda2c
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 01:48:48 2026 -0500
+
+    feat(dogfood.2): parallel-drive proof — two variants, one ready-set
+    
+    For humans: two flappy variants now build and grade in parallel from one ready-set and land serially, with a scorecard showing the wall time saved (about 3.2s on the fixture drive). Tokens are named as unreported rather than invented, since the rollup has no per-node token field.
+    
+    For LLMs: test/dogfood-parallel.sh drives flappy-day/flappy-night in separate desks with separate link claims, asserts overlapping author intervals, per-session context isolation, desk/branch isolation, the full handoff/grade/verify matrix, serial land on the new tip, a same-file land_conflict fixture, and blocked-sibling starvation; wired into make check and shellcheck. The drive exposed a same-second link-mint collision: two mints generated one run-id and the second overwrote the first run config. src/quest/harness.ml now reserves the minted run config with O_EXCL and retries on the next second, preserving the run-id spelling; explicit --run-id still refuses E_EXISTS.
+
+ Makefile                 |   3 +-
+ src/quest/harness.ml     |  50 +++++++----
+ test/dogfood-parallel.sh | 222 +++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 256 insertions(+), 19 deletions(-)
+=== git log -1 ===
+5140695 feat(dogfood.2): parallel-drive proof — two variants, one ready-set
+=== HEAD ===
+51406951173971043235443104c703e78a9eda2c
+=== exp files ===
+EXPERIMENT.md
+runs
+--- ledger tail ---
+tail: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/ledger.jsonl: No such file or directory
+--- handoff run folder ---
+total 272
+drwxr-xr-x@ 4 whycz  staff    128 Nov 17 01:48 .
+drwxr-xr-x@ 6 whycz  staff    192 Nov 17 01:56 ..
+-rw-r--r--@ 1 whycz  staff   2078 Nov 17 01:48 notes.md
+-rw-r--r--@ 1 whycz  staff  81859 Nov 17 01:51 tape.log
+--- test file exists ---
+-rwxr-xr-x@ 1 whycz  staff  12213 Nov 17 01:37 test/dogfood-parallel.sh
+     222 test/dogfood-parallel.sh
+=== find ledger ===
+=== EXPERIMENT.md ===
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: dogfood.2
+status: proposed
+---
+
+# dogfood.2 - parallel-drive: one ready-set, two flappy variants
+
+## TL;DR
+
+Prove BFS scheduling end to end: two independent
+flappy-variant nodes in one ready-set build and grade
+in parallel (separate ad hoc desks, separate
+claims), then land through the serial queue. The
+scorecard reports wall minutes and tokens per
+node and for the ready-set — the North Star made
+visible. Variants live in separate run folders so
+the land queue is boring by construction.
+
+## Demo (design trace)
+
+```text
+ready-set [flappy-day, flappy-night] (no deps between them)
+  t0: both claimed, both building in parallel desks
+  t1: both graded in parallel (read-only)
+  t2: land flappy-day; t3: land flappy-night (serial, re-checked)
+report: ready-set wall < sum(node walls); both landed
+```
+
+## Diagram
+
+```text
+        ┌─ flappy-day ──► approved ─┐
+ready-set ─┤                            ├─► land queue ─► both landed
+        └─ flappy-night ─► approved ─┘
+one blocked variant would starve only its dependents (none here)
+```
+
+## Pseudocode
+
+```python
+desks = [adhoc_desk(), adhoc_desk()]
+parallel([drive(n, desk) for n, desk in zip(ready-set, desks)])
+for n in approved_in_order: land(n)   # serial, mergeability re-checked
+```
+
+| Field | Value |
+|---|---|
+| Intent | parallel wall-clock savings, measured; isolation without pools |
+| Lane | standard |
+| Output | two landed variant nodes; ready-set timing/token scorecard |
+| Depends on | mvp.3, mvp.5, dogfood.1 |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| true parallelism | both author Runs' tapes overlap in wall time (timestamps), different desks, different claims |
+| isolation | no cross-node file or context bleed (each desk's diff contains only its variant; contexts resolve per claim) |
+| serial land | land edges execute one at a time; second land re-checks against the new tip and succeeds |
+| scorecard honest | ready-set wall, per-node wall/tokens reported from system timing (mvp.3); ready-set wall < serial sum or the shortfall is named with cause |
+| quality floor unchanged | full grade matrix per node, `make check` green; no rung skipped for speed |
+| Pi tree death + revival | seed one Pi node with a human-blocking edge: its edge worker dies, node worker records `blocked` and exits, root receives one bubble, and no descendant process remains. After the owner answer + `resume`, root spawns a fresh Pi tree and the node continues; the sibling node is unaffected |
+| Muse parity bubble | the equivalent Muse node workflow returns the same terminal blocked bubble and exits; revival launches a fresh workflow, never resumes the old run's agents |
+| env-set run-id (standing ruling) | per-claim stamps as in mvp.2 |
+
+## Acceptance test (goal block)
+
+- **Objective:** two nodes land in materially
+  less wall time than the serial railway would
+  take, at full quality.
+- **Prove by:** overlapping tape timestamps,
+  land-queue ledger order, timing scorecard.
+- **Done when:** both variants landed, ready-set
+  wall and tokens reported from the system,
+  observed.
+
+## Tests
+
+The drive is the test. Conflict case seeded in a
+fixture (not the live drive): two nodes touching
+one file must serialize at land with a named
+conflict, never a silent overwrite.
+
+## Context
+
+The supervisor quest's 23 nodes ran strictly
+serially; most followups were independent. This
+is the recovery of those hours, with receipts.
+Desks are ad hoc per the 2026-11-16 ruling; setup
+timing watches the 3-minute gate.
+=== find any ledger ===
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-1-induct-grade/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-2-induct-exp-slim/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-4-desks/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-5-grade-matrix-fix/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-3-conductor/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/ledger.jsonl
+docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/ledger.jsonl
+docs/quests/2026-11-09-bp3-land-verdicts/ledger.jsonl
+docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-4-pi-extension-drive/runs/20261116T063944Z-submit-muse-code-muse-wonder-1.0-c1/drive.jsonl
+docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-4-pi-extension-drive/runs/20261116T063944Z-submit-muse-code-muse-wonder-1.0-c1/drive-attempt1.jsonl
+=== quest dir ===
+experiments
+QUEST.md
+=== grep Pi bubble in test ===
+grep exit:1
+=== test head ===
+#!/usr/bin/env bash
+# dogfood.2 parallel-drive: one ready-set, two flappy variants.
+# Two independent nodes claim separate links in separate desks,
+# build and grade in parallel, then land through the serial
+# queue. The scorecard is computed from the workers' own
+# timestamps and the bp3 rollup; a fixture conflict serializes
+# at land instead of overwriting.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+lk() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
+now_ms() { node -e 'process.stdout.write(String(Date.now()))'; }
+es() { MUSE_SESSION_ID="$1" BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 e "${@:2}"; }
+
+commit_file_on_exp() { # <exp> <path> <file> -> new exp-branch tip
+  local exp=$1 path=$2 file=$3 branch="refs/heads/bp3/exp/par/$1"
+  local tip blob tree new_tip idx="$work/idx-$1"
+  tip=$(git rev-parse "$branch"); rm -f "$idx"
+  blob=$(git hash-object -w "$file")
+  GIT_INDEX_FILE="$idx" git read-tree "$tip"
+  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$path"
+  tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+  new_tip=$(printf 'work %s\n' "$exp" | git commit-tree "$tree" -p "$tip")
+  git update-ref "$branch" "$new_tip" "$tip"; rm -f "$idx"
+  printf '%s' "$new_tip"
+}
+commit_on_graph() { # <graph> <exp> <path> <content> -> new exp-branch tip
+  local graph=$1 exp=$2 path=$3 content=$4
+  local branch="refs/heads/bp3/exp/$graph/$exp" tip blob tree new_tip idx="$work/idx-$graph-$exp"
+  tip=$(git rev-parse "$branch"); rm -f "$idx"
+  blob=$(printf '%s' "$content" | git hash-object -w --stdin)
+  GIT_INDEX_FILE="$idx" git read-tree "$tip"
+  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$path"
+  tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+  new_tip=$(printf 'work %s\n' "$exp" | git commit-tree "$tree" -p "$tip")
+  git update-ref "$branch" "$new_tip" "$tip"; rm -f "$idx"
+  printf '%s' "$new_tip"
+}
+flappy_write() { # <file> <variant> <sky>
+  cat > "$1" <<HTML
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Flappy — $2</title>
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
+</head><body><div id="hud">Score <b id="score">0</b></div>
+<script type="module">
+import * as THREE from 'three';
+const scene = new THREE.Scene();
+=== bash test/dogfood-parallel.sh ===
+scorecard: {
+  "ready_wall_ms": 3919,
+  "serial_sum_ms": 6872,
+  "wall_saved_ms": 2953,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 2
+    },
+    "flappy-night": {
+      "wall_s": 3
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+dogfood-parallel tests: ok
+test exit:0
+=== git diff stat parent ===
+ Makefile                 |   3 +-
+ src/quest/harness.ml     |  50 +++++++----
+ test/dogfood-parallel.sh | 222 +++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 256 insertions(+), 19 deletions(-)
+=== test assertions ===
+4:# build and grade in parallel, then land through the serial
+5:# queue. The scorecard is computed from the workers' own
+6:# timestamps and the bp3 rollup; a fixture conflict serializes
+7:# at land instead of overwriting.
+90:  and .ready_set_waves == [["flappy-day","flappy-night"]] and .starved == []' >/dev/null \
+120:# true parallelism: intervals overlap, different claims and desks
+124:  || fail "author intervals do not overlap: day $day_start-$day_end night $night_start-$night_end"
+130:# isolation: each desk and each exp branch holds only its variant
+158:# --- serial land: one at a time, second re-checks the new tip ---
+159:out=$(q par u flappy-day land --reason "serial land 1")
+160:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "day land: $out"
+164:out=$(q par u flappy-night land --reason "serial land 2")
+165:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "night land: $out"
+166:git merge-base --is-ancestor "$tip1" bp3/quest/par || fail "second land did not build on first tip"
+167:git merge-base --is-ancestor "$(cat "$work/flappy-day.commit")" bp3/quest/par || fail "day commit not landed"
+168:git merge-base --is-ancestor "$(cat "$work/flappy-night.commit")" bp3/quest/par || fail "night commit not landed"
+172:# --- scorecard: wall from the run itself, timing from the rollup ---
+178:echo "$out" | jq -e '(.exps[] | select(.exp == "flappy-day") | .state == "landed" and (.timing.wall_s | type == "number"))
+179:  and (.exps[] | select(.exp == "flappy-night") | .state == "landed" and (.timing.wall_s | type == "number"))
+181:  || fail "rollup scorecard fields: $out"
+189:    tokens: null,
+190:    tokens_note: "bp3 rollup reports no per-node token field; tokens are not invented"}' \
+191:  > "$work/scorecard.json"
+192:jq -e '.wall_saved_ms > 0 and .tokens == null and (.tokens_note | length > 0)' "$work/scorecard.json" >/dev/null \
+193:  || fail "scorecard: $(cat "$work/scorecard.json")"
+194:echo "scorecard: $(cat "$work/scorecard.json")"
+196:# --- conflict fixture: one file, two nodes; land serializes, no overwrite ---
+206:out=$(q conf u touch-a land --reason first)
+207:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "touch-a land: $out"
+208:out=$(q conf u touch-b land --reason second)
+209:echo "$out" | jq -e '.ok == true and .state == "todo" and .facts.land_conflict == true' >/dev/null \
+210:  || fail "touch-b conflict named: $out"
+211:[ "$(git show bp3/quest/conf:shared.txt)" = "A-side" ] || fail "conflict silently overwrote shared.txt"
+213:# --- blocked variant starves only its dependents ---
+219:echo "$out" | jq -e '.ready == ["bw"] and .starved == [{"blocked":"bx","starved":["by"]}]' >/dev/null \
+220:  || fail "blocked sibling isolation: $out"
+=== deferred check in EXPERIMENT ===
+64:| Pi tree death + revival | seed one Pi node with a human-blocking edge: its edge worker dies, node worker records `blocked` and exits, root receives one bubble, and no descendant process remains. After the owner answer + `resume`, root spawns a fresh Pi tree and the node continues; the sibling node is unaffected |
+65:| Muse parity bubble | the equivalent Muse node workflow returns the same terminal blocked bubble and exits; revival launches a fresh workflow, never resumes the old run's agents |
+# Verify notes — exp-dogfood-2-parallel-drive c1
+
+Bound commit 51406951173971043235443104c703e78a9eda2c at HEAD; worktree clean.
+
+Fresh checks (this session, tee'd to tape.log):
+- `git status --porcelain` — empty, exit 0. Pass.
+- `bash test/dogfood-parallel.sh` — exit 0, "dogfood-parallel tests: ok"; scorecard ready_wall_ms 3919 < serial_sum_ms 6872, tokens null with honest note. Parallelism, isolation, serial land, scorecard, env run-id rows pass at rung 3.
+- `grep -n "Pi|bubble" test/dogfood-parallel.sh` — no matches, exit 1. The EXPERIMENT.md acceptance rows "Pi tree death + revival" and "Muse parity bubble" have no coverage in the bound commit and are not marked deferred to another exp. Both gated rows are missing.
+
+Lesson: a passing parallel-drive test does not cover the bubble/revival acceptance; missing gated rows fail the grade even when rung-3 drive checks are green. Grade decided at rungs 1-3; no whole-tape (rung 5) read was needed.
+total 40
+drwxr-xr-x@ 4 whycz  staff    128 Nov 17 01:57 .
+drwxr-xr-x@ 6 whycz  staff    192 Nov 17 01:56 ..
+-rw-r--r--@ 1 whycz  staff    965 Nov 17 01:57 notes.md
+-rw-r--r--@ 1 whycz  staff  15180 Nov 17 01:57 tape.log
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-2-parallel-drive","state":"blocked","cycle":1,"commit":"51406951173971043235443104c703e78a9eda2c","legal_edges":["resume","delete"],"human_action_required":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","edge":"verify","run_id":"20261117T065638Z-verify-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T065638Z-verify-muse-code-muse-wonder-1.0-c1"}
+verify exit:0

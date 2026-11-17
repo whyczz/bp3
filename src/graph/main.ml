@@ -113,14 +113,14 @@ let do_graph_create graph fl id =
     | _ -> [] in
   List.iter check_slug deps;
   let head = head_sha () in
-  let qpath = graph_dir graph ^ "/GRAPH.md" in
+  let qpath = graph_dir graph ^ "/GOAL.md" in
   let existing_graph_md = git_show head qpath in
   let graph_md = match existing_graph_md with
     | Some c -> c
-    | None -> Printf.sprintf "---\nstatus: proposed\ngraph_type: %s\n---\n\n# %s\n\n## Success picture\n\nTODO\n" qtype graph in
+    | None -> Printf.sprintf "---\nstatus: proposed\ngoal_type: %s\n---\n\n# %s\n\n## Success picture\n\nTODO\n" qtype graph in
   let line = ledger_line ~edge:"create" ~from:"" ~to_:"proposed" ~cycle:1
     ~commit:None ~verdict:None ~reason:"" ~id
-    ~extra:[("graph_type", json_str qtype);
+    ~extra:[("goal_type", json_str qtype);
             ("depends_on", `List (List.map json_str deps))] () in
   let existing_ledger = git_show head (graph_ledger_path graph) in
   let ledger = (match existing_ledger with Some t when String.trim t <> "" -> t ^ (if t.[String.length t-1] = '\n' then "" else "\n") | _ -> "") ^ line ^ "\n" in
@@ -573,7 +573,7 @@ let help_g = "bp3 g - graph/node state. Doors:\n\
 Run bp3 g <door> -h for that door's verbs, edges, and flags.\n"
 
 let help_graph_door = "bp3 g <graph door> - verbs:\n\
-  bp3 g c <graph> [--type <graph_type>] [--depends-on <a,b>]   create a graph\n\
+  bp3 g c <graph> [--type <goal_type>] [--depends-on <a,b>]   create a graph\n\
   bp3 g r [<graph>] [--format json|table|tree]                 list graphs, or read one\n\
   bp3 g d <graph> --reason <why>                               delete a graph\n\
 Long forms: create, read, delete. Example: bp3 g c my-graph --type default\n"
@@ -720,8 +720,8 @@ let rec run argv =
       print_verdict ~fmt:"json" (Worktree.run rest); 0
   | "init-repo" :: _ ->
       (* Node 6: scaffold plans/ into the caller's repo; never clobber differing plans *)
-      let plans = [("plans/default.yaml", "graph_type: default\nmax_cycles: 1\ngrade:\n  required: true\nverify: required\n");
-                   ("plans/direct.yaml", "graph_type: direct\nmax_cycles: 0\ngrade:\n  required: false\nverify: required\n")] in
+      let plans = [("plans/default.yaml", "goal_type: default\nmax_cycles: 1\ngrade:\n  required: true\nverify: required\n");
+                   ("plans/direct.yaml", "goal_type: direct\nmax_cycles: 0\ngrade:\n  required: false\nverify: required\n")] in
       (try Unix.mkdir (Filename.concat root "plans") 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
       List.iter (fun (rel, content) ->
         let path = Filename.concat root rel in

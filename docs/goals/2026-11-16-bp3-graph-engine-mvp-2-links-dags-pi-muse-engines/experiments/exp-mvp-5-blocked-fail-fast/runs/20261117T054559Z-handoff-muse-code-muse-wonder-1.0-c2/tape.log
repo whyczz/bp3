@@ -1,0 +1,99 @@
+_build/default/src/quest/main.exe
+CHECK_OK
+node:internal/errors:998
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-tree-s2zos5/repo/bin/bp3 q c demo
+    at genericNodeError (node:internal/errors:998:15)
+    at wrappedFn (node:internal/errors:543:14)
+    at checkExecSyncError (node:child_process:925:11)
+    at execFileSync (node:child_process:961:15)
+    at bp3 (file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/test/pi-tree.test.mjs:52:15)
+    at file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/test/pi-tree.test.mjs:135:3
+    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:654:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  status: 2,
+  signal: null,
+  output: [
+    null,
+    '{"ok":false,"error":{"code":"E_IDENTITY","facts":{"harness":"pi"},"guidance":"BP3_HARNESS must be one of muse-code, codex, muse, human."}}\n',
+    ''
+  ],
+  pid: 44386,
+  stdout: '{"ok":false,"error":{"code":"E_IDENTITY","facts":{"harness":"pi"},"guidance":"BP3_HARNESS must be one of muse-code, codex, muse, human."}}\n',
+  stderr: ''
+}
+
+Node.js v25.4.0
+node:internal/errors:998
+  const err = new Error(message);
+              ^
+
+Error: Command failed: ./bin/bp3 q demo u pinode handoff --commit 4c538dafcd88cd898a5c932612bc915067b7f806 --reason fresh tree work
+    at genericNodeError (node:internal/errors:998:15)
+    at wrappedFn (node:internal/errors:543:14)
+    at checkExecSyncError (node:child_process:925:11)
+    at execFileSync (node:child_process:961:15)
+    at bp3 (file:///private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-tree-pWtxTM/edge-worker.mjs:5:46)
+    at file:///private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-tree-pWtxTM/edge-worker.mjs:13:3
+    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:654:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  status: 1,
+  signal: null,
+  output: [
+    null,
+    '{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{},"guidance":"Worktree is dirty; clean it and retry."},"run_id":"20261117T054736Z-node-pi-test-model-c1"}\n',
+    ''
+  ],
+  pid: 44877,
+  stdout: '{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{},"guidance":"Worktree is dirty; clean it and retry."},"run_id":"20261117T054736Z-node-pi-test-model-c1"}\n',
+  stderr: ''
+}
+
+Node.js v25.4.0
+FAIL: fresh tree drives node to handed_off, got todo
+FAIL: grandchild dead after disposition; tree dead
+node:internal/errors:998
+  const err = new Error(message);
+              ^
+
+Error: Command failed: ./bin/bp3 q demo u pinode handoff --commit f864175dc53c0304fc052bf15beb3ff56f24fbb1 --reason fresh tree work
+    at genericNodeError (node:internal/errors:998:15)
+    at wrappedFn (node:internal/errors:543:14)
+    at checkExecSyncError (node:child_process:925:11)
+    at execFileSync (node:child_process:961:15)
+    at bp3 (file:///private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-tree-ZGAydU/edge-worker.mjs:5:46)
+    at file:///private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-tree-ZGAydU/edge-worker.mjs:19:3
+    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:654:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  status: 1,
+  signal: null,
+  output: [
+    null,
+    '{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{},"guidance":"Worktree is dirty; clean it and retry."},"run_id":"20261117T054854Z-handoff-pi-test-model-c1"}\n',
+    ''
+  ],
+  pid: 46896,
+  stdout: '{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{},"guidance":"Worktree is dirty; clean it and retry."},"run_id":"20261117T054854Z-handoff-pi-test-model-c1"}\n',
+  stderr: ''
+}
+
+Node.js v25.4.0
+FAIL: fresh tree drives node to handed_off, got todo
+pi-tree tests: ok
+induct-node tests: ok
+blocked tests: ok
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 120783.281875
+[quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines f5b434d] test(mvp.5): Pi process-tree proof — bubble once, tree dead, fresh revival
+ 2 files changed, 219 insertions(+)
+ create mode 100644 test/pi-tree.test.mjs
+f5b434d04e91e4160ea8f36522822e90effa1cc0
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-5-blocked-fail-fast","state":"handed_off","cycle":2,"commit":"f5b434d04e91e4160ea8f36522822e90effa1cc0","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-5-blocked-fail-fast","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-5-blocked-fail-fast","edge":"handoff","run_id":"20261117T054559Z-handoff-muse-code-muse-wonder-1.0-c2","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T054559Z-handoff-muse-code-muse-wonder-1.0-c2"}

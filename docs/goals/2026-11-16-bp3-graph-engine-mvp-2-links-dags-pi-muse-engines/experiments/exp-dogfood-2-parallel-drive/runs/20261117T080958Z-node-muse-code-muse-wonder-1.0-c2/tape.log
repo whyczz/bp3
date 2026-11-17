@@ -1,0 +1,498 @@
+=== git log bound commit ===
+7a0dfca feat(dogfood.2): bubble proof in the parallel drive — Pi and Muse, sibling unaffected
+a400ed5 docs(dogfood.2): name cycle-2 bubble proof fix
+5140695 feat(dogfood.2): parallel-drive proof — two variants, one ready-set
+adfd7b0 test(dogfood.1): link-drive A/B proof — one-line brief, attacks refuse
+f5b434d test(mvp.5): Pi process-tree proof — bubble once, tree dead, fresh revival
+=== git show stat ===
+commit 7a0dfca3d413f17647d6beb63ad267d25ff881ac
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 03:04:53 2026 -0500
+
+    feat(dogfood.2): bubble proof in the parallel drive — Pi and Muse, sibling unaffected
+    
+    For humans: the parallel drive now proves the blocked bubble in both engine forms — a seeded node blocks, its whole worker tree dies, and a fresh tree revives it after the human answer, while its sibling keeps moving and lands.
+    
+    For LLMs: test/dogfood-parallel.sh gains an embedded bubble drive: Pi form spawns real node/edge processes claiming real links (typed E_DECISION failure, one facts-only bubble, process-table death, fresh run-id/pid after resume); Muse form runs the real induct-node workflow in parallel against real bp3 (same blocked bubble, one block, fresh workflow with disjoint run-ids, old host agent count frozen). Sibling unaffected in both forms. make check green.
+
+ test/dogfood-parallel.sh | 210 +++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 210 insertions(+)
+=== HEAD ===
+7a0dfca feat(dogfood.2): bubble proof in the parallel drive — Pi and Muse, sibling unaffected
+a400ed5 docs(dogfood.2): name cycle-2 bubble proof fix
+5140695 feat(dogfood.2): parallel-drive proof — two variants, one ready-set
+=== quest file ===
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+| tape | tape | the harness session recording (unchanged) |
+
+States rest in the root worker's read. Edges are
+subagents. A child holds nothing across edges;
+context is claimed, never remembered.
+
+Edge names (settled red-ink names round, owner —
+option A; rides rename.1, old ledgers keep old
+words and the rename table maps them):
+
+| Coded today | Settled name | Caller does |
+|---|---|---|
+| `submit` | `handoff` | author binds the finished commit |
+| `review` | `grade` | reviewer grades the exact commit (`ship\|needs_fix`) |
+| `check` | `verify` | machine checks (`pass\|fail`) |
+| `land` | `land` | merge into the graph branch |
+| state `submitted` | state `handed_off` | verb/state rhyme: `handoff` hands off, node rests `handed_off` |
+| `block` | `block` | park for a human decision |
+| `resume` | `resume` | human answer re-enters (`BP3_DECIDER=human`) |
+
+Link mint/claim are verbs, not flags:
+`bp3 harness link mint --kind node|edge …` and
+`bp3 harness link claim <token>`. A node link
+carries no edge name — the node worker executes
+no transition when it claims.
+
+Door letter settled: `bp3 g`, not `bp3 t`.
+Nodes form a DAG (shared deps, diamonds — a tree
+allows one parent), scheduled by BFS ready-set
+waves; the *execution* is a tree of workers.
+Tree survives as a view (`--format tree`) and as
+the worker-tree shape, never as the addressed
+noun.
+
+## Success picture
+
+A root worker dispatches a node with a one-line
+brief: "claim this link, do this edge." The child
+claims, works, calls its own edge, dies. Ready
+nodes in a ready-set build and grade in parallel
+desks; landing is a serial queue. The rollup
+shows every node's wall, wait, and dwell time.
+The grader joins any tape's session-id to run-id
+in one lookup. At the end, everything on live
+surfaces — CLI, skills, workflows, records —
+speaks graph/node/state/edge and answers to
+`bp3 g` and `/bp3g`.
+
+## Scope
+
+| In | Out |
+|---|---|
+| `bp3 harness link` mint/claim, CAS claim store, by-session index, context resolution; run config replaces InitRecord (`creator:{}`/`claim:{}`/`tape_path`), `record-init` retires, lifecycle fold reads the run config | rewriting landed quests' ledger history text |
+| ready-set scheduling, per-node timing derived from ledger + derivations, local thresholds | anything committed for metrics; timing judgments stay in `<git-common-dir>/bp3/` |
+| setup timing measured always; optimize only when setup > 3 min (`W_SETUP_SLOW`) | desk pools (killed 2026-11-16; ad hoc desks, measured) |
+| generated ASCII/mermaid diagram from live rollup | writing into harness session logs (tapes stay harness-written) |
+| rename last: `bp3 g`, `bp3g` skills, graph terms on live surfaces | rewriting landed quests' ledger history text |
+| session-id discovery: muse, pi; graceful floor (pid+cwd+window) | adversarial threat model (links are for confused children, not attackers) |
+
+## Timing gates (in-system, local)
+
+- Per node: `wall` (first handoff → land), `wait`
+  (create → first handoff), `dwell` per state,
+  cycles. Derived from ledger timestamps, shown
+  on read, thresholds local, never committed.
+- Per Run setup: desk create → first bp3 answer;
+  `W_SETUP_SLOW` when > 3 minutes.
+- Scorecards report wall minutes AND tokens per
+  node. Visibility, not caps.
+
+## Context layer (kubectl pattern, settled red-ink round 1)
+
+One door per noun, nested as the canonical address:
+`bp3 g <graph> n <node> e <edge>`. Bare `bp3 e …`
+is the claimed shorthand. A context layer resolves
+=== runs ===
+20261117T063524Z-handoff-muse-code-muse-wonder-1.0-c1
+20261117T065327Z-node-muse-code-muse-wonder-1.0-c1
+20261117T065632Z-grade-muse-code-muse-wonder-1.0-c1
+20261117T065638Z-verify-muse-code-muse-wonder-1.0-c1
+20261117T075624Z-handoff-muse-code-muse-wonder-1.0-c2
+20261117T080958Z-node-muse-code-muse-wonder-1.0-c2
+=== diff at bound vs parent (cycle2) ===
+ test/dogfood-parallel.sh | 210 +++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 210 insertions(+)
+=== cycle1 diff stat ===
+ Makefile                 |   3 +-
+ src/quest/harness.ml     |  50 +++++++----
+ test/dogfood-parallel.sh | 222 +++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 256 insertions(+), 19 deletions(-)
+=== test files ===
+test/blocked.sh
+test/completion.sh
+test/config.sh
+test/context.sh
+test/diagram.sh
+test/dogfood-link.sh
+test/dogfood-parallel.sh
+test/dogfood-parallel.sh
+test/harness.sh
+test/hooks.sh
+test/install.sh
+test/link.sh
+test/q.sh
+test/ready.sh
+test/release.sh
+test/skills.sh
+test/tape.sh
+test/traverse.sh
+test/worktree.sh
+=== derivations ===
+gcd=/Users/whycz/m/bp3/.git
+20261115T215646Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T215646Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T215646Z-review-muse-code-muse-wonder-1.0-c1.json
+20261115T215646Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220235Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T220235Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220706Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T220706Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220706Z-check-muse-code-muse-wonder-1.0-c1.json
+20261115T220706Z-check-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220706Z-review-muse-code-muse-wonder-1.0-c1.json
+20261115T220706Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T221254Z-land-muse-code-muse-wonder-1.0-c1.json
+20261115T221254Z-land-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T221412Z-submit-muse-code-muse-wonder-1.0-c1.json
+20261115T221412Z-submit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T222344Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T222344Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T222344Z-check-muse-code-muse-wonder-1.0-c1.json
+20261115T222344Z-check-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T222344Z-review-muse-code-muse-wonder-1.0-c1.json
+20261115T222344Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T223118Z-land-muse-code-muse-wonder-1.0-c1.json
+20261115T223118Z-land-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T223251Z-submit-muse-code-muse-wonder-1.0-c1.json
+20261115T223251Z-submit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T224331Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T224331Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T224331Z-review-muse-code-muse-wonder-1.0-c1.json
+20261115T224331Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T224809Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T224809Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T224809Z-check-muse-code-muse-wonder-1.0-c1.json
+20261115T224809Z-check-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T224809Z-review-muse-code-muse-wonder-1.0-c1.json
+20261115T224809Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T231652Z-submit-muse-code-muse-wonder-1.0-c2.json
+20261115T231652Z-submit-muse-code-muse-wonder-1.0-c2.jsonl
+20261115T232711Z-audit-muse-code-muse-wonder-1.0-c2.json
+20261115T232711Z-audit-muse-code-muse-wonder-1.0-c2.jsonl
+=== ledger ===
+by-session
+claims
+config.json
+desks
+links
+pi-sessions
+run-lifecycle-derivations
+runs
+=== dogfood-parallel.sh head ===
+     432 test/dogfood-parallel.sh
+3:# Two independent nodes claim separate links in separate desks,
+4:# build and grade in parallel, then land through the serial
+5:# queue. The scorecard is computed from the workers' own
+7:# at land instead of overwriting.
+93:# --- parallel author workers: claim, build, handoff, grade, verify ---
+96:  local desk="$work/desk-$node"
+97:  mkdir -p "$desk"
+100:  mint=$(lk mint --kind edge --graph par --node "$node" --edge handoff --depth 2 --desk "$desk")
+103:  MUSE_SESSION_ID="$session" lk claim "$tok" > "$work/$node.claim.json"
+104:  flappy_write "$desk/$node.html" "$variant" "$sky"
+106:  commit=$(commit_file_on_exp "$node" "$node.html" "$desk/$node.html")
+120:# true parallelism: intervals overlap, different claims and desks
+124:  || fail "author intervals do not overlap: day $day_start-$day_end night $night_start-$night_end"
+126:[ "$day_rid" != "$night_rid" ] || fail "parallel claims share a run-id"
+127:jq -e '.ok == true and .node == "flappy-day"' "$work/flappy-day.claim.json" >/dev/null || fail "day claim"
+128:jq -e '.ok == true and .node == "flappy-night"' "$work/flappy-night.claim.json" >/dev/null || fail "night claim"
+130:# isolation: each desk and each exp branch holds only its variant
+131:[ -f "$work/desk-flappy-day/flappy-day.html" ] && [ ! -e "$work/desk-flappy-day/flappy-night.html" ] \
+132:  || fail "day desk bleed"
+133:[ -f "$work/desk-flappy-night/flappy-night.html" ] && [ ! -e "$work/desk-flappy-night/flappy-day.html" ] \
+134:  || fail "night desk bleed"
+158:# --- serial land: one at a time, second re-checks the new tip ---
+159:out=$(q par u flappy-day land --reason "serial land 1")
+160:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "day land: $out"
+164:out=$(q par u flappy-night land --reason "serial land 2")
+165:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "night land: $out"
+166:git merge-base --is-ancestor "$tip1" bp3/quest/par || fail "second land did not build on first tip"
+167:git merge-base --is-ancestor "$(cat "$work/flappy-day.commit")" bp3/quest/par || fail "day commit not landed"
+168:git merge-base --is-ancestor "$(cat "$work/flappy-night.commit")" bp3/quest/par || fail "night commit not landed"
+172:# --- scorecard: wall from the run itself, timing from the rollup ---
+178:echo "$out" | jq -e '(.exps[] | select(.exp == "flappy-day") | .state == "landed" and (.timing.wall_s | type == "number"))
+179:  and (.exps[] | select(.exp == "flappy-night") | .state == "landed" and (.timing.wall_s | type == "number"))
+181:  || fail "rollup scorecard fields: $out"
+191:  > "$work/scorecard.json"
+192:jq -e '.wall_saved_ms > 0 and .tokens == null and (.tokens_note | length > 0)' "$work/scorecard.json" >/dev/null \
+193:  || fail "scorecard: $(cat "$work/scorecard.json")"
+194:echo "scorecard: $(cat "$work/scorecard.json")"
+196:# --- conflict fixture: one file, two nodes; land serializes, no overwrite ---
+206:out=$(q conf u touch-a land --reason first)
+207:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "touch-a land: $out"
+208:out=$(q conf u touch-b land --reason second)
+209:echo "$out" | jq -e '.ok == true and .state == "todo" and .facts.land_conflict == true' >/dev/null \
+213:# --- blocked variant starves only its dependents ---
+219:echo "$out" | jq -e '.ready == ["bw"] and .starved == [{"blocked":"bx","starved":["by"]}]' >/dev/null \
+220:  || fail "blocked sibling isolation: $out"
+222:# --- Pi bubble + Muse parity bubble in the parallel drive (cycle 2) ---
+225:# Pi form: real OS processes (edge worker dies, node worker
+226:# records blocked and exits, exactly one bubble, no descendant
+227:# process remains; resume + a fresh Pi tree continues it).
+228:# Muse form: the real induct-node workflow returns the same
+229:# terminal blocked bubble and exits; revival is a fresh
+232:cat > "$work/bubble-drive.mjs" <<'BUBBLE_JS'
+273:// Pi workers: real processes, claim first, then work.
+278:  'const [mode, graph, node, token, bubblePath, scratch] = process.argv.slice(2);',
+280:  'bp3(["harness", "link", "claim", token]);',
+282:  'const minted = bp3(["harness", "link", "mint", "--kind", "edge", "--graph", graph, "--node", node, "--edge", "handoff", "--harness", "pi", "--model", "test-model", "--cycle", "1", "--desk", process.cwd(), "--parent-run-id", myRun]);',
+291:  '  fs.appendFileSync(bubblePath, JSON.stringify({ graph, node, state: "blocked", reason: er.reason, last_edge: "handoff", run_chain: chain, desk: process.cwd(), inbox_key: graph + "/" + node }) + "\\n");',
+295:  'fs.appendFileSync(bubblePath, JSON.stringify({ graph, node, state: after.state, reason: null, last_edge: "handoff", run_chain: chain, desk: process.cwd(), inbox_key: graph + "/" + node }) + "\\n");',
+306:  'bp3(["harness", "link", "claim", token]);',
+325:function spawnPi(mode, graph, node, bubblePath, scratch) {
+326:  const minted = bp3(["harness", "link", "mint", "--kind", "node", "--graph", graph, "--node", node, "--harness", "pi", "--model", "test-model", "--cycle", "1", "--desk", repo]);
+327:  const child = spawn(process.execPath, [nodeWorker, mode, graph, node, minted.token, bubblePath, scratch], {
+333:// Claims write .bp3-context.json at the desk root (the repo
+338:// --- Pi form in parallel: seeded blocks, sibling lands handed_off ---
+340:const piBubbles = path.join(work, "pi-bubbles.jsonl");
+342:const piSeed = spawnPi("block-fail", "bubpi", "seeded-pi", piBubbles, path.join(work, "pi-seed"));
+343:const piSib = spawnPi("handoff", "bubpi", "sib-pi", piBubbles, path.join(work, "pi-sib"));
+344:assert((await exitOf(piSeed.child)) === 0, "Pi seeded node worker exits 0 on block");
+345:assert((await exitOf(piSib.child)) === 0, "Pi sibling node worker exits 0");
+349:assert(piSeedBubbles.length === 1, "Pi exactly one bubble, got " + piSeedBubbles.length);
+351:assert(pb && pb.state === "blocked" && pb.reason === "choose storage shape" && pb.last_edge === "handoff" && pb.inbox_key === "bubpi/seeded-pi" && Array.isArray(pb.run_chain) && pb.run_chain.length === 2 && !("pid" in pb), "Pi bubble facts only: " + JSON.stringify(pb));
+352:assert(await waitDead(piSeed.pid), "Pi node worker pid dead after bubble");
+353:const piEdgePid = Number(fs.readFileSync(path.join(work, "pi-seed.edge.pid"), "utf8"));
+354:assert(await waitDead(piEdgePid), "Pi edge worker pid dead after bubble (process table)");
+355:assert(await waitDead(piSib.pid), "Pi sibling tree dead after its bubble");
+356:assert(bp3(["q", "bubpi", "r", "seeded-pi"]).state === "blocked", "Pi seeded rests blocked");
+357:assert(bp3(["q", "bubpi", "r", "sib-pi"]).state === "handed_off", "Pi sibling unaffected: handed_off while seeded blocked");
+358:assert(bp3(["q", "r", "bubpi"]).inbox.filter((i) => i.exp === "seeded-pi").length === 1, "Pi exactly one inbox entry");
+360:assert(piResumed.ok === true && piResumed.state === "todo", "Pi resume revives to todo");
+361:const piFresh = spawnPi("handoff", "bubpi", "seeded-pi", piBubbles, path.join(work, "pi-seed2"));
+362:assert((await exitOf(piFresh.child)) === 0, "Pi fresh tree exits 0");
+363:assert(piFresh.runId !== piSeed.runId && piFresh.pid !== piSeed.pid, "Pi revival is a fresh tree: new run-id and pid");
+364:assert(await waitDead(piFresh.pid), "Pi fresh tree dead after revival bubble");
+365:assert(bp3(["q", "bubpi", "r", "seeded-pi"]).state === "handed_off", "Pi fresh tree continues node to handed_off");
+366:assert(bp3(["q", "bubpi", "r", "sib-pi"]).state === "handed_off", "Pi sibling still unaffected after revival");
+367:// --- Muse form in parallel: real induct-node workflow, same bubble ---
+372:  const host = { calls: 0, edgeCalls: {}, blockCalls: 0, args: { quest: "bubcl", exp: node, ts: "20261117T000000Z", harness: "muse-code", model: "test-model", desk: repo },
+391:      const tm = input.match(/link claim (bp3link_[A-Za-z0-9_-]+)/);
+393:      const claimed = bp3(["harness", "link", "claim", tm[1]], { MUSE_SESSION_ID: session });
+395:        return JSON.stringify({ ok: false, run_id: claimed.run_id, reason: "choose storage shape", error: { code: "E_DECISION", guidance: "choose storage shape" } });
+401:      else if (edge === "land") { verdict = bp3(["e", "land", "--reason", "serial land"], { MUSE_SESSION_ID: session }); }
+402:      return JSON.stringify({ ok: true, run_id: claimed.run_id, commit, verdict });
+410:assert(clSeed.outcome === "blocked" && clSeed.reason === "choose storage shape" && clSeed.last_edge === "handoff" && clSeed.graph === "bubcl" && clSeed.inbox_key === "bubcl/seeded-cl", "Muse parity bubble same terminal facts: " + JSON.stringify(clSeed));
+411:assert(clSib.outcome === "landed", "Muse sibling landed unaffected, got " + clSib.outcome);
+412:assert((clSeedHost.edgeCalls.handoff || 0) === 1 && clSeedHost.blockCalls === 1, "Muse failed edge never retried, exactly one block");
+413:assert(bp3(["q", "bubcl", "r", "seeded-cl"]).state === "blocked", "Muse seeded rests blocked");
+414:assert(bp3(["q", "bubcl", "r", "sib-cl"]).state === "landed", "Muse sibling state landed");
+417:assert(clResumed.ok === true && clResumed.state === "todo", "Muse resume revives to todo");
+420:assert(clFresh.outcome === "landed", "Muse fresh workflow lands seeded, got " + clFresh.outcome);
+421:assert(clSeedHost.calls === clOldCalls, "Muse revival never resumes old workflow agents");
+422:assert(clFresh.run_ids.every((r) => !clSeed.run_ids.includes(r)), "Muse revival run-ids are fresh, disjoint from blocked run");
+423:assert(bp3(["q", "bubcl", "r", "sib-cl"]).state === "landed", "Muse sibling still landed after revival");
+425:console.log(JSON.stringify({ pi_bubble: pb.state, pi_fresh_run: piFresh.runId, pi_wall_ms: piT1 - piT0, claude_bubble: clSeed.outcome, claude_fresh: clFresh.outcome, sibling_pi: "handed_off", sibling_claude: clSib.outcome }));
+427:bubble_out=$(BP3_ROOT="$root" BP3_WORK="$work" node "$work/bubble-drive.mjs") || fail "bubble drive: $bubble_out"
+428:echo "bubble scorecard: $bubble_out"
+429:echo "$bubble_out" | jq -e '.pi_bubble == "blocked" and .claude_bubble == "blocked" and .claude_fresh == "landed" and .sibling_claude == "landed"' >/dev/null \
+430:  || fail "bubble scorecard: $bubble_out"
+=== make check head ===
+9:check: lint
+22:	./test/dogfood-parallel.sh
+34:	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+=== run dogfood-parallel ===
+scorecard: {
+  "ready_wall_ms": 3956,
+  "serial_sum_ms": 6882,
+  "wall_saved_ms": 2926,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 2
+    },
+    "flappy-night": {
+      "wall_s": 3
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+bubble scorecard: {"pi_bubble":"blocked","pi_fresh_run":"20261117T081042Z-node-pi-test-model-c1","pi_wall_ms":2280,"claude_bubble":"blocked","claude_fresh":"landed","sibling_pi":"handed_off","sibling_claude":"landed"}
+dogfood-parallel tests: ok
+
+real	0m38.882s
+user	0m14.249s
+sys	0m14.576s
+DOGFOOD_EXIT:0
+=== make check ===
+✔ dispatcher never signals a pid: watch is the sole killer (0.395375ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (188.63975ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (21.023584ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 123256.125959
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+MAKE_EXIT:0
+=== env run-id check ===
+test/dogfood-parallel.sh:101:  tok=$(echo "$mint" | jq -r .token); rid=$(echo "$mint" | jq -r .run_id)
+test/dogfood-parallel.sh:102:  printf '%s' "$rid" > "$work/$node.run_id"
+test/dogfood-parallel.sh:125:day_rid=$(cat "$work/flappy-day.run_id"); night_rid=$(cat "$work/flappy-night.run_id")
+test/dogfood-parallel.sh:281:  'const myRun = JSON.parse(fs.readFileSync(process.env.BP3_RUN_CFG, "utf8")).run_id;',
+test/dogfood-parallel.sh:288:  'const chain = [myRun, minted.run_id];',
+test/dogfood-parallel.sh:328:    cwd: repo, env: { ...env, BP3_RUN_ID: minted.run_id, BP3_RUN_CFG: path.join(runsDir, minted.run_id + ".json"), EDGE_WORKER: edgeWorker }, stdio: "inherit",
+test/dogfood-parallel.sh:330:  return { child, runId: minted.run_id, pid: child.pid, started: Date.now() };
+test/dogfood-parallel.sh:387:        return JSON.stringify({ ok: true, run_id: m ? m[1] : "", tape_path: tp });
+test/dogfood-parallel.sh:395:        return JSON.stringify({ ok: false, run_id: claimed.run_id, reason: "choose storage shape", error: { code: "E_DECISION", guidance: "choose storage shape" } });
+test/dogfood-parallel.sh:402:      return JSON.stringify({ ok: true, run_id: claimed.run_id, commit, verdict });
+test/dogfood-parallel.sh:422:assert(clFresh.run_ids.every((r) => !clSeed.run_ids.includes(r)), "Muse revival run-ids are fresh, disjoint from blocked run");
+172:# --- scorecard: wall from the run itself, timing from the rollup ---
+178:echo "$out" | jq -e '(.exps[] | select(.exp == "flappy-day") | .state == "landed" and (.timing.wall_s | type == "number"))
+179:  and (.exps[] | select(.exp == "flappy-night") | .state == "landed" and (.timing.wall_s | type == "number"))
+183:  --arg day_wall_s "$(echo "$out" | jq -r '.exps[] | select(.exp == "flappy-day") | .timing.wall_s')" \
+184:  --arg night_wall_s "$(echo "$out" | jq -r '.exps[] | select(.exp == "flappy-night") | .timing.wall_s')" \
+186:    wall_saved_ms: ($serial_sum_ms - $ready_wall_ms),
+187:    nodes: {"flappy-day": {wall_s: ($day_wall_s | tonumber)},
+188:            "flappy-night": {wall_s: ($night_wall_s | tonumber)}},
+192:jq -e '.wall_saved_ms > 0 and .tokens == null and (.tokens_note | length > 0)' "$work/scorecard.json" >/dev/null \
+=== cycle1 scorecard lines ===
+wait "$pid_night" || fail "flappy-night author worker"
+
+# true parallelism: intervals overlap, different claims and desks
+day_start=$(cat "$work/flappy-day.start"); day_end=$(cat "$work/flappy-day.end")
+night_start=$(cat "$work/flappy-night.start"); night_end=$(cat "$work/flappy-night.end")
+(( day_start < night_end && night_start < day_end )) \
+  || fail "author intervals do not overlap: day $day_start-$day_end night $night_start-$night_end"
+day_rid=$(cat "$work/flappy-day.run_id"); night_rid=$(cat "$work/flappy-night.run_id")
+[ "$day_rid" != "$night_rid" ] || fail "parallel claims share a run-id"
+jq -e '.ok == true and .node == "flappy-day"' "$work/flappy-day.claim.json" >/dev/null || fail "day claim"
+jq -e '.ok == true and .node == "flappy-night"' "$work/flappy-night.claim.json" >/dev/null || fail "night claim"
+
+# isolation: each desk and each exp branch holds only its variant
+[ -f "$work/desk-flappy-day/flappy-day.html" ] && [ ! -e "$work/desk-flappy-day/flappy-night.html" ] \
+  || fail "day desk bleed"
+[ -f "$work/desk-flappy-night/flappy-night.html" ] && [ ! -e "$work/desk-flappy-night/flappy-day.html" ] \
+  || fail "night desk bleed"
+git show "bp3/exp/par/flappy-day:flappy-day.html" | grep -q "Flappy — day" || fail "day branch artifact"
+git show "bp3/exp/par/flappy-night:flappy-night.html" | grep -q "Flappy — night" || fail "night branch artifact"
+if git cat-file -e "bp3/exp/par/flappy-day:flappy-night.html" 2>/dev/null; then fail "day branch holds night file"; fi
+if git cat-file -e "bp3/exp/par/flappy-night:flappy-day.html" 2>/dev/null; then fail "night branch holds day file"; fi
+rm -f .bp3-context.json
+out=$(es sess-day)
+echo "$out" | jq -e '.node == "flappy-day" and .source == "session"' >/dev/null || fail "day context: $out"
+out=$(es sess-night)
+echo "$out" | jq -e '.node == "flappy-night" and .source == "session"' >/dev/null || fail "night context: $out"
+
+# quality floor: full matrix per node, no rung skipped
+for n in flappy-day flappy-night; do
+  jq -e '.state == "handed_off"' "$work/$n.handoff.json" >/dev/null || fail "$n handoff state"
+  jq -e '.state == "handed_off"' "$work/$n.grade.json" >/dev/null || fail "$n grade state"
+  jq -e '.state == "approved"' "$work/$n.verify.json" >/dev/null || fail "$n verify state"
+  out=$(q par r "$n")
+  echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "$n approved read: $out"
+  git show "bp3/exp/par/$n:docs/quests/par/experiments/$n/ledger.jsonl" \
+    | jq -s -e '([.[] | select(.edge == "grade" and .verdict == "ship")] | length == 1)
+      and ([.[] | select(.edge == "verify" and .verdict == "pass")] | length == 1)' >/dev/null \
+    || fail "$n grade matrix ledger"
+done
+
+# --- serial land: one at a time, second re-checks the new tip ---
+out=$(q par u flappy-day land --reason "serial land 1")
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "day land: $out"
+tip1=$(git rev-parse bp3/quest/par)
+out=$(q par r flappy-night)
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "night still approved: $out"
+out=$(q par u flappy-night land --reason "serial land 2")
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "night land: $out"
+git merge-base --is-ancestor "$tip1" bp3/quest/par || fail "second land did not build on first tip"
+git merge-base --is-ancestor "$(cat "$work/flappy-day.commit")" bp3/quest/par || fail "day commit not landed"
+git merge-base --is-ancestor "$(cat "$work/flappy-night.commit")" bp3/quest/par || fail "night commit not landed"
+[ "$(git show bp3/quest/par:flappy-day.html | grep -c 'Flappy — day')" = 1 ] || fail "quest tip day file"
+[ "$(git show bp3/quest/par:flappy-night.html | grep -c 'Flappy — night')" = 1 ] || fail "quest tip night file"
+
+# --- scorecard: wall from the run itself, timing from the rollup ---
+ready_wall_ms=$(( (day_end > night_end ? day_end : night_end) - (day_start < night_start ? day_start : night_start) ))
+serial_sum_ms=$(( (day_end - day_start) + (night_end - night_start) ))
+(( ready_wall_ms < serial_sum_ms )) \
+  || fail "ready-set wall $ready_wall_ms not below serial sum $serial_sum_ms"
+out=$(q r par)
+echo "$out" | jq -e '(.exps[] | select(.exp == "flappy-day") | .state == "landed" and (.timing.wall_s | type == "number"))
+  and (.exps[] | select(.exp == "flappy-night") | .state == "landed" and (.timing.wall_s | type == "number"))
+  and (.setup | map(select(.node == "flappy-day" or .node == "flappy-night")) | length >= 2)' >/dev/null \
+  || fail "rollup scorecard fields: $out"
+jq -n --argjson ready_wall_ms "$ready_wall_ms" --argjson serial_sum_ms "$serial_sum_ms" \
+  --arg day_wall_s "$(echo "$out" | jq -r '.exps[] | select(.exp == "flappy-day") | .timing.wall_s')" \
+  --arg night_wall_s "$(echo "$out" | jq -r '.exps[] | select(.exp == "flappy-night") | .timing.wall_s')" \
+  '{ready_wall_ms: $ready_wall_ms, serial_sum_ms: $serial_sum_ms,
+    wall_saved_ms: ($serial_sum_ms - $ready_wall_ms),
+    nodes: {"flappy-day": {wall_s: ($day_wall_s | tonumber)},
+            "flappy-night": {wall_s: ($night_wall_s | tonumber)}},
+    tokens: null,
+    tokens_note: "bp3 rollup reports no per-node token field; tokens are not invented"}' \
+  > "$work/scorecard.json"
+jq -e '.wall_saved_ms > 0 and .tokens == null and (.tokens_note | length > 0)' "$work/scorecard.json" >/dev/null \
+  || fail "scorecard: $(cat "$work/scorecard.json")"
+echo "scorecard: $(cat "$work/scorecard.json")"
+
