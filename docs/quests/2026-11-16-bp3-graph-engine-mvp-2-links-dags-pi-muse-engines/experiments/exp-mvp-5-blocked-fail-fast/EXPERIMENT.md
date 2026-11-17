@@ -205,6 +205,26 @@ fresh workflow is launched after `resume`.
 | sibling nodes are ready | they continue while one node is blocked; only that node's dependents lose readiness |
 | conductor restarts | blocked nodes and reasons are recovered from bp3/inbox without relying on any worker process or prior session memory |
 
+## Cycle 2 fix (owner A, 2026-11-17)
+
+Cycle-1 grade on `4d00100`: every Muse row
+passed; the five Pi rows (Pi tree bubbles to
+root, whole Pi tree dies, Pi revival is a fresh
+tree, unreaped Pi grandchild, root Pi session
+dies) were gated-`missing` because the handoff
+deferred Pi process proof to an unnamed "Pi
+drive". Owner chose A: do the Pi proof here.
+Named fix, verbatim for cycle 2: supply the
+real Pi root -> node-worker -> edge-worker
+process-tree proof demanded below — terminal
+bubble reaching the root Pi session exactly
+once, process-table evidence that the whole
+tree is dead after the bubble, `parent_run_id`
+disposition of an unreaped grandchild, and a
+fresh-tree revival after `resume` (new claim/
+run chain, no pid/session reuse). The Pi rows
+stay gated by this exp; do not re-defer them.
+
 ## Acceptance test (goal block)
 
 - **Objective:** a blocked node costs no live
