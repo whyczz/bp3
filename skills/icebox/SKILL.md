@@ -61,5 +61,9 @@ before the delete.
 - On promotion, set `promoted:` to the quest path, then
   delete the entry (owner rule, 2026-11-15). Git history is
   the fossil record; an unpromoted entry is never deleted.
+- Whenever a `/quest` or `/graph` is written from an entry,
+  copy the entry **verbatim** to `ICEBOX.md` in the
+  quest/graph folder before any delete — never transcribed
+  into prose (owner rule, 2026-11-17).
 - Instructions only: this skill writes docs. It creates no
   branches, ledger lines, or Board records.

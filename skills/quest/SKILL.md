@@ -85,7 +85,9 @@ file stays the plan of record.
 ## Promotion from the icebox
 
 A Quest that starts from a `docs/icebox/` entry promotes it.
-Promotion means exactly this, no more:
+Promotion means exactly this, no more. The `ICEBOX.md` copy
+rule applies whenever a `/quest` (or its `/graph` successor)
+is written from an entry, not only at formal promotion:
 
 | Step | Rule |
 |---|---|
