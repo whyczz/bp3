@@ -31,8 +31,8 @@ cd "$root"
 canon_id() { case "$1" in exp-*) echo "node-${1#exp-}" ;; *) echo "$1" ;; esac; }
 plan() { printf 'plan: %s\n' "$*"; }
 run() { if [ "$mode" = apply ]; then printf 'do: %s\n' "$*"; "$@"; else plan "$*"; fi; }
-if [ "$mode" = apply ] && git status --porcelain | grep -qv '^??'; then
-  echo "refuse: dirty tree (tracked changes present; untracked run residue moves along)" >&2; exit 1
+if [ "$mode" = apply ] && git status --porcelain | grep -v '^??' | grep -v '/runs/' | grep -q .; then
+  echo "refuse: dirty tree (tracked source changes present; run evidence under runs/ moves along)" >&2; exit 1
 fi
 # --- file moves -------------------------------------------------
 shopt -s nullglob
