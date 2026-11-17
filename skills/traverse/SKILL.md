@@ -105,6 +105,21 @@ above stays the one conductor procedure.
    starves only the dependents named in `starved`; the
    rest of the ready set keeps moving.
 
+   Fail-fast inside the node run (mvp.5): an edge worker
+   completes its edge, returns a typed failure, or dies.
+   A typed failure makes the node run record the decision
+   point through `block` once — the failure's reason
+   verbatim — and exit; the failed edge is never retried
+   and no worker parks or polls for the human. A worker
+   that dies with no verdict is an orphaned Run: the node
+   is not blocked, and the run mints one fresh link and
+   dispatches one replacement. The run returns exactly
+   one terminal bubble carrying facts only (graph, node,
+   state, reason, last edge, run chain, desk, inbox
+   key); the conductor pages the human off that bubble,
+   and revival after `resume` is a fresh node run that
+   re-reads bp3 — no worker process is ever resumed.
+
    `ts` is a UTC compact timestamp (for example
    `20261107T143022Z`) supplied in args because workflow
    scripts cannot read the clock; `harness` and `model` carry

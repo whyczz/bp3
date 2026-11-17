@@ -37,6 +37,15 @@ let exp_json _q e s deps (t : timing) =
                        ("dwell_s", `Assoc (List.map (fun (st, secs) -> (st, `Int secs)) t.t_dwell));
                        ("cycles", `Int s.cycle)]);
     ("legal_edges", `List (List.map json_str (legal_edges s.st)));
+    (* The decision point, on the node read itself (mvp.5):
+       a fresh worker resuming after [resume] — or a root
+       worker reviving after its own death — reconstructs
+       why the node stopped from bp3 alone, never from a
+       dead worker's memory. Same field words as the inbox. *)
+    ("blocked", (if s.st = "blocked" then `Assoc [
+       ("reason", json_str s.blocked_reason);
+       ("checkpoint", (match s.blocked_checkpoint with Some c -> json_str c | None -> `Null));
+       ("since", json_str s.blocked_since)] else `Null));
     ("changes", (match commit_changes s.last_commit with
        | Some xs -> `List xs | None -> `Null)); (* null = unsure *)
   ]

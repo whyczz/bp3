@@ -16,6 +16,21 @@
 // claims its node link first, loops spawn_run per edge,
 // and returns the same one terminal outcome. Edge workers
 // never mint links and never call a second edge.
+// Fail-fast (mvp.5): failure is a state transition, never a
+// waiting process. An edge worker completes its edge,
+// returns a typed failure, or dies. A typed failure makes
+// this loop record the decision point through the block
+// edge once — with the failure's reason verbatim — and
+// exit; it never retries the failed edge, parks, polls
+// for the human, or pages anyone (paging is the root
+// worker's job, off the blocked bubble). A worker that
+// dies with no parseable verdict is an orphaned Run: the
+// node is not blocked, and the next loop iteration mints
+// one fresh link and dispatches one replacement. The
+// terminal bubble carries facts only — graph, node,
+// state, reason, last edge, claim/run chain, desk, and
+// inbox key — so revival after resume is a fresh run
+// that re-reads bp3; no pid or session is ever resumed.
 // Args: {quest, exp, ts, harness, model, desk}.
 
 function textOf(result) {
@@ -105,6 +120,7 @@ export default async function workflow(host) {
         commit: null,
         cycle: 0,
         legal_edges: [],
+        reason: null,
         raw: textOf(result),
       };
     }
@@ -113,6 +129,13 @@ export default async function workflow(host) {
       commit: v.commit === undefined ? null : v.commit,
       cycle: typeof v.cycle === "number" ? v.cycle : 0,
       legal_edges: Array.isArray(v.legal_edges) ? v.legal_edges : [],
+      // The recorded decision point (mvp.5): present on a
+      // blocked node's own read, so a fresh worker — or a
+      // revived root — reconstructs why it stopped from
+      // bp3 alone.
+      reason: (v.blocked && typeof v.blocked.reason === "string" && v.blocked.reason)
+        ? v.blocked.reason
+        : (typeof v.blocked_reason === "string" && v.blocked_reason ? v.blocked_reason : null),
       raw: textOf(result),
     };
   }
@@ -237,6 +260,104 @@ export default async function workflow(host) {
     return true;
   }
 
+  // Fail-fast classification (mvp.5). Three shapes come
+  // back from an edge worker: a verdict was cast (bp3
+  // state moved, or will be seen moved on re-read), a
+  // typed failure (a parseable refusal — the child's own
+  // ok:false, or the bp3 verdict it relayed), or silence
+  // (no parseable verdict at all: the worker died, and
+  // its Run is derived orphaned by the supervisor fold).
+  function classify(v) {
+    if (!v) return { kind: "orphaned" };
+    const inner = (v.verdict && typeof v.verdict === "object") ? v.verdict : null;
+    if (v.ok === false || (inner && inner.ok === false)) {
+      return { kind: "typed", reason: failureReason(v, inner) };
+    }
+    return { kind: "cast" };
+  }
+
+  function failureReason(v, inner) {
+    if (typeof v.reason === "string" && v.reason) return v.reason;
+    const err = (inner && inner.error) || v.error || null;
+    if (err) {
+      if (typeof err.guidance === "string" && err.guidance) return err.guidance;
+      if (typeof err.code === "string" && err.code) return err.code;
+    }
+    return "edge worker returned a typed failure with no reason";
+  }
+
+  // The one terminal bubble (mvp.5): facts only, never a
+  // live handle. The root worker pages the human off a
+  // blocked bubble's reason and inbox key, and revives
+  // the node after resume by minting a fresh node link —
+  // nothing here is resumed in place.
+  function bubble(state, commit, reason, lastEdge) {
+    return {
+      graph: quest,
+      node: exp,
+      outcome: state,
+      commit: commit === undefined ? null : commit,
+      reason: reason || null,
+      last_edge: lastEdge || null,
+      run_ids: runIds,
+      desk: desk || null,
+      inbox_key: quest + "/" + exp,
+      refusals,
+    };
+  }
+
+  // The block edge is this loop's own call (mvp.5), taken
+  // exactly once for a typed failure, after the failed
+  // worker's tape bind above has reaped its Run: every
+  // edge Run this loop spawned is terminal in bp3 before
+  // the node worker exits on blocked. The reason rides
+  // verbatim; dirty work is checkpointed by bp3 only
+  // when the tree is dirty at this moment.
+  async function callBlock(reason) {
+    const safe = String(reason).replace(/(["$`\\])/g, "\\$1");
+    const cmd =
+      envPreset() + "./bin/bp3 q " + quest + " u " + exp +
+      " block --reason \"" + safe + "\"";
+    const result = await host.agent({
+      label: "block " + exp,
+      input:
+        deskNote +
+        "Run exactly `" + cmd + "` from the quest worktree if " +
+        "one is named above, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file.",
+    });
+    return parseVerdict(result);
+  }
+
+  // Record the decision point and exit: one block call,
+  // one re-read, one blocked bubble. A block refused
+  // because the node already rests blocked (a race with
+  // the cycle cap) still exits blocked — the re-read is
+  // the judge, never this loop's memory.
+  async function blockAndExit(reason, lastEdge, commit) {
+    const bv = await callBlock(reason);
+    const after = await readState();
+    if (after.state === "blocked") {
+      return bubble("blocked", after.commit, after.reason || reason, lastEdge);
+    }
+    if (bv && bv.ok === true && typeof bv.state === "string") {
+      return bubble(bv.state, commit, reason, lastEdge);
+    }
+    refusals.push(
+      "block refused after " + lastEdge + " failure: " +
+      (bv ? errorText(JSON.stringify(bv)) : "no verdict returned") +
+      "; re-read shows " + after.state
+    );
+    return {
+      node: exp, outcome: "refused",
+      commit: after.commit === undefined ? null : after.commit,
+      run_ids: runIds, refusals,
+    };
+  }
+
   function tapePreamble(edge, cycle) {
     const folder = expDir + "/runs/" + runIdOf(edge, cycle);
     return (
@@ -320,8 +441,13 @@ export default async function workflow(host) {
   // The FSM loop: one edge worker per iteration, re-reading
   // bp3 after every verdict; this run holds no state of its
   // own across edges. Terminal means landed, blocked, or
-  // deleted, and exactly one such outcome returns.
+  // deleted, and exactly one such bubble returns. Fail-fast
+  // (mvp.5): a typed failure blocks at once through this
+  // loop's own block call; an orphaned worker is replaced
+  // by the next iteration's fresh link; neither path ever
+  // waits on a human inside this run.
   let fix = "";
+  let lastEdge = null;
   for (let step = 0; step < 12; step++) {
     const state = await readState();
     if (state.state === "unknown") {
@@ -329,21 +455,54 @@ export default async function workflow(host) {
       return { node: exp, outcome: "refused", commit: null, run_ids: runIds, refusals };
     }
     if (state.state === "landed" || state.state === "blocked" || state.state === "deleted") {
-      return { node: exp, outcome: state.state, commit: state.commit, run_ids: runIds, refusals };
+      return bubble(state.state, state.commit,
+        state.state === "blocked" ? (state.reason || fix) : null, lastEdge);
     }
     if (state.state === "todo") {
-      await spawnEdge("handoff", state, fix);
+      lastEdge = "handoff";
+      const r = await spawnEdge("handoff", state, fix);
       fix = "";
+      const c = classify(r);
+      if (c.kind === "typed") return blockAndExit(c.reason, "handoff", state.commit);
+      if (c.kind === "orphaned") {
+        refusals.push(
+          "handoff worker orphaned (no verdict); next loop mints a replacement link");
+      }
     } else if (state.state === "handed_off") {
+      lastEdge = "grade";
       const g = await spawnEdge("grade", state, "");
+      const gc = classify(g);
+      if (gc.kind === "typed") return blockAndExit(gc.reason, "grade", state.commit);
+      if (gc.kind === "orphaned") {
+        refusals.push(
+          "grade worker orphaned (no verdict); next loop mints a replacement link");
+        continue;
+      }
       const mid = await readState();
       if (mid.state === "handed_off") {
-        await spawnEdge("verify", mid, "");
+        lastEdge = "verify";
+        const vf = await spawnEdge("verify", mid, "");
+        const vc = classify(vf);
+        if (vc.kind === "typed") return blockAndExit(vc.reason, "verify", mid.commit);
+        if (vc.kind === "orphaned") {
+          refusals.push(
+            "verify worker orphaned (no verdict); next loop mints a replacement link");
+        }
       } else if (g && typeof g.reason === "string" && g.reason) {
+        // needs_fix below the cap rides the next author
+        // cycle verbatim; at the cap the same words are
+        // the recorded blocked reason.
         fix = g.reason;
       }
     } else if (state.state === "approved") {
-      await spawnEdge("land", state, "");
+      lastEdge = "land";
+      const r = await spawnEdge("land", state, "");
+      const c = classify(r);
+      if (c.kind === "typed") return blockAndExit(c.reason, "land", state.commit);
+      if (c.kind === "orphaned") {
+        refusals.push(
+          "land worker orphaned (no verdict); next loop mints a replacement link");
+      }
     } else {
       refusals.push("no phase owns state " + state.state);
       return { node: exp, outcome: "refused", commit: state.commit, run_ids: runIds, refusals };

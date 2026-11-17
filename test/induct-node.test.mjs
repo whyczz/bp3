@@ -9,7 +9,7 @@ function assert(cond, msg) {
   if (!cond) { console.error("FAIL: " + msg); failures++; }
 }
 
-function mockHost({ reads, gradeReason }) {
+function mockHost({ reads, gradeReason, edgeResults }) {
   let readIdx = 0;
   const labels = [];
   const inputs = {};
@@ -32,12 +32,22 @@ function mockHost({ reads, gradeReason }) {
         labels.push("bind");
         return JSON.stringify({ ok: true });
       }
+      if (input.includes(" block --reason")) {
+        labels.push("block");
+        (inputs.block = inputs.block || []).push(input);
+        return JSON.stringify({ ok: true, state: "blocked" });
+      }
       if (input.startsWith("Run exactly")) {
         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
       }
       const edge = label.split(" ")[0];
       labels.push(edge);
       (inputs[edge] = inputs[edge] || []).push(input);
+      const queued = edgeResults && edgeResults[edge];
+      if (queued && queued.length > 0) {
+        const next = queued.shift();
+        return typeof next === "string" ? next : JSON.stringify(next);
+      }
       const reply = { ok: true, run_id: "r-" + edge, commit: "abc1234", verdict: { ok: true } };
       if (edge === "grade" && gradeReason) reply.reason = gradeReason;
       return JSON.stringify(reply);
@@ -86,6 +96,56 @@ for (const state of ["blocked", "deleted", "landed"]) {
   const result = await workflow(host);
   assert(result.outcome === state, state + " outcome, got " + result.outcome);
   assert(labels.length === 0, "no spawns for " + state + ", got " + labels.join(","));
+}
+
+// --- typed failure fails fast: one block, verbatim reason, exit (mvp.5) ---
+{
+  const blockedRead = { state: "blocked", cycle: 1, commit: "abc1234", legal_edges: ["resume", "delete"], blocked: { reason: "choose storage shape", checkpoint: null, since: "2026-01-01T00:00:00Z" } };
+  const reads = [st("todo"), blockedRead];
+  const failure = { ok: false, run_id: "r-handoff", error: { code: "E_DECISION", facts: {}, guidance: "choose storage shape" }, reason: "choose storage shape" };
+  const { host, labels, inputs } = mockHost({ reads, edgeResults: { handoff: [failure] } });
+  const result = await workflow(host);
+  assert(result.outcome === "blocked", "typed failure blocks, got " + result.outcome);
+  assert(result.reason === "choose storage shape", "bubble reason verbatim, got " + result.reason);
+  assert(result.last_edge === "handoff", "bubble last edge, got " + result.last_edge);
+  assert(result.graph === "toy" && result.inbox_key === "toy/fx", "bubble graph + inbox key");
+  assert(labels.filter((l) => l === "handoff").length === 1, "failed edge never retried, got " + labels.join(","));
+  assert(labels.filter((l) => l === "block").length === 1, "exactly one block call, got " + labels.join(","));
+  assert(inputs.block[0].includes("choose storage shape"), "block reason rides verbatim");
+}
+
+// --- silent death is orphaned: one fresh link, one replacement, no block ---
+{
+  const reads = [st("todo"), st("todo"), st("handed_off"), st("handed_off"), st("approved"), st("landed")];
+  const { host, labels } = mockHost({ reads, edgeResults: { handoff: ["worker died without a word"] } });
+  const result = await workflow(host);
+  assert(result.outcome === "landed", "orphan replacement lands, got " + result.outcome);
+  assert(labels.filter((l) => l === "handoff").length === 2, "one replacement author, got " + labels.join(","));
+  assert(labels.filter((l) => l === "block").length === 0, "orphan never blocks, got " + labels.join(","));
+  assert(result.refusals.some((r) => r.includes("orphaned")), "orphan named in refusals");
+}
+
+// --- typed grade failure blocks before any verify spawns ---
+{
+  const blockedRead = { state: "blocked", cycle: 1, commit: "abc1234", legal_edges: ["resume", "delete"], blocked: { reason: "pick a schema", checkpoint: null, since: "2026-01-01T00:00:00Z" } };
+  const reads = [st("handed_off"), blockedRead];
+  const failure = { ok: false, run_id: "r-grade", reason: "pick a schema" };
+  const { host, labels } = mockHost({ reads, edgeResults: { grade: [failure] } });
+  const result = await workflow(host);
+  assert(result.outcome === "blocked" && result.last_edge === "grade", "grade failure blocks, got " + result.outcome);
+  assert(labels.filter((l) => l === "verify").length === 0, "no verify after failed grade, got " + labels.join(","));
+  assert(labels.filter((l) => l === "block").length === 1, "one block after grade failure");
+}
+
+// --- cycle cap: bp3 already blocked; bubble carries its reason, no re-block ---
+{
+  const blockedRead = { state: "blocked", cycle: 1, commit: "abc1234", legal_edges: ["resume", "delete"], blocked: { reason: "fix the parser", checkpoint: null, since: "2026-01-01T00:00:00Z" } };
+  const reads = [st("handed_off"), blockedRead];
+  const { host, labels } = mockHost({ reads, gradeReason: "fix the parser" });
+  const result = await workflow(host);
+  assert(result.outcome === "blocked", "cap outcome blocked, got " + result.outcome);
+  assert(result.reason === "fix the parser", "cap bubble reason, got " + result.reason);
+  assert(labels.filter((l) => l === "block").length === 0, "cap block is bp3's, not re-called, got " + labels.join(","));
 }
 
 // --- missing args refuse without spawning anything ---
