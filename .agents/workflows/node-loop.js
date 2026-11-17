@@ -13,9 +13,11 @@
 // binds the child's session tape via `bp3 harness
 // bind-tape` after the child returns.
 // Args are supplied by the calling bp3g skill as {graph, node,
-// ts, harness, model}; ts is a UTC compact timestamp from the
+// ts, harness, model, desk, context}; ts is a UTC compact timestamp from the
 // caller, embedded by the child in its run-id because scripts
-// cannot read the clock.
+// cannot read the clock. The conductor's context (a cycle's
+// named fix) is threaded verbatim into the author brief;
+// it is never dropped silently.
 
 function textOf(result) {
   if (typeof result === "string") return result;
@@ -70,6 +72,7 @@ export default async function workflow(host) {
   const harness = rawArgs.harness || "muse-code";
   const model = rawArgs.model || "unknown";
   const desk = rawArgs.desk ? String(rawArgs.desk) : "";
+  const context = rawArgs.context ? String(rawArgs.context) : "";
   const envPrefix =
     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
   const deskNote = desk ? ("Your working directory is the graph worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
@@ -96,8 +99,9 @@ export default async function workflow(host) {
     const result = await host.agent({
       label: "read " + node,
       input:
+        deskNote +
         "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
-        "` from the graph worktree if one is named below, else the repository root, and return only its stdout JSON " +
+        "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
         "verdict verbatim as your entire reply, with no prose and no " +
         "code fences. If the command fails, return its stdout JSON " +
         "verdict verbatim instead. Do not edit any file and do not " +
@@ -307,6 +311,7 @@ export default async function workflow(host) {
       deskNote + "You are the author child for node `" + node + "` of graph `" +
       graph + "`, currently in state `todo` at cycle " +
       String(before.cycle) + ". " + authorLoad + tapePreamble("handoff", before.cycle) +
+      (context ? " The conductor named this context; carry it verbatim: " + context : "") +
       " Do the node's work in the repository, then commit the " +
       "work as a clean git commit and note its full sha. Then " +
       "call the state edge directly yourself: " +

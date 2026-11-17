@@ -641,6 +641,18 @@ printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-b","timestamp":"20
 out=$(h find-tape --run-id "$F4EARLY") || fail "followup.4 earliest exit: $out"
 echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/f4-early-b.jsonl" '.ok == true and .wal == $w' >/dev/null || fail "followup.4 earliest session wins: $out"
 
+# workflow-birth: the claimed session's tape wins over an
+# earlier own-edge tape from another session; stale and
+# conductor tapes merely referencing the Run never win
+out=$(h find-tape -h) || fail "find-tape -h workflow-birth exit"
+echo "$out" | grep -q "workflow-birth" || fail "find-tape help workflow-birth: $out"
+WBRUN="20260101T000000Z-handoff-pi-test-model-c6"
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$WBRUN\",\"harness\":\"pi\",\"graph\":\"toy\",\"node\":\"e1\",\"session_id\":\"S-wb-child\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$WBRUN.jsonl"
+printf '%s\n' '{"type":"session","version":3,"id":"S-wb-other","timestamp":"2026-01-01T00:01:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$WBRUN bp3 g toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/wb-other.jsonl
+printf '%s\n' '{"type":"session","version":3,"id":"S-wb-child","timestamp":"2026-01-01T00:05:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$WBRUN bp3 g toy u e1 handoff --commit def --reason work\"}}" > fixtures/pi-store/wb-child.jsonl
+out=$(h find-tape --run-id "$WBRUN") || fail "workflow-birth find-tape exit: $out"
+echo "$out" | jq -e --arg w "$work/repo/fixtures/pi-store/wb-child.jsonl" '.ok == true and .wal == $w and .session_id == "S-wb-child"' >/dev/null || fail "workflow-birth claimed session wins: $out"
+
 # the only own engine-fsm-edge tape started before the InitRecord
 F4OLD="20260101T000000Z-handoff-pi-test-model-c5"
 printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"$F4OLD\",\"harness\":\"pi\",\"graph\":\"toy\",\"node\":\"e1\",\"ts\":\"2026-01-01T00:00:00Z\"}" > "$store/$F4OLD.jsonl"

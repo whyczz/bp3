@@ -56,6 +56,20 @@ mkdir -p "$root/.pi"
 printf '{"defaultModel":"keep","skills":["/extra","!**/ignored/**"]}\n' > "$root/.pi/settings.json"
 "$root/bin/bp3" skills install --harness=all > /dev/null
 "$root/scripts/check-skills" "$root/skills" "$root/.pi/skills" "$root/.agents/skills" "$root/.claude/skills" > /dev/null
+
+# Render freshness (followup.2, workflow-birth): a fresh desk
+# passes silently; a backdated render refuses E_RENDER_STALE
+# naming render and source; re-render restores freshness.
+"$root/bin/bp3" skills check > "$work/check-fresh.json"
+assert jq -e '.ok == true' "$work/check-fresh.json"
+printf '\n// backdated render\n' >> "$root/.agents/workflows/bp3g-grade.js"
+rejects "$root/bin/bp3" skills check
+assert grep -q 'E_RENDER_STALE' "$work/out"
+assert grep -q '.agents/workflows/bp3g-grade.js' "$work/out"
+assert grep -q 'skills/bp3g/workflows/bp3g-grade.js' "$work/out"
+"$root/bin/bp3" skills install --harness=all > /dev/null
+"$root/bin/bp3" skills check > "$work/check-rerendered.json"
+assert jq -e '.ok == true' "$work/check-rerendered.json"
 assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/bp3g/SKILL.md","!**/.agents/skills/bp3g-frame/SKILL.md","!**/.agents/skills/bp3g-landing-demo/SKILL.md","!**/.agents/skills/bp3g-no-human/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/red-ink/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
 # bp3g is the one conducting skill; old traverse/induct/quest names render nowhere.
 for h in .pi .agents .claude; do

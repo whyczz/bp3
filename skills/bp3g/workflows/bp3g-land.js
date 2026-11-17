@@ -88,8 +88,9 @@ export default async function workflow(host) {
     const result = await host.agent({
       label: "read " + node,
       input:
+        deskNote +
         "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
-        "` from the graph worktree if one is named below, else the repository root, and return only its stdout JSON " +
+        "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
         "verdict verbatim as your entire reply, with no prose and no " +
         "code fences. If the command fails, return its stdout JSON " +
         "verdict verbatim instead. Do not edit any file and do not " +

@@ -31,7 +31,11 @@
 // state, reason, last edge, claim/run chain, desk, and
 // inbox key — so revival after resume is a fresh run
 // that re-reads bp3; no pid or session is ever resumed.
-// Args: {graph, node, ts, harness, model, desk}.
+// Args: {graph, node, ts, harness, model, desk, context}.
+// The conductor's context (a cycle's named fix, carried
+// verbatim) rides the first author cycle; a grade's own
+// named fix replaces it on later cycles. Context is never
+// dropped silently: with none supplied, no clause is added.
 
 function textOf(result) {
   if (typeof result === "string") return result;
@@ -86,6 +90,7 @@ export default async function workflow(host) {
   const harness = rawArgs.harness || "muse-code";
   const model = rawArgs.model || "unknown";
   const desk = rawArgs.desk ? String(rawArgs.desk) : "";
+  const context = rawArgs.context ? String(rawArgs.context) : "";
   const envPrefix =
     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
   const deskNote = desk ? ("Your working directory is the graph worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
@@ -106,8 +111,9 @@ export default async function workflow(host) {
     const result = await host.agent({
       label: "read " + node,
       input:
+        deskNote +
         "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
-        "` from the graph worktree if one is named below, else the repository root, and return only its stdout JSON " +
+        "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
         "verdict verbatim as your entire reply, with no prose and no " +
         "code fences. If the command fails, return its stdout JSON " +
         "verdict verbatim instead. Do not edit any file and do not " +
@@ -446,7 +452,7 @@ export default async function workflow(host) {
   // loop's own block call; an orphaned worker is replaced
   // by the next iteration's fresh link; neither path ever
   // waits on a human inside this run.
-  let fix = "";
+  let fix = context;
   let lastEdge = null;
   for (let step = 0; step < 12; step++) {
     const state = await readState();

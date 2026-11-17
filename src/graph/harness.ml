@@ -49,6 +49,11 @@
    <engine-fsm-edge> call) can resolve, and among them
    the earliest session started at-or-after the Run's
    InitRecord wins; a tie or none refuse E_AMBIGUOUS.
+   workflow-birth (followup.2) puts the claim first:
+   when the Run's record carries the session that
+   claimed its link and exactly one candidate tape is
+   owned by that session, that tape resolves before
+   the engine-fsm-edge rule runs.
    The binding is one-to-one and pinned: the first
    tape_binding row is the only pointer the fold reads,
    and bind-tape refuses a second, different tape. *)
@@ -1268,12 +1273,28 @@ let ambiguous what candidates =
    so it never establishes. A tie, no viable tape, or no
    engine-fsm-edge tape at all is E_AMBIGUOUS naming every
    candidate. A tape named by an InitRecord or a binding
-   row never reaches this scan. *)
-let narrow_candidates candidates run_id node init_ts =
+   row never reaches this scan.
+   workflow-birth (followup.2): before the edge heuristic,
+   the claim's own session decides. A claimed Run's record
+   carries the session that claimed its link; the tape
+   owned by exactly that session is the child tape,
+   however many stale, sibling, or conductor tapes merely
+   reference the Run. Exactly one such tape resolves at
+   once; zero or several fall through to the edge rule. *)
+let narrow_candidates candidates run_id node init_ts claim_session =
   let paths = dedup (List.map (fun (p, _, _) -> p) candidates) in
   match paths with
   | [] | [_] -> paths
   | _ ->
+      let claimed = match claim_session with
+        | Some s when s <> "" ->
+            dedup (List.filter_map (fun (p, _, _) ->
+              if session_id_of_tape p = Some s then Some p else None)
+              candidates)
+        | _ -> [] in
+      (match claimed with
+       | [p] -> [p]
+       | _ ->
       let init_epoch = match init_ts with
         | Some ts -> epoch_of_iso ts | None -> None in
       let viable = List.filter_map (fun (p, _, text) ->
@@ -1293,7 +1314,7 @@ let narrow_candidates candidates run_id node init_ts =
                (snd (List.hd viable)) viable in
            (match List.filter (fun (_, s) -> s = earliest) viable with
             | [(p, _)] -> [p]
-            | _ -> ambiguous "tape" paths))
+            | _ -> ambiguous "tape" paths)))
 
 let do_find_tape args =
   let fl = parse_ft_flags args in
@@ -1375,7 +1396,9 @@ let do_find_tape args =
           | Some rec_ -> rec_.node | None -> None in
         let scan_init_ts = match record with
           | Some rec_ -> rec_.init_ts | None -> None in
-        let paths = narrow_candidates candidates scan_run scan_node scan_init_ts in
+        let scan_session = match record with
+          | Some rec_ -> rec_.session_id | None -> None in
+        let paths = narrow_candidates candidates scan_run scan_node scan_init_ts scan_session in
         (match paths with
          | [] ->
              let facts = match fl.ft_run with
@@ -1553,7 +1576,9 @@ let resolve_watch fl =
         | Some rec_ -> rec_.node | None -> None in
       let scan_init_ts = match record with
         | Some rec_ -> rec_.init_ts | None -> None in
-      let paths = narrow_candidates candidates scan_run scan_node scan_init_ts in
+      let scan_session = match record with
+        | Some rec_ -> rec_.session_id | None -> None in
+      let paths = narrow_candidates candidates scan_run scan_node scan_init_ts scan_session in
       (match paths with
        | [] ->
            (match record with
@@ -2614,7 +2639,7 @@ Example: bp3 harness init-check --engine muse-code\n"
 let help_find_tape = "bp3 harness find-tape - InitRecord-first tape lookup:\n\
   bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]\n\
   bp3 harness find-tape --session-id <id>\n\
-  Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate. A tape named by an InitRecord or a binding row wins over any scan; when a scan finds several referencing tapes, only tapes carrying the Run's own engine-fsm-edge invocation (BP3_RUN_ID bound to its bp3 g ... u <node> <engine-fsm-edge> call, engine-fsm-edge from the run-id, node from the InitRecord) can resolve, and among them the earliest session started at-or-after the Run's InitRecord wins; a tie or none is E_AMBIGUOUS.\n\
+  Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate. A tape named by an InitRecord or a binding row wins over any scan; when a scan finds several referencing tapes, the tape owned by the session that claimed the Run's link resolves first (workflow-birth); otherwise only tapes carrying the Run's own engine-fsm-edge invocation (BP3_RUN_ID bound to its bp3 g ... u <node> <engine-fsm-edge> call, engine-fsm-edge from the run-id, node from the InitRecord) can resolve, and among them the earliest session started at-or-after the Run's InitRecord wins; a tie or none is E_AMBIGUOUS.\n\
   --entry returns the one digest-verified entry (sha256 over its exact line, with byte range), widened by --before-entries/--after-entries (non-negative integers, default 0).\n\
   Emits {ok, run_id, harness, session_id, wal, pid} or, with --entry, plus {entry, entries}.\n\
 Example: bp3 harness find-tape --run-id 20261115T000000Z-handoff-pi-model-c1\n"

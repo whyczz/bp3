@@ -10,13 +10,13 @@ function assert(cond, msg) {
   if (!cond) { console.error("FAIL: " + msg); failures++; }
 }
 
-function mockHost({ reads, initFails }) {
+function mockHost({ reads, initFails, extraArgs }) {
   let readIdx = 0;
   const labels = [];
-  const inputs = {};
+  const inputs = { reads: [] };
   const inits = [];
   const host = {
-    args: { graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" },
+    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
     async agent({ label, input }) {
       if (input.includes("harness link mint")) {
         labels.push("init");
@@ -30,7 +30,8 @@ function mockHost({ reads, initFails }) {
         }
         return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: runId, harness: "muse-code" });
       }
-      if (input.startsWith("Run exactly")) {
+      if (label.startsWith("read ") || input.startsWith("Run exactly")) {
+        inputs.reads.push(input);
         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
       }
       const edge = label.split(" ")[0];
@@ -94,6 +95,22 @@ for (const state of ["todo", "handed_off", "landed", "blocked"]) {
   const result = await workflow(host);
   assert(result.outcome === "refused", "writer refusal refuses the step, got " + result.outcome);
   assert(labels.join(",") === "init", "no land child spawns after a refused mint, got " + labels.join(","));
+}
+
+// --- workflow-birth: the read carries the desk ---
+{
+  const { host, inputs } = mockHost({
+    reads: [approved, landed],
+    extraArgs: { desk: ".bp3/worktrees/toy-desk" },
+  });
+  const result = await workflow(host);
+  assert(result.outcome === "landed", "desk land lands, got " + result.outcome);
+  assert(inputs.reads.length === 2, "two reads captured, got " + inputs.reads.length);
+  for (const read of inputs.reads) {
+    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
+      "read prompt names the desk worktree");
+    assert(!read.includes("named below"), "read prompt never points below for the desk");
+  }
 }
 
 // --- missing args refuse without spawning anything ---

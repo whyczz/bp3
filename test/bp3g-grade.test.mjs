@@ -59,14 +59,14 @@ function rowNamed(result, name) {
 // reads: state replies in order; audit replies with auditRows
 // (or auditSeq per audit call); grade/verify reply as cast
 // verdicts. Records stage inputs.
-function mockHost({ reads, auditRows, auditSeq, validationsObs, stageReplies, initFails }) {
+function mockHost({ reads, auditRows, auditSeq, validationsObs, stageReplies, initFails, extraArgs }) {
   let readIdx = 0;
   let auditIdx = 0;
-  const inputs = {};
+  const inputs = { reads: [] };
   const order = [];
   const inits = [];
   const host = {
-    args: { graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: COMMIT },
+    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: COMMIT }, extraArgs || {}),
     async agent({ label, input }) {
       if (label.startsWith("validations")) {
         order.push("validations");
@@ -85,7 +85,8 @@ function mockHost({ reads, auditRows, auditSeq, validationsObs, stageReplies, in
         }
         return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: runId, harness: "muse-code" });
       }
-      if (input.startsWith("Run exactly")) {
+      if (label.startsWith("read ") || input.startsWith("Run exactly")) {
+        inputs.reads.push(input);
         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
       }
       const edge = label.split(" ")[0];
@@ -554,6 +555,23 @@ function rungRow(name, rung, verdict, quote) {
     assert(rowNamed(result, "adherence: run folder present").verdict === "fail",
       "folder missing a file still fails: " + JSON.stringify(bad));
     assert(result.outcome === "needs_fix", "missing-file folder still gates");
+  }
+}
+
+// --- workflow-birth: the read carries the desk ---
+{
+  const { host, inputs } = mockHost({
+    reads: [handedOff, approved],
+    auditRows: [passRow("acceptance: a"), passRow("adherence: tape present")],
+    extraArgs: { desk: ".bp3/worktrees/toy-desk" },
+  });
+  const result = await workflow(host);
+  assert(result.outcome === "approved", "desk grade approves, got " + result.outcome);
+  assert(inputs.reads.length > 0, "reads captured, got " + inputs.reads.length);
+  for (const read of inputs.reads) {
+    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
+      "read prompt names the desk worktree");
+    assert(!read.includes("named below"), "read prompt never points below for the desk");
   }
 }
 

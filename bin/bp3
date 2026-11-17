@@ -167,7 +167,33 @@ HOOKS_JSON
   fi
 }
 
-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+# Render freshness (followup.2, workflow-birth): a dispatch
+# must never launch a render older than its source. Workflow
+# renders are plain copies, so freshness is byte equality
+# between skills/bp3g/workflows/<name>.js (source) and
+# .agents/workflows/<name>.js (render). Fresh is silent JSON
+# ok; stale refuses E_RENDER_STALE naming render and source.
+skills_check() {
+  local workflow_names="node-loop bp3g-grade bp3g-land bp3g-node"
+  local workflow_name src_file render_file
+  local stale_json="" stale_count=0
+  for workflow_name in $workflow_names; do
+    src_file="$root/skills/bp3g/workflows/$workflow_name.js"
+    [ -f "$src_file" ] || continue
+    render_file="$root/.agents/workflows/$workflow_name.js"
+    if [ ! -f "$render_file" ] || ! cmp -s "$src_file" "$render_file"; then
+      stale_count=$((stale_count + 1))
+      stale_json="${stale_json}{\"workflow\":\"$workflow_name\",\"render\":\".agents/workflows/$workflow_name.js\",\"source\":\"skills/bp3g/workflows/$workflow_name.js\"},"
+    fi
+  done
+  if [ "$stale_count" -gt 0 ]; then
+    printf '{"ok":false,"error":{"code":"E_RENDER_STALE","facts":{"stale":[%s]},"guidance":"Re-render in the desk (./bin/bp3 skills install) and re-check; never launch a stale render."}}\n' "${stale_json%,}"
+    exit 1
+  fi
+  printf '{"ok":true,"fresh":["node-loop","bp3g-grade","bp3g-land","bp3g-node"]}\n'
+}
+
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 skills check | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
 g_bin() { echo "${BP3_G_BIN:-$root/_build/default/src/graph/main.exe}"; }
 case "${1:-}" in
   -h|--help) printf '%s\n' "$usage_text"; printf '%s\n' '  bp3 g -h for graph/node doors'; exit 0 ;;
@@ -200,6 +226,7 @@ case "${1:-}" in
     shift
     case "${1:-}" in
       install) shift; skills_install "$@" ;;
+      check) shift; skills_check "$@" ;;
       *) echo "$usage_text" >&2; exit 2 ;;
     esac
     ;;

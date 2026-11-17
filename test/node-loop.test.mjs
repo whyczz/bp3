@@ -18,14 +18,14 @@ function assert(cond, msg) {
   if (!cond) { console.error("FAIL: " + msg); failures++; }
 }
 
-function mockHost({ reads, initFails, bindFails }) {
+function mockHost({ reads, initFails, bindFails, extraArgs }) {
   let readIdx = 0;
   const labels = [];
-  const inputs = {};
+  const inputs = { reads: [] };
   const inits = [];
   const binds = [];
   const host = {
-    args: { graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" },
+    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
     async agent({ label, input }) {
       if (input.includes("harness link mint")) {
         labels.push("init");
@@ -56,7 +56,8 @@ function mockHost({ reads, initFails, bindFails }) {
         const r = input.match(/--run-id (\S+)/);
         return JSON.stringify({ ok: true, run_id: r ? r[1] : "", tape_path: m ? m[1] : "" });
       }
-      if (input.startsWith("Run exactly")) {
+      if (label.startsWith("read ") || input.startsWith("Run exactly")) {
+        inputs.reads.push(input);
         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
       }
       const edge = label.split(" ")[0];
@@ -168,6 +169,25 @@ for (const state of ["approved", "landed", "blocked"]) {
   };
   const result = await workflow(host);
   assert(result.outcome === "refused", "missing args refuse");
+}
+
+// --- workflow-birth: the read carries the desk; context rides ---
+{
+  const { host, inputs } = mockHost({
+    reads: [todo, handedOff],
+    extraArgs: { desk: ".bp3/worktrees/toy-desk", context: "rename the widget verb, keep tests green" },
+  });
+  const result = await workflow(host);
+  assert(result.outcome === "handed_off", "desk+context build hands off, got " + result.outcome);
+  assert(inputs.reads.length === 2, "two reads captured, got " + inputs.reads.length);
+  for (const read of inputs.reads) {
+    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
+      "read prompt names the desk worktree");
+    assert(read.includes("named above"), "read prompt points above at the desk");
+    assert(!read.includes("named below"), "read prompt never points below for the desk");
+  }
+  assert(inputs.author.includes("conductor named this context; carry it verbatim: rename the widget verb, keep tests green"),
+    "conductor context rides the author brief verbatim");
 }
 
 // --- stage set is finite: no other stage's prompts in the file ---

@@ -82,7 +82,7 @@ above stays the one conductor procedure.
 
    | State | Dispatch | Args |
    |---|---|---|
-   | `todo` | `node-loop` workflow | `{graph, node, ts, harness, model, desk}` |
+   | `todo` | `node-loop` workflow | `{graph, node, ts, harness, model, desk, context}` |
    | `handed_off` | `bp3g-grade` workflow | `{graph, node, ts, harness, model, commit, desk}` with `commit` from this read |
    | `approved` | `bp3g-land` workflow | `{graph, node, ts, harness, model, desk}` |
    | `blocked` | human gate (step 4) | — |
@@ -93,7 +93,8 @@ above stays the one conductor procedure.
    and `timing` (wall/wait/dwell derived from ledger
    timestamps), and per-Run `setup` (`W_SETUP_SLOW` when a
    setup exceeds the local threshold). Dispatch one
-   `bp3g-node` workflow run per node in `ready`, in
+   `bp3g-node` workflow run per node in `ready`
+   (`{graph, node, ts, harness, model, desk, context}`), in
    parallel desks: it owns that node's whole FSM loop
    (author, grade+verify, and land as phases inside it)
    and returns exactly one terminal outcome (`landed`,
@@ -120,6 +121,14 @@ above stays the one conductor procedure.
    and revival after `resume` is a fresh node run that
    re-reads bp3 — no worker process is ever resumed.
 
+   Render freshness (followup.2): before every dispatch,
+   from the desk, run `./bin/bp3 skills check`. A stale
+   render refuses `E_RENDER_STALE` naming the render and
+   its source; re-render in the desk (`./bin/bp3 skills
+   install`) and re-check. Never launch a stale render:
+   the conducting surface that runs is the surface that
+   was written. A fresh check passes silently and costs
+   no reinstall.
    `ts` is a UTC compact timestamp (for example
    `20261107T143022Z`) supplied in args because workflow
    scripts cannot read the clock; `harness` and `model` carry

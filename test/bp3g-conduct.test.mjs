@@ -129,6 +129,9 @@ function fixtureHost() {
   assert(skill.includes("`node-loop` workflow"), "bp3g names node-loop for todo");
   assert(skill.includes("`bp3g-grade` workflow"), "bp3g names bp3g-grade for handed_off");
   assert(skill.includes("`bp3g-land` workflow"), "bp3g names bp3g-land for approved");
+  assert(skill.includes("bp3 skills check"), "bp3g checks render freshness before dispatch");
+  assert(skill.includes("E_RENDER_STALE"), "bp3g names the stale-render refusal");
+  assert(skill.includes("Never launch a stale render"), "bp3g states the freshness rule");
 }
 
 if (failures > 0) process.exit(1);

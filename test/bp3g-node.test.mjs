@@ -9,12 +9,12 @@ function assert(cond, msg) {
   if (!cond) { console.error("FAIL: " + msg); failures++; }
 }
 
-function mockHost({ reads, gradeReason, edgeResults }) {
+function mockHost({ reads, gradeReason, edgeResults, extraArgs }) {
   let readIdx = 0;
   const labels = [];
-  const inputs = {};
+  const inputs = { reads: [] };
   const host = {
-    args: { graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" },
+    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
     async agent({ label, input }) {
       if (input.includes("harness link mint")) {
         labels.push("mint");
@@ -37,7 +37,8 @@ function mockHost({ reads, gradeReason, edgeResults }) {
         (inputs.block = inputs.block || []).push(input);
         return JSON.stringify({ ok: true, state: "blocked" });
       }
-      if (input.startsWith("Run exactly")) {
+      if (label.startsWith("read ") || input.startsWith("Run exactly")) {
+        inputs.reads.push(input);
         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
       }
       const edge = label.split(" ")[0];
@@ -146,6 +147,25 @@ for (const state of ["blocked", "deleted", "landed"]) {
   assert(result.outcome === "blocked", "cap outcome blocked, got " + result.outcome);
   assert(result.reason === "fix the parser", "cap bubble reason, got " + result.reason);
   assert(labels.filter((l) => l === "block").length === 0, "cap block is bp3's, not re-called, got " + labels.join(","));
+}
+
+// --- workflow-birth: the read carries the desk; context rides ---
+{
+  const reads = [st("todo"), st("handed_off"), st("handed_off"), st("approved"), st("landed")];
+  const { host, inputs } = mockHost({
+    reads,
+    extraArgs: { desk: ".bp3/worktrees/toy-desk", context: "rename the widget verb, keep tests green" },
+  });
+  const result = await workflow(host);
+  assert(result.outcome === "landed", "desk+context run lands, got " + result.outcome);
+  assert(inputs.reads.length > 0, "reads captured, got " + inputs.reads.length);
+  for (const read of inputs.reads) {
+    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
+      "read prompt names the desk worktree");
+    assert(!read.includes("named below"), "read prompt never points below for the desk");
+  }
+  assert(inputs.handoff[0].includes("rename the widget verb, keep tests green"),
+    "conductor context rides the first author brief verbatim");
 }
 
 // --- missing args refuse without spawning anything ---
