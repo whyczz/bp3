@@ -160,3 +160,6 @@ tests (an old name that must refuse).
 - 2026-11-17 · cycle 4 · from grade of 7382b94 (blocked) · status: open
   fix: "files renamed fails: GRAPH.md record link still points at experiments/exp-followup-3-goal-term-purge/NODE.md (broken path) — re-point to nodes/node-followup-3-goal-term-purge/NODE.md. terms synced fails: AGENTS.md Layout/status still documents GOAL.md — rename to GRAPH.md. (Owner A at blocked gate.)"
   regression_test: none named (existing grep proof + link check at grade)
+
+- 2026-11-17 · cycle 4 · RESOLVED (this handoff)
+  resolution: "Both named pointers fixed, record scope only: (1) GRAPH.md index sweep — all 18 stale record links re-pointed from experiments/exp-<slug>/NODE.md to nodes/node-<slug>/NODE.md (the named followup.3 link plus the 17 same-class links the sweep found); grep confirms zero experiments/ references left in GRAPH.md and every re-pointed target exists on disk. (2) AGENTS.md terms synced — Layout line and status sentence now document GRAPH.md (was GOAL.md); grep confirms zero GOAL.md left in AGENTS.md. Nothing else touched: no prose, no code, no other records. Regression coverage is the grade's existing grep proof plus link check, as named."

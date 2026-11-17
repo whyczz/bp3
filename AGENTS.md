@@ -16,7 +16,7 @@ run `bp3 g r <graph>` and read its JSON verdict.
 
 ```text
 docs/graphs/<graph>/     one folder per graph, flat, never moved
-  GOAL.md               authored: goal, scope, nodes, status field
+  GRAPH.md              authored: goal, scope, nodes, status field
   fsm.yaml               authored: the plan (from plans/ at init)
   state.yaml             GENERATED: stage, commit, cycle (a cache)
   ledger.jsonl           GENERATED: every move, append-only (truth)
@@ -27,7 +27,7 @@ docs/dossiers/           research records; they inform, never decide
 nodes/ inside each graph folder: one record per node
 ```
 
-Status is a frontmatter field in `GOAL.md`
+Status is a frontmatter field in `GRAPH.md`
 (`proposed | active | landed | canceled`), never a folder.
 A graph's path must survive its whole life: node records and
 other repos point at it.

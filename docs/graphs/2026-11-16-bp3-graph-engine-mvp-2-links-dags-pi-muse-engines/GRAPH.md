@@ -564,7 +564,7 @@ Folders and bp3 exp IDs use the dotless spelling
 
 ### Milestone: migration — words first
 
-### mig.1 - handoff-verbs — [record](experiments/exp-mig-1-handoff-verbs/NODE.md)
+### mig.1 - handoff-verbs — [record](nodes/node-mig-1-handoff-verbs/NODE.md)
 First node. FSM verbs/state take settled names
 (`submit -> handoff`, `review -> grade`,
 `check -> verify`, `submitted -> handed_off`) in
@@ -572,7 +572,7 @@ code, workflow briefs, and tests. Old graph files
 never move; the fold maps old ledger strings on
 read, new lines write new words.
 
-### mig.2 - traverse-rename — [record](experiments/exp-mig-2-traverse-rename/NODE.md)
+### mig.2 - traverse-rename — [record](nodes/node-mig-2-traverse-rename/NODE.md)
 Conducting skills take graph names early:
 `/induct` + `/induct-goal` -> `/traverse`,
 `/induct-goal-no-human` -> `/traverse-no-human`,
@@ -581,7 +581,7 @@ and the `induct-exp` workflow becomes `node-loop`
 
 ### Milestone: config — the local store
 
-### config.1 - bp3-config — [record](experiments/exp-config-1-bp3-config/NODE.md)
+### config.1 - bp3-config — [record](nodes/node-config-1-bp3-config/NODE.md)
 The machine-local hard store, named: `bp3 config`
 tree under the git common dir (contexts, desks,
 local thresholds, claims, by-session index,
@@ -590,20 +590,20 @@ via `bp3 config`, never committed, zero setup.
 
 ### Milestone: mvp — link, context, schedule, diagram
 
-### mvp.1 - link-claim — [record](experiments/exp-mvp-1-link-claim/NODE.md)
+### mvp.1 - link-claim — [record](nodes/node-mvp-1-link-claim/NODE.md)
 `bp3 harness link`: mint a one-time link for one
 edge execution; child claims as first action. CAS
 in the common-dir store (one winner,
 `E_LINK_SPENT` names the first claimant). Claim
 records caller facts and the by-session index.
 
-### mvp.2 - context-resolution — [record](experiments/exp-mvp-2-context-resolution/NODE.md)
+### mvp.2 - context-resolution — [record](nodes/node-mvp-2-context-resolution/NODE.md)
 bp3 resolves graph/node/edge/run from the claim
 store (session, then desk) and stamps verdicts
 and ledger lines. No env ritual, no retyped
 context. Env is a hint only.
 
-### mvp.3 - ready-set-timing — [record](experiments/exp-mvp-3-ready-set-timing/NODE.md)
+### mvp.3 - ready-set-timing — [record](nodes/node-mvp-3-ready-set-timing/NODE.md)
 BFS ready-set waves from node deps; rollup emits ready
 nodes and per-node wall/wait/dwell; setup timing
 per Run with the 3-minute `W_SETUP_SLOW` gate.
@@ -615,12 +615,12 @@ induct-exp / induct-grade / graph-land become
 phases inside it); the root worker dispatches
 ready-set waves and handles blocked + goal_fin only.
 
-### mvp.4 - diagram-emit — [record](experiments/exp-mvp-4-diagram-emit/NODE.md)
+### mvp.4 - diagram-emit — [record](nodes/node-mvp-4-diagram-emit/NODE.md)
 Generated ASCII + mermaid from a live rollup:
 nodes with state/cycle, deps as ready-set waves, blocked
 nodes naming what they starve.
 
-### mvp.5 - blocked-fail-fast — [record](experiments/exp-mvp-5-blocked-fail-fast/NODE.md)
+### mvp.5 - blocked-fail-fast — [record](nodes/node-mvp-5-blocked-fail-fast/NODE.md)
 No parked workers. An edge worker completes its
 edge or fails it immediately; the node worker
 records the decision point through `block` and
@@ -631,17 +631,17 @@ fresh node worker resumes from bp3 after `resume`.
 
 ### Milestone: dogfood — use it ourselves
 
-### dogfood.1 - link-drive — [record](experiments/exp-dogfood-1-link-drive/NODE.md)
+### dogfood.1 - link-drive — [record](nodes/node-dogfood-1-link-drive/NODE.md)
 A/B proof on the flappy node: old brief vs link
 brief on both harnesses, seeded setup attacks
 refusing at claim. Metrics are the acceptance.
 
-### dogfood.2 - parallel-drive — [record](experiments/exp-dogfood-2-parallel-drive/NODE.md)
+### dogfood.2 - parallel-drive — [record](nodes/node-dogfood-2-parallel-drive/NODE.md)
 Two independent flappy-variant nodes, one ready-set,
 parallel desks, parallel build+grade, serial
 land. Scorecard: wall and tokens per node.
 
-### dogfood.3 - external-drive — [record](experiments/exp-dogfood-3-external-drive/NODE.md)
+### dogfood.3 - external-drive — [record](nodes/node-dogfood-3-external-drive/NODE.md)
 bp3 as a tool in a repo that is not bp3: derived
 self/host mode (never a flag), core skills
 everywhere plus bp3-dev overlay only in self,
@@ -652,7 +652,7 @@ in /tmp, conducted for real.
 
 ### Milestone: rename — migrate everything, last
 
-### rename.1 - bp3g-rename — [record](experiments/exp-rename-1-bp3g-rename/NODE.md)
+### rename.1 - bp3g-rename — [record](nodes/node-rename-1-bp3g-rename/NODE.md)
 Full rename on live surfaces: `bp3 g` CLI door,
 graph/node/state/edge/dep vocabulary, skills
 become the `bp3g` family (`/bp3g` conducts,
@@ -668,9 +668,9 @@ and keeps the old edge words.
 
 ### Milestone: followup — papercuts found live
 
-### followup.1 - grade-evidence — [record](experiments/exp-followup-1-grade-evidence/NODE.md)
+### followup.1 - grade-evidence — [record](nodes/node-followup-1-grade-evidence/NODE.md)
 
-### followup.2 - workflow-birth — [record](experiments/exp-followup-2-workflow-birth/NODE.md)
+### followup.2 - workflow-birth — [record](nodes/node-followup-2-workflow-birth/NODE.md)
 Renders must track workflow sources: a dispatch
 never launches a desk render older than its
 source (re-render or `E_RENDER_STALE`). mvp.1's
@@ -682,7 +682,7 @@ re-collects internally. Evidence gaps never burn
 an author cycle or page the human (config.1
 cycle-1 papercut).
 
-### followup.3 - goal-term-purge — [record](experiments/exp-followup-3-goal-term-purge/NODE.md)
+### followup.3 - goal-term-purge — [record](nodes/node-followup-3-goal-term-purge/NODE.md)
 Owner decision 2026-11-17: the term `graph` is
 gone; the container is a **goal** (its DAG is the
 graph). Purge on every live surface — files,
@@ -695,7 +695,7 @@ GRAPH.md/NODE.md file names; skills become
 /graph, traverse, traverse-no-human,
 red-ink-graph-landing-demo.
 
-### followup.5 - pure-grade — [record](experiments/exp-followup-5-pure-grade/NODE.md)
+### followup.5 - pure-grade — [record](nodes/node-followup-5-pure-grade/NODE.md)
 The grader is a pure function
 (commit + node record -> verdict, no writes);
 the looper applies effects: one verdict cast
@@ -706,7 +706,7 @@ Amendment 2026-11-17: audit reuses run
 evidence (validations LOG + author artifacts)
 before re-running suites.
 
-### followup.6 - check-tiers — [record](experiments/exp-followup-6-check-tiers/NODE.md)
+### followup.6 - check-tiers — [record](nodes/node-followup-6-check-tiers/NODE.md)
 Test the change, not the world: `check-changed`
 (path->suite selector, fail-safe), `check-fast`
 (no wall-clock fixtures), full `make check`
@@ -715,7 +715,7 @@ before dogfood.3 (owner: all followups first).
 
 ### Milestone: landing
 
-### landing.1 - landing-wrapup — [record](experiments/exp-landing-1-landing-wrapup/NODE.md)
+### landing.1 - landing-wrapup — [record](nodes/node-landing-1-landing-wrapup/NODE.md)
 Scorecard (timing included), findings
 disposition, landing walkthrough actually run
 (red-ink-goal-landing-demo diligence), for the
