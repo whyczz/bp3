@@ -65,6 +65,29 @@ for n in approved_in_order: land(n)   # serial, mergeability re-checked
 | Muse parity bubble | the equivalent Muse node workflow returns the same terminal blocked bubble and exits; revival launches a fresh workflow, never resumes the old run's agents |
 | env-set run-id (standing ruling) | per-claim stamps as in mvp.2 |
 
+## Cycle 2 fix (owner A, 2026-11-17)
+
+Cycle-1 grade on `5140695`: parallelism,
+isolation, serial land, and scorecard rows
+passed; two gated rows had no coverage —
+`Pi tree death + revival` and `Muse parity
+bubble` inside the parallel drive. Owner
+chose A: prove bubbles here. Named fix,
+verbatim for cycle 2: extend the parallel
+drive so one seeded node takes a human-
+blocking edge in each engine form — Pi edge
+worker dies, node worker records `blocked`
+and exits, root receives exactly one bubble,
+no descendant process remains, and after
+owner answer + `resume` a fresh Pi tree
+continues the node; the Muse node workflow
+returns the same terminal bubble and revives
+as a fresh workflow. The sibling node stays
+unaffected throughout (timestamps/process
+evidence, not state inference). mvp.5's base
+mechanisms may be reused; the parallel-
+context coverage is this exp's to prove.
+
 ## Acceptance test (goal block)
 
 - **Objective:** two nodes land in materially
