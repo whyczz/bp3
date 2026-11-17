@@ -134,10 +134,33 @@ function validate_clean_commit(ctx) {
   };
 }
 
+// Run-folder lines arrive from one shell one-liner as canonical
+// `<folder> tape=yes|no notes=yes|no` lines. A transport may
+// still carry prose-shaped lines, so presence is read
+// tolerantly: only affirmed presence counts, and an affirmed
+// absence (missing, =no) never passes.
+function folderLines(raw) {
+  const parts = Array.isArray(raw) ? raw
+    : typeof raw === "string" ? raw.split(/\r?\n/) : [];
+  return parts.filter(function (l) {
+    return typeof l === "string" && l.trim() !== "";
+  }).map(function (l) { return l.trim(); });
+}
+
+function lineHasFile(line, stem) {
+  const s = String(line).toLowerCase();
+  const eq = s.match(new RegExp(stem + "\\s*=\\s*(yes|no)\\b"));
+  if (eq) return eq[1] === "yes";
+  if (new RegExp("(missing|absent|without|no)\\b[^,;]{0,40}" + stem + "\\b").test(s)) return false;
+  if (new RegExp(stem + "\\b[^,;]{0,40}\\b(missing|absent|not present|not found)\\b").test(s)) return false;
+  if (new RegExp(stem + "(?:\\.\\w+)?\\b[^,;]{0,40}\\b(present|exists|found|yes)\\b").test(s)) return true;
+  return new RegExp(stem + "(?:\\.log|\\.md)?\\b").test(s);
+}
+
 function validate_run_folder_present(ctx) {
-  const lines = Array.isArray(ctx.obs.run_folders) ? ctx.obs.run_folders : [];
+  const lines = folderLines(ctx.obs.run_folders);
   const complete = lines.filter(function (l) {
-    return typeof l === "string" && l.indexOf("tape=yes") >= 0 && l.indexOf("notes=yes") >= 0;
+    return lineHasFile(l, "tape") && lineHasFile(l, "notes");
   });
   const handoff = complete.filter(function (l) { return l.indexOf("-handoff-") >= 0; });
   const chosen = handoff[0] || complete[0] || "";
@@ -531,9 +554,15 @@ export default async function workflow(host) {
       "summarize, never edit any file, and do not call any `bp3 q u` " +
       "update edge): (1) `git status --porcelain` for git_clean; " +
       "(2) `git show --stat " + commit + "` for git_show; " +
-      "(3) for run_folders, one line per folder under `" + expDir +
-      "/runs/` in the form `<folder> tape=yes|no notes=yes|no` by " +
-      "testing tape.log and notes.md in each folder; (4) for " +
+      "(3) for run_folders, run exactly this one shell one-liner " +
+      "verbatim from the quest worktree and return its stdout lines " +
+      "unchanged as the run_folders array (one line per folder, " +
+      "`<folder> tape=yes|no notes=yes|no`; never reformat its lines " +
+      "into prose): `for d in " + expDir + "/runs/*/; do " +
+      "[ -d \"$d\" ] || continue; n=$(basename \"$d\"); " +
+      "if [ -f \"$d/tape.log\" ]; then t=yes; else t=no; fi; " +
+      "if [ -f \"$d/notes.md\" ]; then u=yes; else u=no; fi; " +
+      "echo \"$n tape=$t notes=$u\"; done`; (4) for " +
       "handoff_line, the verbatim last handoff line of `" + expDir +
       "/ledger.jsonl` on the exp branch (`git show bp3/exp/" + quest +
       "/" + exp + ":" + expDir + "/ledger.jsonl`), or an empty string " +

@@ -510,5 +510,52 @@ function rungRow(name, rung, verdict, quote) {
     "refused cast reported as an expected verdict race");
 }
 
+// --- run-folder transport variants (followup.1 cycle 2): the
+// --- existing handoff folder passes canonical and
+// --- prose-shaped lines; a folder missing a file still fails ---
+{
+  const HANDOFF = "20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1";
+  async function runFolderCase(runFolders) {
+    const { host, inputs } = mockHost({
+      reads: [handedOff, approved],
+      auditRows: [passRow("acceptance: a")],
+      validationsObs: { ...GOOD_OBS, run_folders: runFolders },
+    });
+    const result = await workflow(host);
+    return { result, inputs };
+  }
+  {
+    const { result, inputs } = await runFolderCase([HANDOFF + " tape=yes notes=yes"]);
+    const row = rowNamed(result, "adherence: run folder present");
+    assert(row && row.verdict === "pass" && row.evidence.quote.includes(HANDOFF),
+      "canonical line passes the existing handoff folder");
+    assert(inputs.validations.includes("for d in"),
+      "validations transport carries the run-folder one-liner");
+    assert(inputs.validations.includes("never reformat its lines"),
+      "validations transport forbids prose reformatting");
+  }
+  for (const line of [
+    HANDOFF + ": tape.log present, notes.md present",
+    HANDOFF + " tape: yes, notes: yes",
+    HANDOFF + "/ contains tape.log and notes.md",
+  ]) {
+    const { result } = await runFolderCase([line]);
+    assert(rowNamed(result, "adherence: run folder present").verdict === "pass",
+      "prose-shaped line passes: " + line);
+  }
+  {
+    const { result } = await runFolderCase(HANDOFF + " tape=yes notes=yes\n20260101T000000Z-verify-muse-code-test-model-c1 tape=yes notes=no");
+    assert(rowNamed(result, "adherence: run folder present").verdict === "pass",
+      "newline string transport passes");
+  }
+  for (const bad of [[], [HANDOFF + " tape=yes notes=no"], [HANDOFF + " tape=no notes=yes"],
+                     [HANDOFF + ": tape.log present, notes.md missing"]]) {
+    const { result } = await runFolderCase(bad);
+    assert(rowNamed(result, "adherence: run folder present").verdict === "fail",
+      "folder missing a file still fails: " + JSON.stringify(bad));
+    assert(result.outcome === "needs_fix", "missing-file folder still gates");
+  }
+}
+
 if (failures > 0) process.exit(1);
 console.log("induct-grade tests: ok");
