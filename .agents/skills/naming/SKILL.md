@@ -2,6 +2,7 @@
 name: naming
 description: "Choose concrete, short names in bp3's existing vocabulary for graphs, nodes, skills, plans, engines, and CLI verbs."
 ---
+<!-- GENERATED from skills/naming/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
 
 # Naming
 

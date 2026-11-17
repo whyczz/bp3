@@ -549,12 +549,23 @@ export default async function workflow(host) {
     input:
       deskNote + "You are the grade validations transport for node `" + node +
       "` of graph `" + graph + "`, bound to commit `" + commit + "`. " +
-      "Run these commands from the graph worktree and return only a JSON " +
-      "object {git_clean: {stdout, exit}, git_show: {stdout, exit}, " +
-      "run_folders, handoff_line} quoting stdout verbatim (never " +
-      "summarize, never edit any file, and do not call any `bp3 g u` " +
-      "update edge): (1) `git status --porcelain` for git_clean; " +
-      "(2) `git show --stat " + commit + "` for git_show; " +
+      "Your contract: shell moves the bytes, you move a pointer. First " +
+      "run this one command from the graph worktree so the full verbatim " +
+      "outputs land in the validations log without passing through your " +
+      "reply: `mkdir -p \"$(git rev-parse --git-common-dir)/bp3\" && " +
+      "LOG=\"$(git rev-parse --git-common-dir)/bp3/" + ts + "-" + node +
+      "-validations.log\" && { echo '=== git_clean ==='; " +
+      "git status --porcelain; echo '=== git_show ==='; " +
+      "git show --stat " + commit + "; echo '=== handoff_line ==='; " +
+      "git show bp3/exp/" + graph + "/" + node + ":" + nodeDir +
+      "/ledger.jsonl | tail -1; } > \"$LOG\" 2>&1; echo \"$LOG\"`. " +
+      "Then return only a JSON object {log_path, git_clean: {stdout, " +
+      "exit}, git_show: {stdout, exit}, run_folders, handoff_line} " +
+      "built from these bounded commands, where log_path is the path " +
+      "the first command printed (never summarize, never edit any " +
+      "file, and do not call any `bp3 g u` update edge): " +
+      "(1) `git status --porcelain | head -20` for git_clean; " +
+      "(2) `git show --stat " + commit + " | head -3` for git_show; " +
       "(3) for run_folders, run exactly this one shell one-liner " +
       "verbatim from the graph worktree and return its stdout lines " +
       "unchanged as the run_folders array (one line per folder, " +
@@ -605,7 +616,11 @@ export default async function workflow(host) {
       "before you spawn (adherence: no hand-edited state, " +
       "adherence: clean commit, adherence: run folder present, " +
       "adherence: handoff by child, adherence: env run-id stamped); " +
-      "never emit an adherence row. " + LADDER_TEXT +
+      "never emit an adherence row. Full validation outputs are " +
+      "in the validations log `" +
+      (validationsVerdict.log_path || "the log_path the transport returned") +
+      "` (machine-local, under the git common dir); read it when a " +
+      "row needs more than the bounded heads. " + LADDER_TEXT +
       "Every row " +
       "is {case, rung: 1|2|3|4|5a|5b, evidence: {kind: file|command|ledger|grep, ref, " +
       "quote}, verdict: pass|fail|missing|deferred}: name the rung " +

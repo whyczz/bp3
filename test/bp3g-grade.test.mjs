@@ -156,6 +156,12 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
     "audit brief no longer asks the LLM for adherence rows");
   assert(inputs.validations.includes("git status --porcelain"),
     "validations transport runs git status --porcelain");
+  assert(inputs.validations.includes("shell moves the bytes, you move a pointer"),
+    "validations transport is pointer-contracted (log file, not verbatim JSON)");
+  assert(inputs.validations.includes("-validations.log"),
+    "validations transport writes the .git/bp3 validations log");
+  assert(inputs.validations.includes("git show --stat " + COMMIT + " | head -3"),
+    "validations transport bounds git_show to its head for the JSON return");
   for (const name of ["adherence: no hand-edited state", "adherence: clean commit", "adherence: run folder present", "adherence: handoff by child", "adherence: env run-id stamped"]) {
     assert(rowNamed(result, name) && rowNamed(result, name).verdict === "pass",
       "validations minted " + name);
