@@ -73,6 +73,59 @@ def dispatch(workflow, desk, args):
 | fresh render | hash check passes silently; no reinstall cost on the happy path |
 | all three workflows | node-loop, induct-grade, quest-land all covered by the same freshness rule |
 
+## Amendment (pulled forward, 2026-11-17): workflow-birth defects
+
+Owner-notified live at rename.1: every step
+workflow's `readState()` child prompt says
+"from the graph worktree if one is named
+below, else the repository root" — and never
+names the desk. After the bp3g rename the
+root binary speaks the old dialect, so read
+children that ran from the root refused the
+whole step (`bp3g-grade` attempt 1, `bp3g-land`
+attempts 1 and 2; `bp3g-grade` attempt 2
+happened to infer the desk). A step that
+cannot read state cannot conduct. This node
+is pulled forward ahead of rename.1's land:
+the land workflow must be fixed before it is
+trusted to land the rename.
+
+Birth defects in scope (all observed live):
+
+1. `readState()` in every step workflow
+   (bp3g-node / node-loop, bp3g-grade,
+   bp3g-land) must carry the desk explicitly
+   (deskNote in the read prompt), so the read
+   always runs the desk binary. Regression:
+   a fixture read from a root with a foreign-
+   dialect binary still returns desk state.
+2. node-loop silently drops the `context`
+   arg the conductor passes for cycle fixes
+   (observed mvp.3/followup.1/dogfood cycles:
+   named fixes only reached authors via
+   EXPERIMENT.md amendments). Either thread
+   `context` into the author brief or refuse
+   loudly at launch; silent drop is the bug.
+3. `bind-tape` after handoff refuses
+   `E_AMBIGUOUS` on effectively every Muse
+   handoff (4 candidate session tapes: two
+   stale sessions, the child subagent tape,
+   the conductor tape). Proof binding must
+   disambiguate deterministically (the child
+   session is the one parented by the run's
+   claim) or degrade to a named, non-refusing
+   outcome; the current refusal trains
+   conductors to ignore refusals.
+4. The stale-render dispatch check from the
+   original record below (unchanged).
+
+Acceptance additions: each defect has a
+regression fixture in the workflow tests;
+a full conduct (node -> grade -> land) runs
+from a conductor root whose binary cannot
+speak the desk dialect, with zero read
+refusals.
+
 ## Acceptance test (goal block)
 
 - **Objective:** a stale desk render can never
