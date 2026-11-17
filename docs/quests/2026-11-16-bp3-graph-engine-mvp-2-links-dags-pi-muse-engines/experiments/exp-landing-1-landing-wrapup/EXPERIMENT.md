@@ -39,7 +39,7 @@ wrap = {scorecard(nodes, timing=True), disposition(findings), run_walkthrough()}
 | Intent | nothing learned gets lost; speed claims judged on system numbers |
 | Lane | standard |
 | Output | wrap-up record + walkthrough package |
-| Depends on | rename.1 |
+| Depends on | rename.1, followup.3, dogfood.3 (owner sequencing 2026-11-17) |
 
 ## Acceptance
 

@@ -641,6 +641,13 @@ Two independent flappy-variant nodes, one ready-set,
 parallel desks, parallel build+grade, serial
 land. Scorecard: wall and tokens per node.
 
+### dogfood.3 - external-drive — [record](experiments/exp-dogfood-3-external-drive/EXPERIMENT.md)
+bp3 as a tool in a repo that is not bp3: derived
+self/host mode (never a flag), core skills
+everywhere plus bp3-dev overlay only in self,
+mode-aware reads (deskNote is self-mode machinery
+only). Full conduct in a fixture repo, landed.
+
 ### Milestone: rename — migrate everything, last
 
 ### rename.1 - bp3g-rename — [record](experiments/exp-rename-1-bp3g-rename/EXPERIMENT.md)
@@ -673,6 +680,13 @@ re-collects internally. Evidence gaps never burn
 an author cycle or page the human (config.1
 cycle-1 papercut).
 
+### followup.3 - goal-term-purge — [record](experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md)
+Owner decision 2026-11-17: the term `quest` is
+gone; the container is a **goal** (its DAG is the
+graph). Purge on every live surface — files,
+code, skills, docs; ledger history keeps its
+words. Runs before dogfood.3 and landing.1.
+
 ### Milestone: landing
 
 ### landing.1 - landing-wrapup — [record](experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md)
@@ -700,6 +714,6 @@ config.1 ─► mvp.1 ─► mvp.2 ─┬─► mvp.3 ─► mvp.4
                             mvp.3 ────────────┘ (and mvp.5, dogfood.1 feed it)
 
 ready-set waves: [mig.1, config.1] -> [mig.2, mvp.1] -> [mvp.2] -> [mvp.3, dogfood.1]
-         -> [mvp.4, mvp.5] -> [dogfood.2] -> [rename.1] -> [followup.1, followup.2] -> [landing.1]
+         -> [mvp.4, mvp.5] -> [dogfood.2] -> [rename.1] -> [followup.1, followup.2] -> [followup.3] -> [dogfood.3] -> [landing.1]
 rename.1 = nouns/doors/skills only; verbs already migrated in mig.1
 ```
