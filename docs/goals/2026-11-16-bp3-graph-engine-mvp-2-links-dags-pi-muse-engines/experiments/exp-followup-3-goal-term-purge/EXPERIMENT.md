@@ -88,3 +88,41 @@ then confirmed quest→goal in files and code.
 machine that gets there. rename.1 proved a live
 rename is safe in this engine; this is the same
 move on the last old noun.
+## Amendment (owner, 2026-11-17): scope C — full rename with migration script
+
+Owner escalated the purge from filenames to the
+full surface, IDs included, with a migration
+script doing the mechanical work:
+
+| Surface | From | To |
+|---|---|---|
+| graph record | `QUEST.md` | `GRAPH.md` |
+| node record | `EXPERIMENT.md` | `NODE.md` |
+| folders | `docs/quests/`, `experiments/` | `docs/graphs/`, `nodes/` |
+| node IDs | `exp-<milestone>-<n>-<slug>` | `node-<milestone>-<n>-<slug>` |
+| node branches | `bp3/exp/<graph>/<node>` | per migration script's table |
+| container term | quest | goal in prose; graph for structure |
+| framing skill | `quest` (`/quest`) | `graph` (`/graph`) |
+| conductor skill | `induct` | `traverse` |
+| alias skill | `induct-quest` | deleted (was a pointer; old name refuses) |
+| fleet skill | `induct-quest-no-human` | `traverse-no-human` |
+| landing demo skill | `red-ink-quest-landing-demo` | `red-ink-graph-landing-demo` |
+
+Skill acceptance adds: each new skill name loads;
+each old name refuses/redirects (never a silent
+duplicate body); renders for all harnesses
+regenerated and freshness-checked.
+
+Migration script requirements: dry-run mode
+printing the full rename plan; idempotent
+(second run is a no-op); refuses on a dirty
+tree; renames branches without losing tips;
+re-points every record reference in the same
+change; ledger history lines are never edited
+(old IDs inside landed ledger text stay, mapped
+by the rename table). Acceptance adds: script
+dry-run output quoted, post-migration state
+reads for every pre-existing node return the
+same state/commit under the new ID, and one
+post-migration conduct completes with zero
+rename-caused refusals.

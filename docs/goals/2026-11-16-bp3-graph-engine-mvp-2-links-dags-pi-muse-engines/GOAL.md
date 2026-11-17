@@ -647,6 +647,8 @@ self/host mode (never a flag), core skills
 everywhere plus bp3-dev overlay only in self,
 mode-aware reads (deskNote is self-mode machinery
 only). Full conduct in a fixture repo, landed.
+Fixture (owner 2026-11-17): a flappy-bird repo
+in /tmp, conducted for real.
 
 ### Milestone: rename — migrate everything, last
 
@@ -686,6 +688,20 @@ gone; the container is a **goal** (its DAG is the
 graph). Purge on every live surface — files,
 code, skills, docs; ledger history keeps its
 words. Runs before dogfood.3 and landing.1.
+Owner escalation 2026-11-17: scope C — full
+rename including node IDs, delivered by a
+migration script (dry-run, idempotent);
+GRAPH.md/NODE.md file names; skills become
+/graph, traverse, traverse-no-human,
+red-ink-graph-landing-demo.
+
+### followup.5 - pure-grade — [record](experiments/exp-followup-5-pure-grade/EXPERIMENT.md)
+The grader is a pure function
+(commit + node record -> verdict, no writes);
+the looper applies effects: one verdict cast
+(verdict race dies), fix-ledger entries,
+dispatch — with named pushback/escalation.
+Runs after followup.3, before dogfood.3.
 
 ### Milestone: landing
 

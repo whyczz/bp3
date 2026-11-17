@@ -102,3 +102,19 @@ for the installed tool). Owner corollary:
 "we don't need the deskNote if bp3 is a tool
 (external) versus bp3 is the product (internal)"
 — deskNote becomes self-mode machinery only.
+
+## Amendment (owner, 2026-11-17): fixture is a flappy repo in /tmp
+
+The external fixture is a real tiny app, not a
+toy: a flappy-bird repo at /tmp/flappy-bird
+(git, zero bp3 source, playable page plus a
+headless smoke test). The conducted node makes
+a real change there (e.g. score counter) and
+must land via host-mode conduct: skills install
+core-only, mode derives "host", zero
+$DESK/bin/bp3 reads, smoke test green. /tmp
+keeps it disposable; a mangled fixture is
+deleted and rebuilt, never repaired by hand.
+Sequencing (owner): all renames and fixes
+(followup.3 scope C, followup.5) land before
+this node runs.
