@@ -2227,22 +2227,6 @@ let do_link_mint args =
   let model_v = if model_v = "" then "unknown" else model_v in
   let desk = match fl.m_desk with Some d -> d | None -> Sys.getcwd () in
   let edge_label = match edge with Some e -> e | None -> "node" in
-  let run_id = match fl.m_run with
-    | Some r when r <> "" ->
-        if Config.load_run_config_json dir r <> None then
-          err "E_EXISTS" (`Assoc [("run_id", json_str r)])
-            "A run config already exists for that run-id." 1;
-        r
-    | _ ->
-        let rec gen tries =
-          let cand = Printf.sprintf "%s-%s-%s-%s-c%d" (compact_ts ())
-            edge_label (slug_keep harness_v) (slug_keep model_v) fl.m_cycle in
-          if Config.load_run_config_json dir cand = None then cand
-          else if tries <= 0 then
-            err "E_EXISTS" (`Assoc [("run_id", json_str cand)])
-              "Minted run-id collided; retry." 1
-          else begin ignore (Unix.select [] [] [] 1.0); gen (tries - 1) end in
-        gen 5 in
   let token = mint_token () in
   let token_hash = "sha256:" ^ sha256_hex token in
   let creator = [
@@ -2253,7 +2237,7 @@ let do_link_mint args =
     ("minted_at", json_str (now_ts ()));
     ("token_hash", json_str token_hash);
   ] @ (match fl.m_thinking with Some t -> [("thinking", json_str t)] | None -> []) in
-  let fields = [
+  let fields_of run_id = [
     ("run_id", json_str run_id);
     ("kind", json_str kind);
     ("graph", json_str graph);
@@ -2262,7 +2246,37 @@ let do_link_mint args =
     ("desk", json_str desk);
     ("creator", `Assoc creator);
   ] @ (match edge with Some e -> [("edge", json_str e)] | None -> []) in
-  Config.save_run_config_json dir run_id (`Assoc fields);
+  (* Reserve the run config with O_EXCL: two mints in the same
+     second share a timestamp candidate, so a check-then-rename
+     write lets the second mint overwrite the first. *)
+  let write_minted run_id =
+    let path = Config.run_config_path dir run_id in
+    let content = Yojson.Safe.to_string (`Assoc (fields_of run_id)) ^ "\n" in
+    let fd = Unix.openfile path
+      [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_EXCL] 0o644 in
+    (try write_one fd path content; Unix.fsync fd
+     with e ->
+       (try Unix.close fd with _ -> ());
+       (try Unix.unlink path with _ -> ());
+       raise e);
+    Unix.close fd in
+  let run_id = match fl.m_run with
+    | Some r when r <> "" ->
+        (try write_minted r; r
+         with Unix.Unix_error (Unix.EEXIST, _, _) ->
+           err "E_EXISTS" (`Assoc [("run_id", json_str r)])
+             "A run config already exists for that run-id." 1)
+    | _ ->
+        let rec gen tries =
+          let cand = Printf.sprintf "%s-%s-%s-%s-c%d" (compact_ts ())
+            edge_label (slug_keep harness_v) (slug_keep model_v) fl.m_cycle in
+          try write_minted cand; cand
+          with Unix.Unix_error (Unix.EEXIST, _, _) ->
+            if tries <= 0 then
+              err "E_EXISTS" (`Assoc [("run_id", json_str cand)])
+                "Minted run-id collided; retry." 1
+            else begin ignore (Unix.select [] [] [] 1.0); gen (tries - 1) end in
+        gen 5 in
   let hash_hex = sha256_hex token in
   Config.write_file_atomic
     (Filename.concat (Config.links_dir dir) hash_hex) (run_id ^ "\n");
