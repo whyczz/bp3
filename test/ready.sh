@@ -22,7 +22,7 @@ lk() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness link "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 commit_on_node() { # $1 graph $2 node $3 path $4 content -> new tip
-  local branch="refs/heads/bp3/exp/$1/$2" tip blob tree new_tip idx="$work/idx-$1-$2"
+  local branch="refs/heads/bp3/node/$1/$2" tip blob tree new_tip idx="$work/idx-$1-$2"
   tip=$(git rev-parse "$branch"); rm -f "$idx"
   blob=$(printf '%s' "$4" | git hash-object -w --stdin)
   GIT_INDEX_FILE="$idx" git read-tree "$tip"
@@ -39,7 +39,7 @@ land_node() { # $1 graph $2 node $3 path
   q "$1" u "$2" verify --verdict pass --reason ok >/dev/null
   q "$1" u "$2" land --reason ship >/dev/null
 }
-node_ledger() { git show "bp3/exp/$1/$2:docs/goals/$1/experiments/$2/ledger.jsonl"; }
+node_ledger() { git show "bp3/node/$1/$2:docs/graphs/$1/nodes/$2/ledger.jsonl"; }
 
 # --- diamond: deps declared, waves, ready, handoff gate ---
 q c sched >/dev/null
@@ -91,7 +91,7 @@ echo "$out" | jq -e '.error.code == "E_DEPENDENCY"' >/dev/null || fail "starved 
 
 # --- timing derived from ledger timestamps, hand-checked ---
 q c timing >/dev/null; q timing c tm >/dev/null
-tip=$(git rev-parse bp3/exp/timing/tm); idx="$work/idx-tm"; rm -f "$idx"
+tip=$(git rev-parse bp3/node/timing/tm); idx="$work/idx-tm"; rm -f "$idx"
 cat > "$work/tm-ledger.jsonl" <<EOF
 {"ts":"2026-01-01T00:00:00Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"t","model":"t","bp3_version":"0.2.0","node_type":"default"}
 {"ts":"2026-01-01T00:10:00Z","edge":"handoff","from":"todo","to":"handed_off","cycle":1,"commit":"$W","verdict":null,"reason":"work","harness":"t","model":"t","bp3_version":"0.2.0"}
@@ -101,17 +101,17 @@ cat > "$work/tm-ledger.jsonl" <<EOF
 EOF
 blob=$(git hash-object -w "$work/tm-ledger.jsonl")
 GIT_INDEX_FILE="$idx" git read-tree "$tip"
-GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,docs/goals/timing/experiments/tm/ledger.jsonl"
+GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,docs/graphs/timing/nodes/tm/ledger.jsonl"
 tree=$(GIT_INDEX_FILE="$idx" git write-tree)
 nt=$(git commit-tree "$tree" -p "$tip" -m "timing fixture")
-git update-ref refs/heads/bp3/exp/timing/tm "$nt" "$tip"; rm -f "$idx"
+git update-ref refs/heads/bp3/node/timing/tm "$nt" "$tip"; rm -f "$idx"
 out=$(q timing r tm)
 echo "$out" | jq -e '.state == "landed" and .timing.wait_s == 600 and .timing.wall_s == 2460 and .timing.dwell_s == {"todo":600,"handed_off":1200,"approved":1260} and .timing.cycles == 1' >/dev/null || fail "timing math: $out"
 out2=$(q r timing)
 echo "$out2" | jq -e '(.nodes[] | select(.node == "tm") | .timing.wall_s == 2460)' >/dev/null || fail "rollup timing: $out2"
-before=$(git rev-parse bp3/exp/timing/tm)
+before=$(git rev-parse bp3/node/timing/tm)
 q timing r tm >/dev/null; q r timing >/dev/null
-[ "$(git rev-parse bp3/exp/timing/tm)" = "$before" ] || fail "timing read wrote state"
+[ "$(git rev-parse bp3/node/timing/tm)" = "$before" ] || fail "timing read wrote state"
 dirty=$(git status --porcelain | wc -l | tr -d ' ')
 [ "$dirty" = "0" ] || fail "timing read dirtied worktree: $dirty entries"
 echo "timing read clean: tip unchanged, worktree entries: $dirty"
@@ -151,14 +151,14 @@ for e in sl-a sl-b; do
 done
 out=$(q serial u sl-a land --reason first)
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "first land: $out"
-tip1=$(git rev-parse bp3/goal/serial)
+tip1=$(git rev-parse bp3/graph/serial)
 out=$(q serial r sl-b)
 echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "second still approved: $out"
 out=$(q serial u sl-b land --reason second)
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "second land: $out"
-git merge-base --is-ancestor "$tip1" bp3/goal/serial || fail "second land did not build on first tip"
-git merge-base --is-ancestor "$CB" bp3/goal/serial || fail "second reviewed commit not in graph tip"
-[ "$(git show bp3/goal/serial:sa.txt)" = "A" ] && [ "$(git show bp3/goal/serial:sb.txt)" = "B" ] || fail "serial merge lost files"
+git merge-base --is-ancestor "$tip1" bp3/graph/serial || fail "second land did not build on first tip"
+git merge-base --is-ancestor "$CB" bp3/graph/serial || fail "second reviewed commit not in graph tip"
+[ "$(git show bp3/graph/serial:sa.txt)" = "A" ] && [ "$(git show bp3/graph/serial:sb.txt)" = "B" ] || fail "serial merge lost files"
 
 # --- help: dep verb and flags documented at their doors ---
 out=$(q sched dep -h) || fail "dep -h exit"

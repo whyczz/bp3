@@ -1,6 +1,6 @@
 ---
 date: 2026-11-17
-quest: ../QUEST.md
+graph: ../GRAPH.md
 exp: followup.6
 status: proposed
 ---

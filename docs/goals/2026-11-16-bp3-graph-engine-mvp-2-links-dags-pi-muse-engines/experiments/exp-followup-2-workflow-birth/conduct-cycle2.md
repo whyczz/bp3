@@ -4,7 +4,7 @@ One REAL conduct (no mock host): fixture graph `2026-11-17-followup2-fixture`,
 node `exp-fixture-trivial`, driven node-loop -> bp3g-grade -> bp3g-land in
 sequence. Every read/write ran the desk binary; every conduct read was
 launched from the conductor root `/Users/whycz/m/bp3` (whose `bin/bp3`
-speaks the old `bp3 q|quest` dialect) and cd'd to the fixture desk first,
+speaks the old `bp3 q|graph` dialect) and cd'd to the fixture desk first,
 exactly as the workflows' deskNote prompts require.
 
 - Fixture desk: `.bp3/worktrees/2026-11-17-followup2-fixture` under the

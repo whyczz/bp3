@@ -20,7 +20,7 @@ the root's job, one loop word for the node's.
 ## Demo (design trace)
 
 ```text
-before: /induct -> induct-exp.js (todo) + induct-grade.js + quest-land.js
+before: /induct -> induct-exp.js (todo) + induct-grade.js + graph-land.js
 after:  /traverse -> node-loop.js owns the node FSM loop
         (grade/land become phases briefed inside node-loop,
          folded in by mvp.3's induct-node work)
@@ -46,7 +46,7 @@ install_all_harnesses(); assert old_names_refuse()
 
 | Field | Value |
 |---|---|
-| Intent | the conducting vocabulary matches the graph design from early in the quest |
+| Intent | the conducting vocabulary matches the graph design from early in the graph |
 | Lane | standard |
 | Output | traverse skill family + node-loop workflow, installed all harnesses; old names gone |
 | Depends on | mig.1 (briefs already speak handoff/grade) |
@@ -63,7 +63,7 @@ install_all_harnesses(); assert old_names_refuse()
 
 ## Acceptance test (goal block)
 
-- **Objective:** the quest conducts itself with
+- **Objective:** the graph conducts itself with
   the new names from this node on.
 - **Prove by:** smoke drive under `/traverse`,
   workflow fixture parity, old-name refusal sweep.
@@ -84,6 +84,6 @@ decision).
 
 Owner call at adoption time: the graph vocabulary
 should not wait until rename.1 for the conducting
-surface the quest itself uses daily. The noun/door
+surface the graph itself uses daily. The noun/door
 rename (`bp3 g`, `bp3g`) still waits — traverse
 conducts over `bp3 q` until mvp.2/rename.1 land.

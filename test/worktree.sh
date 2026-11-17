@@ -44,18 +44,18 @@ echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "derive node e
 
 # --- create on a branch; inspect reads it back ---
 p1=$(wt derive demo node-a R1 | jq -r '.path')
-out=$(wt create "$p1" --branch bp3/exp/demo/node-a)
-echo "$out" | jq -e '.ok == true and .ref == "bp3/exp/demo/node-a" and .dirty == false' >/dev/null || fail "create branch: $out"
+out=$(wt create "$p1" --branch bp3/node/demo/node-a)
+echo "$out" | jq -e '.ok == true and .ref == "bp3/node/demo/node-a" and .dirty == false' >/dev/null || fail "create branch: $out"
 [ -f "$p1/a.txt" ] || fail "worktree files missing"
-[ "$(git -C "$p1" branch --show-current)" = "bp3/exp/demo/node-a" ] || fail "branch not checked out"
+[ "$(git -C "$p1" branch --show-current)" = "bp3/node/demo/node-a" ] || fail "branch not checked out"
 out=$(wt inspect "$p1")
-echo "$out" | jq -e '.ok == true and .ref == "bp3/exp/demo/node-a" and .dirty == false and .changed_count == 0' >/dev/null || fail "inspect clean: $out"
+echo "$out" | jq -e '.ok == true and .ref == "bp3/node/demo/node-a" and .dirty == false and .changed_count == 0' >/dev/null || fail "inspect clean: $out"
 
 # existing path and already-checked-out branch: clean refusals, no raw git error
 if out=$(wt create "$p1" --branch other-branch 2>&1); then fail "create on existing path accepted"; fi
 echo "$out" | jq -e '.ok == false and .error.code == "E_EXISTS"' >/dev/null || fail "existing path code: $out"
 p2=$(wt derive demo node-a R2 | jq -r '.path')
-if out=$(wt create "$p2" --branch bp3/exp/demo/node-a 2>&1); then fail "create on checked-out branch accepted"; fi
+if out=$(wt create "$p2" --branch bp3/node/demo/node-a 2>&1); then fail "create on checked-out branch accepted"; fi
 echo "$out" | jq -e '.ok == false and .error.code == "E_BRANCH_CHECKED_OUT"' >/dev/null || fail "checked-out code: $out"
 case "$out" in *fatal*) fail "raw git error leaked: $out" ;; esac
 [ ! -e "$p2" ] || fail "refused create left a worktree"
@@ -119,7 +119,7 @@ echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "missing i
 
 # --- bookkeeping: prepare is idempotent per Run ID ---
 out=$(wt prepare demo node-a --run RA)
-echo "$out" | jq -e '.ok == true and .run_id == "RA" and .path == ".bp3/worktrees/demo/node-a/RA" and .ref == "bp3/exp/demo/node-a"' >/dev/null || fail "prepare RA: $out"
+echo "$out" | jq -e '.ok == true and .run_id == "RA" and .path == ".bp3/worktrees/demo/node-a/RA" and .ref == "bp3/node/demo/node-a"' >/dev/null || fail "prepare RA: $out"
 pa_path=$(wt derive demo node-a RA | jq -r '.path')
 [ -f "$pa_path/a.txt" ] || fail "prepared worktree files missing"
 out=$(wt prepare demo node-a --run RA)
@@ -128,7 +128,7 @@ echo "$out" | jq -e '.ok == true and .existing == true and .path == ".bp3/worktr
 
 # check recomputes dirty/stale live by Run ID
 out=$(wt check --run RA)
-echo "$out" | jq -e '.ok == true and .dirty == false and .ref == "bp3/exp/demo/node-a" and .stale_s >= 0' >/dev/null || fail "check RA clean: $out"
+echo "$out" | jq -e '.ok == true and .dirty == false and .ref == "bp3/node/demo/node-a" and .stale_s >= 0' >/dev/null || fail "check RA clean: $out"
 echo stray >> "$pa_path/a.txt"
 out=$(wt check --run RA)
 echo "$out" | jq -e '.dirty == true' >/dev/null || fail "check RA dirty: $out"

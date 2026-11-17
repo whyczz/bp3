@@ -32,9 +32,9 @@ marketing.
 
 | Term | Was | Meaning |
 |---|---|---|
-| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| graph | the old container word (purged by followup.3; rename table there) | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
 | node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
-| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| goal (G) | the old container word, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
 | node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
 | state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
 | edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
@@ -95,11 +95,11 @@ speaks graph/node/state/edge and answers to
 
 | In | Out |
 |---|---|
-| `bp3 harness link` mint/claim, CAS claim store, by-session index, context resolution; run config replaces InitRecord (`creator:{}`/`claim:{}`/`tape_path`), `record-init` retires, lifecycle fold reads the run config | rewriting landed quests' ledger history text |
+| `bp3 harness link` mint/claim, CAS claim store, by-session index, context resolution; run config replaces InitRecord (`creator:{}`/`claim:{}`/`tape_path`), `record-init` retires, lifecycle fold reads the run config | rewriting landed graphs' ledger history text |
 | ready-set scheduling, per-node timing derived from ledger + derivations, local thresholds | anything committed for metrics; timing judgments stay in `<git-common-dir>/bp3/` |
 | setup timing measured always; optimize only when setup > 3 min (`W_SETUP_SLOW`) | desk pools (killed 2026-11-16; ad hoc desks, measured) |
 | generated ASCII/mermaid diagram from live rollup | writing into harness session logs (tapes stay harness-written) |
-| rename last: `bp3 g`, `bp3g` skills, graph terms on live surfaces | rewriting landed quests' ledger history text |
+| rename last: `bp3 g`, `bp3g` skills, graph terms on live surfaces | rewriting landed graphs' ledger history text |
 | session-id discovery: muse, pi; graceful floor (pid+cwd+window) | adversarial threat model (links are for confused children, not attackers) |
 
 ## Timing gates (in-system, local)
@@ -568,7 +568,7 @@ Folders and bp3 exp IDs use the dotless spelling
 First node. FSM verbs/state take settled names
 (`submit -> handoff`, `review -> grade`,
 `check -> verify`, `submitted -> handed_off`) in
-code, workflow briefs, and tests. Old quest files
+code, workflow briefs, and tests. Old graph files
 never move; the fold maps old ledger strings on
 read, new lines write new words.
 
@@ -611,7 +611,7 @@ Parallel build/grade in per-node desks, serial
 land queue semantics stated and readied. Named
 deliverable: `induct-node` — one workflow run per
 node owning the whole FSM loop (the old
-induct-exp / induct-grade / quest-land become
+induct-exp / induct-grade / graph-land become
 phases inside it); the root worker dispatches
 ready-set waves and handles blocked + goal_fin only.
 
@@ -683,7 +683,7 @@ an author cycle or page the human (config.1
 cycle-1 papercut).
 
 ### followup.3 - goal-term-purge — [record](experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md)
-Owner decision 2026-11-17: the term `quest` is
+Owner decision 2026-11-17: the term `graph` is
 gone; the container is a **goal** (its DAG is the
 graph). Purge on every live surface — files,
 code, skills, docs; ledger history keeps its

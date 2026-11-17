@@ -113,7 +113,7 @@ let do_graph_create graph fl id =
     | _ -> [] in
   List.iter check_slug deps;
   let head = head_sha () in
-  let qpath = graph_dir graph ^ "/GOAL.md" in
+  let qpath = graph_dir graph ^ "/GRAPH.md" in
   let existing_graph_md = git_show head qpath in
   let graph_md = match existing_graph_md with
     | Some c -> c
@@ -141,14 +141,14 @@ let do_graph_delete graph fl id =
   if any_blocked && not id.decider_human then
     err "E_HUMAN_REQUIRED" (`Assoc [("graph", json_str graph)])
       "An node is blocked; a human decision is required (BP3_DECIDER=human)." 1;
-  (match ledger_text (graph_branch graph) (graph_ledger_path graph) with
+  (match ledger_read (graph_branch graph) (graph_ledger_path graph) (legacy_graph_ledger_path graph) with
    | None -> not_found "graph" graph
-   | Some (tip, text) ->
+   | Some (tip, text, lpath) ->
        let line = ledger_line ~edge:"delete" ~from:qs.st ~to_:"deleted" ~cycle:1
          ~commit:None ~verdict:None ~reason ~id () in
        let new_text = text ^ (if text = "" || text.[String.length text-1] = '\n' then "" else "\n") ^ line ^ "\n" in
        ignore (commit_files ~branch:(graph_branch graph) ~base_tip:tip ~expect_tip:tip
-         ~files:[(graph_ledger_path graph, new_text)] ~msg:("bp3: delete graph " ^ graph)));
+         ~files:[(lpath, new_text)] ~msg:("bp3: delete graph " ^ graph)));
   with_warnings id true [("ok", `Bool true); ("graph", json_str graph); ("state", json_str "deleted")]
 
 (* Node deps (mvp.3): declared at node create, editable

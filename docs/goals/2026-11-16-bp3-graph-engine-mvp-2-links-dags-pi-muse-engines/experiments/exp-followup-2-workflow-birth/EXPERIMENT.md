@@ -11,8 +11,8 @@ status: proposed
 
 Papercut found live (mvp.1 grade, owner chose
 fix path A): mvp.1 migrated the traverse workflow
-sources on the quest branch (children now birth
-via `link mint`), but the quest desk's installed
+sources on the graph branch (children now birth
+via `link mint`), but the graph desk's installed
 renders (`.agents/workflows/*.js`) were never
 regenerated. The grade workflow launched from a
 stale render called the retired `record-init`
@@ -27,7 +27,7 @@ never launch a render older than its source.
 ## Demo (design trace)
 
 ```text
-before: quest branch takes workflow-source change (child commit)
+before: graph branch takes workflow-source change (child commit)
   -> desk .agents/workflows/induct-grade.js still calls record-init
   -> grade dispatch -> record-init refused E_RETIRED, no audit
 
@@ -71,7 +71,7 @@ def dispatch(workflow, desk, args):
 | stale render at dispatch | dispatch re-renders in the desk (or refuses `E_RENDER_STALE` naming render and source); it never launches the stale script |
 | mvp.1 replay | with a deliberately staled grade render, the mvp.1 grade scenario reaches the audit child (no `E_RETIRED` pre-audit refusal) |
 | fresh render | hash check passes silently; no reinstall cost on the happy path |
-| all three workflows | node-loop, induct-grade, quest-land all covered by the same freshness rule |
+| all three workflows | node-loop, induct-grade, graph-land all covered by the same freshness rule |
 
 ## Amendment (pulled forward, 2026-11-17): workflow-birth defects
 
@@ -139,7 +139,7 @@ refusals.
 ## Tests
 
 Known cases: stale grade render (mvp.1 replay
-shape), stale node-loop, stale quest-land, fresh
+shape), stale node-loop, stale graph-land, fresh
 render no-op.
 
 Property-based: for any source edit, the launched

@@ -292,7 +292,7 @@ let do_prepare graph node run_id commit path_override =
       end
   | None ->
       let path = match path_override with Some p -> p | None -> default_path in
-      let branch = "bp3/exp/" ^ graph ^ "/" ^ node in
+      let branch = "bp3/node/" ^ graph ^ "/" ^ Store.canon_node_id node in
       let _ = (match commit with
                | Some c -> do_create path None (Some c)
                | None -> do_create path (Some branch) None) in

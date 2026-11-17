@@ -184,15 +184,15 @@ let touch b =
    ledger on its branch. The only ledger door hooks may use;
    it writes no state.yaml because event lines change no state. ---------- *)
 let append_event graph node line =
-  match ledger_text (node_branch graph node) (node_ledger_path graph node) with
+  match ledger_read (node_branch graph node) (node_ledger_path graph node) (legacy_node_ledger_path graph node) with
   | None -> false
-  | Some (tip, text) ->
+  | Some (tip, text, lpath) ->
       let new_text = (if String.trim text = "" then "" else
         (if text.[String.length text - 1] = '\n' then text else text ^ "\n"))
         ^ line ^ "\n" in
       (try
          ignore (commit_files ~branch:(node_branch graph node) ~base_tip:tip
-           ~expect_tip:tip ~files:[(node_ledger_path graph node, new_text)]
+           ~expect_tip:tip ~files:[(lpath, new_text)]
            ~msg:"bp3: hooks");
          true
        with _ -> false)

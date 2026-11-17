@@ -93,7 +93,7 @@ to today's behavior + warning).
 ## Context
 
 The store grew organically (derivations in the
-supervisor quest; claims designed in mvp.1).
+supervisor graph; claims designed in mvp.1).
 Naming it config — and giving it a view door —
 makes inference debuggable: when context
 resolution surprises, `bp3 config --source`

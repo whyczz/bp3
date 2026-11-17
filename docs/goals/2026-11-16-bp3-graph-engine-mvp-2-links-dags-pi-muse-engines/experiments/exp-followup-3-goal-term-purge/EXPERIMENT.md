@@ -132,3 +132,18 @@ rename-caused refusals.
 - 2026-11-17 · cycle 2 · from grade of c0ab195 (blocked) · status: open
   fix: "grep proof fails: 671 quest hits on live docs/goals at bound commit, first GOAL.md:11 — scope grep-zero to live surfaces (code, skills, CLI, this graph's live docs); exempt by name: other graphs' historical records, dated amendments, landed ledger text (owner A at blocked gate). Cycle 2 also delivers scope C: migration script (dry-run, idempotent, refuses dirty tree), GRAPH.md/NODE.md, nodes/ folders, node- IDs, skill renames /graph, traverse, traverse-no-human, red-ink-graph-landing-demo."
   regression_test: none named (existing make check + grep proof)
+
+## Grep scope (cycle 2, owner A at blocked gate)
+
+Grep-zero (`-i -w`) binds live surfaces only: code
+(`src/`, `bin/`, `scripts/`, `extensions/`), skills
+(`skills/` + harness renders), CLI help/usage text,
+and this graph's live docs (its GRAPH.md and
+NODE.md records). Exempt by name: other graphs'
+historical records under docs/graphs/, dated
+amendments (including the Amendment above), landed
+ledger text (ledger.jsonl lines and this record's
+history quotes), the one-place legacy fold in
+src/graph/store.ml, the migration script's own
+rename table, and negative-absence assertions in
+tests (an old name that must refuse).

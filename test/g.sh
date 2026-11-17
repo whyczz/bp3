@@ -48,26 +48,26 @@ if out=$(BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 n r 2>&1); then fail "unclaimed 
 echo "$out" | jq -e '.ok == false and .error.code == "E_NO_CONTEXT"' >/dev/null || fail "unclaimed bp3 n code: $out"
 
 # --- strict argv: dup flag, unknown flag, stray positional -> usage before write ---
-before=$(git show bp3/exp/demo/parser-fix:docs/goals/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+before=$(git show bp3/node/demo/parser-fix:docs/graphs/demo/nodes/parser-fix/ledger.jsonl | wc -l)
 if out=$(q demo u parser-fix handoff --commit abc --reason x --reason y 2>&1); then fail "dup flag accepted"; fi
 echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "dup flag code: $out"
 if out=$(q demo u parser-fix handoff --commit abc --reason x --bogus y 2>&1); then fail "unknown flag accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "unknown flag code: $out"
 if out=$(q demo u parser-fix handoff extra --commit abc --reason x 2>&1); then fail "stray positional accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "stray code: $out"
-after=$(git show bp3/exp/demo/parser-fix:docs/goals/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+after=$(git show bp3/node/demo/parser-fix:docs/graphs/demo/nodes/parser-fix/ledger.jsonl | wc -l)
 [ "$before" = "$after" ] || fail "strict argv wrote to ledger"
 
 # --- refusal: land from todo, ledger unchanged ---
 if out=$(q demo u parser-fix land --reason "too early" 2>&1); then fail "land from todo accepted"; fi
 echo "$out" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "todo" and .error.facts.edge == "land" and (.error.facts.legal_edges | index("handoff") != null) and (.error.guidance | length > 0)' >/dev/null || fail "illegal edge facts: $out"
-after=$(git show bp3/exp/demo/parser-fix:docs/goals/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+after=$(git show bp3/node/demo/parser-fix:docs/graphs/demo/nodes/parser-fix/ledger.jsonl | wc -l)
 [ "$before" = "$after" ] || fail "refusal ledgered"
 
 # --- identity: unset -> unknown + warning; invalid -> fail fast ---
 out=$(env -u BP3_HARNESS -u BP3_MODEL BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g demo c id-node)
 echo "$out" | jq -e '.ok == true and (.warnings | index("W_IDENTITY_UNKNOWN") != null)' >/dev/null || fail "identity warning: $out"
-git show bp3/exp/demo/id-node:docs/goals/demo/experiments/id-node/ledger.jsonl | tail -1 | jq -e '.harness == "unknown" and .model == "unknown" and .bp3_version == "0.2.0"' >/dev/null || fail "identity ledger unknown"
+git show bp3/node/demo/id-node:docs/graphs/demo/nodes/id-node/ledger.jsonl | tail -1 | jq -e '.harness == "unknown" and .model == "unknown" and .bp3_version == "0.2.0"' >/dev/null || fail "identity ledger unknown"
 if out=$(BP3_HARNESS=bogus BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g demo r parser-fix 2>&1); then fail "invalid harness accepted"; fi
 echo "$out" | jq -e '.error.code == "E_IDENTITY"' >/dev/null || fail "identity code: $out"
 
@@ -76,17 +76,17 @@ out=$(BP3_RUN_ID=run-42 BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g c runq)
 echo "$out" | jq -e '.ok == true and .run_id == "run-42"' >/dev/null || fail "run-id graph verdict: $out"
 out=$(BP3_RUN_ID=run-42 BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g runq c rid-node)
 echo "$out" | jq -e '.ok == true and .run_id == "run-42"' >/dev/null || fail "run-id node verdict: $out"
-git show bp3/exp/runq/rid-node:docs/goals/runq/experiments/rid-node/ledger.jsonl | tail -1 | jq -e '.run_id == "run-42" and .harness == "muse-code"' >/dev/null || fail "run-id ledger set"
+git show bp3/node/runq/rid-node:docs/graphs/runq/nodes/rid-node/ledger.jsonl | tail -1 | jq -e '.run_id == "run-42" and .harness == "muse-code"' >/dev/null || fail "run-id ledger set"
 out=$(BP3_RUN_ID=run-42 BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g runq r rid-node)
 echo "$out" | jq -e '.ok == true and .run_id == "run-42"' >/dev/null || fail "run-id read verdict: $out"
 out=$(env -u BP3_RUN_ID BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g runq c rid-unset)
 echo "$out" | jq -e '.ok == true and (has("run_id") | not)' >/dev/null || fail "run-id unset verdict: $out"
-git show bp3/exp/runq/rid-unset:docs/goals/runq/experiments/rid-unset/ledger.jsonl | tail -1 | jq -e 'has("run_id") | not' >/dev/null || fail "run-id ledger unset"
+git show bp3/node/runq/rid-unset:docs/graphs/runq/nodes/rid-unset/ledger.jsonl | tail -1 | jq -e 'has("run_id") | not' >/dev/null || fail "run-id ledger unset"
 out=$(env -u BP3_RUN_ID BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g runq r rid-unset)
 echo "$out" | jq -e '.ok == true and (has("run_id") | not)' >/dev/null || fail "run-id unset read verdict: $out"
 out=$(env -u BP3_HARNESS -u BP3_MODEL -u BP3_RUN_ID BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g runq c rid-unknown)
 echo "$out" | jq -e '.ok == true and (has("run_id") | not) and (.warnings | index("W_IDENTITY_UNKNOWN") != null)' >/dev/null || fail "run-id unset identity warning: $out"
-git show bp3/exp/runq/rid-unknown:docs/goals/runq/experiments/rid-unknown/ledger.jsonl | tail -1 | jq -e '(has("run_id") | not) and .harness == "unknown"' >/dev/null || fail "run-id unset unknown ledger"
+git show bp3/node/runq/rid-unknown:docs/graphs/runq/nodes/rid-unknown/ledger.jsonl | tail -1 | jq -e '(has("run_id") | not) and .harness == "unknown"' >/dev/null || fail "run-id unset unknown ledger"
 
 # --- happy path handoff/grade/verify/land (alias spellings mixed) ---
 echo work > b.txt; git add b.txt; git commit -qm work
@@ -106,7 +106,7 @@ echo "$out" | jq -e '.ok == true and (.nodes[] | select(.node == "parser-fix") |
 out=$(q demo c compat-node)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "compat create: $out"
 append_ledger_line() { # $1 node $2 json-line
-  local br="bp3/exp/demo/$1" path="docs/goals/demo/experiments/$1/ledger.jsonl" tip idx led blob tree nt
+  local br="bp3/node/demo/$1" path="docs/graphs/demo/nodes/$1/ledger.jsonl" tip idx led blob tree nt
   tip=$(git rev-parse "$br")
   led=$(git show "$br:$path")
   idx=$(mktemp)
@@ -118,7 +118,7 @@ append_ledger_line() { # $1 node $2 json-line
   git update-ref "refs/heads/$br" "$nt" "$tip"
   rm -f "$idx"
 }
-compat_tip_before=$(git rev-parse bp3/exp/demo/compat-node)
+compat_tip_before=$(git rev-parse bp3/node/demo/compat-node)
 append_ledger_line compat-node "{\"ts\":\"2026-01-01T00:00:00Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":null,\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
 out=$(q demo r compat-node)
 echo "$out" | jq -e --arg c "$B" '.state == "handed_off" and .cycle == 1 and .commit == $c and (.legal_edges | index("grade") != null) and (.legal_edges | index("verify") != null)' >/dev/null || fail "compat old submit folds handed_off: $out"
@@ -128,16 +128,16 @@ out=$(q demo r compat-node)
 echo "$out" | jq -e '.state == "approved" and .cycle == 1' >/dev/null || fail "compat old grade/verify fold approved: $out"
 # reads never rewrite the frozen file
 q demo r compat-node >/dev/null
-[ "$(git rev-parse bp3/exp/demo/compat-node)" != "$compat_tip_before" ] || fail "compat fixture did not land"
-compat_tip_read=$(git rev-parse bp3/exp/demo/compat-node)
+[ "$(git rev-parse bp3/node/demo/compat-node)" != "$compat_tip_before" ] || fail "compat fixture did not land"
+compat_tip_read=$(git rev-parse bp3/node/demo/compat-node)
 q r demo >/dev/null
-[ "$(git rev-parse bp3/exp/demo/compat-node)" = "$compat_tip_read" ] || fail "read rewrote frozen ledger"
+[ "$(git rev-parse bp3/node/demo/compat-node)" = "$compat_tip_read" ] || fail "read rewrote frozen ledger"
 # old verbs refuse as unknown edges, ledger unchanged
 for old in submit review check; do
   if out=$(q demo u compat-node "$old" --commit "$B" --verdict ship --reason "old words" 2>&1); then fail "old edge $old accepted"; fi
   echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "old edge $old code: $out"
 done
-[ "$(git rev-parse bp3/exp/demo/compat-node)" = "$compat_tip_read" ] || fail "old edge refusal ledgered"
+[ "$(git rev-parse bp3/node/demo/compat-node)" = "$compat_tip_read" ] || fail "old edge refusal ledgered"
 # mixed vocab in one ledger (this graph's own shape): new handoff, old verdicts
 out=$(q demo c mixed-node)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "mixed create: $out"
@@ -221,12 +221,12 @@ echo "$out" | jq -e '.ok == true and .state == "deleted"' >/dev/null || fail "no
 # --- scenario helpers ---
 qa() { env BP3_MODEL=executor-a BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
 qb() { env BP3_MODEL=executor-b BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
-node_ledger() { git show "bp3/exp/demo/$1:docs/goals/demo/experiments/$1/ledger.jsonl"; }
+node_ledger() { git show "bp3/node/demo/$1:docs/graphs/demo/nodes/$1/ledger.jsonl"; }
 commit_on_node() {
   local node_name="$1"
   local file_path="$2"
   local content="$3"
-  local branch="refs/heads/bp3/exp/demo/$node_name"
+  local branch="refs/heads/bp3/node/demo/$node_name"
   local tip
   local blob
   local tree
@@ -362,10 +362,10 @@ out=$(q demo u land-a land --reason "ship")
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-a land: $out"
 out=$(q demo u land-b land --reason "ship")
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-b clean merge: $out"
-[ "$(git show bp3/goal/demo:fa.txt)" = "A-content" ] || fail "clean merge lost fa.txt"
-[ "$(git show bp3/goal/demo:fb.txt)" = "B-content" ] || fail "clean merge lost fb.txt"
-git merge-base --is-ancestor "$LAND_A" bp3/goal/demo || fail "land-a reviewed commit not ancestor of graph tip"
-git merge-base --is-ancestor "$LAND_B" bp3/goal/demo || fail "land-b reviewed commit not ancestor of graph tip"
+[ "$(git show bp3/graph/demo:fa.txt)" = "A-content" ] || fail "clean merge lost fa.txt"
+[ "$(git show bp3/graph/demo:fb.txt)" = "B-content" ] || fail "clean merge lost fb.txt"
+git merge-base --is-ancestor "$LAND_A" bp3/graph/demo || fail "land-a reviewed commit not ancestor of graph tip"
+git merge-base --is-ancestor "$LAND_B" bp3/graph/demo || fail "land-b reviewed commit not ancestor of graph tip"
 out=$(q demo r land-b)
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-b verdicts kept: $out"
 [ "$(node_ledger land-b | grep -c '"to":"approved"')" = "1" ] || fail "land-b approved verdict lost"
@@ -400,7 +400,7 @@ out=$(q demo r land-c)
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-c demoted by other conflict: $out"
 out=$(q demo r land-a)
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-a demoted by other conflict: $out"
-[ "$(git show bp3/goal/demo:shared.txt)" = "C-side" ] || fail "conflict overwrote graph work file"
+[ "$(git show bp3/graph/demo:shared.txt)" = "C-side" ] || fail "conflict overwrote graph work file"
 
 # --- dirty-tree handoff refused; block checkpoint is a real commit ---
 out=$(q demo c dirty-node)
@@ -438,7 +438,7 @@ out=$(q demo r dirty-node)
 echo "$out" | jq -e '.state == "blocked"' >/dev/null || fail "refused delete changed state: $out"
 out=$(BP3_DECIDER=human q demo d dirty-node --reason "gone")
 echo "$out" | jq -e '.ok == true and .state == "deleted"' >/dev/null || fail "delete blocked human: $out"
-git rev-parse --verify -q refs/heads/bp3/exp/demo/dirty-node >/dev/null || fail "delete removed node branch ref"
+git rev-parse --verify -q refs/heads/bp3/node/demo/dirty-node >/dev/null || fail "delete removed node branch ref"
 out=$(q demo r dirty-node)
 echo "$out" | jq -e '.state == "deleted" and (.legal_edges | length == 0)' >/dev/null || fail "tombstone read: $out"
 node_ledger dirty-node | tail -1 | jq -e '.edge == "delete" and .to == "deleted"' >/dev/null || fail "tombstone ledger line"
@@ -457,7 +457,7 @@ git clone -q "$work/repo" "$work/clone"
 cd "$work/clone"
 git config user.email t@t.t; git config user.name t
 git fetch -q origin '+refs/heads/bp3/*:refs/heads/bp3/*'
-test ! -f docs/goals/demo/experiments/clone-blocked/state.yaml || fail "clone worktree carries state.yaml; branch-tip proof unclear"
+test ! -f docs/graphs/demo/nodes/clone-blocked/state.yaml || fail "clone worktree carries state.yaml; branch-tip proof unclear"
 clone_q() { BP3_G_BIN="$work/clone/g-bin" ./bin/bp3 g "$@"; }
 after_clone=$(clone_q r demo | jq -S -c '{graph, state, rollup, nodes: (.nodes | sort_by(.node) | map({node, state, cycle, commit})), inbox: (.inbox | sort_by(.node))}')
 [ "$before_clone" = "$after_clone" ] || fail "clone reconstruction differs: $before_clone vs $after_clone"
@@ -517,7 +517,7 @@ cat > docs/icebox/2026-01-02-beta-idea.md <<'EOF'
 ---
 status: frozen
 date: 2026-01-02
-promoted: docs/goals/some-graph/GOAL.md
+promoted: docs/graphs/some-graph/GRAPH.md
 ---
 
 # Beta idea
@@ -528,7 +528,7 @@ printf 'no frontmatter here\njust text about tables\n' > docs/icebox/2026-01-03-
 printf '# Icebox\n\nnot an entry\n' > docs/icebox/README.md
 icebox_status_before=$(git status --porcelain)
 out=$(q icebox r)
-echo "$out" | jq -e '.ok == true and (.entries | length == 3) and .entries[0].slug == "2026-01-01-alpha-idea" and .entries[0].date == "2026-01-01" and .entries[0].status == "frozen" and .entries[0].promoted == null and .entries[0].title == "Alpha idea" and .entries[1].promoted == "docs/goals/some-graph/GOAL.md" and .entries[2].slug == "2026-01-03-broken" and .entries[2].date == "-" and .entries[2].status == "-" and .entries[2].title == "-"' >/dev/null || fail "icebox list: $out"
+echo "$out" | jq -e '.ok == true and (.entries | length == 3) and .entries[0].slug == "2026-01-01-alpha-idea" and .entries[0].date == "2026-01-01" and .entries[0].status == "frozen" and .entries[0].promoted == null and .entries[0].title == "Alpha idea" and .entries[1].promoted == "docs/graphs/some-graph/GRAPH.md" and .entries[2].slug == "2026-01-03-broken" and .entries[2].date == "-" and .entries[2].status == "-" and .entries[2].title == "-"' >/dev/null || fail "icebox list: $out"
 out=$(q icebox read)
 echo "$out" | jq -e '.ok == true and (.entries | length == 3)' >/dev/null || fail "icebox read alias: $out"
 out=$(q icebox r TABLE)
@@ -542,14 +542,14 @@ cmp docs/icebox/2026-01-01-alpha-idea.md "$work/icebox-out.txt" || fail "icebox 
 itbl=$(q icebox r --format table)
 echo "$itbl" | sed -n 1p | grep -Eq '^slug +date +status +promoted +title$' || fail "icebox table header: $itbl"
 echo "$itbl" | grep -Eq '^2026-01-01-alpha-idea +2026-01-01 +frozen +- +Alpha idea$' || fail "icebox table alpha row: $itbl"
-echo "$itbl" | grep -q 'docs/goals/some-graph/GOAL.md' || fail "icebox table promoted: $itbl"
+echo "$itbl" | grep -q 'docs/graphs/some-graph/GRAPH.md' || fail "icebox table promoted: $itbl"
 if out=$(q icebox c nope 2>&1); then fail "icebox write verb accepted"; fi
 echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "icebox write verb code: $out"
 [ "$(git status --porcelain)" = "$icebox_status_before" ] || fail "icebox command wrote to worktree"
 
 # --- version guard: minor-ahead warns and writes; major-ahead refuses writes ---
 stamp_ledger() { # $1 graph $2 node $3 version
-  local br="bp3/exp/$1/$2" path="docs/goals/$1/experiments/$2/ledger.jsonl" tip idx led blob tree nt
+  local br="bp3/node/$1/$2" path="docs/graphs/$1/nodes/$2/ledger.jsonl" tip idx led blob tree nt
   tip=$(git rev-parse "$br")
   led=$(git show "$br:$path")
   idx=$(mktemp)
@@ -569,10 +569,10 @@ echo "$out" | jq -e '.warnings | index("W_VERSION_AHEAD") != null' >/dev/null ||
 out=$(q demo u vf-node block --reason "minor ahead still writes")
 echo "$out" | jq -e '.ok == true and .state == "blocked" and (.warnings | index("W_VERSION_AHEAD") != null)' >/dev/null || fail "minor-ahead write: $out"
 stamp_ledger demo parser-fix 99.0.0
-before=$(git rev-parse bp3/exp/demo/parser-fix)
+before=$(git rev-parse bp3/node/demo/parser-fix)
 if out=$(q demo u parser-fix block --reason "major ahead must refuse" 2>&1); then fail "major-ahead write accepted: $out"; fi
 echo "$out" | jq -e '.ok == false and .error.code == "E_VERSION_AHEAD" and .error.facts.binary == "0.2.0" and .error.facts.repo == "99.0.0"' >/dev/null || fail "major-ahead refusal: $out"
-[ "$(git rev-parse bp3/exp/demo/parser-fix)" = "$before" ] || fail "major-ahead refusal wrote"
+[ "$(git rev-parse bp3/node/demo/parser-fix)" = "$before" ] || fail "major-ahead refusal wrote"
 
 # --- help: -h/--help at every door, stdout, exit 0, no state read ---
 out=$(q -h) || fail "q -h exit"

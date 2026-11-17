@@ -79,7 +79,7 @@ def claim(token):
 | depth cap (red-chair) | mint beyond the depth cap (default 3: root/node/edge, machine-config overridable) refuses `E_DEPTH`; the Pi tree cannot fan out past it |
 | stale mint cleanup | `bp3 harness link cleanup --graph <graph>` removes every still-`minted` run config of that graph and reports them; other graphs' rows and all claimed run configs/derivations are byte-identical before/after; no TTL anywhere |
 | quoting safety | a token appearing in briefs/matrices confers nothing until claimed; spent tokens refuse forever |
-| env-set run-id (owner ruling from mvp.1 of the supervisor quest) | run-id arrives via the claim, not typed env prefixes; bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; hooks witness does not gate |
+| env-set run-id (owner ruling from mvp.1 of the supervisor graph) | run-id arrives via the claim, not typed env prefixes; bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; hooks witness does not gate |
 
 ## Acceptance test (goal block)
 
@@ -108,7 +108,7 @@ child's own tool call).
 
 Replaces the brief-carried setup ritual and the
 post-hoc tape archaeology of followup.4 in the
-supervisor quest: binding used to be resolved
+supervisor graph: binding used to be resolved
 after the child died, from quoting-prone text.
 Now it is claimed before work starts, by the
 only session that will do the work. Threat model

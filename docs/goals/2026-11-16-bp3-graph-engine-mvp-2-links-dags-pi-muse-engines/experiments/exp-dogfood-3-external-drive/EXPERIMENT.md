@@ -44,7 +44,7 @@ mode recorded per Run (record-init) — evidence, never an input flag
 
 ```python
 def repo_mode(repo):
-    return "self" if tracked(repo, "src/quest") and tracked(repo, "bin/bp3") else "host"
+    return "self" if tracked(repo, "src/graph") and tracked(repo, "bin/bp3") else "host"
 
 def skills_install(repo, harness):
     render(core_conduct_skills, harness)                 # one source, both modes

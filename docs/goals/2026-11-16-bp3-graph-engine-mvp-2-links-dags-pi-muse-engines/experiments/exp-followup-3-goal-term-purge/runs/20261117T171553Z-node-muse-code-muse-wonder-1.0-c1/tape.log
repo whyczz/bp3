@@ -1,0 +1,1552 @@
+drwxr-xr-x@ 3 whycz  staff  96 Nov 17 12:16 docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/runs/20261117T171553Z-node-muse-code-muse-wonder-1.0-c1
+mkdir-exit:0
+=== find EXPERIMENT.md ===
+docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md
+---
+EXPERIMENT.md
+runs
+=== git log bound commit ===
+c0ab195 feat(followup.3): goal-term purge — quest deleted, container is goal
+ff48418 followup.3 + dogfood.3: goal-term purge and external-drive nodes (owner)
+e37190a test(followup.2): cycle-2 real foreign-dialect conduct — fixture landed, zero read refusals
+de97538 followup.2: cycle-2 real foreign-dialect conduct task (owner A)
+6f124a6 feat(followup.2): workflow-birth — desk reads, context, claim-session tape, render freshness
+=== git show stat ===
+commit c0ab195fde5e12559ca72c71e1624e0b3c21bbf7
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 11:18:38 2026 -0500
+
+    feat(followup.3): goal-term purge — quest deleted, container is goal
+    
+    TL;DR: purge quest from every live surface — docs/quests->docs/goals, QUEST.md/GRAPH.md->GOAL.md, bp3/quest refs->bp3/goal, quest_type->goal_type, graph_fin->goal_fin, goal/<slug> branches; graph (bp3 g) unchanged as the goal's DAG.
+    
+    For humans: the container of work is now a goal; open docs/goals/<goal>/GOAL.md. Old ledgers still read — the fold maps legacy quest_type/graph_type keys and frozen bp3/quest refs in exactly one place (src/graph/store.ml); landed ledger text was never rewritten.
+    
+    For LLMs: store.ml graph_dir/graph_branch/list_graphs speak goal paths with one-place legacy fold; main.ml scaffolds GOAL.md + goal_type; AGENTS.md/CLAUDE.md/naming skill synced (goal container, graph DAG, goal_fin); skill renders + workflows re-pointed; make check green; post-purge bp3 g r ok:true.
+
+ .agents/skills/bp3g-frame/SKILL.md                 |   10 +-
+ .agents/skills/bp3g-no-human/SKILL.md              |    8 +-
+ .agents/skills/bp3g/SKILL.md                       |   10 +-
+ .agents/skills/naming/SKILL.md                     |   10 +-
+ .agents/skills/using-bp3/SKILL.md                  |    6 +-
+ .agents/workflows/bp3g-grade.js                    |    4 +-
+ .agents/workflows/bp3g-land.js                     |    2 +-
+ .agents/workflows/bp3g-node.js                     |    2 +-
+ .agents/workflows/node-loop.js                     |    2 +-
+ .claude/skills/bp3g-frame/SKILL.md                 |   10 +-
+ .claude/skills/bp3g-no-human/SKILL.md              |    8 +-
+ .claude/skills/bp3g/SKILL.md                       |   10 +-
+ .claude/skills/naming/SKILL.md                     |   10 +-
+ .claude/skills/using-bp3/SKILL.md                  |    6 +-
+ .pi/skills/bp3g-frame/SKILL.md                     |   10 +-
+ .pi/skills/bp3g-no-human/SKILL.md                  |    8 +-
+ .pi/skills/bp3g/SKILL.md                           |   10 +-
+ .pi/skills/naming/SKILL.md                         |   10 +-
+ .pi/skills/using-bp3/SKILL.md                      |    6 +-
+ AGENTS.md                                          |   12 +-
+ CLAUDE.md                                          |   12 +-
+ docs/designs/bp3-control-mvp.md                    |    4 +-
+ .../QUEST.md => goals/2026-11-05-bp3-mvp/GOAL.md}  |    2 +-
+ .../2026-11-06-bounded-workflow-loop.md            |    2 +-
+ .../experiments/2026-11-06-bp3-resume.md           |    2 +-
+ .../2026-11-06-controller-wait-notify.md           |    2 +-
+ .../2026-11-06-reusable-workers-reviewers.md       |    2 +-
+ .../2026-11-06-worker-retirement-revival.md        |    2 +-
+ .../experiments/2026-11-06-writer-sizing.md        |    2 +-
+ .../2026-11-05-bp3-skills-install.md               |    2 +-
+ docs/{quests => goals}/2026-11-07-bp3-engine-pi.md |    6 +-
+ .../2026-11-07-bp3-mvp-engine-core/GOAL.md}        |   10 +-
+ .../experiments/2026-11-07-tape-hooks.md           |    2 +-
+ .../experiments/exp-1-baseline/EXPERIMENT.md       |    2 +-
+ .../experiments/exp-2-cli-scaffold/EXPERIMENT.md   |    4 +-
+ .../experiments/exp-3-fsm/EXPERIMENT.md            |    6 +-
+ .../experiments/exp-4-tape-hooks/EXPERIMENT.md     |    4 +-
+ .../experiments/exp-5-muse-engine/EXPERIMENT.md    |    4 +-
+ .../experiments/exp-6-hooks/EXPERIMENT.md          |    2 +-
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../experiments/exp-7-live-hooks/EXPERIMENT.md     |    2 +-
+ .../experiments/exp-7-live-hooks/LIVE.md           |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ docs/{quests => goals}/2026-11-07-bp3-pi-qol.md    |    0
+ .../2026-11-09-bp3-land-verdicts/GOAL.md}          |    4 +-
+ .../2026-11-09-bp3-land-verdicts/fsm.yaml          |    2 +-
+ .../2026-11-09-bp3-land-verdicts/ledger.jsonl      |    0
+ .../2026-11-09-bp3-land-verdicts/state.yaml        |    0
+ .../GOAL.md}                                       |    8 +-
+ .../fsm.yaml                                       |    2 +-
+ .../ledger.jsonl                                   |    0
+ .../state.yaml                                     |    0
+ .../2026-11-14-bp3-cli-small-fixes/GOAL.md}        |    4 +-
+ .../exp-1-rendered-tables/EXPERIMENT.md            |    4 +-
+ .../experiments/exp-2-tab-completion/EXPERIMENT.md |    4 +-
+ .../experiments/exp-3-icebox-search/EXPERIMENT.md  |    2 +-
+ .../experiments/exp-4-help/EXPERIMENT.md           |    2 +-
+ .../exp-5-release-pattern/EXPERIMENT.md            |    2 +-
+ .../exp-6-installable-bp3/EXPERIMENT.md            |    4 +-
+ .../experiments/exp-7-shared-release/EXPERIMENT.md |    2 +-
+ .../exp-8-induct-worktree-default/EXPERIMENT.md    |   14 +-
+ .../2026-11-14-bp3-unit-tests/GOAL.md}             |    0
+ .../2026-11-14-bp3-unit-tests/ICEBOX.md            |    4 +-
+ .../exp-1-test-split-standard/EXPERIMENT.md        |    2 +-
+ .../experiments/exp-2-unit-backfill/EXPERIMENT.md  |    2 +-
+ .../experiments/exp-3-linters/EXPERIMENT.md        |    2 +-
+ .../2026-11-14-bp3-workflows-v2/GOAL.md}           |    8 +-
+ .../2026-11-14-bp3-workflows-v2/HUMAN-LOG.md       |    6 +-
+ .../2026-11-14-bp3-workflows-v2/REPORT.md          |   24 +-
+ .../experiments/exp-1-induct-grade/ledger.jsonl    |    0
+ .../experiments/exp-1-induct-grade/state.yaml      |    2 +-
+ .../experiments/exp-2-induct-exp-slim/ledger.jsonl |    0
+ .../experiments/exp-2-induct-exp-slim/state.yaml   |    2 +-
+ .../experiments/exp-3-conductor/ledger.jsonl       |    0
+ .../experiments/exp-3-conductor/state.yaml         |    2 +-
+ .../experiments/exp-4-desks/ledger.jsonl           |    0
+ .../experiments/exp-4-desks/state.yaml             |    2 +-
+ .../exp-5-grade-matrix-fix/ledger.jsonl            |    0
+ .../experiments/exp-5-grade-matrix-fix/state.yaml  |    2 +-
+ .../experiments/exp-6-cycle-autonomy/ledger.jsonl  |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../experiments/exp-6-cycle-autonomy/state.yaml    |    2 +-
+ .../exp-7-landing-vocabulary/ledger.jsonl          |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../exp-7-landing-vocabulary/state.yaml            |    2 +-
+ .../experiments/exp-8-induct-solo/ledger.jsonl     |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../runs/nohuman-drive-20261115/DAWN-REPORT.md     |    0
+ .../experiments/exp-8-induct-solo/state.yaml       |    2 +-
+=== validations log head ===
+=== git_clean ===
+=== git_show ===
+commit c0ab195fde5e12559ca72c71e1624e0b3c21bbf7
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 11:18:38 2026 -0500
+
+    feat(followup.3): goal-term purge — quest deleted, container is goal
+    
+    TL;DR: purge quest from every live surface — docs/quests->docs/goals, QUEST.md/GRAPH.md->GOAL.md, bp3/quest refs->bp3/goal, quest_type->goal_type, graph_fin->goal_fin, goal/<slug> branches; graph (bp3 g) unchanged as the goal's DAG.
+    
+    For humans: the container of work is now a goal; open docs/goals/<goal>/GOAL.md. Old ledgers still read — the fold maps legacy quest_type/graph_type keys and frozen bp3/quest refs in exactly one place (src/graph/store.ml); landed ledger text was never rewritten.
+    
+    For LLMs: store.ml graph_dir/graph_branch/list_graphs speak goal paths with one-place legacy fold; main.ml scaffolds GOAL.md + goal_type; AGENTS.md/CLAUDE.md/naming skill synced (goal container, graph DAG, goal_fin); skill renders + workflows re-pointed; make check green; post-purge bp3 g r ok:true.
+
+ .agents/skills/bp3g-frame/SKILL.md                 |   10 +-
+ .agents/skills/bp3g-no-human/SKILL.md              |    8 +-
+ .agents/skills/bp3g/SKILL.md                       |   10 +-
+ .agents/skills/naming/SKILL.md                     |   10 +-
+ .agents/skills/using-bp3/SKILL.md                  |    6 +-
+ .agents/workflows/bp3g-grade.js                    |    4 +-
+ .agents/workflows/bp3g-land.js                     |    2 +-
+ .agents/workflows/bp3g-node.js                     |    2 +-
+ .agents/workflows/node-loop.js                     |    2 +-
+ .claude/skills/bp3g-frame/SKILL.md                 |   10 +-
+ .claude/skills/bp3g-no-human/SKILL.md              |    8 +-
+ .claude/skills/bp3g/SKILL.md                       |   10 +-
+ .claude/skills/naming/SKILL.md                     |   10 +-
+ .claude/skills/using-bp3/SKILL.md                  |    6 +-
+ .pi/skills/bp3g-frame/SKILL.md                     |   10 +-
+ .pi/skills/bp3g-no-human/SKILL.md                  |    8 +-
+ .pi/skills/bp3g/SKILL.md                           |   10 +-
+ .pi/skills/naming/SKILL.md                         |   10 +-
+ .pi/skills/using-bp3/SKILL.md                      |    6 +-
+ AGENTS.md                                          |   12 +-
+ CLAUDE.md                                          |   12 +-
+ docs/designs/bp3-control-mvp.md                    |    4 +-
+ .../QUEST.md => goals/2026-11-05-bp3-mvp/GOAL.md}  |    2 +-
+ .../2026-11-06-bounded-workflow-loop.md            |    2 +-
+ .../experiments/2026-11-06-bp3-resume.md           |    2 +-
+ .../2026-11-06-controller-wait-notify.md           |    2 +-
+ .../2026-11-06-reusable-workers-reviewers.md       |    2 +-
+ .../2026-11-06-worker-retirement-revival.md        |    2 +-
+ .../experiments/2026-11-06-writer-sizing.md        |    2 +-
+ .../2026-11-05-bp3-skills-install.md               |    2 +-
+ docs/{quests => goals}/2026-11-07-bp3-engine-pi.md |    6 +-
+ .../2026-11-07-bp3-mvp-engine-core/GOAL.md}        |   10 +-
+ .../experiments/2026-11-07-tape-hooks.md           |    2 +-
+ .../experiments/exp-1-baseline/EXPERIMENT.md       |    2 +-
+ .../experiments/exp-2-cli-scaffold/EXPERIMENT.md   |    4 +-
+ .../experiments/exp-3-fsm/EXPERIMENT.md            |    6 +-
+ .../experiments/exp-4-tape-hooks/EXPERIMENT.md     |    4 +-
+ .../experiments/exp-5-muse-engine/EXPERIMENT.md    |    4 +-
+ .../experiments/exp-6-hooks/EXPERIMENT.md          |    2 +-
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../experiments/exp-7-live-hooks/EXPERIMENT.md     |    2 +-
+ .../experiments/exp-7-live-hooks/LIVE.md           |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ docs/{quests => goals}/2026-11-07-bp3-pi-qol.md    |    0
+ .../2026-11-09-bp3-land-verdicts/GOAL.md}          |    4 +-
+ .../2026-11-09-bp3-land-verdicts/fsm.yaml          |    2 +-
+ .../2026-11-09-bp3-land-verdicts/ledger.jsonl      |    0
+ .../2026-11-09-bp3-land-verdicts/state.yaml        |    0
+ .../GOAL.md}                                       |    8 +-
+ .../fsm.yaml                                       |    2 +-
+ .../ledger.jsonl                                   |    0
+ .../state.yaml                                     |    0
+ .../2026-11-14-bp3-cli-small-fixes/GOAL.md}        |    4 +-
+ .../exp-1-rendered-tables/EXPERIMENT.md            |    4 +-
+ .../experiments/exp-2-tab-completion/EXPERIMENT.md |    4 +-
+ .../experiments/exp-3-icebox-search/EXPERIMENT.md  |    2 +-
+ .../experiments/exp-4-help/EXPERIMENT.md           |    2 +-
+ .../exp-5-release-pattern/EXPERIMENT.md            |    2 +-
+ .../exp-6-installable-bp3/EXPERIMENT.md            |    4 +-
+ .../experiments/exp-7-shared-release/EXPERIMENT.md |    2 +-
+ .../exp-8-induct-worktree-default/EXPERIMENT.md    |   14 +-
+ .../2026-11-14-bp3-unit-tests/GOAL.md}             |    0
+ .../2026-11-14-bp3-unit-tests/ICEBOX.md            |    4 +-
+ .../exp-1-test-split-standard/EXPERIMENT.md        |    2 +-
+ .../experiments/exp-2-unit-backfill/EXPERIMENT.md  |    2 +-
+ .../experiments/exp-3-linters/EXPERIMENT.md        |    2 +-
+ .../2026-11-14-bp3-workflows-v2/GOAL.md}           |    8 +-
+ .../2026-11-14-bp3-workflows-v2/HUMAN-LOG.md       |    6 +-
+ .../2026-11-14-bp3-workflows-v2/REPORT.md          |   24 +-
+ .../experiments/exp-1-induct-grade/ledger.jsonl    |    0
+ .../experiments/exp-1-induct-grade/state.yaml      |    2 +-
+ .../experiments/exp-2-induct-exp-slim/ledger.jsonl |    0
+ .../experiments/exp-2-induct-exp-slim/state.yaml   |    2 +-
+ .../experiments/exp-3-conductor/ledger.jsonl       |    0
+ .../experiments/exp-3-conductor/state.yaml         |    2 +-
+ .../experiments/exp-4-desks/ledger.jsonl           |    0
+ .../experiments/exp-4-desks/state.yaml             |    2 +-
+ .../exp-5-grade-matrix-fix/ledger.jsonl            |    0
+ .../experiments/exp-5-grade-matrix-fix/state.yaml  |    2 +-
+ .../experiments/exp-6-cycle-autonomy/ledger.jsonl  |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../experiments/exp-6-cycle-autonomy/state.yaml    |    2 +-
+ .../exp-7-landing-vocabulary/ledger.jsonl          |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../exp-7-landing-vocabulary/state.yaml            |    2 +-
+ .../experiments/exp-8-induct-solo/ledger.jsonl     |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../runs/nohuman-drive-20261115/DAWN-REPORT.md     |    0
+ .../experiments/exp-8-induct-solo/state.yaml       |    2 +-
+ .../experiments/exp-9-parallel-quests/ledger.jsonl |    0
+ .../fleet-drive/CHECKIN-REPORT.md                  |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../experiments/exp-9-parallel-quests/state.yaml   |    2 +-
+ .../2026-11-14-bp3-workflows-v2/ledger.jsonl       |    0
+ .../2026-11-14-bp3-worktrees/GOAL.md}              |    2 +-
+ .../experiments/exp-1-util-layer/EXPERIMENT.md     |    2 +-
+ .../experiments/exp-2-bookkeeping/EXPERIMENT.md    |    2 +-
+ .../DECISION-RECORD.md                             |    8 +-
+ .../GOAL.md}                                       |    6 +-
+ .../TEST-HARDENING.md                              |    0
+ .../experiments/exp-backtest-1-muse/EXPERIMENT.md  |    2 +-
+ .../backtest.json                                  |    0
+ .../findings.md                                    |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../backtest.json                                  |    0
+ .../findings.md                                    |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../experiments/exp-backtest-2-pi/EXPERIMENT.md    |    2 +-
+ .../backtest.json                                  |    0
+ .../findings.md                                    |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../exp-dogfood-1-muse-toy-quest/EXPERIMENT.md     |    2 +-
+ .../flappy.html                                    |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../flappy.html                                    |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../flappy.html                                    |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../flappy.html                                    |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../flappy.html                                    |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../flappy.html                                    |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../EXPERIMENT.md                                  |    8 +-
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../exp-dogfood-3-pi-toy-quest/EXPERIMENT.md       |    2 +-
+ .../notes.md                                       |    0
+ .../pi-derivation.json                             |    0
+ .../tape.log                                       |    0
+ .../flappy.html                                    |    0
+ .../exp-dogfood-4-pi-extension-drive/EXPERIMENT.md |    2 +-
+ .../drive-attempt1.jsonl                           |    0
+ .../drive-attempt1.stderr.log                      |    0
+ .../drive.jsonl                                    |    0
+ .../notes.md                                       |    0
+ .../pi-derivation.json                             |    0
+ .../tape.log                                       |    0
+ .../flappy.html                                    |    0
+ .../EXPERIMENT.md                                  |    2 +-
+ .../exp-followup-2-finish-evidence/EXPERIMENT.md   |    2 +-
+ .../exp-followup-3-tape-binding/EXPERIMENT.md      |    2 +-
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../exp-followup-4-bind-resolution/EXPERIMENT.md   |    2 +-
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../exp-followup-5-pi-extension/EXPERIMENT.md      |    2 +-
+ .../notes.md                                       |    0
+ .../tape.log                                       |    0
+ .../EXPERIMENT.md                                  |    2 +-
+ .../notes.md                                       |    0
+=== validations wc ===
+     517 /Users/whycz/m/bp3/.git/bp3/20261117T171458Z-exp-followup-3-goal-term-purge-validations.log
+=== validations grep headers ===
+1:=== git_clean ===
+2:=== git_show ===
+516:=== handoff_line ===
+=== tail validations ===
+ docs/quests/2026-11-15-toy-fleet-overlap/QUEST.md  |    3 -
+ docs/quests/2026-11-15-toy-fleet-park-a/QUEST.md   |    3 -
+ docs/quests/2026-11-15-toy-fleet-park-b/QUEST.md   |    3 -
+ plans/default.yaml                                 |    2 +-
+ plans/direct.yaml                                  |    2 +-
+ skills/bp3g-frame/SKILL.md                         |   10 +-
+ skills/bp3g-no-human/SKILL.md                      |    8 +-
+ skills/bp3g/SKILL.md                               |   10 +-
+ skills/bp3g/workflows/bp3g-grade.js                |    4 +-
+ skills/bp3g/workflows/bp3g-land.js                 |    2 +-
+ skills/bp3g/workflows/bp3g-node.js                 |    2 +-
+ skills/bp3g/workflows/node-loop.js                 |    2 +-
+ skills/naming/SKILL.md                             |    9 +-
+ skills/using-bp3/SKILL.md                          |    6 +-
+ src/graph/main.ml                                  |   12 +-
+ src/graph/render.ml                                |    4 +-
+ src/graph/store.ml                                 |   18 +-
+ test/blocked.sh                                    |    2 +-
+ test/bp3g-grade.test.mjs                           |    2 +-
+ test/context.sh                                    |    6 +-
+ test/dogfood-parallel.sh                           |   16 +-
+ test/g.sh                                          |   44 +-
+ test/hooks.sh                                      |   12 +-
+ test/install.sh                                    |    2 +-
+ test/ready.sh                                      |   12 +-
+ test/skills.sh                                     |    2 +-
+ test/tape.sh                                       |    4 +-
+ 500 files changed, 92418 insertions(+), 403 deletions(-)
+=== handoff_line ===
+{"ts":"2026-11-17T16:19:03Z","edge":"handoff","from":"todo","to":"handed_off","cycle":1,"commit":"c0ab195fde5e12559ca72c71e1624e0b3c21bbf7","verdict":null,"reason":"goal-term purge: docs/goals+GOAL.md, goal_type/goal_fin, bp3/goal refs; make check green, post-purge read ok","harness":"muse-code","model":"muse-wonder-1.0","bp3_version":"0.2.0","run_id":"20261117T155848Z-handoff-muse-code-muse-wonder-1.0-c1"}
+=== git diff name-status count ===
+     500
+M	.agents/skills/bp3g-frame/SKILL.md
+M	.agents/skills/bp3g-no-human/SKILL.md
+M	.agents/skills/bp3g/SKILL.md
+M	.agents/skills/naming/SKILL.md
+M	.agents/skills/using-bp3/SKILL.md
+M	.claude/skills/bp3g-frame/SKILL.md
+M	.claude/skills/bp3g-no-human/SKILL.md
+M	.claude/skills/bp3g/SKILL.md
+M	.claude/skills/naming/SKILL.md
+M	.claude/skills/using-bp3/SKILL.md
+M	.pi/skills/bp3g-frame/SKILL.md
+M	.pi/skills/bp3g-no-human/SKILL.md
+M	.pi/skills/bp3g/SKILL.md
+M	.pi/skills/naming/SKILL.md
+M	.pi/skills/using-bp3/SKILL.md
+R098	docs/quests/2026-11-05-bp3-mvp/QUEST.md	docs/goals/2026-11-05-bp3-mvp/GOAL.md
+R098	docs/quests/2026-11-05-bp3-skills-install.md	docs/goals/2026-11-05-bp3-skills-install.md
+R098	docs/quests/2026-11-07-bp3-mvp-engine-core/QUEST.md	docs/goals/2026-11-07-bp3-mvp-engine-core/GOAL.md
+R099	docs/quests/2026-11-09-bp3-land-verdicts/QUEST.md	docs/goals/2026-11-09-bp3-land-verdicts/GOAL.md
+R097	docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/QUEST.md	docs/goals/2026-11-09-bp3-mvp-plugin-git-cas-lands/GOAL.md
+R099	docs/quests/2026-11-14-bp3-cli-small-fixes/QUEST.md	docs/goals/2026-11-14-bp3-cli-small-fixes/GOAL.md
+R100	docs/quests/2026-11-14-bp3-unit-tests/QUEST.md	docs/goals/2026-11-14-bp3-unit-tests/GOAL.md
+R097	docs/quests/2026-11-14-bp3-workflows-v2/QUEST.md	docs/goals/2026-11-14-bp3-workflows-v2/GOAL.md
+R099	docs/quests/2026-11-14-bp3-worktrees/QUEST.md	docs/goals/2026-11-14-bp3-worktrees/GOAL.md
+R099	docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/QUEST.md	docs/goals/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/GOAL.md
+R095	docs/quests/2026-11-15-pi-engine-conductor/QUEST.md	docs/goals/2026-11-15-pi-engine-conductor/GOAL.md
+R099	docs/quests/2026-11-15-pi-engine-conductor/experiments/exp-6-pi-skills/EXPERIMENT.md	docs/goals/2026-11-15-pi-engine-conductor/experiments/exp-6-pi-skills/EXPERIMENT.md
+A	docs/goals/2026-11-15-toy-fleet-a/GOAL.md
+A	docs/goals/2026-11-15-toy-fleet-b/GOAL.md
+A	docs/goals/2026-11-15-toy-fleet-budget/GOAL.md
+A	docs/goals/2026-11-15-toy-fleet-overlap/GOAL.md
+A	docs/goals/2026-11-15-toy-fleet-park-a/GOAL.md
+A	docs/goals/2026-11-15-toy-fleet-park-b/GOAL.md
+R098	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/QUEST.md	docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/GOAL.md
+M	skills/bp3g-frame/SKILL.md
+M	skills/bp3g-no-human/SKILL.md
+M	skills/bp3g/SKILL.md
+M	skills/bp3g/workflows/bp3g-grade.js
+M	skills/bp3g/workflows/bp3g-land.js
+M	skills/bp3g/workflows/bp3g-node.js
+M	skills/bp3g/workflows/node-loop.js
+M	skills/naming/SKILL.md
+M	skills/using-bp3/SKILL.md
+M	src/graph/main.ml
+M	src/graph/render.ml
+M	src/graph/store.ml
+M	test/skills.sh
+=== HEAD ===
+82446c8dca2513f569abf353ef6c371b895576f4
+82446c8 grade transport: shell moves bytes, child moves a pointer (conductor bootstrap)
+f8f75ce followup.3 scope C + followup.5 record + dogfood.3 flappy fixture (owner)
+c0ab195 feat(followup.3): goal-term purge — quest deleted, container is goal
+=== graph dir ===
+experiments
+GOAL.md
+=== GOAL.md head ===
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+| tape | tape | the harness session recording (unchanged) |
+
+States rest in the root worker's read. Edges are
+subagents. A child holds nothing across edges;
+context is claimed, never remembered.
+
+Edge names (settled red-ink names round, owner —
+option A; rides rename.1, old ledgers keep old
+words and the rename table maps them):
+
+| Coded today | Settled name | Caller does |
+|---|---|---|
+| `submit` | `handoff` | author binds the finished commit |
+| `review` | `grade` | reviewer grades the exact commit (`ship\|needs_fix`) |
+| `check` | `verify` | machine checks (`pass\|fail`) |
+| `land` | `land` | merge into the graph branch |
+| state `submitted` | state `handed_off` | verb/state rhyme: `handoff` hands off, node rests `handed_off` |
+| `block` | `block` | park for a human decision |
+| `resume` | `resume` | human answer re-enters (`BP3_DECIDER=human`) |
+
+Link mint/claim are verbs, not flags:
+`bp3 harness link mint --kind node|edge …` and
+`bp3 harness link claim <token>`. A node link
+carries no edge name — the node worker executes
+no transition when it claims.
+
+Door letter settled: `bp3 g`, not `bp3 t`.
+Nodes form a DAG (shared deps, diamonds — a tree
+allows one parent), scheduled by BFS ready-set
+waves; the *execution* is a tree of workers.
+Tree survives as a view (`--format tree`) and as
+the worker-tree shape, never as the addressed
+noun.
+
+## Success picture
+=== state/ledger for node ===
+cat: docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/state.yaml: No such file or directory
+---ledger---
+cat: docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/ledger.jsonl: No such file or directory
+=== EXPERIMENT at bound c0ab195 ===
+---
+date: 2026-11-17
+goal: ../GOAL.md
+exp: followup.3
+status: proposed
+---
+
+# followup.3 - goal-term-purge: quest is gone, the word is goal
+
+## TL;DR
+
+Owner decision (2026-11-17): the term `quest`
+is deleted from bp3's vocabulary. The container
+of work is a **goal**; its DAG of nodes is the
+graph (`bp3 g` already speaks graph/node). This
+node performs the purge on every live surface —
+files, code, skills, docs — the same way
+rename.1 purged the old CLI nouns. Ledger
+history is history: landed ledger lines keep
+the words they were written with.
+
+## Demo (design trace)
+
+```text
+before: docs/goals/<slug>/GOAL.md, quest/<slug> branch,
+        /quest skill, goal_fin, "induct the quest"
+after:  docs/goals/<slug>/GOAL.md, goal/<slug> branch,
+        /goal framing skill, goal_fin, "induct the goal"
+        bp3 g <goal> r <node>  (graph door unchanged)
+```
+
+## Diagram
+
+```text
+term quest ──purge──► term goal        (container, files, skills, reports)
+term graph ──stays──► the goal's DAG   (bp3 g, node, edge, dep: unchanged)
+ledger history ──stays──► old words in landed lines (never rewritten)
+```
+
+## Pseudocode
+
+```python
+RENAME = {
+  "docs/goals/": "docs/goals/", "GOAL.md": "GOAL.md",
+  "quest/<slug>": "goal/<slug>", "goal_fin": "goal_fin",
+  "goal_type": "goal_type", "/quest": "/goal (bp3 framing skill)",
+  "induct-goal": "induct-goal", "red-ink-goal-landing-demo": "red-ink-goal-landing-demo",
+}
+for surface in live_surfaces: apply(RENAME, surface)
+assert grep("quest", live_surfaces) == 0   # history/ledger exempt, named
+```
+
+| Field | Value |
+|---|---|
+| Intent | one concept, one word, one spelling, everywhere |
+| Lane | standard |
+| Output | goal vocabulary on all live surfaces; rename table in Terms; grep-zero proof |
+| Depends on | rename.1, followup.2 (conduct must survive the rename) |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| files renamed | `docs/goals/<slug>/GOAL.md` live; graph id/slug unchanged; no path a record points at is broken (exp records re-pointed in the same commit) |
+| code renamed | `quest` identifiers on live code surfaces renamed (dirs/modules/verbs per rename table); `make check` green |
+| skills renamed | framing/induct/landing-demo skills answer to goal names; old skill names refuse or redirect, never silently duplicate |
+| grep proof | `quest` (case-insensitive) greps to zero on live surfaces; exemptions listed by name (landed ledger text, this record's history quotes) |
+| conduct survives | after the purge, one node is conducted (read → handoff or land) with zero refusals caused by the rename |
+| terms synced | QUEST/GOAL Terms, AGENTS.md, naming skill vocabulary all say goal; naming skill's stale "no graph terms" rule removed |
+
+## Acceptance test (goal block)
+
+- **Objective:** no live surface says quest.
+- **Prove by:** grep-zero output + `make check` + one post-purge conduct.
+- **Done when:** the graph reads, lands, and reports in goal vocabulary only.
+
+## Tests
+
+`make check`; targeted greps from the acceptance
+table; fixture conduct of one already-landed node
+(read-only) plus the next live node's first step.
+
+## Context
+
+Owner: "the term quest gone, it should be goal"
+then confirmed quest→goal in files and code.
+`goal` names the destination; `graph` names the
+machine that gets there. rename.1 proved a live
+rename is safe in this engine; this is the same
+move on the last old noun.
+=== diff EXPERIMENT bound..HEAD ===
+diff --git a/docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md b/docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md
+index d7e88d8..f2b0c4f 100644
+--- a/docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md
++++ b/docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md
+@@ -88,3 +88,41 @@ then confirmed quest→goal in files and code.
+ machine that gets there. rename.1 proved a live
+ rename is safe in this engine; this is the same
+ move on the last old noun.
++## Amendment (owner, 2026-11-17): scope C — full rename with migration script
++
++Owner escalated the purge from filenames to the
++full surface, IDs included, with a migration
++script doing the mechanical work:
++
++| Surface | From | To |
++|---|---|---|
++| graph record | `QUEST.md` | `GRAPH.md` |
++| node record | `EXPERIMENT.md` | `NODE.md` |
++| folders | `docs/quests/`, `experiments/` | `docs/graphs/`, `nodes/` |
++| node IDs | `exp-<milestone>-<n>-<slug>` | `node-<milestone>-<n>-<slug>` |
++| node branches | `bp3/exp/<graph>/<node>` | per migration script's table |
++| container term | quest | goal in prose; graph for structure |
++| framing skill | `quest` (`/quest`) | `graph` (`/graph`) |
++| conductor skill | `induct` | `traverse` |
++| alias skill | `induct-quest` | deleted (was a pointer; old name refuses) |
++| fleet skill | `induct-quest-no-human` | `traverse-no-human` |
++| landing demo skill | `red-ink-quest-landing-demo` | `red-ink-graph-landing-demo` |
++
++Skill acceptance adds: each new skill name loads;
++each old name refuses/redirects (never a silent
++duplicate body); renders for all harnesses
++regenerated and freshness-checked.
++
++Migration script requirements: dry-run mode
++printing the full rename plan; idempotent
++(second run is a no-op); refuses on a dirty
++tree; renames branches without losing tips;
++re-points every record reference in the same
++change; ledger history lines are never edited
++(old IDs inside landed ledger text stay, mapped
++by the rename table). Acceptance adds: script
++dry-run output quoted, post-migration state
++reads for every pre-existing node return the
++same state/commit under the new ID, and one
++post-migration conduct completes with zero
++rename-caused refusals.
+=== log EXPERIMENT ===
+f8f75ce followup.3 scope C + followup.5 record + dogfood.3 flappy fixture (owner)
+c0ab195 feat(followup.3): goal-term purge — quest deleted, container is goal
+ff48418 followup.3 + dogfood.3: goal-term purge and external-drive nodes (owner)
+=== bound tree docs ===
+docs/designs
+docs/dossiers
+docs/goals
+docs/icebox
+--- goals count ---
+17
+quests-ls-exit:0
+=== src diff bound ===
+commit c0ab195fde5e12559ca72c71e1624e0b3c21bbf7
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 11:18:38 2026 -0500
+
+    feat(followup.3): goal-term purge — quest deleted, container is goal
+    
+    TL;DR: purge quest from every live surface — docs/quests->docs/goals, QUEST.md/GRAPH.md->GOAL.md, bp3/quest refs->bp3/goal, quest_type->goal_type, graph_fin->goal_fin, goal/<slug> branches; graph (bp3 g) unchanged as the goal's DAG.
+    
+    For humans: the container of work is now a goal; open docs/goals/<goal>/GOAL.md. Old ledgers still read — the fold maps legacy quest_type/graph_type keys and frozen bp3/quest refs in exactly one place (src/graph/store.ml); landed ledger text was never rewritten.
+    
+    For LLMs: store.ml graph_dir/graph_branch/list_graphs speak goal paths with one-place legacy fold; main.ml scaffolds GOAL.md + goal_type; AGENTS.md/CLAUDE.md/naming skill synced (goal container, graph DAG, goal_fin); skill renders + workflows re-pointed; make check green; post-purge bp3 g r ok:true.
+
+diff --git a/src/graph/main.ml b/src/graph/main.ml
+index 8010d88..2a12b3c 100644
+--- a/src/graph/main.ml
++++ b/src/graph/main.ml
+@@ -113,14 +113,14 @@ let do_graph_create graph fl id =
+     | _ -> [] in
+   List.iter check_slug deps;
+   let head = head_sha () in
+-  let qpath = graph_dir graph ^ "/GRAPH.md" in
++  let qpath = graph_dir graph ^ "/GOAL.md" in
+   let existing_graph_md = git_show head qpath in
+   let graph_md = match existing_graph_md with
+     | Some c -> c
+-    | None -> Printf.sprintf "---\nstatus: proposed\ngraph_type: %s\n---\n\n# %s\n\n## Success picture\n\nTODO\n" qtype graph in
++    | None -> Printf.sprintf "---\nstatus: proposed\ngoal_type: %s\n---\n\n# %s\n\n## Success picture\n\nTODO\n" qtype graph in
+   let line = ledger_line ~edge:"create" ~from:"" ~to_:"proposed" ~cycle:1
+     ~commit:None ~verdict:None ~reason:"" ~id
+-    ~extra:[("graph_type", json_str qtype);
++    ~extra:[("goal_type", json_str qtype);
+             ("depends_on", `List (List.map json_str deps))] () in
+   let existing_ledger = git_show head (graph_ledger_path graph) in
+   let ledger = (match existing_ledger with Some t when String.trim t <> "" -> t ^ (if t.[String.length t-1] = '\n' then "" else "\n") | _ -> "") ^ line ^ "\n" in
+@@ -573,7 +573,7 @@ let help_g = "bp3 g - graph/node state. Doors:\n\
+ Run bp3 g <door> -h for that door's verbs, edges, and flags.\n"
+ 
+ let help_graph_door = "bp3 g <graph door> - verbs:\n\
+-  bp3 g c <graph> [--type <graph_type>] [--depends-on <a,b>]   create a graph\n\
++  bp3 g c <graph> [--type <goal_type>] [--depends-on <a,b>]   create a graph\n\
+   bp3 g r [<graph>] [--format json|table|tree]                 list graphs, or read one\n\
+   bp3 g d <graph> --reason <why>                               delete a graph\n\
+ Long forms: create, read, delete. Example: bp3 g c my-graph --type default\n"
+@@ -720,8 +720,8 @@ let rec run argv =
+       print_verdict ~fmt:"json" (Worktree.run rest); 0
+   | "init-repo" :: _ ->
+       (* Node 6: scaffold plans/ into the caller's repo; never clobber differing plans *)
+-      let plans = [("plans/default.yaml", "graph_type: default\nmax_cycles: 1\ngrade:\n  required: true\nverify: required\n");
+-                   ("plans/direct.yaml", "graph_type: direct\nmax_cycles: 0\ngrade:\n  required: false\nverify: required\n")] in
++      let plans = [("plans/default.yaml", "goal_type: default\nmax_cycles: 1\ngrade:\n  required: true\nverify: required\n");
++                   ("plans/direct.yaml", "goal_type: direct\nmax_cycles: 0\ngrade:\n  required: false\nverify: required\n")] in
+       (try Unix.mkdir (Filename.concat root "plans") 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+       List.iter (fun (rel, content) ->
+         let path = Filename.concat root rel in
+diff --git a/src/graph/render.ml b/src/graph/render.ml
+index 145b7b2..91b2859 100644
+--- a/src/graph/render.ml
++++ b/src/graph/render.ml
+@@ -105,8 +105,8 @@ let graph_view q =
+         else if List.exists (fun (_, s) -> s.st = "blocked") node_states then "blocked"
+         else "active" in
+       (* Report word for the graph finish line: rollup stays [landed];
+-         [graph_fin] names promotion of that rollup to master. *)
+-      let fin = if rollup = "landed" then `String "graph_fin" else `Null in
++         [goal_fin] names promotion of that rollup to master. *)
++      let fin = if rollup = "landed" then `String "goal_fin" else `Null in
+       (`Assoc ([
+         ("graph", json_str q); ("state", json_str qs.st);
+         ("nodes", `List (List.map (fun (e, s, deps, t) -> node_json q e s deps t) node_infos));
+diff --git a/src/graph/store.ml b/src/graph/store.ml
+index 287f7e2..72b8a5f 100644
+--- a/src/graph/store.ml
++++ b/src/graph/store.ml
+@@ -193,8 +193,10 @@ let fold_ledger text =
+         if edge = "create" || edge = "dep" then begin
+           if edge = "create" then begin
+             s.node_type <- fold_type_key j "node_type" "exp_type"
+-              (fold_type_key j "graph_type" "quest_type" "default");
+-            graph_type := fold_type_key j "graph_type" "quest_type" !graph_type
++              (fold_type_key j "goal_type" "graph_type"
++                 (get_str j "quest_type" "default"));
++            graph_type := fold_type_key j "goal_type" "graph_type"
++              (get_str j "quest_type" !graph_type)
+           end;
+           (try match Yojson.Safe.Util.member "depends_on" j with
+              | `List xs -> depends_on := List.map (function `String x -> x | _ -> "") xs
+@@ -226,9 +228,9 @@ let ledger_text branch path =
+   | None -> None
+   | Some tip -> (match git_show tip path with Some t -> Some (tip, t) | None -> Some (tip, ""))
+ 
+-let graph_branch q = "refs/heads/bp3/quest/" ^ q
++let graph_branch q = "refs/heads/bp3/goal/" ^ q
+ let node_branch q e = "refs/heads/bp3/exp/" ^ q ^ "/" ^ e
+-let graph_dir q = "docs/quests/" ^ q
++let graph_dir q = "docs/goals/" ^ q
+ let graph_ledger_path q = graph_dir q ^ "/ledger.jsonl"
+ let node_dir q e = graph_dir q ^ "/experiments/" ^ e
+ let node_ledger_path q e = node_dir q e ^ "/ledger.jsonl"
+@@ -240,8 +242,12 @@ let list_refs prefix =
+   String.split_on_char '\n' out |> List.map String.trim |> List.filter (fun s -> s <> "")
+ 
+ let list_graphs () =
+-  list_refs "refs/heads/bp3/quest/" |> List.map (fun r ->
+-    let p = "refs/heads/bp3/quest/" in String.sub r (String.length p) (String.length r - String.length p))
++  (* Legacy storage prefix frozen bp3/quest/ folds here only (followup.3). *)
++  let strip p r = String.sub r (String.length p) (String.length r - String.length p) in
++  let cur = list_refs "refs/heads/bp3/goal/" |> List.map (strip "refs/heads/bp3/goal/") in
++  let old = list_refs "refs/heads/bp3/quest/" |> List.map (strip "refs/heads/bp3/quest/")
++    |> List.filter (fun q -> not (List.mem q cur)) in
++  cur @ old
+ 
+ let list_nodes q =
+   let p = "refs/heads/bp3/exp/" ^ q ^ "/" in
+=== grep quest at bound: live surfaces ===
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/bp3g-frame/SKILL.md:50:before questions because the repo already holds most answers.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/bp3g-frame/SKILL.md:71:| 3 | Ask questions whose answers change the shape: home repo, success picture, lane, first node | the rest become assumptions or open questions in the file |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/bp3g-frame/SKILL.md:75:| 6.5 | Diligence gate per node: design settled (no open questions), acceptance fails today, demo defined up front | an node with open design questions is not ready for `bp3g`; settle it with `red-ink` first — Node 4 of the MVP graph shipped unsettled design and the landing review caught it late |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/bp3g-frame/SKILL.md:100:Graph framed from one anyway says so in its Open questions.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/bp3g-frame/SKILL.md:239:## Open questions    (ranked, each with an owner)
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/bp3g-landing-demo/SKILL.md:26:| Design settled | no open questions in the node; no unadopted `EXPERIMENT.red-ink.md` working copy |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/bp3g-landing-demo/SKILL.md:72:8. Deliberately open: every deferred question with its
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/bp3g-landing-demo/SKILL.md:75:9. Close with the checkpoint question the owner answers:
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/bp3g-no-human/SKILL.md:69:  pages a question to the owner. A decision only a human
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/bp3g-no-human/SKILL.md:85:     design question;
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/bp3g-no-human/SKILL.md:101:   next cycle (Node 6 rule, no owner question); `landed`
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/bp3g/workflows/bp3g-grade.js:751:    "design question in the node means it was not done properly. Judge " +
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/icebox/SKILL.md:28:   questions, dependencies, identity/data gaps, tests that
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/naming/SKILL.md:41:  keep their frozen spellings (landed ledger text, `bp3/quest/` legacy refs, `quest_type` legacy key); only the fold maps them.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/red-ink/SKILL.md:3:description: "Present an existing design back to its owner in rounds until they say they are happy: copy the design first (original untouched), walk output first, then system inputs, then internals (data, state, functions, names, concepts); every round is Observe (teach) -> Orient (what matters) -> Decide (one detailed question, the owner's call) -> Act (one settled edit to the copy), closing with an IIUC playback and, at the end, a red chair of the settled design plus a decision record and proposed nodes (critical/major red-chair concerns appended as nodes). Use for Socratic design review of an existing artifact. Not for one-shot adversarial review (red-chair), authoring a new design (design), or interviewing an unclear request (ask, grill)."
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/red-ink/SKILL.md:37:    return exit_pack(decisions, open_questions, nodes, chair)
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/red-ink/SKILL.md:53:for elegant internals. One question per round keeps decisions
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/red-ink/SKILL.md:82:| the request itself is unclear | `ask` / `grill` |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/red-ink/SKILL.md:92:| Slice | Question it answers |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/red-ink/SKILL.md:110:| Orient | the 2-4 things that matter, tensions, the turning question |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/red-ink/SKILL.md:111:| Decide | exactly one detailed question: options + recommended answer. The owner calls it |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/red-ink/SKILL.md:125:| Decide question still unanswered | stay on the slice |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/red-ink/SKILL.md:126:| owner defers a question | record it under Deliberately open, with an owner; move on only when the owner says so |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/red-ink/SKILL.md:139:| 4 | Deliberately open | deferred questions, each with an owner or an icebox path; plus icebox entries consulted at walk start |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/red-ink/SKILL.md:241:| one question per round | a round with no Decide produced nothing |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:src/graph/store.ml:197:                 (get_str j "quest_type" "default"));
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:src/graph/store.ml:199:              (get_str j "quest_type" !graph_type)
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:src/graph/store.ml:245:  (* Legacy storage prefix frozen bp3/quest/ folds here only (followup.3). *)
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:src/graph/store.ml:248:  let old = list_refs "refs/heads/bp3/quest/" |> List.map (strip "refs/heads/bp3/quest/")
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/dogfood-link.sh:52:(function tick() { requestAnimationFrame(tick);
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/dogfood-parallel.sh:73:(function tick() { requestAnimationFrame(tick);
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/g.sh:42:if out=$(BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 quest demo r parser-fix 2>&1); then fail "old quest door accepted"; fi
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/g.sh:44:echo "$out" | jq -e '.ok == true and .graph == "demo" and .node == "parser-fix" and .state == "todo" and (has("quest") | not) and (has("exp") | not)' >/dev/null || fail "nested node read: $out"
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/skills.sh:74:# bp3g is the one conducting skill; old traverse/induct/quest names render nowhere.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/skills.sh:79:  assert test ! -e "$root/$h/skills/quest"
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/skills.sh:96:assert test ! -e "$root/.agents/workflows/quest-land.js"
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/skills.sh:156:assert grep -q 'design question' "$repo/skills/bp3g-no-human/SKILL.md"
+grep-src-exit:0
+=== grep quest full bound count ===
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.agents/skills/bp3g-frame/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.agents/skills/bp3g-landing-demo/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.agents/skills/bp3g-no-human/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.agents/skills/icebox/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.agents/skills/naming/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.agents/skills/red-ink/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.agents/workflows/bp3g-grade.js
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.claude/skills/bp3g-frame/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.claude/skills/bp3g-landing-demo/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.claude/skills/bp3g-no-human/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.claude/skills/icebox/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.claude/skills/naming/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.claude/skills/red-ink/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.pi/skills/bp3g-frame/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.pi/skills/bp3g-landing-demo/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.pi/skills/bp3g-no-human/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.pi/skills/icebox/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.pi/skills/naming/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:.pi/skills/red-ink/SKILL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/designs/bp3-control-mvp.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/designs/bp3-control.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/dossiers/bp3-pi-basics.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/dossiers/muse-workflows-hooks.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-bounded-workflow-loop.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-bp3-resume.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-controller-wait-notify.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-reusable-workers-reviewers.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-worker-retirement-revival.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-writer-sizing.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-engine-pi.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/GOAL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/2026-11-07-tape-hooks.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-1-baseline/EXPERIMENT.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-2-cli-scaffold/EXPERIMENT.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-3-fsm/EXPERIMENT.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-4-tape-hooks/EXPERIMENT.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-5-muse-engine/EXPERIMENT.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-check-muse-code-muse-wonder-1.0-c1/tape.log
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-review-muse-code-muse-wonder-1.0-c1/notes.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-review-muse-code-muse-wonder-1.0-c1/tape.log
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T025213Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-check-muse-code-muse-wonder-1.0-c2/tape.log
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-land-muse-code-muse-wonder-1.0-c2/notes.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-land-muse-code-muse-wonder-1.0-c2/tape.log
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-review-muse-code-muse-wonder-1.0-c2/tape.log
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/notes.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-6-hooks/runs/20261114T030613Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/EXPERIMENT.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/LIVE.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T065602Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-mvp-engine-core/experiments/exp-7-live-hooks/runs/20261114T142529Z-submit-muse-code-muse-wonder-1.0-c2/tape.log
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-07-bp3-pi-qol.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-09-bp3-land-verdicts/GOAL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-09-bp3-land-verdicts/ledger.jsonl
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-09-bp3-mvp-plugin-git-cas-lands/GOAL.md
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-09-bp3-mvp-plugin-git-cas-lands/ledger.jsonl
+=== skills at bound ===
+skills/add-bp3-skill
+skills/add-yap-skill
+skills/bp3g-frame
+skills/bp3g-landing-demo
+skills/bp3g-no-human
+skills/bp3g
+skills/icebox
+skills/naming
+skills/red-ink
+skills/using-bp3
+.agents/skills/add-bp3-skill
+.agents/skills/add-yap-skill
+.agents/skills/bp3g-frame
+.agents/skills/bp3g-landing-demo
+.agents/skills/bp3g-no-human
+.agents/skills/bp3g
+.agents/skills/icebox
+.agents/skills/naming
+.agents/skills/red-ink
+.agents/skills/using-bp3
+=== word grep quest bound live ===
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:skills/naming/SKILL.md:41:  keep their frozen spellings (landed ledger text, `bp3/quest/` legacy refs, `quest_type` legacy key); only the fold maps them.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:src/graph/store.ml:245:  (* Legacy storage prefix frozen bp3/quest/ folds here only (followup.3). *)
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:src/graph/store.ml:248:  let old = list_refs "refs/heads/bp3/quest/" |> List.map (strip "refs/heads/bp3/quest/")
+---
+=== word grep quest docs/goals current graph GOAL ===
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/GOAL.md:35:| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/GOAL.md:37:| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/GOAL.md:571:code, workflow briefs, and tests. Old quest files
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/GOAL.md:614:induct-exp / induct-grade / quest-land become
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/GOAL.md:684:Owner decision 2026-11-17: the term `quest` is
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:8:# followup.3 - goal-term-purge: quest is gone, the word is goal
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:12:Owner decision (2026-11-17): the term `quest`
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:25:before: docs/goals/<slug>/GOAL.md, quest/<slug> branch,
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:26:        /quest skill, goal_fin, "induct the quest"
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:35:term quest ──purge──► term goal        (container, files, skills, reports)
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:45:  "quest/<slug>": "goal/<slug>", "goal_fin": "goal_fin",
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:46:  "goal_type": "goal_type", "/quest": "/goal (bp3 framing skill)",
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:50:assert grep("quest", live_surfaces) == 0   # history/ledger exempt, named
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:65:| code renamed | `quest` identifiers on live code surfaces renamed (dirs/modules/verbs per rename table); `make check` green |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:67:| grep proof | `quest` (case-insensitive) greps to zero on live surfaces; exemptions listed by name (landed ledger text, this record's history quotes) |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:69:| terms synced | QUEST/GOAL Terms, AGENTS.md, naming skill vocabulary all say goal; naming skill's stale "no graph terms" rule removed |
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:73:- **Objective:** no live surface says quest.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:85:Owner: "the term quest gone, it should be goal"
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md:86:then confirmed quest→goal in files and code.
+=== AGENTS+naming diff ===
+commit c0ab195fde5e12559ca72c71e1624e0b3c21bbf7
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 11:18:38 2026 -0500
+
+    feat(followup.3): goal-term purge — quest deleted, container is goal
+    
+    TL;DR: purge quest from every live surface — docs/quests->docs/goals, QUEST.md/GRAPH.md->GOAL.md, bp3/quest refs->bp3/goal, quest_type->goal_type, graph_fin->goal_fin, goal/<slug> branches; graph (bp3 g) unchanged as the goal's DAG.
+    
+    For humans: the container of work is now a goal; open docs/goals/<goal>/GOAL.md. Old ledgers still read — the fold maps legacy quest_type/graph_type keys and frozen bp3/quest refs in exactly one place (src/graph/store.ml); landed ledger text was never rewritten.
+    
+    For LLMs: store.ml graph_dir/graph_branch/list_graphs speak goal paths with one-place legacy fold; main.ml scaffolds GOAL.md + goal_type; AGENTS.md/CLAUDE.md/naming skill synced (goal container, graph DAG, goal_fin); skill renders + workflows re-pointed; make check green; post-purge bp3 g r ok:true.
+
+diff --git a/AGENTS.md b/AGENTS.md
+index d20962f..4c1ccd2 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -3,7 +3,7 @@
+ bp3 is a graph state engine. Work moves as clean git commits;
+ a small OCaml binary (the `bp3 g` door) is the only writer of
+ graph state. Read this before touching anything under the
+-graph storage tree (`docs/quests/`, a frozen path spelling).
++goal storage tree (`docs/goals/`; the goal is the container, its DAG is the graph).
+ 
+ ## The one rule
+ 
+@@ -15,19 +15,19 @@ run `bp3 g r <graph>` and read its JSON verdict.
+ ## Layout
+ 
+ ```text
+-docs/quests/<graph>/     one folder per graph, flat, never moved
+-  GRAPH.md               authored: goal, scope, nodes, status field
++docs/goals/<graph>/     one folder per graph, flat, never moved
++  GOAL.md               authored: goal, scope, nodes, status field
+   fsm.yaml               authored: the plan (from plans/ at init)
+   state.yaml             GENERATED: stage, commit, cycle (a cache)
+   ledger.jsonl           GENERATED: every move, append-only (truth)
+   runs/<id>/             tape.log (verbatim), notes.md (lessons)
+-plans/<type>.yaml        graph_type plans (default: one review round)
++plans/<type>.yaml        goal_type plans (default: one review round)
+ src/graph/main.ml        the state engine (OCaml, yojson + unix)
+ docs/dossiers/           research records; they inform, never decide
+ nodes/ inside each graph folder: one record per node
+ ```
+ 
+-Status is a frontmatter field in `GRAPH.md`
++Status is a frontmatter field in `GOAL.md`
+ (`proposed | active | landed | canceled`), never a folder.
+ A graph's path must survive its whole life: node records and
+ other repos point at it.
+@@ -48,7 +48,7 @@ dune build src/graph/main.exe          # (make check does this)
+ make check                             # lint, skills, CLI fixture tests
+ ```
+ 
+-Two independent dimensions: `graph_type` is the plan (stages and
++Two independent dimensions: `goal_type` is the plan (stages and
+ gates, YAML in `plans/`), `engine` is who executes (single,
+ master-subagents, panes, workflows). A reviewer who refactors
+ takes a fix edge and produces a new commit; verdicts always bind
+diff --git a/skills/naming/SKILL.md b/skills/naming/SKILL.md
+index 551cc02..11940a4 100644
+--- a/skills/naming/SKILL.md
++++ b/skills/naming/SKILL.md
+@@ -6,7 +6,7 @@ description: "Choose concrete, short names in bp3's existing vocabulary for grap
+ # Naming
+ 
+ Use when a human, Controller, or Worker in bp3 must name or
+-rename something: a graph slug, node, skill, plan (`graph_type`),
++rename something: a graph slug, node, skill, plan (`goal_type`),
+ engine, CLI verb, file, or state. Invoked by name (`/naming`,
+ `$naming`). One output: one recommended name, with the vocabulary
+ it reuses. A shortlist only when two names genuinely tie.
+@@ -32,12 +32,13 @@ ordinary code identifiers with no bp3 meaning.
+   handoff, grade, verify, land, block, resume. A dep links
+   nodes; a dep is not an edge. Stages: author, grade, fix,
+   ready, landed, blocked, canceled.
+-- Dimensions: `graph_type` (the plan: default is implemented;
++- Goal and graph: the container of work is a **goal** (`docs/goals/<goal>/GOAL.md`, `goal/<slug>` branch, finish word `goal_fin`); its DAG of nodes is the **graph** (`bp3 g` unchanged). Graph id/slug unchanged by the goal rename.
++- Dimensions: `goal_type` (the plan: default is implemented;
+   design, mvp, refactor, frontend, backend are proposed), `engine` (who executes: single,
+   master-subagents, panes, workflows).
+-- Artifacts: GRAPH.md, state.yaml, ledger.jsonl,
++- Artifacts: GOAL.md, state.yaml, ledger.jsonl,
+   tape.log, notes.md, runs/. Storage paths and ledger history
+-  keep their frozen spellings; only the fold maps them.
++  keep their frozen spellings (landed ledger text, `bp3/quest/` legacy refs, `quest_type` legacy key); only the fold maps them.
+ - Ceremony lanes: micro, standard, high-blast-radius.
+ 
+ ## Procedure
+=== src diff bound..HEAD ===
+ skills/bp3g/workflows/bp3g-grade.js | 29 ++++++++++++++++++++++-------
+ 1 file changed, 22 insertions(+), 7 deletions(-)
+=== GOAL.md quest contexts at bound ===
+### Milestone: migration — words first
+
+### mig.1 - handoff-verbs — [record](experiments/exp-mig-1-handoff-verbs/EXPERIMENT.md)
+First node. FSM verbs/state take settled names
+(`submit -> handoff`, `review -> grade`,
+`check -> verify`, `submitted -> handed_off`) in
+code, workflow briefs, and tests. Old quest files
+never move; the fold maps old ledger strings on
+read, new lines write new words.
+
+### mig.2 - traverse-rename — [record](experiments/exp-mig-2-traverse-rename/EXPERIMENT.md)
+Conducting skills take graph names early:
+`/induct` + `/induct-goal` -> `/traverse`,
+`/induct-goal-no-human` -> `/traverse-no-human`,
+and the `induct-exp` workflow becomes `node-loop`
+(the node worker's loop; mvp.3 generalizes it).
+
+### Milestone: config — the local store
+
+### config.1 - bp3-config — [record](experiments/exp-config-1-bp3-config/EXPERIMENT.md)
+The machine-local hard store, named: `bp3 config`
+tree under the git common dir (contexts, desks,
+local thresholds, claims, by-session index,
+derivations). Written only by bp3 verbs, viewed
+via `bp3 config`, never committed, zero setup.
+
+### Milestone: mvp — link, context, schedule, diagram
+
+### mvp.1 - link-claim — [record](experiments/exp-mvp-1-link-claim/EXPERIMENT.md)
+`bp3 harness link`: mint a one-time link for one
+edge execution; child claims as first action. CAS
+in the common-dir store (one winner,
+`E_LINK_SPENT` names the first claimant). Claim
+records caller facts and the by-session index.
+
+### mvp.2 - context-resolution — [record](experiments/exp-mvp-2-context-resolution/EXPERIMENT.md)
+bp3 resolves graph/node/edge/run from the claim
+store (session, then desk) and stamps verdicts
+and ledger lines. No env ritual, no retyped
+context. Env is a hint only.
+
+### mvp.3 - ready-set-timing — [record](experiments/exp-mvp-3-ready-set-timing/EXPERIMENT.md)
+BFS ready-set waves from node deps; rollup emits ready
+nodes and per-node wall/wait/dwell; setup timing
+per Run with the 3-minute `W_SETUP_SLOW` gate.
+Parallel build/grade in per-node desks, serial
+land queue semantics stated and readied. Named
+deliverable: `induct-node` — one workflow run per
+node owning the whole FSM loop (the old
+induct-exp / induct-grade / quest-land become
+phases inside it); the root worker dispatches
+ready-set waves and handles blocked + goal_fin only.
+
+### mvp.4 - diagram-emit — [record](experiments/exp-mvp-4-diagram-emit/EXPERIMENT.md)
+Generated ASCII + mermaid from a live rollup:
+nodes with state/cycle, deps as ready-set waves, blocked
+an author cycle or page the human (config.1
+cycle-1 papercut).
+
+### followup.3 - goal-term-purge — [record](experiments/exp-followup-3-goal-term-purge/EXPERIMENT.md)
+Owner decision 2026-11-17: the term `quest` is
+gone; the container is a **goal** (its DAG is the
+graph). Purge on every live surface — files,
+code, skills, docs; ledger history keeps its
+words. Runs before dogfood.3 and landing.1.
+
+### Milestone: landing
+=== skill names bound ===
+--- bp3g-frame ---
+---
+name: bp3g-frame
+description: Turn a known intent into a bp3 Graph file at docs/goals/<date>-<slug>.md with nodes, acceptance checks, and human touchpoints.
+---
+
+# Graph
+
+```text
+--- bp3g ---
+---
+name: bp3g
+description: Conduct one bp3 graph from the main session — read state with bp3 g r, dispatch the one step that state calls for, re-read, until the graph is terminal or a human decision is owed.
+---
+
+# Bp3g
+
+Use when a human in a bp3-enabled repo invokes this skill by
+--- bp3g-no-human ---
+---
+name: bp3g-no-human
+description: Run several bp3 graphs with no human present using the bp3g conductor — fleet preflight, park blocked work in the inbox, and end with the check-in report; never attests, never pages, never promotes.
+---
+
+# Bp3g, no human
+
+Use when a human in a bp3-enabled repo invokes this skill
+--- bp3g-landing-demo ---
+---
+name: bp3g-landing-demo
+description: Produce the Landing IIUC for a bp3 Graph being promoted — diligence gate first (every node checked against its own acceptance; unsettled or improperly-done nodes route to red-ink, not landing), then decision record, settled picture, demo traces, files touched, verification, and deliberately-open items.
+---
+
+# Red-Ink Graph Landing Demo
+
+Use when a human or Controller in bp3 invokes this skill by
+=== make check (HEAD, src delta vs bound: only grade.js) ===
+=== conduct read post-purge ===
+{"ok":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"todo","nodes":[{"node":"exp-config-1-bp3-config","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null},{"node":"exp-dogfood-1-link-drive","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null},{"node":"exp-dogfood-2-parallel-drive","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null},{"node":"exp-dogfood-3-external-drive","state":"todo","fin":null,"cycle":1,"commit":null,"deps":["exp-followup-5-pure-grade"],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null},{"node":"exp-followup-1-grade-evidence","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null},{"node":"exp-followup-2-workflow-birth","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block"
+read-exit:0
+=== node read followup3 ===
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"graph read takes at most one graph"},"guidance":"Fix the call: graph read takes at most one graph"},"run_id":"20261117T171553Z-node-muse-code-muse-wonder-1.0-c1"}
+
+=== old door refusal ===
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 skills check | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]
+
+old-door-exit:0
+=== common dir derivations ===
+/Users/whycz/m/bp3/.git
+20261115T215646Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T215646Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T215646Z-review-muse-code-muse-wonder-1.0-c1.json
+20261115T215646Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220235Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T220235Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220706Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T220706Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220706Z-check-muse-code-muse-wonder-1.0-c1.json
+20261115T220706Z-check-muse-code-muse-wonder-1.0-c1.jsonl
+=== full graph read followup3 line ===
+True 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines todo
+exp-followup-3-goal-term-purge handed_off c0ab195fde5e12559ca72c71e1624e0b3c21bbf7
+=== old door exit direct ===
+exit:2
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 skills check | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 con
+=== state repoint sample ===
+    For humans: the container of work is now a goal; open docs/goals/<goal>/GOAL.md. Old ledgers still read — the fold maps legacy quest_type/graph_type keys and frozen bp3/quest refs in exactly one place (src/graph/store.ml); landed ledger text was never rewritten.
+    
+    For LLMs: store.ml graph_dir/graph_branch/list_graphs speak goal paths with one-place legacy fold; main.ml scaffolds GOAL.md + goal_type; AGENTS.md/CLAUDE.md/naming skill synced (goal container, graph DAG, goal_fin); skill renders + workflows re-pointed; make check green; post-purge bp3 g r ok:true.
+
+diff --git a/docs/goals/2026-11-14-bp3-workflows-v2/experiments/exp-1-induct-grade/state.yaml b/docs/goals/2026-11-14-bp3-workflows-v2/experiments/exp-1-induct-grade/state.yaml
+new file mode 100644
+index 0000000..396c928
+--- /dev/null
++++ b/docs/goals/2026-11-14-bp3-workflows-v2/experiments/exp-1-induct-grade/state.yaml
+@@ -0,0 +1,5 @@
++goal: 2026-11-14-bp3-workflows-v2
++exp: exp-1-induct-grade
++state: landed
++cycle: 1
++commit: b415f4a323975eb5162626b85a7c00ae59d5153f
+=== handoff derivation ===
+cat: /Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261117T155848Z-handoff-muse-code-muse-wonder-1.0-c1.jsonl: No such file or directory
+
+=== old skill dirs at bound ===
+quest: (exit 0)
+induct: (exit 0)
+induct-quest: (exit 0)
+induct-quest-no-human: (exit 0)
+red-ink-quest-landing-demo: (exit 0)
+goal: (exit 0)
+traverse: (exit 0)
+=== naming stale rule check bound ===
+3:description: "Choose concrete, short names in bp3's existing vocabulary for graphs, nodes, skills, plans, engines, and CLI verbs."
+9:rename something: a graph slug, node, skill, plan (`goal_type`),
+14:Use `bp3g-frame` for framing a graph (it delegates naming here),
+20:- Planning: graph, node, Run. The conducting skill family is
+21:  `bp3g`: `/bp3g` conducts a graph, `/bp3g-frame` frames one,
+22:  `/bp3g-no-human` runs unattended (G stands for goal and graph;
+23:  bare "goal" collides across harnesses).
+24:- Doors: `bp3 g` (graph), `bp3 n` (claimed node), `bp3 e`
+26:  `bp3 g <graph> n <node> e <edge>`. One door per noun; the
+29:  landed, blocked, deleted. Graph lifecycle: proposed, active,
+35:- Goal and graph: the container of work is a **goal** (`docs/goals/<goal>/GOAL.md`, `goal/<slug>` branch, finish word `goal_fin`); its DAG of nodes is the **graph** (`bp3 g` unchanged). Graph id/slug unchanged by the goal rename.
+36:- Dimensions: `goal_type` (the plan: default is implemented;
+39:- Artifacts: GOAL.md, state.yaml, ledger.jsonl,
+47:   path, graph doc, chat). The same concept may need the kind's
+69:  terms stay out; graph and node are the planning vocabulary.
+70:  The retired pre-rename spellings for graph and node live
+=== derivations 20261117 ===
+=== naming diff tail ===
+Date:   Tue Nov 17 11:18:38 2026 -0500
+
+    feat(followup.3): goal-term purge — quest deleted, container is goal
+    
+    TL;DR: purge quest from every live surface — docs/quests->docs/goals, QUEST.md/GRAPH.md->GOAL.md, bp3/quest refs->bp3/goal, quest_type->goal_type, graph_fin->goal_fin, goal/<slug> branches; graph (bp3 g) unchanged as the goal's DAG.
+    
+    For humans: the container of work is now a goal; open docs/goals/<goal>/GOAL.md. Old ledgers still read — the fold maps legacy quest_type/graph_type keys and frozen bp3/quest refs in exactly one place (src/graph/store.ml); landed ledger text was never rewritten.
+    
+    For LLMs: store.ml graph_dir/graph_branch/list_graphs speak goal paths with one-place legacy fold; main.ml scaffolds GOAL.md + goal_type; AGENTS.md/CLAUDE.md/naming skill synced (goal container, graph DAG, goal_fin); skill renders + workflows re-pointed; make check green; post-purge bp3 g r ok:true.
+
+diff --git a/skills/naming/SKILL.md b/skills/naming/SKILL.md
+index 551cc02..11940a4 100644
+--- a/skills/naming/SKILL.md
++++ b/skills/naming/SKILL.md
+@@ -6,7 +6,7 @@ description: "Choose concrete, short names in bp3's existing vocabulary for grap
+ # Naming
+ 
+ Use when a human, Controller, or Worker in bp3 must name or
+-rename something: a graph slug, node, skill, plan (`graph_type`),
++rename something: a graph slug, node, skill, plan (`goal_type`),
+ engine, CLI verb, file, or state. Invoked by name (`/naming`,
+ `$naming`). One output: one recommended name, with the vocabulary
+ it reuses. A shortlist only when two names genuinely tie.
+@@ -32,12 +32,13 @@ ordinary code identifiers with no bp3 meaning.
+   handoff, grade, verify, land, block, resume. A dep links
+   nodes; a dep is not an edge. Stages: author, grade, fix,
+   ready, landed, blocked, canceled.
+-- Dimensions: `graph_type` (the plan: default is implemented;
++- Goal and graph: the container of work is a **goal** (`docs/goals/<goal>/GOAL.md`, `goal/<slug>` branch, finish word `goal_fin`); its DAG of nodes is the **graph** (`bp3 g` unchanged). Graph id/slug unchanged by the goal rename.
++- Dimensions: `goal_type` (the plan: default is implemented;
+   design, mvp, refactor, frontend, backend are proposed), `engine` (who executes: single,
+   master-subagents, panes, workflows).
+-- Artifacts: GRAPH.md, state.yaml, ledger.jsonl,
++- Artifacts: GOAL.md, state.yaml, ledger.jsonl,
+   tape.log, notes.md, runs/. Storage paths and ledger history
+-  keep their frozen spellings; only the fold maps them.
++  keep their frozen spellings (landed ledger text, `bp3/quest/` legacy refs, `quest_type` legacy key); only the fold maps them.
+ - Ceremony lanes: micro, standard, high-blast-radius.
+ 
+ ## Procedure
+=== parent quest word in bp3g skills ===
+parent-grep-exit:0
+=== bound quest word same files ===
+bound-grep-exit:0
+=== bp3g-frame skill diff ===
+--- a/skills/bp3g-frame/SKILL.md
++++ b/skills/bp3g-frame/SKILL.md
+-description: Turn a known intent into a bp3 Graph file at docs/quests/<date>-<slug>.md with nodes, acceptance checks, and human touchpoints.
++description: Turn a known intent into a bp3 Graph file at docs/goals/<date>-<slug>.md with nodes, acceptance checks, and human touchpoints.
+-    +-------> docs/quests/<date>-<slug>.md
++    +-------> docs/goals/<date>-<slug>.md
+-| 2 | Research the ground: MVP doc, home repo state, prior Graphs in `docs/quests/` | every claim traces to a file read this session |
++| 2 | Research the ground: MVP doc, home repo state, prior Graphs in `docs/goals/` | every claim traces to a file read this session |
+-| 5 | Draft `docs/quests/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) | one Graph per file |
++| 5 | Draft `docs/goals/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) | one Graph per file |
+-Files stay in `docs/quests/` for life — node records point at them.
++Files stay in `docs/goals/` for life — node records point at them.
+=== naming graph-terms rule parent vs bound ===
+--- parent ---
+- One concept, one word, one spelling, everywhere: files, CLI,
+  docs, and chat. `canceled` in a status and `cancelled` in a
+  stage is a bug, not a dialect.
+- Concrete over abstract: prefer what the thing does or is
+  (tape, ledger, handoff) over machinery metaphors (flavor,
+  harness adapter, pipeline stage) unless the metaphor is
+  already the vocabulary.
+- No new planning words. Task, Milestone, and workflow
+  terms stay out; graph and node are the planning vocabulary.
+  The retired pre-rename spellings for graph and node live
+  only in frozen history and the fold's compat mapping.
+- Renames are explicit edits the human approves, with every
+  reference updated in the same change. A rename that leaves a
+  synonym behind in docs has not happened.
+- Instructions only: this skill decides words, never state.
+--- bound ---
+
+- One concept, one word, one spelling, everywhere: files, CLI,
+  docs, and chat. `canceled` in a status and `cancelled` in a
+  stage is a bug, not a dialect.
+- Concrete over abstract: prefer what the thing does or is
+  (tape, ledger, handoff) over machinery metaphors (flavor,
+  harness adapter, pipeline stage) unless the metaphor is
+  already the vocabulary.
+- No new planning words. Task, Milestone, and workflow
+  terms stay out; graph and node are the planning vocabulary.
+  The retired pre-rename spellings for graph and node live
+  only in frozen history and the fold's compat mapping.
+- Renames are explicit edits the human approves, with every
+  reference updated in the same change. A rename that leaves a
+  synonym behind in docs has not happened.
+- Instructions only: this skill decides words, never state.
+=== parent naming quest/graph lines ===
+=== full naming diff hunks ===
+11
+=== GOAL Terms at bound (goal row) ===
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+=== word quest docs/goals bound (excl runs/ledger) ===
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:11:scheduling, and survives the Controller dying mid-flight. When this Quest
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:18:nothing. Small verified pieces land themselves into a Quest branch and
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:27:working version here: protocol (packet and report ops), board (Quest,
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:35:to a Quest branch with an auditable land report, rehearsed against a
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:37:comprehension packet — with a deliberate rollback exercised once. Quest
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:43:RPC fallback), auto-land to Quest branches, Quest-to-master promotion,
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:46:reviewer, tokenless-waiting proofs, Muse harness, esc3 (Quest 3),
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:51:Quest framing, blocker answers via briefing, Quest-to-master promotion
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:81:- Intent: prove an exp can land itself into the Quest branch, report
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:88:  hand-moved Quest branch blocks land as an incident, reviewer rejection
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:94:- Intent: close the Quest on real bp3 code.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:102:  consistent; Quest completion recorded with limitations.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:127:- Exact Board state enums beyond the minimum this Quest needs.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:136:Shelved without landing. The pane-crew center of this Quest was
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/GOAL.md:139:and the full disposition live on the `quest/bp3-mvp` branch.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-bp3-resume.md:8:# Exp 9 — bp3-resume: Quest workspace recovery and Controller resume
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-bp3-resume.md:12:Provide **`bp3-resume`** to recover an existing Quest workspace, including when
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-bp3-resume.md:73:In: same-machine recovery of an existing registered Quest workspace, explicit
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-bp3-resume.md:91:bp3-resume [QUEST] [--pi-session PATH] [--inspect]
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-bp3-resume.md:101:resolve existing Quest + workspace + selected Pi session
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-bp3-resume.md:112:   Quest, Zellij identity/incarnation and exact Controller session file/ID/cwd.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-bp3-resume.md:167:   conversation once, preserving history and cwd, restoring verified Quest/session
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-reusable-workers-reviewers.md:489:repair/check/fresh-review handoffs, not home Quest/master movement, build
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-reusable-workers-reviewers.md:506:frozen-v2 operations created Quest `fork-repair`, bootstrap exp
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-reusable-workers-reviewers.md:671:`/private/tmp/bp3-e7-settle-a53b5c3/`, Quest `fork-settlement`, exp
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-reusable-workers-reviewers.md:770:New target `refs/heads/quest/exp2-context-repair` and a sibling author worktree do
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-mvp/experiments/2026-11-06-reusable-workers-reviewers.md:874:coordinator remains unchanged. No home master/Quest-target movement, activation
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md:11:--harness=all` — and its first project skill, `/quest`. When this Quest
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md:12:completes, any harness opened in bp3 can invoke `/quest` from a rendered,
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md:13:validated skill whose source lives once in `skills/quest/`.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md:18:(framing a Quest as a file), plus a small installer that copies it into
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md:27:from bp3-yap-skills. The first skill is `/quest` itself: if the Quest
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md:28:format can't describe this Quest, the format is wrong.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md:33:renders `quest` into `.pi/skills/`, `.claude/skills/`, and
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md:34:`.agents/skills/`; `muse skills validate .agents/skills/quest --json`
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md:41:In: quest skill source, bash installer, rendered outputs, MVP doc
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md:42:convention, this Quest file.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md:44:`quest activate`, Board-coupled control skills (packet, Controller loop),
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md:45:moving `/quest` into bp3-yap-skills.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:docs/goals/2026-11-05-bp3-skills-install.md:49:Framing (done in conversation), acceptance of this Quest file, and the
+=== count ===
+      78
+=== tests mentioning quest/grep at bound ===
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/dogfood-link.sh:52:(function tick() { requestAnimationFrame(tick);
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/dogfood-parallel.sh:73:(function tick() { requestAnimationFrame(tick);
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/g.sh:42:if out=$(BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 quest demo r parser-fix 2>&1); then fail "old quest door accepted"; fi
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/g.sh:44:echo "$out" | jq -e '.ok == true and .graph == "demo" and .node == "parser-fix" and .state == "todo" and (has("quest") | not) and (has("exp") | not)' >/dev/null || fail "nested node read: $out"
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/skills.sh:74:# bp3g is the one conducting skill; old traverse/induct/quest names render nowhere.
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/skills.sh:79:  assert test ! -e "$root/$h/skills/quest"
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/skills.sh:96:assert test ! -e "$root/.agents/workflows/quest-land.js"
+c0ab195fde5e12559ca72c71e1624e0b3c21bbf7:test/skills.sh:156:assert grep -q 'design question' "$repo/skills/bp3g-no-human/SKILL.md"
+=== Makefile check target ===
+.PHONY: check test lint release publish install
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/graph/main.exe
+	./test/g.sh
+	./test/ready.sh
+	./test/diagram.sh
+	./test/blocked.sh
+	node test/pi-tree.test.mjs
+	./test/harness.sh
+	./test/config.sh
+	./test/link.sh
+	./test/dogfood-link.sh
+	./test/dogfood-parallel.sh
+	./test/context.sh
+	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/bp3g.sh
+	./test/completion.sh
+	./test/release.sh
+	./test/install.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/g.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/bp3g.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	node --check test/pi-tree.test.mjs
+	node --check skills/bp3g/workflows/bp3g-node.js
+	node --check skills/bp3g/workflows/node-loop.js
+	node --check skills/bp3g/workflows/bp3g-grade.js
+	node --check skills/bp3g/workflows/bp3g-land.js
+
+test:
+	./test/skills.sh
+
+# --- release (Node 5): tag-gated artifact + checksum; publish-once via gh ---
+RELEASE_VERSION := $(shell sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' src/graph/gitx.ml | head -1)
+RELEASE_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+RELEASE_ARCH := $(shell uname -m)
+RELEASE_ARTIFACT := dist/bp3-g-v$(RELEASE_VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
+
+release:
+	@./scripts/release-check >/dev/null
+	$(DUNE_BUILD) src/graph/main.exe
+	mkdir -p dist
+	cp _build/default/src/graph/main.exe $(RELEASE_ARTIFACT)
+	cd dist && shasum -a 256 $$(basename $(RELEASE_ARTIFACT)) > $$(basename $(RELEASE_ARTIFACT)).sha256
+	@echo "released $(RELEASE_ARTIFACT)"
+
+publish: release
+	./scripts/release-publish $(RELEASE_ARTIFACT) $(RELEASE_ARTIFACT).sha256
+
+=== exp record repoint ===
++and forcing it into columns buys nothing. Edge cases:
++empty exp list (header only, no rows — not an error);
++`legal_edges` stays a summary-line word, never a column;
++column widths come from content, so a long path widens the
++table instead of truncating — a table that lies about a
++path is worse than a wide one.
++
++## Tests
++
++unit: none (renderer is printf-shaped; no pure seam worth
++extracting — justified per the test-split standard) ·
++fixtures: table-shape cases in the q fixture suite, JSON/
++tree byte-diff guard · demos: the two traces above, run by
++hand at review
+=== docs/quests at bound ===
+(empty means gone)
+=== this graph GOAL live at bound ===
+docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/GOAL.md
+=== changed lines in one exp record ===
++date: 2026-11-14
++goal: ../../GOAL.md
++exp: 1
++status: proposed
++# Exp 1 — Rendered tables for `--format table`
++## TL;DR
++The `"table"` branch of `print_verdict`
++(`src/quest/render.ml:181`) stops dumping `k=v` lines and
++renders from a **column model** per flat verdict shape:
++header row, space-aligned ASCII columns, short (7-char)
+=== changed lines GOAL.md sample ===
++goal_type: default
++engine: single
++status: proposed
++home_repo: bp3
++date: 2026-11-09
++# bp3-land-verdicts: the binary outputs for landing
++TL;DR
++The binary learns to feed the landing loop: one verdict shape
++with a landing packet, an error envelope with retryable vs
++terminal refusals, every refusal ledgered, and a re-entry
+=== CLAUDE.md goal lines bound ===
+6:goal storage tree (`docs/goals/`; the goal is the container, its DAG is the graph).
+18:docs/goals/<graph>/     one folder per graph, flat, never moved
+19:  GOAL.md               authored: goal, scope, nodes, status field
+24:plans/<type>.yaml        goal_type plans (default: one review round)
+51:Two independent dimensions: `goal_type` is the plan (stages and
+=== plans goal_type bound ===
+goal_type: default
+max_cycles: 1
+grade:
+  required: true
+verify: required
+  "serial_sum_ms": 6988,
+  "wall_saved_ms": 2999,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 2
+    },
+    "flappy-night": {
+      "wall_s": 2
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+bubble scorecard: {"pi_bubble":"blocked","pi_fresh_run":"20261117T172336Z-node-pi-test-model-c1","pi_wall_ms":2639,"claude_bubble":"blocked","claude_fresh":"landed","sibling_pi":"handed_off","sibling_claude":"landed"}
+dogfood-parallel tests: ok
+./test/context.sh
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (27.663833ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.139958ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (242.96625ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (282.695208ms)
+✔ roles route model/thinking into the child env: override > role > conductor (479.787833ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (215.618417ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1142.499833ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (3055.177125ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (123923.797208ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (272.817792ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.423458ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (377.932542ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (22.580125ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 130110.538291
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/bp3g.sh
+node-loop tests: ok
+bp3g-node tests: ok
+bp3g-grade tests: ok
+bp3g-land tests: ok
+bp3g-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+make-check-pipe-status:0
+=== tape tail (make check) ===
+bp3g-node tests: ok
+bp3g-grade tests: ok
+bp3g-land tests: ok
+bp3g-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+make-check-pipe-status:0
+=== tape tail (make check) ===
+=== exact GOAL Quest line ===
+scheduling, and survives the Controller dying mid-flight. When this Quest
+=== git status ===
+?? .bp3-context.json
+?? docs/goals/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-3-goal-term-purge/runs/20261117T171553Z-node-muse-code-muse-wonder-1.0-c1/

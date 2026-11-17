@@ -20,7 +20,7 @@ q() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 commit_on_node() { # $1 graph $2 node $3 path $4 content -> new tip
-  local branch="refs/heads/bp3/exp/$1/$2" tip blob tree new_tip idx="$work/idx-$1-$2"
+  local branch="refs/heads/bp3/node/$1/$2" tip blob tree new_tip idx="$work/idx-$1-$2"
   tip=$(git rev-parse "$branch"); rm -f "$idx"
   blob=$(printf '%s' "$4" | git hash-object -w --stdin)
   GIT_INDEX_FILE="$idx" git read-tree "$tip"
@@ -79,9 +79,9 @@ echo "$m2" | grep -q 'nb (blocked, cycle 1)' || fail "mermaid blocked node: $m2"
 [ "$(diff <(echo "$before") <(echo "$after") | grep -c '^[<>]')" -ge 2 ] || fail "diagram did not change"
 
 # --- read-only: diagram writes no ledger line ---
-tip_before=$(git rev-parse bp3/exp/graph1/nb)
+tip_before=$(git rev-parse bp3/node/graph1/nb)
 q graph1 diagram --format ascii >/dev/null; q graph1 diagram --format mermaid >/dev/null; q graph1 diagram --format json >/dev/null
-[ "$(git rev-parse bp3/exp/graph1/nb)" = "$tip_before" ] || fail "diagram wrote state"
+[ "$(git rev-parse bp3/node/graph1/nb)" = "$tip_before" ] || fail "diagram wrote state"
 
 # --- strict argv + help at its door ---
 if out=$(q graph1 diagram --format svg 2>&1); then fail "bad format accepted"; fi

@@ -96,7 +96,7 @@ re-check fixture.
 
 ## Context
 
-Yesterday's supervisor quest took ~9 active hours,
+Yesterday's supervisor graph took ~9 active hours,
 mostly papercut cycles and serial waiting,
 discovered anecdotally. This exp makes the system
 itself keep the receipts. Desks stay ad hoc (pool

@@ -9,7 +9,7 @@ status: proposed
 
 ## TL;DR
 
-Close the graph-engine quest: scorecard including
+Close the graph-engine graph: scorecard including
 per-node wall/wait/dwell and ready-set timings,
 findings 100% dispositioned with homes, and the
 landing walkthrough actually run
@@ -46,13 +46,13 @@ wrap = {scorecard(nodes, timing=True), disposition(findings), run_walkthrough()}
 | Case | Expected |
 |---|---|
 | scorecard complete | every node present with observed evidence; wall/wait/dwell from the system (post-rename surfaces), unmeasured fields named with reasons |
-| findings dispositioned | 100% of quest findings fixed / iceboxed / rejected with homes; nothing "fixed" without a fix step |
+| findings dispositioned | 100% of graph findings fixed / iceboxed / rejected with homes; nothing "fixed" without a fix step |
 | walkthrough run | executed, outputs quoted; A/B and ready-set results presented from dogfood numbers |
 | diagrams included | generated ascii + mermaid of the final graph state attached from the live rollup |
 
 ## Acceptance test (goal block)
 
-- **Objective:** the quest can land honestly,
+- **Objective:** the graph can land honestly,
   speed story included.
 - **Prove by:** this record + the observed
   walkthrough.
@@ -68,6 +68,6 @@ without a source artifact.
 
 ## Context
 
-Per quest law, landing runs
+Per graph law, landing runs
 red-ink-goal-landing-demo diligence before
 promotion; this exp stages and runs its inputs.

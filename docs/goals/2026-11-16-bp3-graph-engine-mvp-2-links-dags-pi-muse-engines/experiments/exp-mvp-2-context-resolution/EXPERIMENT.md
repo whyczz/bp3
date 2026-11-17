@@ -13,7 +13,7 @@ After a claim (mvp.1), every bp3 call resolves its
 context from the claim store — session-id first,
 desk (cwd) second — and stamps graph, node, edge,
 and run-id into verdicts and ledger lines. The
-child types no quest, no exp, no export ritual.
+child types no graph, no exp, no export ritual.
 Env vars survive only as hints that bp3 may
 cross-check, never as the store. Unclaimed
 invocations behave exactly as today, plus

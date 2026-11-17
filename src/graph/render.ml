@@ -81,8 +81,8 @@ let graph_view q =
   | Some (_, qs, _qt, _deps, _) ->
       let nodes = list_nodes q in
       let node_infos = List.map (fun e ->
-        match ledger_text (node_branch q e) (node_ledger_path q e) with
-        | Some (_, text) ->
+        match ledger_read (node_branch q e) (node_ledger_path q e) (legacy_node_ledger_path q e) with
+        | Some (_, text, _) ->
             let (s, _, deps) = fold_ledger text in (e, s, deps, timing_of_text text)
         | None -> (e, fresh_state (), [], timing_of_text "")) nodes in
       let node_states = List.map (fun (e, s, _, _) -> (e, s)) node_infos in

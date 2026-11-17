@@ -40,7 +40,7 @@ if out=$("${NOSID[@]}" BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 e 2>&1); then fail
 echo "$out" | jq -e '.error.code == "E_NO_CONTEXT"' >/dev/null || fail "unclaimed bare e code: $out"
 out=$("${NOSID[@]}" BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g g1 u n0 handoff --commit "$B" --reason "stranger")
 echo "$out" | jq -e '.ok == true and .warnings == ["W_CONTEXT_UNCLAIMED"] and (has("run_id") | not)' >/dev/null || fail "unclaimed explicit: $out"
-git show bp3/exp/g1/n0:docs/goals/g1/experiments/n0/ledger.jsonl | tail -1 | jq -e 'has("run_id") | not' >/dev/null || fail "unclaimed ledger stamped"
+git show bp3/node/g1/n0:docs/graphs/g1/nodes/n0/ledger.jsonl | tail -1 | jq -e 'has("run_id") | not' >/dev/null || fail "unclaimed ledger stamped"
 
 # --- claimed session: zero context flags, claim stamps ---
 out=$(lk mint --kind edge --graph g1 --node n1 --edge handoff --depth 2)
@@ -60,7 +60,7 @@ out=$(es sess-a verify --verdict pass --reason "green")
 echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "e verify: $out"
 out=$(es sess-a land --reason "ship it")
 echo "$out" | jq -e --arg r "$RID" '.state == "landed" and .run_id == $r' >/dev/null || fail "e land: $out"
-git show bp3/exp/g1/n1:docs/goals/g1/experiments/n1/ledger.jsonl | tail -4 | jq -s -e --arg r "$RID" 'all(.run_id == $r)' >/dev/null || fail "claimed ledger stamps"
+git show bp3/node/g1/n1:docs/graphs/g1/nodes/n1/ledger.jsonl | tail -4 | jq -s -e --arg r "$RID" 'all(.run_id == $r)' >/dev/null || fail "claimed ledger stamps"
 
 # explicit address from the claimed session stamps the claim too
 out=$(lk mint --kind edge --graph g1 --node n2 --edge handoff --depth 2)
@@ -69,7 +69,7 @@ MUSE_SESSION_ID=sess-b lk claim "$TOK2" >/dev/null
 rm -f .bp3-context.json
 out=$(BP3_RUN_ID=someone-else MUSE_SESSION_ID=sess-b BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g g1 u n2 handoff --commit "$B" --reason "mismatch") || fail "mismatch handoff: $out"
 echo "$out" | jq -e --arg r "$RID2" '.ok == true and .run_id == $r and (.warnings | index("W_CONTEXT_ENV_MISMATCH") != null)' >/dev/null || fail "env mismatch, claim wins: $out"
-git show bp3/exp/g1/n2:docs/goals/g1/experiments/n2/ledger.jsonl | tail -1 | jq -e --arg r "$RID2" '.run_id == $r' >/dev/null || fail "mismatch ledger claimed run-id"
+git show bp3/node/g1/n2:docs/graphs/g1/nodes/n2/ledger.jsonl | tail -1 | jq -e --arg r "$RID2" '.run_id == $r' >/dev/null || fail "mismatch ledger claimed run-id"
 
 # a session claiming again resolves to its latest claim
 out=$(lk mint --kind edge --graph g1 --node n0 --edge grade --depth 2)

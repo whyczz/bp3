@@ -26,7 +26,7 @@ now_ms() { node -e 'process.stdout.write(String(Date.now()))'; }
 es() { MUSE_SESSION_ID="$1" BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 e "${@:2}"; }
 
 commit_file_on_node() { # <node> <path> <file> -> new node-branch tip
-  local node=$1 path=$2 file=$3 branch="refs/heads/bp3/exp/par/$1"
+  local node=$1 path=$2 file=$3 branch="refs/heads/bp3/node/par/$1"
   local tip blob tree new_tip idx="$work/idx-$1"
   tip=$(git rev-parse "$branch"); rm -f "$idx"
   blob=$(git hash-object -w "$file")
@@ -39,7 +39,7 @@ commit_file_on_node() { # <node> <path> <file> -> new node-branch tip
 }
 commit_on_graph() { # <graph> <node> <path> <content> -> new node-branch tip
   local graph=$1 node=$2 path=$3 content=$4
-  local branch="refs/heads/bp3/exp/$graph/$node" tip blob tree new_tip idx="$work/idx-$graph-$node"
+  local branch="refs/heads/bp3/node/$graph/$node" tip blob tree new_tip idx="$work/idx-$graph-$node"
   tip=$(git rev-parse "$branch"); rm -f "$idx"
   blob=$(printf '%s' "$content" | git hash-object -w --stdin)
   GIT_INDEX_FILE="$idx" git read-tree "$tip"
@@ -132,10 +132,10 @@ jq -e '.ok == true and .node == "flappy-night"' "$work/flappy-night.claim.json" 
   || fail "day desk bleed"
 [ -f "$work/desk-flappy-night/flappy-night.html" ] && [ ! -e "$work/desk-flappy-night/flappy-day.html" ] \
   || fail "night desk bleed"
-git show "bp3/exp/par/flappy-day:flappy-day.html" | grep -q "Flappy — day" || fail "day branch artifact"
-git show "bp3/exp/par/flappy-night:flappy-night.html" | grep -q "Flappy — night" || fail "night branch artifact"
-if git cat-file -e "bp3/exp/par/flappy-day:flappy-night.html" 2>/dev/null; then fail "day branch holds night file"; fi
-if git cat-file -e "bp3/exp/par/flappy-night:flappy-day.html" 2>/dev/null; then fail "night branch holds day file"; fi
+git show "bp3/node/par/flappy-day:flappy-day.html" | grep -q "Flappy — day" || fail "day branch artifact"
+git show "bp3/node/par/flappy-night:flappy-night.html" | grep -q "Flappy — night" || fail "night branch artifact"
+if git cat-file -e "bp3/node/par/flappy-day:flappy-night.html" 2>/dev/null; then fail "day branch holds night file"; fi
+if git cat-file -e "bp3/node/par/flappy-night:flappy-day.html" 2>/dev/null; then fail "night branch holds day file"; fi
 rm -f .bp3-context.json
 out=$(es sess-day)
 echo "$out" | jq -e '.node == "flappy-day" and .source == "session"' >/dev/null || fail "day context: $out"
@@ -149,7 +149,7 @@ for n in flappy-day flappy-night; do
   jq -e '.state == "approved"' "$work/$n.verify.json" >/dev/null || fail "$n verify state"
   out=$(q par r "$n")
   echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "$n approved read: $out"
-  git show "bp3/exp/par/$n:docs/goals/par/experiments/$n/ledger.jsonl" \
+  git show "bp3/node/par/$n:docs/graphs/par/nodes/$n/ledger.jsonl" \
     | jq -s -e '([.[] | select(.edge == "grade" and .verdict == "ship")] | length == 1)
       and ([.[] | select(.edge == "verify" and .verdict == "pass")] | length == 1)' >/dev/null \
     || fail "$n grade matrix ledger"
@@ -158,16 +158,16 @@ done
 # --- serial land: one at a time, second re-checks the new tip ---
 out=$(q par u flappy-day land --reason "serial land 1")
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "day land: $out"
-tip1=$(git rev-parse bp3/goal/par)
+tip1=$(git rev-parse bp3/graph/par)
 out=$(q par r flappy-night)
 echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "night still approved: $out"
 out=$(q par u flappy-night land --reason "serial land 2")
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "night land: $out"
-git merge-base --is-ancestor "$tip1" bp3/goal/par || fail "second land did not build on first tip"
-git merge-base --is-ancestor "$(cat "$work/flappy-day.commit")" bp3/goal/par || fail "day commit not landed"
-git merge-base --is-ancestor "$(cat "$work/flappy-night.commit")" bp3/goal/par || fail "night commit not landed"
-[ "$(git show bp3/goal/par:flappy-day.html | grep -c 'Flappy — day')" = 1 ] || fail "graph tip day file"
-[ "$(git show bp3/goal/par:flappy-night.html | grep -c 'Flappy — night')" = 1 ] || fail "graph tip night file"
+git merge-base --is-ancestor "$tip1" bp3/graph/par || fail "second land did not build on first tip"
+git merge-base --is-ancestor "$(cat "$work/flappy-day.commit")" bp3/graph/par || fail "day commit not landed"
+git merge-base --is-ancestor "$(cat "$work/flappy-night.commit")" bp3/graph/par || fail "night commit not landed"
+[ "$(git show bp3/graph/par:flappy-day.html | grep -c 'Flappy — day')" = 1 ] || fail "graph tip day file"
+[ "$(git show bp3/graph/par:flappy-night.html | grep -c 'Flappy — night')" = 1 ] || fail "graph tip night file"
 
 # --- scorecard: wall from the run itself, timing from the rollup ---
 ready_wall_ms=$(( (day_end > night_end ? day_end : night_end) - (day_start < night_start ? day_start : night_start) ))
@@ -208,7 +208,7 @@ echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "touch-a land: $out"
 out=$(q conf u touch-b land --reason second)
 echo "$out" | jq -e '.ok == true and .state == "todo" and .facts.land_conflict == true' >/dev/null \
   || fail "touch-b conflict named: $out"
-[ "$(git show bp3/goal/conf:shared.txt)" = "A-side" ] || fail "conflict silently overwrote shared.txt"
+[ "$(git show bp3/graph/conf:shared.txt)" = "A-side" ] || fail "conflict silently overwrote shared.txt"
 
 # --- blocked variant starves only its dependents ---
 q c parblk >/dev/null
@@ -257,7 +257,7 @@ function sh(cmd, extra = {}) {
 const commonDir = execFileSync("git", ["-C", repo, "rev-parse", "--git-common-dir"], { encoding: "utf8" }).trim();
 const runsDir = path.join(path.isAbsolute(commonDir) ? commonDir : path.join(repo, commonDir), "bp3", "runs");
 function commitFor(graph, node) {
-  const branch = "refs/heads/bp3/exp/" + graph + "/" + node;
+  const branch = "refs/heads/bp3/node/" + graph + "/" + node;
   const tip = execFileSync("git", ["rev-parse", branch], { cwd: repo, encoding: "utf8" }).trim();
   const blob = execFileSync("git", ["hash-object", "-w", "--stdin"], { cwd: repo, encoding: "utf8", input: node + " work\n" }).trim();
   const idx = path.join(work, "idx-" + graph + "-" + node + "-" + Date.now() + "-" + Math.random().toString(36).slice(2));
@@ -307,7 +307,7 @@ fs.writeFileSync(edgeWorker, [
   'if (mode === "block-fail") {',
   '  fs.writeFileSync(resultFile, JSON.stringify({ ok: false, kind: "typed_failure", code: "E_DECISION", reason: "choose storage shape" }));',
   '} else if (mode === "handoff") {',
-  '  const branch = "refs/heads/bp3/exp/" + graph + "/" + node;',
+  '  const branch = "refs/heads/bp3/node/" + graph + "/" + node;',
   '  const tip = execFileSync("git", ["rev-parse", branch], { encoding: "utf8" }).trim();',
   '  const blob = execFileSync("git", ["hash-object", "-w", "--stdin"], { encoding: "utf8", input: node + " fresh\\n" }).trim();',
   '  const idx = path.join(process.env.BP3_WORK, "idx-pi-" + node + "-" + Date.now());',

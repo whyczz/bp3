@@ -86,7 +86,7 @@ the owner's comparison.
 
 ## Context
 
-dogfood.1 of the supervisor quest needed 6 cycles
+dogfood.1 of the supervisor graph needed 6 cycles
 for this toy, three of them setup failures. That
 ledger is the baseline this exp is graded
 against.

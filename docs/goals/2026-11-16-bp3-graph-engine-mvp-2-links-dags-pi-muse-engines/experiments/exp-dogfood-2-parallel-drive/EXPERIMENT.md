@@ -108,7 +108,7 @@ conflict, never a silent overwrite.
 
 ## Context
 
-The supervisor quest's 23 nodes ran strictly
+The supervisor graph's 23 nodes ran strictly
 serially; most followups were independent. This
 is the recovery of those hours, with receipts.
 Desks are ad hoc per the 2026-11-16 ruling; setup

@@ -23,7 +23,7 @@ echo base > a.txt; git add .; git commit -qm base
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
 q() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
-ledger() { git show "bp3/exp/demo/$1:docs/goals/demo/experiments/$1/ledger.jsonl"; }
+ledger() { git show "bp3/node/demo/$1:docs/graphs/demo/nodes/$1/ledger.jsonl"; }
 
 q c demo >/dev/null
 

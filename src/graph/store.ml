@@ -178,6 +178,20 @@ let fold_type_key j new_key old_key default =
   | Some v -> v
   | None -> get_str j old_key default
 
+(* Node-ID rename fold (followup.3 scope C): landed ledger
+   text keeps exp- IDs; reads map them to node- IDs here. *)
+let starts_with s p =
+  let n = String.length p in
+  String.length s >= n && String.sub s 0 n = p
+
+let canon_node_id e =
+  if starts_with e "exp-" then "node-" ^ String.sub e 4 (String.length e - 4)
+  else e
+
+let legacy_node_id e =
+  if starts_with e "node-" then "exp-" ^ String.sub e 5 (String.length e - 5)
+  else e
+
 let fold_ledger text =
   let s = fresh_state () in
   let graph_type = ref "default" in
@@ -199,7 +213,7 @@ let fold_ledger text =
               (get_str j "quest_type" !graph_type)
           end;
           (try match Yojson.Safe.Util.member "depends_on" j with
-             | `List xs -> depends_on := List.map (function `String x -> x | _ -> "") xs
+             | `List xs -> depends_on := List.map (function `String x -> canon_node_id x | _ -> "") xs
              | _ -> () with _ -> ())
         end;
         if to_ <> "" then s.st <- to_;
@@ -228,13 +242,45 @@ let ledger_text branch path =
   | None -> None
   | Some tip -> (match git_show tip path with Some t -> Some (tip, t) | None -> Some (tip, ""))
 
-let graph_branch q = "refs/heads/bp3/goal/" ^ q
-let node_branch q e = "refs/heads/bp3/exp/" ^ q ^ "/" ^ e
-let graph_dir q = "docs/goals/" ^ q
+(* Canonical spellings after the followup.3 scope-C rename;
+   legacy spellings fold here only, never in callers. *)
+let graph_branch q =
+  let canon = "refs/heads/bp3/graph/" ^ q in
+  if ref_tip canon <> None then canon
+  else if ref_tip ("refs/heads/bp3/goal/" ^ q) <> None then "refs/heads/bp3/goal/" ^ q
+  else if ref_tip ("refs/heads/bp3/quest/" ^ q) <> None then "refs/heads/bp3/quest/" ^ q
+  else canon
+
+let node_branch q e =
+  let canon = "refs/heads/bp3/node/" ^ q ^ "/" ^ canon_node_id e in
+  if ref_tip canon <> None then canon
+  else
+    let legacy = "refs/heads/bp3/exp/" ^ q ^ "/" ^ legacy_node_id e in
+    if ref_tip legacy <> None then legacy else canon
+
+let graph_dir q = "docs/graphs/" ^ q
 let graph_ledger_path q = graph_dir q ^ "/ledger.jsonl"
-let node_dir q e = graph_dir q ^ "/experiments/" ^ e
+let node_dir q e = graph_dir q ^ "/nodes/" ^ canon_node_id e
 let node_ledger_path q e = node_dir q e ^ "/ledger.jsonl"
 let node_state_path q e = node_dir q e ^ "/state.yaml"
+let legacy_graph_ledger_path q = "docs/goals/" ^ q ^ "/ledger.jsonl"
+let legacy_node_ledger_path q e =
+  "docs/goals/" ^ q ^ "/experiments/" ^ legacy_node_id e ^ "/ledger.jsonl"
+
+(* Read a ledger at its canonical path, falling back to the
+   pre-rename path on the same branch; the third component
+   names the path the text was read from so appends write
+   back to the same path. *)
+let ledger_read branch canon legacy =
+  match ref_tip branch with
+  | None -> None
+  | Some tip ->
+      (match git_show tip canon with
+       | Some t -> Some (tip, t, canon)
+       | None ->
+           (match git_show tip legacy with
+            | Some t -> Some (tip, t, legacy)
+            | None -> Some (tip, "", canon)))
 
 let list_refs prefix =
   let out, code = git_out ["for-each-ref"; "--format=%(refname)"; prefix] in
@@ -242,16 +288,20 @@ let list_refs prefix =
   String.split_on_char '\n' out |> List.map String.trim |> List.filter (fun s -> s <> "")
 
 let list_graphs () =
-  (* Legacy storage prefix frozen bp3/quest/ folds here only (followup.3). *)
+  (* Legacy storage prefixes fold here only (followup.3). *)
   let strip p r = String.sub r (String.length p) (String.length r - String.length p) in
-  let cur = list_refs "refs/heads/bp3/goal/" |> List.map (strip "refs/heads/bp3/goal/") in
-  let old = list_refs "refs/heads/bp3/quest/" |> List.map (strip "refs/heads/bp3/quest/")
-    |> List.filter (fun q -> not (List.mem q cur)) in
-  cur @ old
+  let dedup xs = List.fold_right (fun x acc -> if List.mem x acc then acc else x :: acc) xs [] in
+  dedup (List.concat_map (fun p -> list_refs p |> List.map (strip p))
+    ["refs/heads/bp3/graph/"; "refs/heads/bp3/goal/"; "refs/heads/bp3/quest/"])
 
 let list_nodes q =
-  let p = "refs/heads/bp3/exp/" ^ q ^ "/" in
-  list_refs p |> List.map (fun r -> String.sub r (String.length p) (String.length r - String.length p))
+  let strip p r = String.sub r (String.length p) (String.length r - String.length p) in
+  let dedup xs = List.fold_right (fun x acc -> if List.mem x acc then acc else x :: acc) xs [] in
+  let canon = list_refs ("refs/heads/bp3/node/" ^ q ^ "/")
+    |> List.map (strip ("refs/heads/bp3/node/" ^ q ^ "/")) in
+  let legacy = list_refs ("refs/heads/bp3/exp/" ^ q ^ "/")
+    |> List.map (strip ("refs/heads/bp3/exp/" ^ q ^ "/")) |> List.map canon_node_id in
+  dedup (canon @ legacy)
 
 (* newest bp3_version stamped in any graph/node ledger in this repo *)
 let newest_bp3_version () =
@@ -269,11 +319,11 @@ let newest_bp3_version () =
         | _ -> acc
       with _ -> acc) acc (String.split_on_char '\n' text) in
   List.fold_left (fun acc q ->
-    let acc = match ledger_text (graph_branch q) (graph_ledger_path q) with
-      | Some (_, t) -> from_text acc t | None -> acc in
+    let acc = match ledger_read (graph_branch q) (graph_ledger_path q) (legacy_graph_ledger_path q) with
+      | Some (_, t, _) -> from_text acc t | None -> acc in
     List.fold_left (fun acc e ->
-      match ledger_text (node_branch q e) (node_ledger_path q e) with
-      | Some (_, t) -> from_text acc t | None -> acc) acc (list_nodes q))
+      match ledger_read (node_branch q e) (node_ledger_path q e) (legacy_node_ledger_path q e) with
+      | Some (_, t, _) -> from_text acc t | None -> acc) acc (list_nodes q))
     None (list_graphs ())
 
 let version_ahead () =
@@ -286,14 +336,14 @@ let warnings_of id is_write =
   @ (match version_ahead () with Some _ -> ["W_VERSION_AHEAD"] | None -> [])
 
 let fold_node q e =
-  match ledger_text (node_branch q e) (node_ledger_path q e) with
+  match ledger_read (node_branch q e) (node_ledger_path q e) (legacy_node_ledger_path q e) with
   | None -> None
-  | Some (tip, text) -> let (s, _, _) = fold_ledger text in Some (tip, s, text)
+  | Some (tip, text, _) -> let (s, _, _) = fold_ledger text in Some (tip, s, text)
 
 let fold_graph q =
-  match ledger_text (graph_branch q) (graph_ledger_path q) with
+  match ledger_read (graph_branch q) (graph_ledger_path q) (legacy_graph_ledger_path q) with
   | None -> None
-  | Some (tip, text) -> let (s, qt, deps) = fold_ledger text in Some (tip, s, qt, deps, text)
+  | Some (tip, text, _) -> let (s, qt, deps) = fold_ledger text in Some (tip, s, qt, deps, text)
 
 let legal_edges st =
   match st with
@@ -305,7 +355,7 @@ let legal_edges st =
 
 let state_yaml q e s =
   Printf.sprintf "graph: %s\nnode: %s\nstate: %s\ncycle: %d\ncommit: %s\n"
-    q e s.st s.cycle (match s.last_commit with Some c -> c | None -> "none")
+    q (canon_node_id e) s.st s.cycle (match s.last_commit with Some c -> c | None -> "none")
 
 let ledger_line ~edge ~from ~to_ ~cycle ~commit ~verdict ~reason ~id
     ?checkpoint ?extra () =
@@ -329,14 +379,14 @@ let ledger_line ~edge ~from ~to_ ~cycle ~commit ~verdict ~reason ~id
 
 let append_node_line q e line new_state =
   let branch = node_branch q e in
-  match ledger_text branch (node_ledger_path q e) with
+  match ledger_read branch (node_ledger_path q e) (legacy_node_ledger_path q e) with
   | None -> not_found "node" e
-  | Some (tip, text) ->
+  | Some (tip, text, lpath) ->
       let new_text = (if String.trim text = "" then "" else
         (if text.[String.length text - 1] = '\n' then text else text ^ "\n")) ^ line ^ "\n" in
       commit_files ~branch ~base_tip:tip ~expect_tip:tip
-        ~files:[(node_ledger_path q e, new_text); (node_state_path q e, state_yaml q e new_state)]
-        ~msg:("bp3: " ^ e)
+        ~files:[(lpath, new_text); (node_state_path q e, state_yaml q e new_state)]
+        ~msg:("bp3: " ^ canon_node_id e)
 
 let make_checkpoint () =
   let idx = tmp_path "ckpt-index" in
