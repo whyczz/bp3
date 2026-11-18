@@ -1,4 +1,4 @@
-(* gitx — shell/git plumbing for bp3 q. No quest knowledge. *)
+(* gitx — process/git plumbing for bp3 q. No quest knowledge. *)
 (* bp3 q — quest/exp FSM CLI. Only writer of quest state. *)
 let bp3_version = "0.2.0"
 
@@ -39,22 +39,54 @@ let read_file_or path default =
     close_in ic; s
   with _ -> default
 
-let write_tmp content =
-  let p = tmp_path "data" in
-  let oc = open_out_bin p in
-  output_string oc content; close_out oc; p
+(* env: "KEY=value" overrides for the child only; never putenv. *)
+let child_env env =
+  let key kv = match String.index_opt kv '=' with
+    | Some i -> String.sub kv 0 (i + 1) | None -> kv in
+  let keys = List.map key env in
+  let inherited = Array.to_list (Unix.environment ())
+    |> List.filter (fun kv -> not (List.mem (key kv) keys)) in
+  Array.of_list (env @ inherited)
 
-let run_capture args =
-  let outf = tmp_path "out" in
-  let cmd = String.concat " " (List.map Filename.quote args)
-    ^ " > " ^ Filename.quote outf ^ " 2>/dev/null" in
-  let code = Sys.command cmd in
-  let out = read_file_or outf "" in
+(* Exec args directly (no shell, no temp files). stdout is captured,
+   stderr discarded, stdin fed from [input]. Exit codes match the old
+   Sys.command path: n on exit, 255 on signal, 127 when exec fails. *)
+let run_capture ?(env = []) ?input args =
+  let null_out = Unix.openfile "/dev/null" [Unix.O_WRONLY; Unix.O_CLOEXEC] 0 in
+  let out_r, out_w = Unix.pipe ~cloexec:true () in
+  let in_r, in_w = match input with
+    | Some _ -> let r, w = Unix.pipe ~cloexec:true () in (r, Some w)
+    | None -> (Unix.openfile "/dev/null" [Unix.O_RDONLY; Unix.O_CLOEXEC] 0, None) in
+  let pid =
+    try Some (Unix.create_process_env (List.hd args) (Array.of_list args)
+                (child_env env) in_r out_w null_out)
+    with Unix.Unix_error _ -> None in
+  Unix.close in_r; Unix.close out_w; Unix.close null_out;
+  (* Inputs are a ledger or a commit message, read whole by the child
+     before it writes, so writing all of stdin first cannot deadlock.
+     SIGPIPE is ignored only here: a child that exits early yields EPIPE. *)
+  (match in_w, input, pid with
+   | Some w, Some s, Some _ ->
+       let prev = Sys.signal Sys.sigpipe Sys.Signal_ignore in
+       let oc = Unix.out_channel_of_descr w in
+       (try output_string oc s; flush oc with Sys_error _ -> ());
+       close_out_noerr oc;
+       Sys.set_signal Sys.sigpipe prev
+   | Some w, _, _ -> Unix.close w
+   | None, _, _ -> ());
+  let ic = Unix.in_channel_of_descr out_r in
+  let out = In_channel.input_all ic in
+  close_in ic;
+  let rec wait p =
+    try snd (Unix.waitpid [] p) with Unix.Unix_error (Unix.EINTR, _, _) -> wait p in
+  let code = match pid with
+    | None -> 127
+    | Some p -> (match wait p with Unix.WEXITED n -> n | _ -> 255) in
   (String.trim out, code)
 
-let run_status args = snd (run_capture args)
+let run_status ?env ?input args = snd (run_capture ?env ?input args)
 let git args = "git" :: "-C" :: root :: args
-let git_out args = run_capture (git args)
+let git_out ?env ?input args = run_capture ?env ?input (git args)
 let git_ok args = run_status (git args) = 0
 
 let git_show ref_ path =
@@ -88,31 +120,21 @@ let now_ts () =
    files: (path, content) list. Returns new tip or E_STALE_WORLD. *)
 let commit_files ~branch ~base_tip ~expect_tip ~files ~msg =
   let idx = tmp_path "index" in
-  Unix.putenv "GIT_INDEX_FILE" idx;
-  let cleanup () = (try Unix.unlink idx with _ -> ()); Unix.putenv "GIT_INDEX_FILE" "" in
+  let env = ["GIT_INDEX_FILE=" ^ idx] in
+  let cleanup () = try Unix.unlink idx with _ -> () in
   let fail () = cleanup (); err "E_STALE_WORLD" (`Assoc [("branch", json_str branch)])
     "Branch tip moved; re-read and retry." 1 in
-  if run_status (git ["read-tree"; base_tip]) <> 0 then fail ();
+  if run_status ~env (git ["read-tree"; base_tip]) <> 0 then fail ();
   List.iter (fun (path, content) ->
-    let cf = write_tmp content in
-    let blobfile = tmp_path "blobout" in
-    let cmd = String.concat " " (List.map Filename.quote (git ["hash-object"; "-w"; "--stdin"]))
-      ^ " < " ^ Filename.quote cf ^ " > " ^ Filename.quote blobfile ^ " 2>/dev/null" in
-    if Sys.command cmd <> 0 then fail ();
-    let blob = String.trim (read_file_or blobfile "") in
-    if run_status (git ["update-index"; "--add"; "--cacheinfo";
-                        "100644," ^ blob ^ "," ^ path]) <> 0 then fail ()
+    let blob, code = git_out ~input:content ["hash-object"; "-w"; "--stdin"] in
+    if code <> 0 then fail ();
+    if run_status ~env (git ["update-index"; "--add"; "--cacheinfo";
+                             "100644," ^ blob ^ "," ^ path]) <> 0 then fail ()
   ) files;
-  let treef = tmp_path "tree" in
-  if Sys.command (String.concat " " (List.map Filename.quote (git ["write-tree"]))
-      ^ " > " ^ Filename.quote treef ^ " 2>/dev/null") <> 0 then fail ();
-  let tree = String.trim (read_file_or treef "") in
-  let msgf = write_tmp msg in
-  let commitf = tmp_path "commit" in
-  let cargs = git (["commit-tree"; tree; "-p"; base_tip]) in
-  if Sys.command (String.concat " " (List.map Filename.quote cargs)
-      ^ " < " ^ Filename.quote msgf ^ " > " ^ Filename.quote commitf ^ " 2>/dev/null") <> 0 then fail ();
-  let new_tip = String.trim (read_file_or commitf "") in
+  let tree, code = git_out ~env ["write-tree"] in
+  if code <> 0 then fail ();
+  let new_tip, code = git_out ~input:msg ["commit-tree"; tree; "-p"; base_tip] in
+  if code <> 0 then fail ();
   cleanup ();
   let code = run_status (git ["update-ref"; branch; new_tip; expect_tip]) in
   if code <> 0 then err "E_STALE_WORLD" (`Assoc [("branch", json_str branch)])

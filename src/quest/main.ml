@@ -283,12 +283,8 @@ let do_update quest exp edge fl id =
             ("facts", `Assoc [("land_conflict", `Bool true)]);
             ("legal_edges", `List (List.map json_str (legal_edges "todo")))]
         end else begin
-          let msgf = write_tmp ("bp3: land " ^ exp) in
-          let cf = tmp_path "merge-commit" in
-          ignore (Sys.command (String.concat " " (List.map Filename.quote
-              (git ["commit-tree"; tree; "-p"; qtip; "-p"; exp_tip]))
-            ^ " < " ^ Filename.quote msgf ^ " > " ^ Filename.quote cf ^ " 2>/dev/null"));
-          let mtip = String.trim (read_file_or cf "") in
+          let mtip, _ = git_out ~input:("bp3: land " ^ exp)
+              ["commit-tree"; tree; "-p"; qtip; "-p"; exp_tip] in
           if run_status (git ["update-ref"; qbranch; mtip; qtip]) <> 0 then
             err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
           with_warnings id true [("ok", `Bool true); ("quest", json_str quest);

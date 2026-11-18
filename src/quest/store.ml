@@ -303,20 +303,14 @@ let append_exp_line q e line new_state =
 
 let make_checkpoint () =
   let idx = tmp_path "ckpt-index" in
-  Unix.putenv "GIT_INDEX_FILE" idx;
+  let env = ["GIT_INDEX_FILE=" ^ idx] in
   let head = head_sha () in
-  ignore (run_status (git ["read-tree"; head]));
-  ignore (run_status (git ["add"; "-A"]));
-  let treef = tmp_path "ckpt-tree" in
-  ignore (Sys.command (String.concat " " (List.map Filename.quote (git ["write-tree"]))
-      ^ " > " ^ Filename.quote treef ^ " 2>/dev/null"));
-  let tree = String.trim (read_file_or treef "") in
-  let msgf = write_tmp "bp3 checkpoint" in
-  let cf = tmp_path "ckpt-commit" in
-  ignore (Sys.command (String.concat " " (List.map Filename.quote (git ["commit-tree"; tree; "-p"; head]))
-      ^ " < " ^ Filename.quote msgf ^ " > " ^ Filename.quote cf ^ " 2>/dev/null"));
-  Unix.putenv "GIT_INDEX_FILE" "";
-  String.trim (read_file_or cf "")
+  ignore (run_status ~env (git ["read-tree"; head]));
+  ignore (run_status ~env (git ["add"; "-A"]));
+  let tree, _ = git_out ~env ["write-tree"] in
+  let ckpt, _ = git_out ~input:"bp3 checkpoint" ["commit-tree"; tree; "-p"; head] in
+  (try Unix.unlink idx with _ -> ());
+  ckpt
 
 let dep_satisfied dep =
   match fold_quest dep with
