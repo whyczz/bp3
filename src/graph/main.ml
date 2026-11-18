@@ -375,6 +375,7 @@ let do_update graph node edge fl id =
       if is_ancestor qtip node_tip then begin
         if run_status (git ["update-ref"; qbranch; node_tip; qtip]) <> 0 then
           err "E_STALE_WORLD" (`Assoc []) "Graph tip moved; re-read and retry." 1;
+        invalidate_ref_caches ();
         with_warnings id true [("ok", `Bool true); ("graph", json_str graph);
           ("node", json_str node); ("state", json_str "landed"); ("fin", json_str "node_fin"); ("cycle", `Int s.cycle);
           ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
@@ -400,6 +401,7 @@ let do_update graph node edge fl id =
           let mtip = String.trim (read_file_or cf "") in
           if run_status (git ["update-ref"; qbranch; mtip; qtip]) <> 0 then
             err "E_STALE_WORLD" (`Assoc []) "Graph tip moved; re-read and retry." 1;
+          invalidate_ref_caches ();
           with_warnings id true [("ok", `Bool true); ("graph", json_str graph);
             ("node", json_str node); ("state", json_str "landed"); ("fin", json_str "node_fin"); ("cycle", `Int s.cycle);
             ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));

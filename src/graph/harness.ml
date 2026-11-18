@@ -953,6 +953,33 @@ let all_records () =
   linked @ List.filter (fun (r : init_record) ->
     not (List.mem r.run_id linked_ids)) legacy
 
+(* A minted-but-unclaimed Run has a run config but no
+   record above; the config still names its harness, so a
+   tape scan for it reads that harness's roots only. A tape
+   for one harness never lives under another's roots. *)
+let config_harness ~run ~session =
+  match Config.config_dir () with
+  | None -> None
+  | Some dir ->
+      let configs = Config.list_run_configs dir in
+      let hit = match run with
+        | Some r -> List.find_opt
+            (fun (rc : Config.run_config) -> rc.Config.rc_id = r) configs
+        | None -> (match session with
+            | Some s -> List.find_opt
+                (fun (rc : Config.run_config) -> rc.Config.rc_session = Some s) configs
+            | None -> None) in
+      (match hit with
+       | Some rc when rc.Config.rc_harness <> "" -> Some rc.Config.rc_harness
+       | _ -> None)
+
+let scan_harnesses ~record ~run ~session =
+  match record with
+  | Some rec_ when rec_.harness <> "" -> [rec_.harness]
+  | _ -> (match config_harness ~run ~session with
+          | Some h -> [h]
+          | None -> ["muse-code"; "pi"])
+
 let tape_roots = function
   | "pi" ->
       (match Sys.getenv_opt "BP3_PI_TAPE_DIR" with
@@ -1380,9 +1407,7 @@ let do_find_tape args =
     match record_hit with
     | Some hit -> hit
     | None ->
-        let harnesses = match record with
-          | Some rec_ when rec_.harness <> "" -> [rec_.harness]
-          | _ -> ["muse-code"; "pi"] in
+        let harnesses = scan_harnesses ~record ~run:fl.ft_run ~session:fl.ft_session in
         let candidates = List.concat_map (fun h ->
           List.concat_map (fun root_ -> collect_tapes root_ []) (tape_roots h)
           |> List.filter_map (fun p ->
@@ -1560,9 +1585,7 @@ let resolve_watch fl =
            | Some _ -> (None, rec_.harness, rec_.session_id, rec_.pid, rec_.run_id, true)
            | None -> (None, rec_.harness, rec_.session_id, None, rec_.run_id, true))
   | _ ->
-      let harnesses = match record with
-        | Some rec_ when rec_.harness <> "" -> [rec_.harness]
-        | _ -> ["muse-code"; "pi"] in
+      let harnesses = scan_harnesses ~record ~run:fl.wt_run ~session:fl.wt_session in
       let candidates = List.concat_map (fun h ->
         List.concat_map (fun root_ -> collect_tapes root_ []) (tape_roots h)
         |> List.filter_map (fun p ->

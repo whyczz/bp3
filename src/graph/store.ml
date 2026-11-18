@@ -85,8 +85,12 @@ type knobs = { max_cycles : int; grade_required : bool; verify_required : bool }
 
 let contains_sub s sub =
   let n = String.length s and m = String.length sub in
-  let rec loop i = i + m <= n && (String.sub s i m = sub || loop (i + 1)) in
-  m = 0 || loop 0
+  if m = 0 then true
+  else if m > n then false
+  else
+    let rec at i j = j = m || (s.[i + j] = sub.[j] && at i (j + 1)) in
+    let rec loop i = i + m <= n && (at i 0 || loop (i + 1)) in
+    loop 0
 
 let plan_knobs_from_text text =
   (* reject stages:/edges: keys at line start (after spaces) *)
@@ -286,10 +290,15 @@ let ledger_read branch canon legacy =
             | Some t -> Some (tip, t, legacy)
             | None -> Some (tip, "", canon)))
 
+let refs_cache : (string, int * string list) Hashtbl.t = Hashtbl.create 16
 let list_refs prefix =
-  let out, code = git_out ["for-each-ref"; "--format=%(refname)"; prefix] in
-  if code <> 0 then [] else
-  String.split_on_char '\n' out |> List.map String.trim |> List.filter (fun s -> s <> "")
+  match Hashtbl.find_opt refs_cache prefix with
+  | Some (epoch, refs) when epoch = !cache_epoch -> refs
+  | _ ->
+      let out, code = git_out ["for-each-ref"; "--format=%(refname)"; prefix] in
+      let refs = if code <> 0 then [] else
+        String.split_on_char '\n' out |> List.map String.trim |> List.filter (fun s -> s <> "") in
+      Hashtbl.replace refs_cache prefix (!cache_epoch, refs); refs
 
 let list_graphs () =
   (* Legacy storage prefixes fold here only (followup.3). *)

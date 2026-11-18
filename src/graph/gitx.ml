@@ -57,17 +57,72 @@ let git args = "git" :: "-C" :: root :: args
 let git_out args = run_capture (git args)
 let git_ok args = run_status (git args) = 0
 
+(* One process serves one call, and a call re-reads the same
+   refs many times (every fold, the version scan, the view).
+   Cache tip/show results per process; any ref move through
+   commit_files invalidates, so a call never reads its own
+   writes stale. *)
+let cache_epoch = ref 0
+let tip_cache : (string, string option) Hashtbl.t = Hashtbl.create 64
+let show_cache : (string, string option) Hashtbl.t = Hashtbl.create 64
+let invalidate_ref_caches () =
+  incr cache_epoch;
+  Hashtbl.clear tip_cache; Hashtbl.clear show_cache
+
+(* Ledger reads go through one long-lived cat-file --batch
+   process instead of a git subprocess per read; a call reads
+   every ledger at least twice (folds plus the version scan).
+   Any failure disables the batch and reads fall back to
+   one git show / rev-parse per read, unchanged. *)
+exception Batch_down
+let batch : (in_channel * out_channel) option ref = ref None
+let batch_broken = ref false
+let batch_query spec =
+  let (ic, oc) = match !batch with
+    | Some io -> io
+    | None when !batch_broken ->
+        (try
+           let io = Unix.open_process_args_full "git"
+             [|"git"; "-C"; root; "cat-file"; "--batch"|] (Unix.environment ()) in
+           let (i, o, _) = io in batch := Some (i, o); (i, o)
+         with _ -> batch_broken := true; raise Batch_down)
+    | None -> raise Batch_down in
+  try
+    output_string oc (spec ^ "\n"); flush oc;
+    let header = input_line ic in
+    match String.split_on_char ' ' header with
+    | [_; "missing"] -> None
+    | oid :: _ :: size :: _ ->
+        let s = really_input_string ic (int_of_string size) in
+        ignore (input_byte ic); Some (oid, s)
+    | _ -> raise Batch_down
+  with
+  | Batch_down -> raise Batch_down
+  | _ -> batch := None; batch_broken := true; raise Batch_down
+
 let git_show ref_ path =
-  let out, code = git_out ["show"; ref_ ^ ":" ^ path] in
-  if code = 0 then Some out else None
+  let key = ref_ ^ ":" ^ path in
+  match Hashtbl.find_opt show_cache key with
+  | Some v -> v
+  | None ->
+      let v = (try match batch_query key with Some (_, s) -> Some s | None -> None
+        with Batch_down ->
+          let out, code = git_out ["show"; key] in
+          if code = 0 then Some out else None) in
+      Hashtbl.replace show_cache key v; v
 
 let ref_tip refname =
-  let out, code = git_out ["rev-parse"; "--verify"; "-q"; refname ^ "^{commit}"] in
-  if code = 0 && out <> "" then Some out else None
+  match Hashtbl.find_opt tip_cache refname with
+  | Some v -> v
+  | None ->
+      let v = (try match batch_query (refname ^ "^{commit}") with
+          Some (oid, _) -> Some oid | None -> None
+        with Batch_down ->
+          let out, code = git_out ["rev-parse"; "--verify"; "-q"; refname ^ "^{commit}"] in
+          if code = 0 && out <> "" then Some out else None) in
+      Hashtbl.replace tip_cache refname v; v
 
-let resolve_commit sha =
-  let out, code = git_out ["rev-parse"; "--verify"; "-q"; sha ^ "^{commit}"] in
-  if code = 0 && out <> "" then Some out else None
+let resolve_commit sha = ref_tip sha
 
 let worktree_dirty () =
   let out, _ = git_out ["status"; "--porcelain"] in
@@ -117,6 +172,7 @@ let commit_files ~branch ~base_tip ~expect_tip ~files ~msg =
   let code = run_status (git ["update-ref"; branch; new_tip; expect_tip]) in
   if code <> 0 then err "E_STALE_WORLD" (`Assoc [("branch", json_str branch)])
     "Branch tip moved; re-read and retry." 1;
+  invalidate_ref_caches ();
   new_tip
 
 let create_branch_commit ~branch ~base_tip ~files ~msg =
