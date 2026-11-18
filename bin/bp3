@@ -1,10 +1,72 @@
 #!/usr/bin/env bash
 # bp3 project tooling (pre-binary). The OCaml CLI absorbs these subcommands
 # later; the interface stays: bp3 skills install --harness=<name|all>.
+# Mode (dogfood.3) is derived from the target repo, never passed as a
+# flag: self = tracked src/graph + bin/bp3 (bp3 is the product), host =
+# neither tracked (bp3 is a tool). Core skills install everywhere; the
+# bp3-dev overlay installs only in self mode.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-src_dir="$root/skills"
+# Skills source: repo layout ($root/skills), installed layout
+# ($root/share/bp3/skills), or BP3_SKILLS_DIR for an explicit source.
+if [ -n "${BP3_SKILLS_DIR:-}" ]; then
+  src_dir="$BP3_SKILLS_DIR"
+elif [ -d "$root/skills" ]; then
+  src_dir="$root/skills"
+else
+  src_dir="$root/share/bp3/skills"
+fi
+if [ -n "${BP3_CHECK_SKILLS:-}" ]; then
+  check_skills_bin="$BP3_CHECK_SKILLS"
+elif [ -f "$root/scripts/check-skills" ]; then
+  check_skills_bin="$root/scripts/check-skills"
+else
+  check_skills_bin="$root/share/bp3/scripts/check-skills"
+fi
+if [ -d "$root/completions" ]; then
+  completions_dir="$root/completions"
+else
+  completions_dir="$root/share/bp3/completions"
+fi
+
+# Skill sets (dogfood.3): one spelling, named here only. A source
+# skill in neither list installs nowhere (fail-closed for hosts);
+# test/mode.sh asserts every source skill is listed exactly once.
+CORE_SKILLS="bp3g bp3g-frame bp3g-no-human icebox naming red-ink"
+DEV_SKILLS="add-bp3-skill add-yap-skill bp3g-landing-demo using-bp3"
+
+# Target repo: BP3_TARGET wins; else the cwd repo when it is not
+# this script's own repo; else this script's repo (self conduct
+# and non-git copies, e.g. test fixtures, keep the old behavior).
+target_root() {
+  if [ -n "${BP3_TARGET:-}" ]; then
+    echo "$BP3_TARGET"; return 0
+  fi
+  local cwd_top='' src_top=''
+  cwd_top="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || true)"
+  src_top="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [ -d "$root/skills" ] && { [ -z "$src_top" ] || [ "$cwd_top" = "$src_top" ]; }; then
+    echo "$root"
+  elif [ -n "$cwd_top" ]; then
+    echo "$cwd_top"
+  else
+    echo "$root"
+  fi
+}
+
+repo_mode() {
+  if git -C "$1" ls-files --error-unmatch -- src/graph bin/bp3 >/dev/null 2>&1; then
+    echo "self"
+  else
+    echo "host"
+  fi
+}
+
+mode_flag_error() {
+  echo "mode is derived from the repo (tracked src/graph + bin/bp3), never passed as a flag: $1" >&2
+  exit 2
+}
 
 # harness -> skills_dir. Sources are plain Markdown: no templating in bp3.
 # The render is a copy plus a GENERATED notice after the frontmatter.
@@ -19,9 +81,9 @@ harness_target() {
 }
 
 install_one() {
-  local skill="$1" harness="$2" target_dir dest
+  local skill="$1" harness="$2" target="$3" target_dir dest
   target_dir="$(harness_target "$harness")"
-  dest="$root/$target_dir/$skill"
+  dest="$target/$target_dir/$skill"
   mkdir -p "$dest"
   awk -v h="$harness" -v s="$skill" '
     /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
@@ -33,6 +95,7 @@ skills_install() {
   local harness="all"
   while [ $# -gt 0 ]; do
     case "$1" in
+      --mode|--mode=*) mode_flag_error "$1" ;;
       --harness=*) harness="${1#--harness=}" ;;
       --harness) [ $# -ge 2 ] || { echo '--harness needs a value' >&2; exit 2; }; harness="$2"; shift ;;
       *) echo "unknown arg: $1" >&2; exit 2 ;;
@@ -47,8 +110,17 @@ skills_install() {
     harnesses="$harness"
   fi
 
+  local target mode skills
+  target="$(target_root)"
+  mode="$(repo_mode "$target")"
+  skills="$CORE_SKILLS"
+  if [ "$mode" = "self" ]; then
+    skills="$CORE_SKILLS $DEV_SKILLS"
+  fi
+  echo "mode: $mode (derived from $target: tracked src/graph + bin/bp3)"
+
   # Preflight every source and the selected harness before writing any render.
-  "$root/scripts/check-skills" "$src_dir"
+  "$check_skills_bin" "$src_dir"
   local h
   for h in $harnesses; do
     harness_target "$h" >/dev/null || { echo "unknown harness: $h" >&2; exit 2; }
@@ -59,10 +131,11 @@ skills_install() {
   local settings_plan='' existing='{}' ids
   case " $harnesses " in
     *" pi "*)
-      if [ -e "$root/.pi/settings.json" ]; then
-        existing="$(jq -sce 'select(length == 1) | .[0] | select(type == "object")' "$root/.pi/settings.json")" || { echo 'invalid .pi/settings.json' >&2; exit 1; }
+      if [ -e "$target/.pi/settings.json" ]; then
+        existing="$(jq -sce 'select(length == 1) | .[0] | select(type == "object")' "$target/.pi/settings.json")" || { echo 'invalid .pi/settings.json' >&2; exit 1; }
       fi
-      ids="$(find "$src_dir" -mindepth 2 -maxdepth 2 -name SKILL.md | while IFS= read -r file; do basename "$(dirname "$file")"; done | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')"
+      # shellcheck disable=SC2086 # $skills is a space-separated word list by design
+      ids="$(printf '%s\n' $skills | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')"
       settings_plan="$(jq -ce --argjson ids "$ids" '
         if has("skills") and (.skills | type != "array" or any(.[]; type != "string")) then error("skills must be an array of strings") else . end |
         (.skills // []) as $existing |
@@ -71,59 +144,64 @@ skills_install() {
       ;;
   esac
 
-  # The bp3g saved workflows ship with the bp3g skill. They are
-  # plain copies (no render notice); the target is the project workflows
-  # dir every harness discovers. Absent source means nothing to copy.
+  # The bp3g saved workflows ship with the bp3g skill (core, both
+  # modes). They are plain copies (no render notice); the target is
+  # the project workflows dir every harness discovers. Absent source
+  # means nothing to copy.
   local workflow_names="node-loop bp3g-grade bp3g-land bp3g-node"
 
-  local skill_dir skill
-  for skill_dir in "$src_dir"/*/; do
-    skill="$(basename "$skill_dir")"
-    [ -f "$skill_dir/SKILL.md" ] || continue
+  local skill
+  for skill in $skills; do
+    [ -f "$src_dir/$skill/SKILL.md" ] || continue
     for h in $harnesses; do
-      install_one "$skill" "$h"
+      install_one "$skill" "$h" "$target"
     done
   done
   if [ -n "$settings_plan" ]; then
-    printf '%s\n' "$settings_plan" | jq . > "$root/.pi/settings.json"
+    mkdir -p "$target/.pi"
+    printf '%s\n' "$settings_plan" | jq . > "$target/.pi/settings.json"
   fi
   local workflow_name
   for workflow_name in $workflow_names; do
     if [ -f "$src_dir/bp3g/workflows/$workflow_name.js" ]; then
-      mkdir -p "$root/.agents/workflows"
-      cp "$src_dir/bp3g/workflows/$workflow_name.js" "$root/.agents/workflows/$workflow_name.js"
+      mkdir -p "$target/.agents/workflows"
+      cp "$src_dir/bp3g/workflows/$workflow_name.js" "$target/.agents/workflows/$workflow_name.js"
       echo "installed $workflow_name -> .agents/workflows/$workflow_name.js"
     fi
   done
   # Muse hook registration: one fail-open emitter command for
-  # every event. Repos without this file never fire hooks.
-  mkdir -p "$root/.claude"
-  cat > "$root/.claude/hooks.json" <<'HOOKS_JSON'
-{
-  "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "PostToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "PostLLMCall": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "SubagentStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "SubagentStop": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "Stop": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "SessionEnd": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}]
-  }
-}
-HOOKS_JSON
+  # every event. Repos without this file never fire hooks. The
+  # command is mode-aware (dogfood.3): self reads via the desk
+  # script, host reads call bp3 on PATH.
+  local hook_cmd="./bin/bp3 g hooks"
+  if [ "$mode" = "host" ]; then
+    hook_cmd="bp3 g hooks"
+  fi
+  mkdir -p "$target/.claude"
+  {
+    printf '{\n  "hooks": {\n'
+    printf '    "SessionStart": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
+    printf '    "PreToolUse": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
+    printf '    "PostToolUse": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
+    printf '    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
+    printf '    "PostLLMCall": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
+    printf '    "SubagentStart": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
+    printf '    "SubagentStop": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
+    printf '    "Stop": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
+    printf '    "SessionEnd": [{"hooks": [{"type": "command", "command": "%s"}]}]\n' "$hook_cmd"
+    printf '  }\n}\n'
+  } > "$target/.claude/hooks.json"
   echo "installed hooks -> .claude/hooks.json"
   # Claude Code loads hooks from settings.json, not hooks.json
   # (live probe 2026-11-14: hooks.json alone never fired; the
   # same hooks under settings.json produced ledger event lines).
   # Merge into any existing settings, preserving other keys.
-  local claude_settings="$root/.claude/settings.json"
+  local claude_settings="$target/.claude/settings.json"
   local existing_settings='{}'
   if [ -e "$claude_settings" ]; then
     existing_settings="$(cat "$claude_settings")"
   fi
-  printf '%s\n' "$existing_settings" | jq --slurpfile hj "$root/.claude/hooks.json" \
+  printf '%s\n' "$existing_settings" | jq --slurpfile hj "$target/.claude/hooks.json" \
     '.hooks = $hj[0].hooks' > "$claude_settings.tmp"
   mv "$claude_settings.tmp" "$claude_settings"
   echo "installed hooks -> .claude/settings.json"
@@ -132,8 +210,8 @@ HOOKS_JSON
   # and in workflow children; no settings merge needed).
   case " $harnesses " in
     *" muse "*)
-      mkdir -p "$root/.muse"
-      cp "$root/.claude/hooks.json" "$root/.muse/hooks.json"
+      mkdir -p "$target/.muse"
+      cp "$target/.claude/hooks.json" "$target/.muse/hooks.json"
       echo "installed hooks -> .muse/hooks.json"
       ;;
   esac
@@ -143,7 +221,7 @@ HOOKS_JSON
   # Tab completion delivery: copy the scripts into an existing zsh
   # completions dir when one is found (BP3_COMPLETIONS_DIR overrides the
   # search); otherwise print the path to add. Never edit a shell rc file.
-  local comp_src="$root/completions/_bp3" comp_bash_src="$root/completions/bp3.bash"
+  local comp_src="$completions_dir/_bp3" comp_bash_src="$completions_dir/bp3.bash"
   if [ -f "$comp_src" ]; then
     local comp_dest=''
     if [ -n "${BP3_COMPLETIONS_DIR:-}" ]; then
@@ -162,7 +240,7 @@ HOOKS_JSON
       echo "installed _bp3 -> $comp_dest/_bp3"
       echo "completion: source $comp_bash_src (bash)"
     else
-      echo "completion: add $root/completions to fpath (zsh: fpath=($root/completions \$fpath); compinit) or source $comp_bash_src (bash)"
+      echo "completion: add $completions_dir to fpath (zsh: fpath=($completions_dir \$fpath); compinit) or source $comp_bash_src (bash)"
     fi
   fi
 }
@@ -174,53 +252,63 @@ HOOKS_JSON
 # .agents/workflows/<name>.js (render). Fresh is silent JSON
 # ok; stale refuses E_RENDER_STALE naming render and source.
 skills_check() {
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      --mode|--mode=*) mode_flag_error "$arg" ;;
+      *) echo "unknown arg: $arg" >&2; exit 2 ;;
+    esac
+  done
+  local target mode
+  target="$(target_root)"
+  mode="$(repo_mode "$target")"
   local workflow_names="node-loop bp3g-grade bp3g-land bp3g-node"
   local workflow_name src_file render_file
   local stale_json="" stale_count=0
   for workflow_name in $workflow_names; do
-    src_file="$root/skills/bp3g/workflows/$workflow_name.js"
+    src_file="$src_dir/bp3g/workflows/$workflow_name.js"
     [ -f "$src_file" ] || continue
-    render_file="$root/.agents/workflows/$workflow_name.js"
+    render_file="$target/.agents/workflows/$workflow_name.js"
     if [ ! -f "$render_file" ] || ! cmp -s "$src_file" "$render_file"; then
       stale_count=$((stale_count + 1))
       stale_json="${stale_json}{\"workflow\":\"$workflow_name\",\"render\":\".agents/workflows/$workflow_name.js\",\"source\":\"skills/bp3g/workflows/$workflow_name.js\"},"
     fi
   done
   if [ "$stale_count" -gt 0 ]; then
-    printf '{"ok":false,"error":{"code":"E_RENDER_STALE","facts":{"stale":[%s]},"guidance":"Re-render in the desk (./bin/bp3 skills install) and re-check; never launch a stale render."}}\n' "${stale_json%,}"
+    if [ "$mode" = "self" ]; then
+      printf '{"ok":false,"error":{"code":"E_RENDER_STALE","facts":{"stale":[%s]},"guidance":"Re-render in the desk (./bin/bp3 skills install) and re-check; never launch a stale render."}}\n' "${stale_json%,}"
+    else
+      printf '{"ok":false,"error":{"code":"E_RENDER_STALE","facts":{"stale":[%s]},"guidance":"Re-render in the repo (bp3 skills install) and re-check; never launch a stale render."}}\n' "${stale_json%,}"
+    fi
     exit 1
   fi
   printf '{"ok":true,"fresh":["node-loop","bp3g-grade","bp3g-land","bp3g-node"]}\n'
 }
 
-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 skills check | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 init-repo | bp3 skills install [...] | bp3 skills check | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
 g_bin() { echo "${BP3_G_BIN:-$root/_build/default/src/graph/main.exe}"; }
+run_g() {
+  local door="$1"; shift
+  local gb
+  gb="$(g_bin)"
+  if [[ -x $gb ]]; then
+    BP3_ROOT="$root" exec "$gb" "$door" "$@"
+  elif command -v bp3-g >/dev/null 2>&1; then
+    # Installed tool (host mode): the binary roots at the caller's repo.
+    BP3_ROOT="$(target_root)" exec bp3-g "$door" "$@"
+  else
+    echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2
+  fi
+}
 case "${1:-}" in
   -h|--help) printf '%s\n' "$usage_text"; printf '%s\n' '  bp3 g -h for graph/node doors'; exit 0 ;;
-  g) shift
-    gb="$(g_bin)"
-    [[ -x $gb ]] || { echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2; }
-    BP3_ROOT="$root" exec "$gb" g "$@" ;;
-  n) shift
-    gb="$(g_bin)"
-    [[ -x $gb ]] || { echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2; }
-    BP3_ROOT="$root" exec "$gb" n "$@" ;;
-  e) shift
-    gb="$(g_bin)"
-    [[ -x $gb ]] || { echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2; }
-    BP3_ROOT="$root" exec "$gb" e "$@" ;;
-  harness) shift
-    gb="$(g_bin)"
-    [[ -x $gb ]] || { echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2; }
-    BP3_ROOT="$root" exec "$gb" harness "$@" ;;
-  config) shift
-    gb="$(g_bin)"
-    [[ -x $gb ]] || { echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2; }
-    BP3_ROOT="$root" exec "$gb" config "$@" ;;
-  worktree) shift
-    gb="$(g_bin)"
-    [[ -x $gb ]] || { echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2; }
-    BP3_ROOT="$root" exec "$gb" worktree "$@" ;;
+  g) shift; run_g g "$@" ;;
+  n) shift; run_g n "$@" ;;
+  e) shift; run_g e "$@" ;;
+  harness) shift; run_g harness "$@" ;;
+  config) shift; run_g config "$@" ;;
+  worktree) shift; run_g worktree "$@" ;;
+  init-repo) shift; run_g init-repo "$@" ;;
   init) shift; skills_install "$@" ;;
   skills)
     shift

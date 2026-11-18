@@ -2210,6 +2210,9 @@ let parse_mint_flags args =
     | "--run-id" :: v :: rest ->
         if fl.m_run <> None then usage "duplicate flag --run-id";
         fl.m_run <- Some v; loop rest
+    | "--mode" :: _ -> usage mode_flag_usage
+    | f :: _ when String.length f >= 7 && String.sub f 0 7 = "--mode=" ->
+        usage mode_flag_usage
     | ["--kind"] | ["--graph"] | ["--node"] | ["--edge"]
     | ["--parent-run-id"] | ["--depth"] | ["--desk"] | ["--harness"]
     | ["--model"] | ["--thinking"] | ["--cycle"] | ["--run-id"] ->
@@ -2285,6 +2288,7 @@ let do_link_mint args =
     ("minted_at", json_str (now_ts ()));
     ("token_hash", json_str token_hash);
   ] @ (match fl.m_thinking with Some t -> [("thinking", json_str t)] | None -> []) in
+  let mode = repo_mode () in
   let fields_of run_id = [
     ("run_id", json_str run_id);
     ("kind", json_str kind);
@@ -2292,6 +2296,7 @@ let do_link_mint args =
     ("node", json_str node);
     ("state", json_str "minted");
     ("desk", json_str desk);
+    ("mode", json_str mode);
     ("creator", `Assoc creator);
   ] @ (match edge with Some e -> [("edge", json_str e)] | None -> []) in
   (* Reserve the run config with O_EXCL: two mints in the same
@@ -2335,7 +2340,7 @@ let do_link_mint args =
     ("edge", (match edge with Some e -> json_str e | None -> `Null));
     ("state", json_str "minted"); ("depth", `Int depth);
     ("parent_run_id", (match parent with Some p -> json_str p | None -> `Null));
-    ("desk", json_str desk);
+    ("desk", json_str desk); ("mode", json_str mode);
   ]));
   0
 
@@ -2350,6 +2355,7 @@ let parse_claim_args args =
     | "--session-id" :: v :: rest ->
         if session <> None then usage "duplicate flag --session-id";
         loop token (Some v) rest
+    | "--mode" :: _ -> usage mode_flag_usage
     | ["--session-id"] -> usage "flag needs a value"
     | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
         (match String.index_opt f '=' with
@@ -2501,6 +2507,7 @@ let do_link_claim args =
     ("pid", `Int pid); ("cwd", json_str cwd); ("desk", json_str desk);
     ("parent_run_id", json_str parent); ("depth", `Int depth);
     ("claimed_at", json_str claimed_at);
+    ("mode", json_str (Config.jstr raw "mode" ""));
   ]));
   0
 

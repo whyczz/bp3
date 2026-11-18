@@ -21,6 +21,16 @@ root="$work/project with spaces"
 cp "$repo/bin/bp3" "$root/bin/"
 cp "$repo/scripts/check-skills" "$root/scripts/"
 cp -R "$repo/skills" "$root/"
+# A self repo by derivation (dogfood.3): tracked src/graph + bin/bp3.
+# The fixture names its target explicitly (BP3_TARGET); mode still
+# derives from the fixture repo itself, never from a flag.
+mkdir -p "$root/src/graph"
+touch "$root/src/graph/.keep"
+git -C "$root" init -q -b main
+git -C "$root" config user.email t@t.t
+git -C "$root" config user.name t
+git -C "$root" add bin/bp3 src/graph
+export BP3_TARGET="$root"
 source="$root/skills/add-yap-skill/SKILL.md"
 cp "$source" "$work/good.md"
 

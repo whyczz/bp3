@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bp3 shim (installed next to bp3-g by scripts/install-bp3.sh).
+# bp3 shim (manual fallback; scripts/install-bp3.sh now ships bin/bp3 itself next to bp3-g).
 # Roots at the caller's repo: the binary takes BP3_ROOT or cwd.
 #   bp3 g|graph ...   -> bp3-g ...        bp3 init-repo -> bp3-g init-repo
 #   bp3 -h|--version  -> bp3-g same       anything else -> bp3-g as-is

@@ -133,6 +133,18 @@ let head_sha () =
 
 let is_ancestor a b = git_ok ["merge-base"; "--is-ancestor"; a; b]
 
+(* Repo mode (dogfood.3): derived from the repo, never passed
+   as a flag. self = bp3 is the product (its engine source and
+   its tool script are both tracked here); host = bp3 is a tool
+   in a repo that carries neither. Flags lie; derivation cannot. *)
+let repo_mode () =
+  if git_ok ["ls-files"; "--error-unmatch"; "--"; "src/graph"; "bin/bp3"]
+  then "self" else "host"
+
+let mode_flag_usage =
+  "mode is derived from the repo (tracked src/graph + bin/bp3), \
+   never passed as a flag: --mode"
+
 let now_ts () =
   let t = Unix.gmtime (Unix.time ()) in
   Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02dZ"

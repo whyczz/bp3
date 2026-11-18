@@ -104,6 +104,10 @@ export default async function workflow(host) {
   const envPrefix =
     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
   const deskNote = desk ? ("Your working directory is the graph worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
+  // Mode-aware reads (dogfood.3): a desk exists only in self mode,
+  // so desk presence derives the read path - self reads via the
+  // desk script, host reads call bp3 on PATH. Never a flag.
+  const bp3Bin = desk ? "./bin/bp3" : "bp3";
   const refusals = [];
   const runIds = [];
   if (!graph || !node || !ts) {
@@ -122,7 +126,7 @@ export default async function workflow(host) {
       label: "read " + node,
       input:
         deskNote +
-        "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
+        "Run exactly `" + envPrefix + bp3Bin + " g " + graph + " r " + node +
         "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
         "verdict verbatim as your entire reply, with no prose and no " +
         "code fences. If the command fails, return its stdout JSON " +
@@ -173,7 +177,7 @@ export default async function workflow(host) {
     if (!link) return "";
     return (
       "Your first action claims your one-time link: run `" +
-      envPrefix + "./bin/bp3 harness link claim " + link.token +
+      envPrefix + bp3Bin + " harness link claim " + link.token +
       "` and note the run_id it returns (expected " + link.run_id +
       "). Prefix your state-edge call below with " +
       "BP3_RUN_ID=<that run_id>. "
@@ -186,7 +190,7 @@ export default async function workflow(host) {
   // worker's session tape after it returns (bindTape).
   async function mintLink(edge, cycle) {
     const cmd =
-      envPreset() + "./bin/bp3 harness link mint" +
+      envPreset() + bp3Bin + " harness link mint" +
       " --kind edge --edge " + edge +
       " --graph " + graph + " --node " + node +
       " --harness " + harness + " --model " + model +
@@ -223,7 +227,7 @@ export default async function workflow(host) {
   async function bindTape(edge, cycle) {
     const runId = runIdOf(edge, cycle);
     const resolveCmd =
-      envPreset() + "./bin/bp3 harness find-tape" +
+      envPreset() + bp3Bin + " harness find-tape" +
       " --run-id " + runId;
     const resolved = await host.agent({
       label: "resolve " + node,
@@ -251,7 +255,7 @@ export default async function workflow(host) {
       return false;
     }
     const bindCmd =
-      envPreset() + "./bin/bp3 harness bind-tape" +
+      envPreset() + bp3Bin + " harness bind-tape" +
       " --run-id " + runId + " --tape-path " + tapePath;
     const bound = await host.agent({
       label: "bind " + node,
@@ -333,7 +337,7 @@ export default async function workflow(host) {
   async function callBlock(reason) {
     const safe = String(reason).replace(/(["$`\\])/g, "\\$1");
     const cmd =
-      envPreset() + "./bin/bp3 g " + graph + " u " + node +
+      envPreset() + bp3Bin + " g " + graph + " u " + node +
       " block --reason \"" + safe + "\"";
     const result = await host.agent({
       label: "block " + node,
@@ -420,7 +424,7 @@ export default async function workflow(host) {
         " Do the node's work in the repository, then commit the " +
         "work as a clean git commit and note its full sha. Then " +
         "call the state edge directly yourself: " +
-        "`" + envPreset() + "./bin/bp3 g " + graph + " u " + node +
+        "`" + envPreset() + bp3Bin + " g " + graph + " u " + node +
         " handoff --commit <your-commit-sha> --reason \"<short reason>\"`. " +
         "Children call `bp3 g u` directly; never only return a " +
         "verdict for the parent to relay. Reply with only a JSON " +
@@ -445,7 +449,7 @@ export default async function workflow(host) {
         graph + "`, currently in state `approved` at cycle " +
         String(state.cycle) + ". " + tapePreamble(edge, state.cycle) +
         " Call the state edge directly yourself: " +
-        "`" + envPreset() + "./bin/bp3 g " + graph + " u " + node +
+        "`" + envPreset() + bp3Bin + " g " + graph + " u " + node +
         " land --reason \"<short reason>\"`. " +
         "Reply with only a JSON object {ok, run_id, commit, verdict} " +
         "where verdict is the JSON printed by the land call.";
@@ -480,7 +484,7 @@ export default async function workflow(host) {
       ? "grade ship; verify " + combined.verify_verdict : combined.fix;
     const safe = String(reasonText).replace(/(["$`\\])/g, "\\$1");
     const cmd =
-      envPreset() + "./bin/bp3 g " + graph + " u " + node +
+      envPreset() + bp3Bin + " g " + graph + " u " + node +
       " grade --verdict " + castVerdict + " --commit " + String(state.commit) +
       " --verify-verdict " + combined.verify_verdict +
       (combined.fix_class === "mechanical" ? " --mechanical" : "") +

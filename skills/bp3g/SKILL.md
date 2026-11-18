@@ -57,6 +57,14 @@ above stays the one conductor procedure.
 
 ## Procedure
 
+Mode (dogfood.3): the repo derives the mode, never a flag.
+**self** (tracked `src/graph` + `bin/bp3`: bp3 is the product)
+conducts from a desk and reads via `./bin/bp3`; **host** (neither
+tracked: bp3 is a tool) has no desk, installs core skills only,
+and reads call `bp3` on PATH. `bp3 config` reports the derived
+`mode`; every Run record carries it. Passing `--mode` anywhere
+is a usage error naming this derivation.
+
 1. Take exactly one argument: the graph. Confirm the engine
    exists: `bp3 g r <graph>` must answer JSON. If `bp3 g` is
    unavailable, stop and say so — never improvise state with
@@ -67,7 +75,9 @@ above stays the one conductor procedure.
    by hand. At a fan-out group, stop and ask the human which
    members run; members are exploration only and never
    landable.
-2.5. Graph worktree, by default: before the first dispatch,
+2.5. Graph worktree, by default (self mode only; host mode
+   passes no `desk` and children work in the repo root): before
+   the first dispatch,
    `./bin/bp3 harness desk prepare --graph <graph>` and pass its
    `path` as `desk` in every step's args. All step children
    work in that one worktree for the whole graph; the

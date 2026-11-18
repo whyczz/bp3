@@ -68,6 +68,10 @@ export default async function workflow(host) {
   const model = rawArgs.model || "unknown";
   const desk = rawArgs.desk ? String(rawArgs.desk) : "";
   const deskNote = desk ? ("Your working directory is the graph worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
+  // Mode-aware reads (dogfood.3): a desk exists only in self mode,
+  // so desk presence derives the read path - self reads via the
+  // desk script, host reads call bp3 on PATH. Never a flag.
+  const bp3Bin = desk ? "./bin/bp3" : "bp3";
   const envPrefix =
     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
   const refusals = [];
@@ -89,7 +93,7 @@ export default async function workflow(host) {
       label: "read " + node,
       input:
         deskNote +
-        "Run exactly `" + envPrefix + "./bin/bp3 g " + graph + " r " + node +
+        "Run exactly `" + envPrefix + bp3Bin + " g " + graph + " r " + node +
         "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
         "verdict verbatim as your entire reply, with no prose and no " +
         "code fences. If the command fails, return its stdout JSON " +
@@ -136,7 +140,7 @@ export default async function workflow(host) {
     if (!link) return "";
     return (
       "Your first action claims your one-time link: run `" +
-      envPrefix + "./bin/bp3 harness link claim " + link.token +
+      envPrefix + bp3Bin + " harness link claim " + link.token +
       "` and note the run_id it returns (expected " + link.run_id +
       "). Prefix your state-edge call below with " +
       "BP3_RUN_ID=<that run_id>. "
@@ -155,7 +159,7 @@ export default async function workflow(host) {
   async function mintLink(edge, cycle) {
     const fsm = ["handoff", "grade", "verify", "land", "block", "resume"].includes(edge);
     const cmd =
-      envPreset(edge, cycle) + "./bin/bp3 harness link mint" +
+      envPreset(edge, cycle) + bp3Bin + " harness link mint" +
       (fsm ? " --kind edge --edge " + edge : " --kind node") +
       " --graph " + graph + " --node " + node +
       " --harness " + harness + " --model " + model +
@@ -235,7 +239,7 @@ export default async function workflow(host) {
       graph + "`, currently in state `approved` at cycle " +
       String(before.cycle) + ". " + tapePreamble("land", before.cycle) +
       " Call the state edge directly yourself: " +
-      "`" + envPreset("land", before.cycle) + "./bin/bp3 g " + graph + " u " + node +
+      "`" + envPreset("land", before.cycle) + bp3Bin + " g " + graph + " u " + node +
       " land --reason \"<short reason>\"`. Children call " +
       "`bp3 g u` directly; never only return a verdict for " +
       "the parent to relay. Reply with only a JSON object " +

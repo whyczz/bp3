@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# install-bp3.sh: install the release artifact as bp3-g (+ bp3 shim).
+# install-bp3.sh: install the release artifact as bp3-g, the bin/bp3
+# tool script as bp3, and the skills source under share/bp3 (the
+# packaging answer for host mode, dogfood.3: the installed tool
+# carries its skills; bin/bp3 renders them into the caller's repo).
 # Usage: PREFIX=$HOME/.local scripts/install-bp3.sh [artifact]
 # Artifact defaults to dist/bp3-g-v<version>-<os>-<arch> in this
 # repo; if missing, tries `gh release download v<version>`.
@@ -25,9 +28,16 @@ if [ -f "$artifact.sha256" ]; then
 fi
 old=none
 [ -x "$prefix/bin/bp3-g" ] && old=$("$prefix/bin/bp3-g" --version 2>/dev/null || echo none)
-mkdir -p "$prefix/bin"
+mkdir -p "$prefix/bin" "$prefix/share/bp3/scripts"
 rm -f "$prefix/bin/bp3-g" "$prefix/bin/bp3"
 cp "$artifact" "$prefix/bin/bp3-g"
-cp "$root/scripts/bp3-shim" "$prefix/bin/bp3"
-chmod +x "$prefix/bin/bp3-g" "$prefix/bin/bp3"
+cp "$root/bin/bp3" "$prefix/bin/bp3"
+rm -rf "$prefix/share/bp3/skills" "$prefix/share/bp3/completions"
+cp -R "$root/skills" "$prefix/share/bp3/skills"
+cp "$root/scripts/check-skills" "$prefix/share/bp3/scripts/check-skills"
+if [ -d "$root/completions" ]; then
+  cp -R "$root/completions" "$prefix/share/bp3/completions"
+fi
+chmod +x "$prefix/bin/bp3-g" "$prefix/bin/bp3" "$prefix/share/bp3/scripts/check-skills"
 echo "installed bp3-g $version -> $prefix/bin/bp3-g (was: $old)"
+echo "installed bp3 tool + skills -> $prefix/bin/bp3, $prefix/share/bp3/skills"

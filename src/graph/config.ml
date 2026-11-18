@@ -143,6 +143,7 @@ type run_config = {
   rc_harness : string;
   rc_pid : int option;
   rc_tape : string option;
+  rc_mode : string;
 }
 
 let run_config_of_file path =
@@ -175,7 +176,8 @@ let run_config_of_file path =
                | Some c -> (try match Yojson.Safe.Util.member "pid" c with
                             | `Int n -> Some n | _ -> None with _ -> None)
                | None -> None);
-             rc_tape = jopt j "tape_path" }
+             rc_tape = jopt j "tape_path";
+             rc_mode = jstr j "mode" "" }
   with _ -> None
 
 (* A torn or foreign file under runs/ is never read as a
@@ -201,7 +203,8 @@ let context_json rc =
           ("desk", json_str rc.rc_desk); ("state", json_str rc.rc_state);
           ("kind", json_str rc.rc_kind);
           ("parent_run_id", json_str rc.rc_parent);
-          ("depth", `Int rc.rc_depth)]
+          ("depth", `Int rc.rc_depth);
+          ("mode", json_str rc.rc_mode)]
 
 (* ---------- raw run configs (link mint/claim writers) ---------- *)
 let run_config_path dir run_id =
@@ -401,6 +404,7 @@ let view ~source =
   let contexts =
     List.map (if source then source_context_json else context_json) rcs in
   `Assoc [("ok", `Bool true); ("config_dir", json_str dir);
+          ("mode", json_str (repo_mode ()));
           ("thresholds", thresholds_json t);
           ("contexts", `List contexts);
           ("desks", `List (desks_json rcs));

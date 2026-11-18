@@ -3,7 +3,7 @@
 # current one); completion fails silently on any error.
 # shellcheck shell=bash
 
-_bp3_flags='--format --reason --commit --verdict --verify-verdict --mechanical --target --type --depends-on'
+_bp3_flags='--format --reason --commit --verdict --verify-verdict --mechanical --target --type --depends-on --mode'
 _bp3_edges='handoff grade verify land block resume'
 _bp3_graph_verbs='c r d create read delete'
 _bp3_node_verbs='c r u d create read update delete dep diagram n'

@@ -30,6 +30,9 @@ let parse_flags args =
     | "--type" :: [] | "--depends-on" :: [] | "--format" :: []
     | "--verify-verdict" :: [] ->
         usage "flag needs a value"
+    | "--mode" :: _ -> usage mode_flag_usage
+    | f :: _ when String.length f >= 7 && String.sub f 0 7 = "--mode=" ->
+        usage mode_flag_usage
     | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
         (match String.index_opt f '=' with
          | Some _ -> usage ("unknown flag form: " ^ f)
