@@ -90,7 +90,7 @@ echo "$out" | jq -e '.ready == ["flappy-day","flappy-night"]
   and .ready_set_waves == [["flappy-day","flappy-night"]] and .starved == []' >/dev/null \
   || fail "ready-set waves: $out"
 
-# --- parallel author workers: claim, build, handoff, grade, verify ---
+# --- parallel author workers: claim, build, handoff, one combined grade cast ---
 author_worker() { # <node> <session> <variant> <sky>
   local node=$1 session=$2 variant=$3 sky=$4
   local desk="$work/desk-$node"
@@ -106,8 +106,7 @@ author_worker() { # <node> <session> <variant> <sky>
   commit=$(commit_file_on_node "$node" "$node.html" "$desk/$node.html")
   printf '%s' "$commit" > "$work/$node.commit"
   es "$session" handoff --commit "$commit" --reason "flappy $variant" > "$work/$node.handoff.json"
-  es "$session" grade --verdict ship --reason "artifact checked" > "$work/$node.grade.json"
-  es "$session" verify --verdict pass --reason "node --check green" > "$work/$node.verify.json"
+  es "$session" grade --verdict ship --verify-verdict pass --commit "$commit" --reason "grade ship; verify pass" > "$work/$node.grade.json"
   now_ms > "$work/$node.end"
 }
 author_worker flappy-day sess-day day 0x87ceeb &
@@ -145,13 +144,13 @@ echo "$out" | jq -e '.node == "flappy-night" and .source == "session"' >/dev/nul
 # quality floor: full matrix per node, no rung skipped
 for n in flappy-day flappy-night; do
   jq -e '.state == "handed_off"' "$work/$n.handoff.json" >/dev/null || fail "$n handoff state"
-  jq -e '.state == "handed_off"' "$work/$n.grade.json" >/dev/null || fail "$n grade state"
-  jq -e '.state == "approved"' "$work/$n.verify.json" >/dev/null || fail "$n verify state"
+  jq -e '.state == "approved"' "$work/$n.grade.json" >/dev/null || fail "$n grade state"
   out=$(q par r "$n")
   echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "$n approved read: $out"
   git show "bp3/node/par/$n:docs/graphs/par/nodes/$n/ledger.jsonl" \
     | jq -s -e '([.[] | select(.edge == "grade" and .verdict == "ship")] | length == 1)
-      and ([.[] | select(.edge == "verify" and .verdict == "pass")] | length == 1)' >/dev/null \
+      and ([.[] | select(.edge == "grade" and .verdict == "ship")][0].verify_verdict == "pass")
+      and ([.[] | select(.edge == "verify")] | length == 0)' >/dev/null \
     || fail "$n grade matrix ledger"
 done
 
@@ -385,6 +384,15 @@ function makeClaudeHost(node, blockMode) {
         fs.writeFileSync(tp, "{}\n");
         const m = input.match(/--run-id (\S+)/);
         return JSON.stringify({ ok: true, run_id: m ? m[1] : "", tape_path: tp });
+      }
+      if (kind === "apply") {
+        // Looper apply child (followup.5): its spawn text is the
+        // one combined cast itself, with no link token to claim;
+        // run it and return its stdout JSON verdict.
+        try { return sh(extractCmd(input)); } catch (e) {
+          const out = ((e.stdout || "") + "").trim().split("\n").pop();
+          return out || JSON.stringify({ ok: false, error: { code: "E_APPLY" } });
+        }
       }
       const edge = kind;
       host.edgeCalls[edge] = (host.edgeCalls[edge] || 0) + 1;

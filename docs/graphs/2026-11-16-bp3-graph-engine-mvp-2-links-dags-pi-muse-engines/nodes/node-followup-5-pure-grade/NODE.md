@@ -142,3 +142,12 @@ after its named fix was applied counts one
 disagreement cycle and blocks at cap; (3) one live
 mechanical cycle (planted stale term) rides
 grade → author → grade with zero owner contact.
+
+## Fix ledger (append-only)
+
+- 2026-11-18 · cycle 2 · from grade of 4ab3228 (needs_fix) · status: open
+  fix: "In test/dogfood-parallel.sh, update the two stale consumers of the old two-cast contract for the followup.5 combined cast: (1) the bubble-drive agent() mock must dispatch on the looper apply child first (label \"apply <node>\" / its Run-exactly grade --verdict ... --verify-verdict ... command — run it and return its stdout JSON) instead of parsing a bp3link_ token from that spawn text and dereferencing the null match (TypeError at bubble-drive.mjs:161 via bp3g-node.js:488 callApply); (2) the parallel-grade ledger jq check must accept the single combined grade ledger line carrying verify_verdict=pass instead of requiring a separate edge==verify verdict==pass line. Done when ./test/dogfood-parallel.sh passes and make check exits 0 at the fix commit."
+  regression_test: ./test/dogfood-parallel.sh + make check (named in the fix)
+
+- 2026-11-18 · cycle 2 · RESOLVED (this handoff)
+  resolution: "Both stale consumers updated in test/dogfood-parallel.sh: (1) the Muse bubble host agent() dispatches kind \"apply\" before the bp3link_ token parse — it runs the spawn text's Run-exactly combined cast via sh(extractCmd(input)) and returns its stdout JSON (a refused cast returns its error JSON, never a null deref); (2) author_worker now casts once (grade --verdict ship --verify-verdict pass --commit <bound>) and the quality-floor check asserts the single grade line carries verify_verdict pass with zero verify-edge lines. Failure reproduced at 4ab3228 first (TypeError at bubble-drive.mjs:161 via callApply); verified at the fix commit: ./test/dogfood-parallel.sh exit 0 (bubble scorecard pi/claude blocked, claude fresh landed, siblings unaffected) and make check exit 0. Grade-blocking porcelain cleared: the four cycle-4 followup.3 run notes and the three cycle-1 run notes of this node are committed as deliberate evidence; tapes stay gitignored, git status --porcelain empty."
