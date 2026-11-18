@@ -118,13 +118,14 @@ HOOKS_JSON
   # (live probe 2026-11-14: hooks.json alone never fired; the
   # same hooks under settings.json produced ledger event lines).
   # Merge into any existing settings, preserving other keys.
+  # PostLLMCall is Muse-only; Claude Code warns on unknown events.
   local claude_settings="$root/.claude/settings.json"
   local existing_settings='{}'
   if [ -e "$claude_settings" ]; then
     existing_settings="$(cat "$claude_settings")"
   fi
   printf '%s\n' "$existing_settings" | jq --slurpfile hj "$root/.claude/hooks.json" \
-    '.hooks = $hj[0].hooks' > "$claude_settings.tmp"
+    '.hooks = ($hj[0].hooks | del(.PostLLMCall))' > "$claude_settings.tmp"
   mv "$claude_settings.tmp" "$claude_settings"
   echo "installed hooks -> .claude/settings.json"
   # Muse hook registration: project tier .muse/hooks.json at the

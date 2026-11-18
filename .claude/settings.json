@@ -40,16 +40,6 @@
         ]
       }
     ],
-    "PostLLMCall": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "./bin/bp3 q hooks"
-          }
-        ]
-      }
-    ],
     "SubagentStart": [
       {
         "hooks": [
