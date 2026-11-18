@@ -239,10 +239,13 @@ let newest_bp3_version () =
       | Some (_, t) -> from_text acc t | None -> acc) acc (list_exps q))
     None (list_quests ())
 
-let version_ahead () =
-  match newest_bp3_version () with
-  | Some v when version_cmp (parse_version v) (parse_version bp3_version) > 0 -> Some v
-  | _ -> None
+(* One scan per process (each bp3 q call is one command). This process
+   only stamps bp3_version, so its own writes cannot change the answer. *)
+let version_ahead =
+  let ahead = lazy (match newest_bp3_version () with
+    | Some v when version_cmp (parse_version v) (parse_version bp3_version) > 0 -> Some v
+    | _ -> None) in
+  fun () -> Lazy.force ahead
 
 let warnings_of id is_write =
   (if is_write && id.incomplete then ["W_IDENTITY_UNKNOWN"] else [])
