@@ -1,0 +1,3083 @@
+created docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-rename-1-bp3g-rename/runs/20261117T084553Z-handoff-muse-code-muse-wonder-1.0-c1
+{"ok":true,"run_id":"20261117T084553Z-handoff-muse-code-muse-wonder-1.0-c1","kind":"edge","graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-rename-1-bp3g-rename","edge":"handoff","state":"claimed","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","pid":93158,"cwd":"/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","parent_run_id":"","depth":0,"claimed_at":"2026-11-17T08:46:03Z"}
+=== quest dir ===
+experiments
+QUEST.md
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments:
+exp-config-1-bp3-config
+exp-dogfood-1-link-drive
+exp-dogfood-2-parallel-drive
+exp-followup-1-grade-evidence
+exp-followup-2-workflow-birth
+exp-landing-1-landing-wrapup
+exp-mig-1-handoff-verbs
+exp-mig-2-traverse-rename
+exp-mvp-1-link-claim
+exp-mvp-2-context-resolution
+exp-mvp-3-ready-set-timing
+exp-mvp-4-diagram-emit
+exp-mvp-5-blocked-fail-fast
+exp-rename-1-bp3g-rename
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-config-1-bp3-config:
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-config-1-bp3-config/runs:
+20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1
+20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1
+20261116T213403Z-grade-muse-code-muse-wonder-1.0-c1
+20261116T213403Z-verify-muse-code-muse-wonder-1.0-c1
+20261116T230116Z-handoff-muse-code-muse-wonder-1.0-c2
+20261116T231002Z-audit-muse-code-muse-wonder-1.0-c2
+20261116T231002Z-grade-muse-code-muse-wonder-1.0-c2
+20261116T231002Z-verify-muse-code-muse-wonder-1.0-c2
+20261116T231422Z-land-muse-code-muse-wonder-1.0-c2
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-config-1-bp3-config/runs/20261116T213403Z-audit-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-config-1-bp3-config/runs/20261116T213403Z-grade-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-config-1-bp3-config/runs/20261116T213403Z-verify-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-config-1-bp3-config/runs/20261116T230116Z-handoff-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-config-1-bp3-config/runs/20261116T231002Z-audit-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-config-1-bp3-config/runs/20261116T231002Z-grade-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-config-1-bp3-config/runs/20261116T231002Z-verify-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-config-1-bp3-config/runs/20261116T231422Z-land-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-1-link-drive:
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-1-link-drive/runs:
+20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1
+20261117T062205Z-node-muse-code-muse-wonder-1.0-c1
+20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1
+20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1
+20261117T063415Z-land-muse-code-muse-wonder-1.0-c1
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1:
+attacks.log
+flappy-link-muse.html
+flappy-link-pi.html
+flappy-old-muse.html
+flappy-old-pi.html
+link-brief-muse.txt
+link-brief-pi.txt
+metrics.json
+notes.md
+old-brief.txt
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-1-link-drive/runs/20261117T062205Z-node-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-1-link-drive/runs/20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-1-link-drive/runs/20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-1-link-drive/runs/20261117T063415Z-land-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-2-parallel-drive:
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-2-parallel-drive/runs:
+20261117T063524Z-handoff-muse-code-muse-wonder-1.0-c1
+20261117T065327Z-node-muse-code-muse-wonder-1.0-c1
+20261117T065632Z-grade-muse-code-muse-wonder-1.0-c1
+20261117T065638Z-verify-muse-code-muse-wonder-1.0-c1
+20261117T075624Z-handoff-muse-code-muse-wonder-1.0-c2
+20261117T080958Z-node-muse-code-muse-wonder-1.0-c2
+20261117T082017Z-grade-muse-code-muse-wonder-1.0-c2
+20261117T082024Z-verify-muse-code-muse-wonder-1.0-c2
+20261117T084452Z-land-muse-code-muse-wonder-1.0-c2
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-2-parallel-drive/runs/20261117T063524Z-handoff-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-2-parallel-drive/runs/20261117T065327Z-node-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-2-parallel-drive/runs/20261117T065632Z-grade-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-2-parallel-drive/runs/20261117T065638Z-verify-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-2-parallel-drive/runs/20261117T075624Z-handoff-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-2-parallel-drive/runs/20261117T080958Z-node-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-2-parallel-drive/runs/20261117T082017Z-grade-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-2-parallel-drive/runs/20261117T082024Z-verify-muse-code-muse-wonder-1.0-c2:
+make-check.log
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-dogfood-2-parallel-drive/runs/20261117T084452Z-land-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-followup-1-grade-evidence:
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-followup-1-grade-evidence/runs:
+20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1
+20261117T035432Z-node-muse-code-muse-wonder-1.0-c1
+20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1
+20261117T035551Z-verify-muse-code-muse-wonder-1.0-c1
+20261117T040644Z-handoff-muse-code-muse-wonder-1.0-c2
+20261117T041834Z-node-muse-code-muse-wonder-1.0-c2
+20261117T041924Z-grade-muse-code-muse-wonder-1.0-c2
+20261117T041930Z-verify-muse-code-muse-wonder-1.0-c2
+20261117T042103Z-land-muse-code-muse-wonder-1.0-c2
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-followup-1-grade-evidence/runs/20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-followup-1-grade-evidence/runs/20261117T035432Z-node-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-followup-1-grade-evidence/runs/20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-followup-1-grade-evidence/runs/20261117T035551Z-verify-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-followup-1-grade-evidence/runs/20261117T040644Z-handoff-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines//experiments/exp-followup-1-grade-evidence/runs/20261117T041834Z-node-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+=== git status ===
+=== git log -5 ===
+7a0dfca feat(dogfood.2): bubble proof in the parallel drive — Pi and Muse, sibling unaffected
+a400ed5 docs(dogfood.2): name cycle-2 bubble proof fix
+5140695 feat(dogfood.2): parallel-drive proof — two variants, one ready-set
+adfd7b0 test(dogfood.1): link-drive A/B proof — one-line brief, attacks refuse
+f5b434d test(mvp.5): Pi process-tree proof — bubble once, tree dead, fresh revival
+=== branch ===
+quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+=== git log --oneline -30 ===
+7a0dfca feat(dogfood.2): bubble proof in the parallel drive — Pi and Muse, sibling unaffected
+a400ed5 docs(dogfood.2): name cycle-2 bubble proof fix
+5140695 feat(dogfood.2): parallel-drive proof — two variants, one ready-set
+adfd7b0 test(dogfood.1): link-drive A/B proof — one-line brief, attacks refuse
+f5b434d test(mvp.5): Pi process-tree proof — bubble once, tree dead, fresh revival
+3ce9c2d docs(mvp.5): name cycle-2 Pi process-tree proof fix
+4d00100 feat(mvp.5): blocked-fail-fast — typed failure blocks once, orphans replaced, bubble carries facts
+fe6efe7 feat(mvp.4): diagram verb — generated ascii/mermaid from live rollup
+8411e0a fix(followup.1): make run-folder validation trustworthy
+0aa087d docs(followup.1): name cycle-2 fix for run-folder validation false fail
+5cce4cc feat(followup.1): grade validations, audit re-collect, named verdict race
+6e2dd7c docs(followup.1): amend grade-evidence with grade validations design
+105cbea test(mvp.3): quotable no-hand-edited-state guard for cycle-2 grade
+b765d07 feat(mvp.3): ready-set waves, node deps, derived timing, setup gate, induct-node loop
+b2250e3 chore: sync installed workflow renders with committed sources
+63d49cd feat(mvp.2): context resolution — session/desk rungs, bp3 e door, claimed run-id stamping
+febc3ac docs(graph-engine): add followup.2 workflow-birth node
+09b9d8d feat(mvp.1): one-time link claim binding (mint/claim/lookup/cleanup)
+c9a76eb docs(graph-engine): add followup.1 grade-evidence node
+3c47fe5 fix(config.1): attribute mkdir failures, scope thresholds claim
+229a6ba feat(config.1): add bp3 config store and view door
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+886e1af docs(icebox): kill engine fan-out, addressed by graph-engine quest
+1fdb11e docs(icebox): freeze lint, portable dogfood, engine fan-out sketches
+3478ac1 docs(quest): rename graph-link to bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+13ebfdb fix(skills-test): expect red-ink in pi settings exclusions
+0334cdf docs(graph-link): adopt red-inked design; 12 nodes framed
+7640168 docs(quest-skill): quest files end with the Exp diagram
+
+=== src tree ===
+src/quest/worktree.ml
+src/quest/dune
+src/quest/main.ml
+src/quest/render.ml
+src/quest/config.ml
+src/quest/harness.ml
+src/quest/hooks.ml
+src/quest/store.ml
+src/quest/gitx.ml
+
+=== bin ===
+total 24
+drwxr-xr-x@  3 whycz  staff    96 Nov 16 14:15 .
+drwxr-xr-x@ 25 whycz  staff   800 Nov 16 14:15 ..
+-rwxr-xr-x@  1 whycz  staff  9206 Nov 16 21:53 bp3
+#!/usr/bin/env bash
+# bp3 project tooling (pre-binary). The OCaml CLI absorbs these subcommands
+# later; the interface stays: bp3 skills install --harness=<name|all>.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+src_dir="$root/skills"
+
+# harness -> skills_dir. Sources are plain Markdown: no templating in bp3.
+# The render is a copy plus a GENERATED notice after the frontmatter.
+harness_target() {
+  case "$1" in
+    pi)     echo ".pi/skills" ;;
+    claude) echo ".claude/skills" ;;
+    codex)  echo ".agents/skills" ;;
+    muse)   echo ".agents/skills" ;;
+    *) return 1 ;;
+  esac
+}
+
+install_one() {
+  local skill="$1" harness="$2" target_dir dest
+  target_dir="$(harness_target "$harness")"
+  dest="$root/$target_dir/$skill"
+  mkdir -p "$dest"
+  awk -v h="$harness" -v s="$skill" '
+    /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
+    { print }' "$src_dir/$skill/SKILL.md" > "$dest/SKILL.md"
+  echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness)"
+}
+
+skills_install() {
+  local harness="all"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --harness=*) harness="${1#--harness=}" ;;
+      --harness) [ $# -ge 2 ] || { echo '--harness needs a value' >&2; exit 2; }; harness="$2"; shift ;;
+      *) echo "unknown arg: $1" >&2; exit 2 ;;
+    esac
+    shift
+  done
+
+  local harnesses
+  if [ "$harness" = "all" ]; then
+    harnesses="pi claude codex muse"
+  else
+    harnesses="$harness"
+  fi
+
+  # Preflight every source and the selected harness before writing any render.
+
+=== skills dirs ===
+add-bp3-skill
+add-yap-skill
+icebox
+naming
+quest
+red-ink
+red-ink-quest-landing-demo
+traverse
+traverse-no-human
+using-bp3
+
+=== test files ===
+blocked.sh
+completion.sh
+config.sh
+context.sh
+diagram.sh
+dogfood-link.sh
+dogfood-parallel.sh
+harness.sh
+hooks.sh
+induct-grade.test.mjs
+induct-node.test.mjs
+install.sh
+link.sh
+node-loop.test.mjs
+pi-discovery.mjs
+pi-tree.test.mjs
+q.sh
+quest-land.test.mjs
+ready.sh
+release.sh
+skills.sh
+tape.sh
+traverse-conduct.test.mjs
+traverse.sh
+worktree.sh
+
+=== completions ===
+_bp3
+bp3.bash
+=== main.ml head ===
+     408 src/quest/config.ml
+     125 src/quest/gitx.ml
+    2709 src/quest/harness.ml
+     394 src/quest/hooks.ml
+     800 src/quest/main.ml
+     484 src/quest/render.ml
+     522 src/quest/store.ml
+     547 src/quest/worktree.ml
+    5989 total
+
+=== grep bp3 q / doors in main.ml ===
+1:(* bp3 q — quest/exp FSM CLI. Only writer of quest state.
+105:let do_quest_create quest fl id =
+106:  check_creatable quest;
+108:  let _ = quest_knobs qtype in
+109:  if ref_tip (quest_branch quest) <> None then
+110:    err "E_EXISTS" (`Assoc [("quest", json_str quest)]) "Quest already exists." 1;
+116:  let qpath = quest_dir quest ^ "/QUEST.md" in
+117:  let existing_quest_md = git_show head qpath in
+118:  let quest_md = match existing_quest_md with
+120:    | None -> Printf.sprintf "---\nstatus: proposed\nquest_type: %s\n---\n\n# %s\n\n## Success picture\n\nTODO\n" qtype quest in
+123:    ~extra:[("quest_type", json_str qtype);
+125:  let existing_ledger = git_show head (quest_ledger_path quest) in
+127:  let _new_tip = create_branch_commit ~branch:(quest_branch quest) ~base_tip:head
+128:    ~files:[(qpath, quest_md); (quest_ledger_path quest, ledger)] ~msg:("bp3: create quest " ^ quest) in
+129:  with_warnings id true [("ok", `Bool true); ("quest", json_str quest); ("state", json_str "proposed")]
+131:let do_quest_delete quest fl id =
+132:  check_slug quest;
+134:  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+135:  let (view, _, _, qs) = quest_view quest in
+138:  let exps = list_exps quest in
+140:    match fold_exp quest e with Some (_, s, _) -> s.st = "blocked" | None -> false) exps in
+142:    err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest)])
+143:      "An exp is blocked; a human decision is required (BP3_DECIDER=human)." 1;
+144:  (match ledger_text (quest_branch quest) (quest_ledger_path quest) with
+145:   | None -> not_found "quest" quest
+150:       ignore (commit_files ~branch:(quest_branch quest) ~base_tip:tip ~expect_tip:tip
+151:         ~files:[(quest_ledger_path quest, new_text)] ~msg:("bp3: delete quest " ^ quest)));
+152:  with_warnings id true [("ok", `Bool true); ("quest", json_str quest); ("state", json_str "deleted")]
+154:(* Node deps (mvp.3): declared at exp create, editable
+165:let dep_graph quest =
+167:    match fold_exp quest e with
+169:    | None -> (e, [])) (list_exps quest)
+171:let validate_deps quest self deps =
+174:    if fold_exp quest d = None then not_found "exp" d) deps;
+175:  let graph = (self, deps) :: List.filter (fun (e, _) -> e <> self) (dep_graph quest) in
+178:      err "E_DEP_CYCLE" (`Assoc [("quest", json_str quest); ("exp", json_str self);
+183:let do_exp_create quest exp fl id =
+184:  check_slug quest; check_creatable exp;
+185:  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+187:  (* validate exp plan exists for non-default *)
+188:  (match fold_quest quest with
+189:   | Some (_, _, qt, _, _) -> ignore (effective_knobs ~quest_type:qt ~exp_type:etype)
+191:  if ref_tip (exp_branch quest exp) <> None then
+192:    err "E_EXISTS" (`Assoc [("quest", json_str quest); ("exp", json_str exp)]) "Exp already exists." 1;
+194:  validate_deps quest exp deps;
+195:  let qtip = (match ref_tip (quest_branch quest) with Some t -> t | None -> not_found "quest" quest) in
+201:  let _ = create_branch_commit ~branch:(exp_branch quest exp) ~base_tip:qtip
+202:    ~files:[(exp_ledger_path quest exp, line ^ "\n");
+203:            (exp_state_path quest exp, state_yaml quest exp st)]
+204:    ~msg:("bp3: create exp " ^ exp) in
+205:  with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+206:    ("exp", json_str exp); ("state", json_str "todo"); ("cycle", `Int 1);
+210:let do_exp_dep quest exp fl id =
+211:  check_slug quest; check_slug exp;
+216:  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+217:  (match fold_exp quest exp with
+218:   | None -> not_found "exp" exp
+220:       validate_deps quest exp deps;
+224:       ignore (append_exp_line quest exp line s));
+225:  (match fold_exp quest exp with
+227:       with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+228:         ("exp", json_str exp); ("state", json_str s.st); ("cycle", `Int s.cycle);
+231:   | None -> not_found "exp" exp)
+233:let do_exp_delete quest exp fl id =
+234:  check_slug quest; check_slug exp;
+236:  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+237:  (match fold_exp quest exp with
+238:   | None -> not_found "exp" exp
+242:         err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest); ("exp", json_str exp)])
+243:           "Deleting a blocked exp requires a human (BP3_DECIDER=human)." 1;
+247:       ignore (append_exp_line quest exp line ns));
+248:  with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+249:    ("exp", json_str exp); ("state", json_str "deleted")]
+251:let do_update quest exp edge fl id =
+252:  check_slug quest; check_slug exp;
+256:  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+257:  let (_, s, _) = (match fold_exp quest exp with Some v -> v | None -> not_found "exp" exp) in
+258:  let (_, qt, deps) = (match fold_quest quest with Some (_, _, a, b, _) -> ((), a, b) | None -> not_found "quest" quest) in
+259:  let knobs = effective_knobs ~quest_type:qt ~exp_type:s.exp_type in
+261:    ignore (append_exp_line quest exp line ns);
+262:    with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+263:      ("exp", json_str exp); ("state", json_str ns.st); ("cycle", `Int ns.cycle);
+279:      let node_deps = (match fold_exp quest exp with
+282:        match fold_exp quest d with
+342:      (* 1. landed line on exp branch *)
+346:      ignore (append_exp_line quest exp line ns);
+347:      let exp_tip = (match ref_tip (exp_branch quest exp) with Some t -> t | None -> "") in
+348:      let qbranch = quest_branch quest in
+353:        with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+354:          ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+364:          ignore (append_exp_line quest exp line2 ns2);
+365:          `Assoc [("ok", `Bool true); ("quest", json_str quest); ("exp", json_str exp);
+370:          let msgf = write_tmp ("bp3: land " ^ exp) in
+378:          with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+379:            ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+396:        err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest); ("exp", json_str exp)])
+407:(* Read-only: renders the quest_view rollup snapshot at
+426:let do_diagram quest tail =
+427:  check_slug quest;
+429:  let (view, _, _, _) = quest_view quest in
+437:         ("ok", `Bool true); ("quest", json_str quest);
+481:    match fold_exp graph node with
+489:          ("graph", json_str graph); ("quest", json_str graph);
+490:          ("node", json_str node); ("exp", json_str node);
+542:let help_q = "bp3 q - quest/exp state. Doors:\n\
+543:  bp3 q c|r|d ...              quest door (create, read, delete)\n\
+544:  bp3 q <quest> c|r|u|d ...    exp door for one quest\n\
+545:  bp3 q <quest> diagram ...    generated graph diagram from the live rollup (mvp.4)\n\
+553:let help_quest_door = "bp3 q <quest door> - verbs:\n\
+554:  bp3 q c <quest> [--type <quest_type>] [--depends-on <a,b>]   create a quest\n\
+555:  bp3 q r [<quest>] [--format json|table|tree]                 list quests, or read one\n\
+556:  bp3 q d <quest> --reason <why>                               delete a quest\n\
+557:Long forms: create, read, delete. Example: bp3 q c my-quest --type default\n"
+559:let help_exp_door = "bp3 q <quest> <exp door> - verbs:\n\
+560:  bp3 q <quest> c <exp> [--type <exp_type>] [--depends-on <a,b>]   create an exp, deps name exps in the same quest\n\
+561:  bp3 q <quest> r [<exp>] [--format json|table|tree]           read the quest, or one exp\n\
+562:  bp3 q <quest> u <exp> <edge> [flags]                         take an FSM edge (see u -h)\n\
+563:  bp3 q <quest> d <exp> --reason <why>                         delete an exp\n\
+564:  bp3 q <quest> dep <exp> --depends-on <a,b> --reason <why>    redeclare an exp's deps (mutable-but-logged)\n\
+565:  bp3 q <quest> diagram [--format ascii|mermaid|json]          generated diagram from the live rollup (see diagram -h)\n\
+
+=== skills list detail ===
+add-bp3-skill
+add-yap-skill
+icebox
+naming
+quest
+red-ink
+red-ink-quest-landing-demo
+traverse
+traverse-no-human
+using-bp3
+
+skills//add-bp3-skill:
+SKILL.md
+
+skills//add-yap-skill:
+SKILL.md
+
+skills//icebox:
+SKILL.md
+
+skills//naming:
+SKILL.md
+
+skills//quest:
+SKILL.md
+
+skills//red-ink:
+SKILL.md
+
+skills//red-ink-quest-landing-demo:
+SKILL.md
+
+skills//traverse:
+SKILL.md
+workflows
+
+skills//traverse/workflows:
+induct-grade.js
+induct-node.js
+node-loop.js
+quest-land.js
+
+skills//traverse-no-human:
+SKILL.md
+
+skills//using-bp3:
+SKILL.md
+
+=== Makefile ===
+.PHONY: check test lint release publish install
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/ready.sh
+	./test/diagram.sh
+	./test/blocked.sh
+	node test/pi-tree.test.mjs
+	./test/harness.sh
+	./test/config.sh
+	./test/link.sh
+	./test/dogfood-link.sh
+	./test/dogfood-parallel.sh
+	./test/context.sh
+	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/traverse.sh
+	./test/completion.sh
+	./test/release.sh
+	./test/install.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	node --check test/pi-tree.test.mjs
+	node --check skills/traverse/workflows/induct-node.js
+	node --check skills/traverse/workflows/node-loop.js
+	node --check skills/traverse/workflows/induct-grade.js
+	node --check skills/traverse/workflows/quest-land.js
+
+test:
+	./test/skills.sh
+
+# --- release (Exp 5): tag-gated artifact + checksum; publish-once via gh ---
+RELEASE_VERSION := $(shell sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' src/quest/gitx.ml | head -1)
+RELEASE_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+RELEASE_ARCH := $(shell uname -m)
+RELEASE_ARTIFACT := dist/bp3-q-v$(RELEASE_VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
+
+release:
+	@./scripts/release-check >/dev/null
+	$(DUNE_BUILD) src/quest/main.exe
+	mkdir -p dist
+	cp _build/default/src/quest/main.exe $(RELEASE_ARTIFACT)
+	cd dist && shasum -a 256 $$(basename $(RELEASE_ARTIFACT)) > $$(basename $(RELEASE_ARTIFACT)).sha256
+	@echo "released $(RELEASE_ARTIFACT)"
+
+publish: release
+	./scripts/release-publish $(RELEASE_ARTIFACT) $(RELEASE_ARTIFACT).sha256
+
+PREFIX ?= $(HOME)/.local
+install:
+	PREFIX="$(PREFIX)" ./scripts/install-bp3.sh
+===== skills/add-bp3-skill/SKILL.md =====
+---
+name: add-bp3-skill
+description: Add a bp3 project skill under skills/ and install it per project with bp3 skills install, through overlap, statelessness, and trigger checks.
+---
+
+# Add BP3 Skill
+
+Use when the user invokes this skill by name (`/add-bp3-skill`) or asks
+to add a skill to bp3 itself. Project skills live in this repo, load only inside bp3, and
+version with the code. This skill is the bp3-side gatekeeper; it writes
+nothing until the checks pass.
+
+Use add-yap-skill instead when the skill
+is portable, stateless, and human-invoked across projects. If it could
+work unchanged in esc3 or any other repo, it is a yap skill wearing bp3
+clothes — route it there.
+
+## Procedure
+
+1. Clarify the job in one sentence: who invokes it (human, Controller,
+   or Worker), in which repo context, and the one output shape it
+   produces. Three example invocations and three near-misses that must
+   not trigger it. No examples, no write.
+2. Check overlap. Search bp3's `skills/`, the MVP doc, and the yap
+   roster. If an existing skill absorbs the job with a section added,
+   propose that edit instead. If the job is portable and stateless,
+   stop and route to add-yap-skill.
+3. Run the stateless test in reverse: project skills may touch bp3
+   concepts (Quest files, Board ops, lanes), but the skill file itself
+   stays instructions — no state, no hooks, no daemon assumptions.
+   Anything needing runtime behavior belongs in core, not a skill.
+4. Red chair, proportionate: wrong layer (core vs skill vs yap),
+   context tax on Controller/Worker sessions that will load it, name
+   collisions with yap skills across harnesses, and trigger overlap
+   with quest/add-yap-skill.
+5. Write the source at `skills/<skill-id>/SKILL.md`: frontmatter `name`
+   equal to the directory, one-sentence `description`, no template placeholders, concise self-contained
+   body in the house shape (when to use, procedure, rules).
+6. Install and verify: run `./bin/bp3 skills install --harness=all`,
+   then `muse skills validate .agents/skills/<skill-id> --json` must
+
+===== skills/add-yap-skill/SKILL.md =====
+---
+name: add-yap-skill
+description: "Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests."
+---
+
+# Add Yap Skill
+
+Use when the user invokes this skill by name (`/add-yap-skill`) or asks
+to add a skill to bp3-yap-skills. This is the yap roster's gatekeeper, renamed so it can
+live beside bp3 project skills without colliding with any global
+`add-skill`. It writes nothing until every gate passes; failing a gate
+produces a report, not a directory. Absorb-or-reject is the common
+outcome.
+
+Target repo: bp3-yap-skills (the personal, portable skill library).
+Anything needing Board state, tool blocking, hooks, or runtime code does
+not belong there — route it to an add-bp3-skill proposal instead.
+
+## Gates, in order
+
+1. Clarify. Use iiuc/ask discipline. The candidate gets: a one-sentence
+   job, a human invoker by name, three example invocations, and three
+   near-miss invocations that must not trigger it. No examples, no
+   further gates. A candidate with no papercut, session, or repeated
+   correction behind it stops here.
+2. Search prior art. In order: the yap roster, bp2's catalog, bp1's
+   workflow skills, then the internet (Superpowers, Compound
+   Engineering, gstack, Anthropic's skills, a web search for the job in
+   words). Output: a list of existing skill, overlap, absorb-or-not. If
+   an existing skill absorbs it with a section added, the result is that
+   edit, not a new skill.
+3. Mine the logs (optional). When an archive miner exists, ask it for
+   sessions for and against the candidate. Every claim needs session
+   links and counts. No archive means this gate is `unchecked`, recorded
+   as such — never as support, never as a blocker.
+4. Red chair. Read-only adversarial pass: overlap stated plainly; the
+   stateless test (any Board, queue, hook, or daemon need routes it out
+   of yap, by name); failure modes; context tax on every future session;
+   name collisions across harnesses. Verdict: absorb, reject, or proceed.
+5. Adversarial checks. The three examples must trigger the candidate,
+
+===== skills/icebox/SKILL.md =====
+---
+name: icebox
+description: Freeze a not-yet-ready idea as a future-quest sketch in docs/icebox with today's context, the smallest workable shape, blockers, and a promotion trigger.
+---
+
+# Icebox
+
+Use when a human in bp3 says to icebox, freeze, or park an idea
+for a future quest (`/icebox`), or when a design session settles
+a direction but deliberately defers it past the current quest.
+One output: one entry in `docs/icebox/` that a later `/quest`
+can promote by transcription.
+
+Use `quest` instead when the idea is ready to frame now.
+Use `add-bp3-skill` or `add-yap-skill` when the idea is a skill.
+Use `red-ink` when an existing design needs a decision walk.
+
+## Procedure
+
+1. Capture today's context first: what was being designed, the
+   decision just settled or deferred, and links to the files
+   that hold it. Context is written for a reader who was not
+   in the session.
+2. Sketch the smallest version that would work: states, edges,
+   commands, or files it touches — and what it deliberately
+   does not add.
+3. List every blocker already known: missing facts, undecided
+   questions, dependencies, identity/data gaps, tests that
+   would fail today. “None known” is a claim; make it honestly.
+4. Name the promotion trigger: the observable signal that says
+   thaw this now. No trigger, no entry — an idea that can never
+   ripen is a note, not an icebox entry.
+5. Write `docs/icebox/YYYY-MM-DD-<slug>.md` (today's date,
+   short kebab slug, chosen with `naming` if the slug is not
+   obvious) with frontmatter `status: frozen`, `date`, and
+   `promoted: null`, and sections Context, Sketch, Blockers,
+   Promotion trigger, matching `docs/icebox/README.md`.
+6. If the idea was deferred inside a live design, record the
+   deferral where the design lives (one line: deferred to the
+   icebox entry, with its path). The design keeps no shadow
+
+===== skills/naming/SKILL.md =====
+---
+name: naming
+description: "Choose concrete, short names in bp3's existing vocabulary for quests, exps, skills, plans, engines, and CLI verbs."
+---
+
+# Naming
+
+Use when a human, Controller, or Worker in bp3 must name or
+rename something: a quest slug, exp, skill, plan (`quest_type`),
+engine, CLI verb, file, or state. Invoked by name (`/naming`,
+`$naming`). One output: one recommended name, with the vocabulary
+it reuses. A shortlist only when two names genuinely tie.
+
+Use `quest` for framing a quest (it delegates naming here),
+`using-bp3` for operating the CLI, and general judgment for
+ordinary code identifiers with no bp3 meaning.
+
+## The vocabulary (reuse before inventing)
+
+- Planning: Quest, exp, Run. Lifecycle: proposed, active,
+  landed, canceled. Never archived, cancelled, aborted, killed.
+- Moves: handoff, grade, verify, land, block, resume. Stages: author,
+  grade, fix, ready, landed, blocked, canceled.
+- Dimensions: `quest_type` (the plan: default is implemented;
+  design, mvp, refactor, frontend, backend are proposed), `engine` (who executes: single,
+  master-subagents, panes, workflows).
+- Artifacts: QUEST.md, fsm.yaml, state.yaml, ledger.jsonl,
+  tape.log, notes.md, experiments/, runs/.
+- Ceremony lanes: micro, standard, high-blast-radius.
+
+## Procedure
+
+1. Name the kind of thing and where it will be read (CLI, file
+   path, quest doc, chat). The same concept may need the kind's
+   local spelling: kebab-case for slugs and files, lowercase
+   words for verbs and stages.
+2. Search the vocabulary above and the repo for the concept's
+   existing word. If a word exists, use it, even imperfectly.
+3. If no word exists, coin the shortest concrete one: a noun for
+   things, a verb for moves. Two syllables beat three; a word a
+
+===== skills/quest/SKILL.md =====
+---
+name: quest
+description: Turn a known intent into a bp3 Quest file at docs/quests/<date>-<slug>.md with exps, acceptance checks, and human touchpoints.
+---
+
+# Quest
+
+```text
+known intent
+    |
+    v
+ sync -> research -> names -> exps -> red chair
+    |                                   |
+    +-------> docs/quests/<date>-<slug>.md
+                        |
+                 human approves
+                        |
+                   governs build
+```
+
+```python
+def quest(intent):
+    assert known(intent)                 # fuzzy goal -> ask()
+    play_back(intent)                    # iiuc, when two reads exist
+    ground = research(mvp_doc, repo, prior_quests)
+    names = define_terms(intent)         # spellings synced with code/data
+    exps = break_down(intent, acceptance="fails today")
+    attack(goal, scope, exp_order)       # red chair, recorded
+    attack(source)                       # the icebox/prompt itself
+    for c in concerns if c.severity in (critical, major):
+        settle(c) or append_followup_exp(c)   # proof owed, not prose
+    return write_quest_file(names, exps)  # governs after human approval
+```
+
+One output: a Quest file a build can run against.
+
+## Context
+
+Reading map for this skill: prose carries context, why, and how
+we got here. Diagrams, pseudocode, and tables carry what we do.
+
+===== skills/red-ink-quest-landing-demo/SKILL.md =====
+---
+name: red-ink-quest-landing-demo
+description: Produce the Landing IIUC for a bp3 Quest being promoted — diligence gate first (every exp checked against its own acceptance; unsettled or improperly-done exps route to red-ink, not landing), then decision record, settled picture, demo traces, files touched, verification, and deliberately-open items.
+---
+
+# Red-Ink Quest Landing Demo
+
+Use when a human or Controller in bp3 invokes this skill by
+name (`/red-ink-quest-landing-demo`), when a Quest reaches
+Quest-to-master promotion, or when asked “walk me through
+what this quest became / what got done / give me the demos.”
+One output: a Landing IIUC, presented in chat and, on human
+approval, recorded at the Quest's landing.
+
+Use `quest` instead to frame a new Quest. Use `using-bp3`
+to operate quest state. Use `icebox` to freeze a deferred
+idea. Use `red-ink` while a design is still being decided.
+
+## The diligence gate (runs first, always)
+
+Landing is a claim: every exp did what its `EXPERIMENT.md`
+promised. Before any playback, check each exp:
+
+| Check | Pass evidence |
+|---|---|
+| Design settled | no open questions in the exp; no unadopted `EXPERIMENT.red-ink.md` working copy |
+| Acceptance met | every Acceptance case has `observed` evidence (run output, ledger line, test), not prose |
+| Review judged the exp, not just the code | the review verdict binds the bound commit AND the exp's acceptance cases |
+
+Any exp failing a check stops the landing. Do not present
+a clean playback over a failed exp: open `/red-ink` on
+that exp (working copy, owner as gate) and settle it
+first. This is where the red ink happens — at landing
+time, when the reviewer says an exp was not done properly,
+the answer is a red-ink walk, not an apology paragraph in
+the demo.
+
+## Inputs
+
+Read, in this order: the Quest file (and any working copy
+
+===== skills/red-ink/SKILL.md =====
+---
+name: red-ink
+description: "Present an existing design back to its owner in rounds until they say they are happy: copy the design first (original untouched), walk output first, then system inputs, then internals (data, state, functions, names, concepts); every round is Observe (teach) -> Orient (what matters) -> Decide (one detailed question, the owner's call) -> Act (one settled edit to the copy), closing with an IIUC playback and, at the end, a red chair of the settled design plus a decision record and proposed experiments (critical/major red-chair concerns appended as experiments). Use for Socratic design review of an existing artifact. Not for one-shot adversarial review (red-chair), authoring a new design (design), or interviewing an unclear request (ask, grill)."
+---
+
+# Red ink
+
+```text
+existing artifact
+    |
+    +-- copy --> working copy        (original stays untouched)
+                     |
+    walk:  output -> inputs -> data -> state -> fn -> names -> concepts
+                     |
+    per slice: Observe -> Orient -> Decide -> Act -> IIUC
+                     |
+    owner: "happy / settle"
+                     v
+    decision record + proposed experiments
+```
+
+```python
+def red_ink(artifact, expert=None):
+    copy = duplicate(artifact)           # original never edited
+    icebox_hits = search_icebox(artifact)  # where we want to get to
+    for slice in [output, inputs, data, state, fn, names, concepts]:
+        teach(slice)                     # Observe
+        orient(slice)                    # the 2-4 things that matter
+        decision = ask_one(owner)        # Decide: options + recommendation
+        apply_one_edit(copy, decision)   # Act
+        playback()                       # IIUC: settled / changed / open
+        if owner.happy:
+            break
+    chair = red_chair(copy)              # closing pass on the settled design
+    exps = experiments + [concern_exp(c) for c in chair
+                          if c.severity in (critical, major)]
+    return exit_pack(decisions, open_questions, exps, chair)
+```
+
+## Context
+
+===== skills/traverse-no-human/SKILL.md =====
+---
+name: traverse-no-human
+description: Run several bp3 quests with no human present using the traverse conductor — fleet preflight, park blocked work in the inbox, and end with the check-in report; never attests, never pages, never promotes.
+---
+
+# Traverse, no human
+
+Use when a human in a bp3-enabled repo invokes this skill
+by name (`/traverse-no-human <quest>...`,
+`$traverse-no-human`) or asks to run quests unattended,
+overnight, or in a queue with no human present. Several
+quests may be named; a Run budget may be stated. One
+output: the check-in report (step 5). For one quest with a
+human present, use `traverse` instead.
+
+`/traverse-no-human <quest>...` means `/traverse <quest>` per
+quest, in queue order, under the no-human rails below. Follow
+the canonical `traverse` skill (`skills/traverse/SKILL.md`)
+procedure and rules as written there — read state with
+`bp3 q r`, dispatch the one step that state calls for,
+re-read. This file carries no step procedure of its own,
+so the two names cannot drift; it adds only the rails
+that make the conductor safe with no human in the room.
+
+## Shape
+
+This ships as a skill mode of `traverse`, not its own FSM.
+The rails below (preflight, parking, budget, check-in report)
+all state as conductor rules over the existing exp FSM
+without special cases: the queue is ordered iteration,
+parking is stopping a quest on a `blocked` read, the
+budget is a stop on dispatching, and the check-in report is
+a read. No queue-level state is written anywhere; queue
+words name report outcomes, never new edges.
+
+## Fleet
+
+Several named quests are one fleet, not several queues.
+A fleet declares its merge order before the queue starts:
+the order quests were named, unless the invoker names a
+
+===== skills/traverse/SKILL.md =====
+---
+name: traverse
+description: Conduct one bp3 quest from the main session — read state with bp3 q r, dispatch the one step that state calls for, re-read, until the quest is terminal or a human decision is owed.
+---
+
+# Traverse
+
+Use when a human in a bp3-enabled repo invokes this skill by
+name (`/traverse <quest>`, `$traverse <quest>`) or asks to "traverse",
+"run", or "keep going on" a named quest until it lands or
+blocks. One quest per traverse. One output: step dispatches
+through `bp3 q`, ending in a traverse report — what reached
+`exp_fin`, what is blocked, and what human decision is owed
+next. Finish lines have report words: `exp_fin` names an exp
+whose state is `landed` (its `land` edge taken); `quest_fin`
+names quest promotion to master, the only owner-gated finish
+line. The FSM states stay `landed`; `exp_fin`/`quest_fin`
+name the finish lines in reports, never new edges.
+
+Use `quest` instead to frame a new quest. Use `using-bp3`
+instead for a single state operation by hand (one handoff, one
+grade, recovery after a dead session). Use
+`red-ink-quest-landing-demo` instead when the quest is done and the
+human wants the landing writeup. A design under review is
+`red-ink`'s job, not a traverse.
+
+## Conductor rule
+
+This skill is the conductor: it owns the loop and nothing
+else. It reads state, dispatches the one step the state calls
+for, and re-reads. It never does a step's work itself, never
+calls a verdict edge for a step, and never re-judges a grade
+matrix — it quotes the matrix verbatim. Legality is `bp3 q`'s
+call, never this skill's: a refusal is information, answered by
+re-reading, not by arguing or retrying unchanged.
+
+Cycles are weather; blocks are decisions. A `needs_fix`
+verdict below the cycle cap is weather: the conductor rides
+it (Procedure step 3) without paging the owner. `blocked` is
+the only page: it means a decision only a human can make is
+
+===== skills/using-bp3/SKILL.md =====
+---
+name: using-bp3
+description: "Operate bp3 correctly in this repo: quest folders, bp3 invoke edges, ledger discipline, and verification, for any Controller or Worker session."
+---
+
+# Using bp3
+
+Use when working in the bp3 repo and the task touches quest
+state: starting a quest, advancing one, recording a review or a
+blocker, landing, or recovering after a dead session. Invoked by
+a human, Controller, or Worker by name (`/using-bp3`,
+`$using-bp3`). One output: bp3 operations performed through
+`bp3 invoke`, with state read from its JSON verdicts.
+
+Use `quest` instead to frame a new quest's intent and shape.
+Use `bp3-writer` instead to write an exp's canonical record.
+General coding in this repo does not need this skill.
+
+## Procedure
+
+1. Read state first: `./bin/bp3 quest show <quest>` (or
+   `./bin/bp3 quest list` for active quests, `--all` for every quest). Never read `state.yaml`,
+   `ledger.jsonl`, or `fsm.yaml` by hand to decide anything.
+2. Start quests with `./bin/bp3 quest create <name> --type <quest_type>
+   --engine <engine>`. It scaffolds `docs/quests/<name>/`
+   (QUEST.md, fsm.yaml, state.yaml, ledger.jsonl, runs/).
+   Two independent dimensions: `quest_type` is the plan in
+   `plans/` (default: one grade round), `engine` is who
+   executes (single, master-subagents, panes, workflows).
+3. Quest dependencies live in `fsm.yaml` as `depends_on: [...]`
+   (set at create with `--depends-on`). `handoff` refuses until
+   every dependency's stage is `landed`; the verdict JSON shows
+   `blocked_by`. Dependencies are by quest folder name.
+4. Take only legal moves. The verdict JSON lists them:
+   `handoff --commit <sha>`, `grade --verdict ship|fix_first`,
+   `land`, `block`, `cancel`. Judgment moves need `--reason`;
+   it is the move's commit message. Verdicts bind to the exact
+   current commit; a second `fix_first` at the cycle cap
+   escalates to blocked — do not work around it.
+5. Commit work before handing it off. Only clean commits move:
+
+===== naming full =====
+---
+name: naming
+description: "Choose concrete, short names in bp3's existing vocabulary for quests, exps, skills, plans, engines, and CLI verbs."
+---
+
+# Naming
+
+Use when a human, Controller, or Worker in bp3 must name or
+rename something: a quest slug, exp, skill, plan (`quest_type`),
+engine, CLI verb, file, or state. Invoked by name (`/naming`,
+`$naming`). One output: one recommended name, with the vocabulary
+it reuses. A shortlist only when two names genuinely tie.
+
+Use `quest` for framing a quest (it delegates naming here),
+`using-bp3` for operating the CLI, and general judgment for
+ordinary code identifiers with no bp3 meaning.
+
+## The vocabulary (reuse before inventing)
+
+- Planning: Quest, exp, Run. Lifecycle: proposed, active,
+  landed, canceled. Never archived, cancelled, aborted, killed.
+- Moves: handoff, grade, verify, land, block, resume. Stages: author,
+  grade, fix, ready, landed, blocked, canceled.
+- Dimensions: `quest_type` (the plan: default is implemented;
+  design, mvp, refactor, frontend, backend are proposed), `engine` (who executes: single,
+  master-subagents, panes, workflows).
+- Artifacts: QUEST.md, fsm.yaml, state.yaml, ledger.jsonl,
+  tape.log, notes.md, experiments/, runs/.
+- Ceremony lanes: micro, standard, high-blast-radius.
+
+## Procedure
+
+1. Name the kind of thing and where it will be read (CLI, file
+   path, quest doc, chat). The same concept may need the kind's
+   local spelling: kebab-case for slugs and files, lowercase
+   words for verbs and stages.
+2. Search the vocabulary above and the repo for the concept's
+   existing word. If a word exists, use it, even imperfectly.
+3. If no word exists, coin the shortest concrete one: a noun for
+   things, a verb for moves. Two syllables beat three; a word a
+   newcomer guesses correctly beats a clever one.
+4. Check the name against its neighbors: it must not collide
+   with, abbreviate, or synonym-shadow an existing term.
+5. Say the name, the word it reuses or why none fit, and stop.
+
+## Rules
+
+- One concept, one word, one spelling, everywhere: files, CLI,
+  docs, and chat. `canceled` in a status and `cancelled` in a
+  stage is a bug, not a dialect.
+- Concrete over abstract: prefer what the thing does or is
+  (tape, ledger, handoff) over machinery metaphors (flavor,
+  harness adapter, pipeline stage) unless the metaphor is
+  already the vocabulary.
+- No new planning words. Task, Milestone, workflow, and graph
+  terms stay out; Quest and exp are the planning vocabulary.
+- Renames are explicit edits the human approves, with every
+  reference updated in the same change. A rename that leaves a
+  synonym behind in docs has not happened.
+- Instructions only: this skill decides words, never state.
+=== experiment.md mig2 ===
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: mig.2
+status: proposed
+---
+
+# mig.2 - traverse-rename: conducting skills take graph names
+
+## TL;DR
+
+Early rename of the conducting surface (owner,
+2026-11-16): `/induct` and `/induct-quest` become
+`/traverse` — the root worker traverses the graph;
+the `induct-exp` workflow becomes `node-loop`,
+the node worker's loop (the skeleton mvp.3's
+`induct-node` grows from). One traversal word for
+the root's job, one loop word for the node's.
+
+## Demo (design trace)
+
+```text
+before: /induct -> induct-exp.js (todo) + induct-grade.js + quest-land.js
+after:  /traverse -> node-loop.js owns the node FSM loop
+        (grade/land become phases briefed inside node-loop,
+         folded in by mvp.3's induct-node work)
+old spellings refuse: /induct unknown skill; induct-exp.js absent
+```
+
+## Diagram
+
+```text
+/induct, /induct-quest ──► /traverse        (root worker skill)
+/induct-quest-no-human ──► /traverse-no-human
+induct-exp.js ──────────► node-loop.js      (node worker workflow)
+```
+
+## Pseudocode
+
+```python
+rename_skill("induct", "traverse"); rename_skill("induct-quest", "traverse")
+rename_skill("induct-quest-no-human", "traverse-no-human")
+rename_workflow("induct-exp.js", "node-loop.js")   # behavior unchanged in this node
+install_all_harnesses(); assert old_names_refuse()
+```
+
+| Field | Value |
+|---|---|
+| Intent | the conducting vocabulary matches the graph design from early in the quest |
+| Lane | standard |
+| Output | traverse skill family + node-loop workflow, installed all harnesses; old names gone |
+| Depends on | mig.1 (briefs already speak handoff/grade) |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| traverse conducts | `/traverse` drives one fixture node end to end (handoff -> grade -> land) in a smoke drive |
+| node-loop runs | `node-loop.js` executes the todo-node path identically to the old induct-exp on fixtures (behavior-preserving rename; loop generalization is mvp.3) |
+| old names refuse | `/induct`, `/induct-quest`, `induct-exp` resolve nowhere (skills dirs + workflows dirs, all harnesses) |
+| renders clean | `bp3 skills install --harness=all` regenerates every harness copy; validator green; no hand-edited render |
+| no-human variant | `/traverse-no-human` renamed alongside, same gates |
+
+## Acceptance test (goal block)
+
+- **Objective:** the quest conducts itself with
+  the new names from this node on.
+- **Prove by:** smoke drive under `/traverse`,
+  workflow fixture parity, old-name refusal sweep.
+- **Done when:** one node conducted under the new
+  names, old names resolve nowhere, observed.
+
+## Tests
+
+Known cases: rename sweep (old spellings zero in
+skills/workflows/renders), install assertions per
+harness, workflow fixture parity pre/post rename.
+
+Property-based: omitted — rename is a bijection;
+the sweep + parity cases carry it (stated
+decision).
+
+## Context
+
+Owner call at adoption time: the graph vocabulary
+should not wait until rename.1 for the conducting
+surface the quest itself uses daily. The noun/door
+rename (`bp3 g`, `bp3g`) still waits — traverse
+conducts over `bp3 q` until mvp.2/rename.1 land.
+
+=== mig1 experiment ===
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: mig.1
+status: proposed
+---
+
+# mig.1 - handoff-verbs: migrate the words first
+
+## TL;DR
+
+First node of the quest. The FSM verbs and state
+take their settled names now — `submit -> handoff`,
+`review -> grade`, `check -> verify`, state
+`submitted -> handed_off` — in code, workflow
+briefs, and tests. Old quest files never move and
+landed ledgers are never rewritten: the fold maps
+old ledger strings on read, and new ledger lines
+write the new words. Every later node in this
+quest is then written in the final verb vocabulary;
+no double sweep, no Babel window.
+
+## Demo (design trace)
+
+```text
+before: bp3 q old-quest u exp-x submit --commit abc -> {state: submitted}
+code takes new verbs; fold gains the one compat mapping
+after:  bp3 q old-quest r exp-x        -> {state: handed_off}   (files untouched)
+        bp3 q old-quest u exp-x grade --verdict ship -> {state: approved}
+        bp3 q old-quest u exp-x submit -> E_USAGE unknown edge (old verb gone)
+this quest's own ledger: early lines say submit, later lines say
+handoff — one fold reads both, by design
+```
+
+## Diagram
+
+```text
+old ledgers (frozen files) ──► fold ──compat map──► handed_off / handoff
+new calls ──► handoff/grade/verify ──► ledger lines in new words only
+```
+
+## Pseudocode
+
+```python
+COMPAT = {"submit": "handoff", "review": "grade",
+          "check": "verify", "submitted": "handed_off"}  # fold only, nowhere else
+
+def fold_state(lines):
+    return fold([normalize(line, COMPAT) for line in lines])
+```
+
+| Field | Value |
+|---|---|
+| Intent | final verb vocabulary from day one of the quest |
+| Lane | high-blast-radius (touches every conducting surface) |
+| Output | renamed FSM verbs/state in code + workflows + tests; one fold compat mapping; surface report |
+| Depends on | none — this is the first node |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| old quest reads identically | an existing quest with `submit`/`submitted` ledger lines folds to `handed_off` with identical rollup before/after; no quest file modified (diff by path) |
+| new verbs round-trip | fixture node: `handoff -> grade -> verify -> land` under `bp3 q … u …`; old verbs refuse as unknown edges |
+| compat in one place | the old->new mapping appears only in the fold (grep shows one definition site); skills/workflows/tests contain zero old verb spellings as identifiers |
+| conducting surfaces updated | `induct-exp`/`induct-grade` briefs spell `handoff`/`grade`; outcomes read `handed_off`; full `make check` green |
+| this quest survives itself | this quest's own mixed-vocab ledger (early `submit`, later `handoff`) reads correctly at every step of this node |
+
+## Acceptance test (goal block)
+
+- **Objective:** the system speaks the new verbs
+  while every old quest remains readable,
+  untouched on disk.
+- **Prove by:** pre/post rollup diff on a landed
+  quest, fixture round-trip, grep surface report,
+  `make check`.
+- **Done when:** old quests fold identically, new
+  verbs conduct a fixture, files unmodified,
+  observed.
+
+## Tests
+
+Known cases: compat fold on a frozen pre-rename
+ledger fixture; unknown-edge refusal for old
+verbs; mixed-vocab ledger (this quest's own shape)
+folds correctly.
+
+Property-based: for any ledger written in old
+words, fold(old) == fold(migrated view) — same
+state, cycle, commit on every exp.
+
+## Context
+
+Rename was settled last (rename.1) when the
+machinery wasn't final. The verb half is final
+now — settled in the names round — and it is
+purely mechanical, so it goes first and every
+subsequent node is authored in final words. The
+noun/door/skill half (`bp3 g/n/e`, `bp3g`) still
+goes last: `bp3 e` doesn't exist until mvp.2, and
+the conducting skills can't rename mid-flight.
+=== workflows ===
+induct-grade.js
+induct-node.js
+node-loop.js
+quest-land.js
+
+=== grep counts live surfaces (excluding docs/quests, .git, _build, node_modules) ===
+./.agents/skills/add-bp3-skill/SKILL.md
+./.agents/skills/icebox/SKILL.md
+./.agents/skills/naming/SKILL.md
+./.agents/skills/quest/SKILL.md
+./.agents/skills/red-ink-quest-landing-demo/SKILL.md
+./.agents/skills/red-ink/SKILL.md
+./.agents/skills/traverse-no-human/SKILL.md
+./.agents/skills/traverse/SKILL.md
+./.agents/skills/using-bp3/SKILL.md
+./.agents/workflows/induct-grade.js
+./.agents/workflows/induct-node.js
+./.agents/workflows/node-loop.js
+./.agents/workflows/quest-land.js
+./.claude/skills/add-bp3-skill/SKILL.md
+./.claude/skills/icebox/SKILL.md
+./.claude/skills/naming/SKILL.md
+./.claude/skills/quest/SKILL.md
+./.claude/skills/red-ink-quest-landing-demo/SKILL.md
+./.claude/skills/red-ink/SKILL.md
+./.claude/skills/traverse-no-human/SKILL.md
+./.claude/skills/traverse/SKILL.md
+./.claude/skills/using-bp3/SKILL.md
+./.pi/settings.json
+./.pi/skills/add-bp3-skill/SKILL.md
+./.pi/skills/icebox/SKILL.md
+./.pi/skills/naming/SKILL.md
+./.pi/skills/quest/SKILL.md
+./.pi/skills/red-ink-quest-landing-demo/SKILL.md
+./.pi/skills/red-ink/SKILL.md
+./.pi/skills/traverse-no-human/SKILL.md
+./.pi/skills/traverse/SKILL.md
+./.pi/skills/using-bp3/SKILL.md
+./AGENTS.md
+./bin/bp3
+./Brewfile
+./CLAUDE.md
+./completions/_bp3
+./completions/bp3.bash
+./docs/designs/bp3-control-mvp.md
+./docs/designs/bp3-control.md
+./docs/dossiers/bp3-pi-basics.md
+./docs/dossiers/muse-workflows-hooks.md
+./docs/icebox/2026-11-11-reviewer-fix.md
+./docs/icebox/2026-11-13-session-log-mining.md
+./docs/icebox/2026-11-14-bp3-cli-small-fixes.md
+./docs/icebox/2026-11-15-bp3-lint.md
+./docs/icebox/2026-11-15-bp3-portable-mvp-dogfood-esc3.md
+./docs/icebox/2026-11-15-explore-omp-tasks.md
+./docs/icebox/2026-11-15-grade-model-routing.md
+./docs/icebox/2026-11-15-pi-daily-meta.md
+./docs/icebox/README.md
+./extensions/bp3-pi/index.ts
+./extensions/bp3-pi/README.md
+./extensions/bp3-pi/roles/author.md
+./extensions/bp3-pi/roles/reviewer.md
+./extensions/bp3-pi/src/contract.ts
+./extensions/bp3-pi/src/dispatcher.ts
+./extensions/bp3-pi/test/bp3-pi.test.mjs
+./Makefile
+./plans/default.yaml
+./plans/direct.yaml
+./readme.md
+./release.conf
+./scripts/bp3-shim
+./scripts/install-bp3.sh
+./scripts/osx/link-clt-after-osx-update.sh
+./scripts/release-check
+./skills/add-bp3-skill/SKILL.md
+./skills/icebox/SKILL.md
+./skills/naming/SKILL.md
+./skills/quest/SKILL.md
+./skills/red-ink-quest-landing-demo/SKILL.md
+./skills/red-ink/SKILL.md
+./skills/traverse-no-human/SKILL.md
+./skills/traverse/SKILL.md
+./skills/traverse/workflows/induct-grade.js
+./skills/traverse/workflows/induct-node.js
+./skills/traverse/workflows/node-loop.js
+./skills/traverse/workflows/quest-land.js
+./skills/using-bp3/SKILL.md
+./src/quest/gitx.ml
+./src/quest/harness.ml
+./src/quest/hooks.ml
+./src/quest/main.ml
+./src/quest/render.ml
+./src/quest/store.ml
+./src/quest/worktree.ml
+./test/blocked.sh
+./test/completion.sh
+./test/config.sh
+./test/context.sh
+./test/diagram.sh
+./test/dogfood-link.sh
+./test/dogfood-parallel.sh
+./test/harness.sh
+./test/hooks.sh
+./test/induct-grade.test.mjs
+./test/induct-node.test.mjs
+./test/install.sh
+./test/link.sh
+./test/node-loop.test.mjs
+./test/pi-tree.test.mjs
+./test/q.sh
+./test/quest-land.test.mjs
+./test/ready.sh
+./test/release.sh
+./test/skills.sh
+./test/tape.sh
+./test/traverse-conduct.test.mjs
+./test/traverse.sh
+./test/worktree.sh
+
+=== total files with quest ===
+     109
+=== extensions ===
+extensions/bp3-pi/test/bp3-pi.test.mjs
+extensions/bp3-pi/roles/reviewer.md
+extensions/bp3-pi/roles/checker.md
+extensions/bp3-pi/roles/lander.md
+extensions/bp3-pi/roles/author.md
+extensions/bp3-pi/README.md
+extensions/bp3-pi/package.json
+extensions/bp3-pi/index.ts
+extensions/bp3-pi/src/contract.ts
+extensions/bp3-pi/src/roles.ts
+extensions/bp3-pi/src/dispatcher.ts
+
+=== docs non-quest ===
+docs/designs/bp3-control-mvp.md
+docs/designs/bp3-control.md
+docs/dossiers/muse-workflows-hooks.md
+docs/dossiers/bp3-pi-basics.md
+docs/icebox/2026-11-11-reviewer-fix.md
+docs/icebox/2026-11-15-grade-model-routing.md
+docs/icebox/2026-11-15-bp3-lint.md
+docs/icebox/README.md
+docs/icebox/2026-11-15-bp3-portable-mvp-dogfood-esc3.md
+docs/icebox/2026-11-13-session-log-mining.md
+docs/icebox/2026-11-15-pi-daily-meta.md
+docs/icebox/2026-11-14-bp3-cli-small-fixes.md
+docs/icebox/2026-11-15-explore-omp-tasks.md
+=== bp3 q call sites (live, excl docs/quests renders) ===
+./test/context.sh:18:q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/context.sh:41:out=$("${NOSID[@]}" BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q g1 u n0 handoff --commit "$B" --reason "stranger")
+./test/context.sh:70:out=$(BP3_RUN_ID=someone-else MUSE_SESSION_ID=sess-b BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q g1 u n2 handoff --commit "$B" --reason "mismatch") || fail "mismatch handoff: $out"
+./test/ready.sh:4:# through bp3 q itself; timing fixtures write ledger lines
+./test/ready.sh:20:q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/q.sh:16:q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/q.sh:17:quest_alias() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 quest "$@"; }
+./test/q.sh:58:out=$(env -u BP3_HARNESS -u BP3_MODEL BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q demo c id-exp)
+./test/q.sh:61:if out=$(BP3_HARNESS=bogus BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q demo r parser-fix 2>&1); then fail "invalid harness accepted"; fi
+./test/q.sh:65:out=$(BP3_RUN_ID=run-42 BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q c runq)
+./test/q.sh:67:out=$(BP3_RUN_ID=run-42 BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq c rid-exp)
+./test/q.sh:70:out=$(BP3_RUN_ID=run-42 BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq r rid-exp)
+./test/q.sh:72:out=$(env -u BP3_RUN_ID BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq c rid-unset)
+./test/q.sh:75:out=$(env -u BP3_RUN_ID BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq r rid-unset)
+./test/q.sh:77:out=$(env -u BP3_HARNESS -u BP3_MODEL -u BP3_RUN_ID BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q runq c rid-unknown)
+./test/q.sh:212:qa() { env BP3_MODEL=executor-a BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/q.sh:213:qb() { env BP3_MODEL=executor-b BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/q.sh:451:clone_q() { BP3_Q_BIN="$work/clone/q-bin" ./bin/bp3 q "$@"; }
+./test/q.sh:569:echo "$out" | grep -q "bp3 q c|r|d" || fail "q -h doors: $out"
+./test/traverse-conduct.test.mjs:29:// advance, exactly as bp3 q u edges would. Reads always report
+./test/install.sh:33:out=$(bp3 q c dogfood) || fail "esc3 quest create: $out"
+./test/install.sh:34:out=$(bp3 q dogfood c exp-1) || fail "esc3 exp create: $out"
+./test/install.sh:36:out=$(bp3 q dogfood u exp-1 handoff --commit HEAD --reason "esc3 dogfood") || fail "esc3 handoff: $out"
+./test/install.sh:38:out=$(bp3 q r dogfood) || fail "esc3 read: $out"
+./test/harness.sh:16:q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/harness.sh:609:printf '%s\n' '{"type":"session","version":3,"id":"S-f4-conductor","timestamp":"2025-12-31T23:59:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"brief: BP3_RUN_ID=$F4RUN bp3 q toy u e1 handoff --commit abc --reason work\"}}" "{\"run_id\":\"$F4RUN\",\"note\":\"conductor quotes the run\"}" > fixtures/pi-store/f4-conductor.jsonl
+./test/harness.sh:610:printf '%s\n' '{"type":"session","version":3,"id":"S-f4-author","timestamp":"2026-01-01T00:01:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4RUN bp3 q toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-author.jsonl
+./test/harness.sh:629:printf '%s\n' '{"type":"session","version":3,"id":"S-f4-two-a","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-two-a.jsonl
+./test/harness.sh:630:printf '%s\n' '{"type":"session","version":3,"id":"S-f4-two-b","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4TWO bp3 q toy u e1 handoff --commit def --reason work\"}}" > fixtures/pi-store/f4-two-b.jsonl
+./test/harness.sh:639:printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-a","timestamp":"2026-01-01T00:03:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4EARLY bp3 q toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-early-a.jsonl
+./test/harness.sh:640:printf '%s\n' '{"type":"session","version":3,"id":"S-f4-early-b","timestamp":"2026-01-01T00:02:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"a2\",\"message\":{\"role\":\"user\",\"content\":\"BP3_RUN_ID=$F4EARLY bp3 q toy u e1 handoff --commit def --reason work\"}}" > fixtures/pi-store/f4-early-b.jsonl
+./test/harness.sh:647:printf '%s\n' '{"type":"session","version":3,"id":"S-f4-old-quote","timestamp":"2025-12-31T23:59:00Z","cwd":"/tmp"}' "{\"type\":\"message\",\"id\":\"c1\",\"message\":{\"role\":\"user\",\"content\":\"brief: BP3_RUN_ID=$F4OLD bp3 q toy u e1 handoff --commit abc --reason work\"}}" > fixtures/pi-store/f4-old-quote.jsonl
+./test/harness.sh:659:printf '%s\n' '{"payload_type":"command.invoked","payload":{"kind":"command_invoked"}}' 'BP3_RUN_ID=R-bt-1 bp3 q toy u e1 handoff --commit 0123456789abcdef0123456789abcdef01234567' '{"payload_type":"session.end","payload":{}}' > fixtures/bt/good.jsonl
+./test/induct-grade.test.mjs:150:  assert(inputs.audit.includes("do not call any `bp3 q u` update edge"),
+./test/hooks.sh:2:# Exp 6 fixtures: bp3 q hooks turns Muse hook payloads on
+./test/hooks.sh:22:q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/hooks.sh:23:hooks() { printf '%s' "$1" | BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q hooks; }
+./test/hooks.sh:34:out=$(printf 'not json at all' | BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q hooks) || fail "garbage exit nonzero"
+./test/hooks.sh:54:reentrant=$(printf '{"hook_event_name":"PreToolUse","session_id":"S-re","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parser-fix ./bin/bp3 q hooks"}}' "$repo" "$RUN0")
+./test/hooks.sh:67:bind=$(printf '{"hook_event_name":"PreToolUse","session_id":"S1","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parser-fix BP3_HARNESS=muse-code BP3_MODEL=test-model ./bin/bp3 q demo r parser-fix"}}' "$repo" "$RUN1")
+./test/hooks.sh:88:# refused bp3 q u observed in PostToolUse: refused line, state unchanged
+./test/hooks.sh:89:refused=$(jq -cn --arg cwd "$repo" --arg run "$RUN1" '{hook_event_name:"PostToolUse", session_id:"S1", cwd:$cwd, tool_input:{command:("BP3_RUN_ID=" + $run + " BP3_QUEST=demo BP3_EXP=parser-fix ./bin/bp3 q demo u parser-fix handoff --commit abc --reason work")}, tool_response:"{\"ok\":false,\"error\":{\"code\":\"E_DIRTY_TREE\",\"facts\":{},\"guidance\":\"clean it\"}}"}')
+./test/link.sh:16:q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/completion.sh:52:q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/skills.sh:85:assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.claude/hooks.json"
+./test/skills.sh:89:assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+./test/skills.sh:93:assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+./test/dogfood-parallel.sh:22:q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/blocked.sh:24:q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/dogfood-link.sh:19:q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/dogfood-link.sh:69:When done run: ./bin/bp3 q g1 u flappy handoff --commit <sha> --reason "<short reason>".
+./test/dogfood-link.sh:110:    grep -qE 'bp3 q g1 u|BP3_RUN_ID|--run-id' "$calls" \
+./test/dogfood-link.sh:117:    echo "bp3 q g1 u flappy handoff --commit $TIP (exports + guessed desk)" >> "$calls"
+./test/dogfood-link.sh:118:    grep -q 'bp3 q g1 u' "$calls" || fail "old-way call shape unrecorded"
+./test/release.sh:40:out=$(BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q --version)
+./test/diagram.sh:3:# live rollup. Fixture graphs are built through bp3 q itself;
+./test/diagram.sh:19:q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/diagram.sh:98:out=$(BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q -h) || fail "q -h exit"
+./test/config.sh:16:q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/config.sh:115:BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q c demo >/dev/null
+./test/tape.sh:3:# into facts. The ledger gains lines only through `bp3 q u`.
+./test/tape.sh:18:q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+./test/tape.sh:51:# (c) edges through bp3 q u: no tape-only string reaches the ledger.
+./bin/bp3:104:    "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+./bin/bp3:105:    "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+./bin/bp3:106:    "PostToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+./bin/bp3:107:    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+./bin/bp3:108:    "PostLLMCall": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+./bin/bp3:109:    "SubagentStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+./bin/bp3:110:    "SubagentStop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+./bin/bp3:111:    "Stop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+./bin/bp3:112:    "SessionEnd": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}]
+./bin/bp3:170:usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+./bin/bp3:172:  -h|--help) printf '%s\n' "$usage_text"; printf '%s\n' '  bp3 q -h for quest/exp doors'; exit 0 ;;
+./.muse/hooks.json:3:    "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+./.muse/hooks.json:4:    "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+./.muse/hooks.json:5:    "PostToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+./.muse/hooks.json:6:    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+./.muse/hooks.json:7:    "PostLLMCall": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+./.muse/hooks.json:8:    "SubagentStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+
+=== traverse skill refs ===
+skills/traverse/SKILL.md:2:name: traverse
+skills/traverse/SKILL.md:9:name (`/traverse <quest>`, `$traverse <quest>`) or asks to "traverse",
+skills/traverse/SKILL.md:11:blocks. One quest per traverse. One output: step dispatches
+skills/traverse/SKILL.md:12:through `bp3 q`, ending in a traverse report — what reached
+skills/traverse/SKILL.md:25:`red-ink`'s job, not a traverse.
+skills/traverse/SKILL.md:46:With no human present, the `traverse-no-human` skill
+skills/traverse/SKILL.md:54:rails live in `skills/traverse-no-human/SKILL.md`;
+skills/traverse/SKILL.md:75:   traverses and the owner's own work cannot collide with the
+skills/traverse/SKILL.md:86:   | `handed_off` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit, desk}` with `commit` from this read |
+skills/traverse/SKILL.md:96:   `induct-node` workflow run per node in `ready`, in
+skills/traverse/SKILL.md:102:   fallback when `induct-node` is not installed. Landing
+skills/traverse/SKILL.md:131:   free: re-dispatching `induct-grade` on the same `commit`
+skills/traverse/SKILL.md:136:   `induct-grade`, a deterministic grade validations
+
+=== check-skills script ===
+#!/bin/bash
+# Validate actual YAML before the installer propagates a malformed source.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+command -v jq >/dev/null || { echo 'jq is required (brew bundle)' >&2; exit 2; }
+command -v yq >/dev/null || { echo 'Mike Farah yq v4 is required (brew bundle)' >&2; exit 2; }
+[[ $(yq --version) == *github.com/mikefarah/yq/*'version v4.'* ]] || { echo 'Mike Farah yq v4 is required' >&2; exit 2; }
+[[ $# -gt 0 ]] || set -- "$root/skills"
+count=0
+for dir in "$@"; do
+  for source in "$dir"/*/SKILL.md; do
+    [[ -f $source ]] || { echo "no SKILL.md files in $dir" >&2; exit 1; }
+    id=$(basename "$(dirname "$source")")
+    [[ $id =~ ^[a-z][a-z0-9-]*$ ]] || { echo "invalid skill id: $id" >&2; exit 1; }
+    IFS= read -r first < "$source"
+    if [[ $first != --- ]] || ! awk '/^---$/ {n++} END {exit (n < 2)}' "$source"; then
+      echo "$source: missing frontmatter delimiters" >&2
+      exit 1
+    fi
+    yq --front-matter=extract -o=json '.' "$source" |
+      jq -se --arg id "$id" 'length == 1 and (.[0] | type == "object" and .name == $id and (.description | type == "string" and test("\\S")))' >/dev/null || { echo "$source: invalid YAML frontmatter/name/description" >&2; exit 1; }
+    count=$((count + 1))
+  done
+done
+printf 'skills check: ok (%s files)\n' "$count"
+
+=== test/skills.sh ===
+#!/bin/bash
+# shellcheck disable=SC2016 # Literal JSON and Markdown in fixtures.
+set -euo pipefail
+repo=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d "${TMPDIR:-/tmp}/bp3-skills-tests.XXXXXX")
+trap 'rm -rf -- "$work"' EXIT
+checks=0
+assert() { "$@" || { printf 'FAIL: %s\n' "$*" >&2; exit 1; }; checks=$((checks + 1)); }
+rejects() {
+  if "$@" > "$work/out" 2> "$work/error"; then printf 'FAIL: expected rejection: %s\n' "$*" >&2; exit 1; fi
+  checks=$((checks + 1))
+}
+# A fresh checkout must carry the project-scope discovery exclusions too.
+for skill_dir in "$repo"/skills/*/; do
+  id=$(basename "$skill_dir")
+  assert jq -e --arg pattern "!**/.agents/skills/$id/SKILL.md" '.skills | index($pattern) != null' "$repo/.pi/settings.json"
+done
+
+mkdir -p "$work/project with spaces/bin" "$work/project with spaces/scripts"
+root="$work/project with spaces"
+cp "$repo/bin/bp3" "$root/bin/"
+cp "$repo/scripts/check-skills" "$root/scripts/"
+cp -R "$repo/skills" "$root/"
+source="$root/skills/add-yap-skill/SKILL.md"
+cp "$source" "$work/good.md"
+
+# The exact original nested-mapping regression: an unquoted colon+space.
+awk '/^description:/ {$0="description: Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests."} {print}' "$work/good.md" > "$source"
+rejects "$root/scripts/check-skills"
+rejects "$root/bin/bp3" skills install --harness=all
+assert test ! -e "$root/.pi"
+assert test ! -e "$root/.agents"
+assert test ! -e "$root/.claude"
+assert grep -Eq 'mapping|YAML' "$work/error"
+
+# Quoted colon and block-scalar descriptions must pass real YAML parsing.
+cp "$work/good.md" "$source"
+"$root/scripts/check-skills" > /dev/null
+assert test "$(yq --front-matter=extract '.description' "$source")" = 'Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests.'
+awk '/^description:/ {$0="description: |\n  A valid description: with a colon."} {print}' "$work/good.md" > "$source"
+"$root/scripts/check-skills" > /dev/null
+
+for description in 'description: [broken' 'description: {nested: mapping}' 'description: 42' 'description: ""'; do
+  awk -v description="$description" '/^description:/ {$0=description} {print}' "$work/good.md" > "$source"
+  rejects "$root/scripts/check-skills"
+done
+cp "$work/good.md" "$source"
+awk '/^name:/ {$0="name: wrong"} {print}' "$work/good.md" > "$source"
+rejects "$root/scripts/check-skills"
+cp "$work/good.md" "$source"
+rejects "$root/bin/bp3" skills install --harness=unknown
+assert test ! -e "$root/.pi"
+rejects "$root/bin/bp3" skills install --harness
+
+mkdir -p "$root/.pi"
+printf '{"defaultModel":"keep","skills":["/extra","!**/ignored/**"]}\n' > "$root/.pi/settings.json"
+"$root/bin/bp3" skills install --harness=all > /dev/null
+"$root/scripts/check-skills" "$root/skills" "$root/.pi/skills" "$root/.agents/skills" "$root/.claude/skills" > /dev/null
+assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink/SKILL.md","!**/.agents/skills/red-ink-quest-landing-demo/SKILL.md","!**/.agents/skills/traverse/SKILL.md","!**/.agents/skills/traverse-no-human/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
+# Traverse is the one conducting skill; old induct names render nowhere.
+for h in .pi .agents .claude; do
+  assert test -f "$root/$h/skills/traverse/SKILL.md"
+  assert test ! -e "$root/$h/skills/induct"
+  assert test ! -e "$root/$h/skills/induct-quest"
+  assert test ! -e "$root/$h/skills/induct-quest-no-human"
+done
+# The no-human skill renders beside traverse in every harness.
+for h in .pi .agents .claude; do
+  assert test -f "$root/$h/skills/traverse-no-human/SKILL.md"
+done
+for h in .pi .agents .claude; do
+  assert test "$(yq --front-matter=extract '.description' "$root/$h/skills/add-yap-skill/SKILL.md")" = "$(yq --front-matter=extract '.description' "$source")"
+  assert test -f "$root/$h/skills/quest/SKILL.md"
+done
+assert test -f "$root/.agents/workflows/node-loop.js"
+assert cmp "$root/skills/traverse/workflows/node-loop.js" "$root/.agents/workflows/node-loop.js"
+assert test -f "$root/.agents/workflows/induct-node.js"
+assert cmp "$root/skills/traverse/workflows/induct-node.js" "$root/.agents/workflows/induct-node.js"
+assert test ! -e "$root/.agents/workflows/induct-exp.js"
+assert test -f "$root/.agents/workflows/induct-grade.js"
+assert cmp "$root/skills/traverse/workflows/induct-grade.js" "$root/.agents/workflows/induct-grade.js"
+assert test -f "$root/.agents/workflows/quest-land.js"
+assert cmp "$root/skills/traverse/workflows/quest-land.js" "$root/.agents/workflows/quest-land.js"
+assert test -f "$root/.claude/hooks.json"
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.claude/hooks.json"
+assert test -f "$root/.muse/hooks.json"
+assert cmp "$root/.claude/hooks.json" "$root/.muse/hooks.json"
+assert test -f "$root/.claude/settings.json"
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+mkdir -p "$root/.claude"
+printf '{"keepMe":true}\n' > "$root/.claude/settings.json"
+"$root/bin/bp3" skills install --harness=claude > /dev/null
+assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks"' "$root/.claude/settings.json"
+cp "$root/.pi/settings.json" "$work/settings.before"
+"$root/bin/bp3" skills install --harness=pi > /dev/null
+assert cmp "$work/settings.before" "$root/.pi/settings.json"
+assert cmp "$root/skills/traverse/workflows/node-loop.js" "$root/.agents/workflows/node-loop.js"
+assert cmp "$root/skills/traverse/workflows/induct-grade.js" "$root/.agents/workflows/induct-grade.js"
+assert cmp "$root/skills/traverse/workflows/quest-land.js" "$root/.agents/workflows/quest-land.js"
+
+# Corrupt settings must fail BEFORE rewriting any installed files.
+printf 'sentinel\n' > "$root/.pi/skills/quest/SKILL.md"
+for settings in '{broken' '{"skills":null}' '{"skills":[1]}'; do
+  printf '%s\n' "$settings" > "$root/.pi/settings.json"
+  rejects "$root/bin/bp3" skills install --harness=all
+  assert grep -qx sentinel "$root/.pi/skills/quest/SKILL.md"
+done
+# Non-Pi installations must leave project Pi settings alone.
+printf '{broken' > "$root/.pi/settings.json"
+"$root/bin/bp3" skills install --harness=codex > /dev/null
+assert grep -qx '{broken' "$root/.pi/settings.json"
+
+# Quest red-chair of the source: critical/major concerns settle or become follow-up exps.
+assert grep -q 'Red-chair the source itself' "$repo/skills/quest/SKILL.md"
+assert grep -q 'appended as a \*\*follow-up exp\*\*' "$repo/skills/quest/SKILL.md"
+assert grep -q 'Risks is not a parking lot' "$repo/skills/quest/SKILL.md"
+assert grep -q 'Red-chair the source itself' "$root/.agents/skills/quest/SKILL.md"
+
+# Cycle autonomy (exp-6): needs_fix rides, blocked pages.
+assert grep -q 'next author cycle itself' "$repo/skills/traverse/SKILL.md"
+assert grep -q 'named fix rides along verbatim' "$repo/skills/traverse/SKILL.md"
+assert grep -q 'does not ask the owner about the cycle' "$repo/skills/traverse/SKILL.md"
+assert grep -q 'cycle cap' "$repo/skills/traverse/SKILL.md"
+assert grep -q 'scope change autonomously' "$repo/skills/traverse/SKILL.md"
+assert grep -q 'Human attestation comes only from actual human words' "$repo/skills/traverse/SKILL.md"
+assert grep -q 'next author cycle itself' "$root/.agents/skills/traverse/SKILL.md"
+
+# Traverse-no-human: renders everywhere, pointer plus rails.
+for h in .pi .agents .claude; do
+  assert test -f "$root/$h/skills/traverse-no-human/SKILL.md"
+  assert grep -q 'skills/traverse/SKILL.md' "$root/$h/skills/traverse-no-human/SKILL.md"
+done
+assert grep -q 'means `/traverse <quest>` per' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'BP3_DECIDER` stays unset' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'never takes `resume` or `delete`' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'park it' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'missing Acceptance rows' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'open' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'design question' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'make check` is green' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'the budget stopped it' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'quest_fin` stays the' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'usage_recorded` token totals' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'bp3 harness desk list' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'skill mode of `traverse`' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'traverse-no-human' "$repo/skills/traverse/SKILL.md"
+assert grep -q 'No-human never' "$root/.agents/skills/traverse/SKILL.md"
+
+# Fleet (exp-9): footprint preflight, merge order, fleet budget, check-in report.
+assert grep -q 'one fleet, not several queues' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'merge order before the queue starts' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'Footprint: the paths a quest declares' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'no declared footprint' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'Disjoint quests run in parallel' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'refused at preflight, named' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'zero Runs spent on it' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'queues serially in a later fleet' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'The fleet never merges' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'predeclared merge order (fleet never merges)' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'one budget caps the whole fleet' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'every quest stops' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'one check-in list' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'grouped by quest, each with its inbox reason' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'same human decision appear as one' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'attested per exp at resume time' "$repo/skills/traverse-no-human/SKILL.md"
+assert grep -q 'Disjoint quests run in parallel' "$root/.agents/skills/traverse-no-human/SKILL.md"
+
+printf 'skills tests: ok (%s assertions)\n' "$checks"
++ git mv src/quest src/graph
++ git mv skills/traverse skills/bp3g
++ git mv skills/traverse-no-human skills/bp3g-no-human
++ git mv skills/quest skills/bp3g-frame
++ git mv skills/red-ink-quest-landing-demo skills/bp3g-landing-demo
++ git mv skills/bp3g/workflows/induct-node.js skills/bp3g/workflows/bp3g-node.js
++ git mv skills/bp3g/workflows/induct-grade.js skills/bp3g/workflows/bp3g-grade.js
++ git mv skills/bp3g/workflows/quest-land.js skills/bp3g/workflows/bp3g-land.js
++ git mv test/q.sh test/g.sh
++ git mv test/traverse.sh test/bp3g.sh
++ git mv test/traverse-conduct.test.mjs test/bp3g-conduct.test.mjs
++ git mv test/induct-grade.test.mjs test/bp3g-grade.test.mjs
++ git mv test/induct-node.test.mjs test/bp3g-node.test.mjs
++ git mv test/quest-land.test.mjs test/bp3g-land.test.mjs
++ ls src/ skills/ test/
++ head -n 80
+skills/:
+add-bp3-skill
+add-yap-skill
+bp3g
+bp3g-frame
+bp3g-landing-demo
+bp3g-no-human
+icebox
+naming
+red-ink
+using-bp3
+
+src/:
+graph
+
+test/:
+blocked.sh
+bp3g-conduct.test.mjs
+bp3g-grade.test.mjs
+bp3g-land.test.mjs
+bp3g-node.test.mjs
+bp3g.sh
+completion.sh
+config.sh
+context.sh
+diagram.sh
+dogfood-link.sh
+dogfood-parallel.sh
+g.sh
+harness.sh
+hooks.sh
+install.sh
+link.sh
+node-loop.test.mjs
+pi-discovery.mjs
+pi-tree.test.mjs
+ready.sh
+release.sh
+skills.sh
+tape.sh
+worktree.sh
+test/g.sh:112:append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:00:00Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":null,\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+test/g.sh:114:echo "$out" | jq -e --arg c "$B" '.state == "handed_off" and .cycle == 1 and .commit == $c and (.legal_edges | index("grade") != null) and (.legal_edges | index("verify") != null)' >/dev/null || fail "compat old submit folds handed_off: $out"
+test/g.sh:115:append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:01:00Z\",\"edge\":\"review\",\"from\":\"submitted\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"ship\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+test/g.sh:116:append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:02:00Z\",\"edge\":\"check\",\"from\":\"submitted\",\"to\":\"approved\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"pass\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+test/g.sh:126:for old in submit review check; do
+test/g.sh:136:append_ledger_line mixed-exp "{\"ts\":\"2026-01-01T00:03:00Z\",\"edge\":\"review\",\"from\":\"submitted\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"ship\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+test/g.sh:137:append_ledger_line mixed-exp "{\"ts\":\"2026-01-01T00:04:00Z\",\"edge\":\"check\",\"from\":\"submitted\",\"to\":\"approved\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"pass\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+test/g.sh:159:echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "submit2: $out"
+src/graph/store.ml:168:  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+src/graph/store.ml:171:let fold_state_name = function "submitted" -> "handed_off" | s -> s
+---old ledger key fixtures---
+test/ready.sh:96:{"ts":"2026-01-01T00:00:00Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"t","model":"t","bp3_version":"0.2.0","exp_type":"default"}
+test/install.sh:42:echo "quest_type: mine" > plans/default.yaml
+src/graph/main.ml:120:    | None -> Printf.sprintf "---\nstatus: proposed\nquest_type: %s\n---\n\n# %s\n\n## Success picture\n\nTODO\n" qtype quest in
+src/graph/main.ml:123:    ~extra:[("quest_type", json_str qtype);
+src/graph/main.ml:189:   | Some (_, _, qt, _, _) -> ignore (effective_knobs ~quest_type:qt ~exp_type:etype)
+src/graph/main.ml:199:    ~extra:[("exp_type", json_str etype);
+src/graph/main.ml:259:  let knobs = effective_knobs ~quest_type:qt ~exp_type:s.exp_type in
+src/graph/main.ml:554:  bp3 q c <quest> [--type <quest_type>] [--depends-on <a,b>]   create a quest\n\
+src/graph/main.ml:560:  bp3 q <quest> c <exp> [--type <exp_type>] [--depends-on <a,b>]   create an exp, deps name exps in the same quest\n\
+src/graph/main.ml:689:      let plans = [("plans/default.yaml", "quest_type: default\nmax_cycles: 1\ngrade:\n  required: true\nverify: required\n");
+src/graph/main.ml:690:                   ("plans/direct.yaml", "quest_type: direct\nmax_cycles: 0\ngrade:\n  required: false\nverify: required\n")] in
+src/graph/store.ml:126:let quest_knobs quest_type = load_plan_file ("plans/" ^ quest_type ^ ".yaml")
+src/graph/store.ml:128:let effective_knobs ~quest_type ~exp_type =
+src/graph/store.ml:129:  if exp_type = "default" || exp_type = "" then quest_knobs quest_type
+src/graph/store.ml:130:  else load_plan_file ("plans/exp-" ^ exp_type ^ ".yaml")
+src/graph/store.ml:144:  mutable exp_type : string;
+src/graph/store.ml:151:  last_commit = None; exp_type = "default";
+src/graph/store.ml:175:  let quest_type = ref "default" in
+src/graph/store.ml:187:            s.exp_type <- get_str j "exp_type" (get_str j "quest_type" "default");
+src/graph/store.ml:188:            quest_type := get_str j "quest_type" !quest_type
+src/graph/store.ml:213:  (s, !quest_type, !depends_on)
+changed 71 files
+  Makefile
+  readme.md
+  Brewfile
+  AGENTS.md
+  CLAUDE.md
+  release.conf
+  test/context.sh
+  test/ready.sh
+  test/g.sh
+  test/worktree.sh
+  test/bp3g.sh
+  test/install.sh
+  test/node-loop.test.mjs
+  test/bp3g-conduct.test.mjs
+  test/bp3g-land.test.mjs
+  test/pi-tree.test.mjs
+  test/harness.sh
+  test/hooks.sh
+  test/link.sh
+  test/completion.sh
+  test/skills.sh
+  test/dogfood-parallel.sh
+  test/blocked.sh
+  test/dogfood-link.sh
+  test/bp3g-grade.test.mjs
+  test/release.sh
+  test/diagram.sh
+  test/config.sh
+  test/bp3g-node.test.mjs
+  test/tape.sh
+  bin/bp3
+  plans/direct.yaml
+  plans/default.yaml
+  completions/bp3.bash
+  completions/_bp3
+  .claude/settings.json
+  docs/designs/bp3-control-mvp.md
+  docs/designs/bp3-control.md
+  docs/dossiers/muse-workflows-hooks.md
+  docs/dossiers/bp3-pi-basics.md
+  extensions/bp3-pi/README.md
+  extensions/bp3-pi/index.ts
+  extensions/bp3-pi/test/bp3-pi.test.mjs
+  extensions/bp3-pi/roles/reviewer.md
+  extensions/bp3-pi/roles/author.md
+  extensions/bp3-pi/src/contract.ts
+  extensions/bp3-pi/src/dispatcher.ts
+  scripts/release-check
+  scripts/install-bp3.sh
+  scripts/bp3-shim
+  scripts/osx/link-clt-after-osx-update.sh
+  skills/bp3g-frame/SKILL.md
+  skills/bp3g/SKILL.md
+  skills/bp3g/workflows/node-loop.js
+  skills/bp3g/workflows/bp3g-land.js
+  skills/bp3g/workflows/bp3g-node.js
+  skills/bp3g/workflows/bp3g-grade.js
+  skills/using-bp3/SKILL.md
+  skills/add-bp3-skill/SKILL.md
+  skills/red-ink/SKILL.md
+  skills/naming/SKILL.md
+  skills/bp3g-landing-demo/SKILL.md
+  skills/bp3g-no-human/SKILL.md
+  skills/icebox/SKILL.md
+  src/graph/worktree.ml
+  src/graph/main.ml
+  src/graph/render.ml
+  src/graph/harness.ml
+  src/graph/hooks.ml
+  src/graph/store.ml
+  src/graph/gitx.ml
+      mkdir -p "$comp_dest"
+      cp "$comp_src" "$comp_dest/_bp3"
+      echo "installed _bp3 -> $comp_dest/_bp3"
+      echo "completion: source $comp_bash_src (bash)"
+    else
+      echo "completion: add $root/completions to fpath (zsh: fpath=($root/completions \$fpath); compinit) or source $comp_bash_src (bash)"
+    fi
+  fi
+}
+
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g|graph ... | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+case "${1:-}" in
+  -h|--help) printf '%s\n' "$usage_text"; printf '%s\n' '  bp3 g -h for graph/node doors'; exit 0 ;;
+  q|graph) shift
+    q_bin="${BP3_G_BIN:-$root/_build/default/src/graph/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/graph/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" "$@" ;;
+  e) shift
+    q_bin="${BP3_G_BIN:-$root/_build/default/src/graph/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/graph/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" e "$@" ;;
+  harness) shift
+    q_bin="${BP3_G_BIN:-$root/_build/default/src/graph/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/graph/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" harness "$@" ;;
+  config) shift
+    q_bin="${BP3_G_BIN:-$root/_build/default/src/graph/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/graph/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" config "$@" ;;
+  worktree) shift
+    q_bin="${BP3_G_BIN:-$root/_build/default/src/graph/main.exe}"
+    [[ -x $q_bin ]] || { echo 'build the q binary first: dune build src/graph/main.exe' >&2; exit 2; }
+    BP3_ROOT="$root" exec "$q_bin" worktree "$@" ;;
+  init) shift; skills_install "$@" ;;
+  skills)
+    shift
+    case "${1:-}" in
+      install) shift; skills_install "$@" ;;
+      *) echo "$usage_text" >&2; exit 2 ;;
+    esac
+    ;;
+  *) echo "$usage_text" >&2; exit 2 ;;
+esac
+=== gitx version ===
+grep: scripts/osx: Is a directory
+src/graph/gitx.ml:3:let bp3_version = "0.2.0"
+scripts/bp3-shim:2:# bp3 shim (installed next to bp3-q by scripts/install-bp3.sh).
+scripts/bp3-shim:4:#   bp3 g|graph ...   -> bp3-q ...        bp3 init-repo -> bp3-q init-repo
+scripts/bp3-shim:5:#   bp3 -h|--version  -> bp3-q same       anything else -> bp3-q as-is
+scripts/bp3-shim:10:exec bp3-q "$@"
+scripts/install-bp3.sh:2:# install-bp3.sh: install the release artifact as bp3-q (+ bp3 shim).
+scripts/install-bp3.sh:4:# Artifact defaults to dist/bp3-q-v<version>-<os>-<arch> in this
+scripts/install-bp3.sh:10:version=$(sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' "$root/src/graph/gitx.ml" | head -1)
+scripts/install-bp3.sh:13:artifact=${1:-"$root/dist/bp3-q-v$version-$os-$arch"}
+scripts/install-bp3.sh:18:      --pattern "bp3-q-v$version-$os-$arch*" --dir "$root/dist" 2>/dev/null || true
+scripts/install-bp3.sh:27:[ -x "$prefix/bin/bp3-q" ] && old=$("$prefix/bin/bp3-q" --version 2>/dev/null || echo none)
+scripts/install-bp3.sh:29:rm -f "$prefix/bin/bp3-q" "$prefix/bin/bp3"
+scripts/install-bp3.sh:30:cp "$artifact" "$prefix/bin/bp3-q"
+scripts/install-bp3.sh:32:chmod +x "$prefix/bin/bp3-q" "$prefix/bin/bp3"
+scripts/install-bp3.sh:33:echo "installed bp3-q $version -> $prefix/bin/bp3-q (was: $old)"
+scripts/release-check:5:# Version defaults to bp3_version in src/graph/gitx.ml; a
+scripts/release-check:15:  version=$(sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' "$root/src/graph/gitx.ml" | head -1)
+release.conf:2:VERSION_SOURCE=src/graph/gitx.ml (bp3_version constant)
+release.conf:4:ASSETS=dist/bp3-q-v<version>-<os>-<arch> dist/bp3-q-v<version>-<os>-<arch>.sha256
+Makefile:12:	$(DUNE_BUILD) src/graph/main.exe
+Makefile:45:RELEASE_VERSION := $(shell sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' src/graph/gitx.ml | head -1)
+Makefile:48:RELEASE_ARTIFACT := dist/bp3-q-v$(RELEASE_VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
+Makefile:52:	$(DUNE_BUILD) src/graph/main.exe
+Makefile:54:	cp _build/default/src/graph/main.exe $(RELEASE_ARTIFACT)
+(* ---------- main dispatch ---------- *)
+let normalize_verb = function
+  | "c" | "create" -> "c" | "r" | "read" -> "r"
+  | "u" | "update" -> "u" | "d" | "delete" -> "d"
+  | other -> other
+
+let is_verb = function "c" | "create" | "r" | "read" | "u" | "update" | "d" | "delete" -> true | _ -> false
+
+(* icebox door: bp3 g icebox r [term...] | r <slug> (read-only) *)
+let do_icebox = function
+  | verb_raw :: rest when is_verb verb_raw ->
+      if normalize_verb verb_raw <> "r" then usage "icebox door is read-only: only r";
+      let (terms, fl) = split_flags rest in
+      let entries = list_icebox_entries () in
+      let print_list () =
+        let hits = List.filter (fun e -> icebox_matches e terms) entries in
+        print_verdict ~fmt:fl.fmt (`Assoc [("ok", `Bool true);
+          ("entries", `List (List.map icebox_entry_json hits))]); 0 in
+      (match terms with
+       | [slug] ->
+           (match List.find_opt (fun e -> e.slug = slug) entries with
+            | Some e -> print_string e.text; 0
+            | None -> print_list ())
+       | _ -> print_list ())
+  | _ -> usage "icebox door verbs are r"
+
+(* ---------- help (docstrings beside dispatch; Node 4) ---------- *)
+let help_q = "bp3 g - graph/node state. Doors:\n\
+  bp3 g c|r|d ...              graph door (create, read, delete)\n\
+  bp3 g <graph> c|r|u|d ...    node door for one graph\n\
+  bp3 g <graph> diagram ...    generated graph diagram from the live rollup (mvp.4)\n\
+  bp3 g icebox r [term...]     search frozen icebox entries (read-only)\n\
+  bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)\n\
+  bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias\n\
+  bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)\n\
+  bp3 g hooks                  harness hook emitter (fail-open)\n\
+Run bp3 g <door> -h for that door's verbs, edges, and flags.\n"
+
+let help_graph_door = "bp3 g <graph door> - verbs:\n\
+  bp3 g c <graph> [--type <graph_type>] [--depends-on <a,b>]   create a graph\n\
+  bp3 g r [<graph>] [--format json|table|tree]                 list graphs, or read one\n\
+  bp3 g d <graph> --reason <why>                               delete a graph\n\
+Long forms: create, read, delete. Example: bp3 g c my-graph --type default\n"
+
+let help_node_door = "bp3 g <graph> <node door> - verbs:\n\
+  bp3 g <graph> c <node> [--type <node_type>] [--depends-on <a,b>]   create an node, deps name nodes in the same graph\n\
+  bp3 g <graph> r [<node>] [--format json|table|tree]           read the graph, or one node\n\
+  bp3 g <graph> u <node> <edge> [flags]                         take an FSM edge (see u -h)\n\
+  bp3 g <graph> d <node> --reason <why>                         delete an node\n\
+  bp3 g <graph> dep <node> --depends-on <a,b> --reason <why>    redeclare an node's deps (mutable-but-logged)\n\
+  bp3 g <graph> diagram [--format ascii|mermaid|json]          generated diagram from the live rollup (see diagram -h)\n\
+Long forms: create, read, update, delete. Example: bp3 g my-graph r node-1\n"
+
+let help_dep = "bp3 g <graph> dep <node> - redeclare an node's node deps (mvp.3):\n\
+  bp3 g <graph> dep <node> --depends-on <a,b> --reason <why>   set deps; --depends-on \"\" clears them\n\
+  Deps name nodes in the same graph, are read back from the node ledger, and a cycle refuses at write time (E_DEP_CYCLE) naming the cycle. The dep line is logged with the node state and cycle, so a mid-flight edit stays on the record.\n\
+Example: bp3 g my-graph dep node-2 --depends-on node-1 --reason \"needs node-1 first\"\n"
+
+let help_diagram = "bp3 g <graph> diagram - generated graph diagram from the live rollup (mvp.4):\n\
+  bp3 g <graph> diagram [--format ascii|mermaid|json]   emit the diagram (default ascii)\n\
+  Nodes carry state and cycle (landed nodes carry node_fin), deps are drawn once, todo nodes are grouped into ready-set waves, and a blocked node names the dependents it starves. Output is generated at call time from live state; its header carries the rollup timestamp (generated_at). ascii suits terminals and records, mermaid suits rendered docs, json carries the same facts plus both texts for diffing.\n\
+Example: bp3 g my-graph diagram --format mermaid\n"
+
+let help_update = "bp3 g <graph> u <node> <edge> - edges and their flags:\n\
+  edges: handoff grade verify land block resume\n\
+  handoff --commit <sha> --reason <why>    bind a clean commit for grade\n\
+  grade  --verdict ship|needs_fix --reason <why>\n\
+  verify --verdict pass|fail --reason <why>\n\
+  land   --reason <why>                    land an approved node\n\
+  block  --reason <why>                    park for a human decision\n\
+  resume --reason <why>                    human only: unblock\n\
+Shared flags: --format json|table|tree, --target <name>.\n\
+Example: bp3 g my-graph u node-1 handoff --commit abc123 --reason \"ready\"\n"
+
+let help_e = "bp3 e - claimed edge door (mvp.2): context is resolved, never carried:\n\
+  bp3 e                                    print the resolved context, its source rung (session|desk), state, and legal edges\n\
+  bp3 e <edge> [flags]                     take the claimed run's edge: handoff grade verify land block resume (same flags as bp3 g <graph> u <node> <edge>)\n\
+  Resolution: session claim first, desk context second, checked against cwd; no rung refuses E_NO_CONTEXT, an ambiguous desk refuses E_NO_CONTEXT naming the live run_ids. Env BP3_RUN_ID is a hint only: a mismatch warns W_CONTEXT_ENV_MISMATCH and the claim wins; an unclaimed explicit edge call warns W_CONTEXT_UNCLAIMED.\n\
+Example: bp3 e handoff --commit abc123 --reason \"ready\"\n"
+
+let help_icebox = "bp3 g icebox r - search frozen icebox entries (read-only):\n\
+  bp3 g icebox r [term...] [--format json|table|tree]   list entries matching all terms\n\
+  bp3 g icebox r <slug>                                 print one entry in full\n\
+Example: bp3 g icebox r table completion\n"
+
+let help_worktree = "bp3 worktree - documented alias of bp3 harness desk, machine-local desks, never ledgered:\n\
+===RUN===
+let run argv =
+  let base_id = identity () in
+  (* Context resolution (mvp.2): session rung, then desk
+     rung. Explicit addresses always win for the target;
+     a resolved claim wins the run-id stamp over the env
+     hint. Help and the machine doors resolve nothing. *)
+  let help_invoked =
+    List.exists is_help (List.filteri (fun i _ -> i < 3) argv) in
+  let context_door = match argv with
+    | "harness" :: _ | "config" :: _ | "worktree" :: _ | "hooks" :: _
+    | "init-repo" :: _ | [] -> false
+    | _ -> not help_invoked in
+  let (ctx_rc, ctx_source, ctx_amb) =
+    if not context_door then (None, "", None)
+    else match Config.resolve_context () with
+      | Config.Resolved (rc, src) -> (Some rc, src, None)
+      | Config.Ambiguous (ids, _) -> (None, "", Some ids)
+      | Config.No_context -> (None, "", None) in
+  let id = match ctx_rc with
+    | Some rc -> { base_id with run_id = Some rc.Config.rc_id }
+    | None -> base_id in
+  Store.resolved_run_id :=
+    (match ctx_rc with Some rc -> Some rc.Config.rc_id | None -> None);
+  let edge_call = match argv with
+    | "e" :: _ :: _ -> true
+    | _q :: v :: _e :: _edge :: _ when is_verb v && normalize_verb v = "u" -> true
+    | _ -> false in
+  Store.context_warnings :=
+    (match ctx_rc with
+     | Some rc ->
+         (match base_id.run_id with
+          | Some env when env <> "" && env <> rc.Config.rc_id ->
+              ["W_CONTEXT_ENV_MISMATCH"]
+          | _ -> [])
+     | None ->
+         if edge_call && ctx_amb = None then ["W_CONTEXT_UNCLAIMED"] else []);
+  guard_write argv;
+  match argv with
+  | "-h" :: _ | "--help" :: _ -> print_string help_q; 0
+  | "--version" :: _ -> print_endline bp3_version; 0
+  | "harness" :: rest -> Harness.run rest
+  | "config" :: (h :: _) when is_help h -> print_string help_config; 0
+  | "config" :: rest ->
+      let (source, fmt) = parse_config_flags rest in
+      print_verdict ~fmt (Config.view ~source); 0
+  | "e" :: (h :: _) when is_help h -> print_string help_e; 0
+  | "e" :: _edge :: (h :: _) when is_help h -> print_string help_e; 0
+  | "e" :: rest -> do_e ctx_rc ctx_source ctx_amb id rest
+  | "worktree" :: (h :: _) when is_help h -> print_string help_worktree; 0
+  | "icebox" :: (h :: _) when is_help h -> print_string help_icebox; 0
+  | "icebox" :: ("r" | "read") :: (h :: _) when is_help h -> print_string help_icebox; 0
+  | first :: (h :: _) when is_verb first && is_help h -> print_string help_graph_door; 0
+  | _graph :: (h :: _) when is_help h -> print_string help_node_door; 0
+  | _graph :: verb_raw :: (h :: _) when is_verb verb_raw && is_help h ->
+      print_string (if normalize_verb verb_raw = "u" then help_update else help_node_door); 0
+  | "worktree" :: rest ->
+      (* documented alias of harness desk (mvp.6): same store,
+         same verdicts; new callers use bp3 harness desk *)
+      print_verdict ~fmt:"json" (Worktree.run rest); 0
+  | "init-repo" :: _ ->
+      (* Node 6: scaffold plans/ into the caller's repo; never clobber differing plans *)
+      let plans = [("plans/default.yaml", "graph_type: default\nmax_cycles: 1\ngrade:\n  required: true\nverify: required\n");
+                   ("plans/direct.yaml", "graph_type: direct\nmax_cycles: 0\ngrade:\n  required: false\nverify: required\n")] in
+      (try Unix.mkdir (Filename.concat root "plans") 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
+      List.iter (fun (rel, content) ->
+        let path = Filename.concat root rel in
+        if Sys.file_exists path then begin
+          let existing = let ic = open_in_bin path in
+            let s = really_input_string ic (in_channel_length ic) in close_in ic; s in
+          if existing <> content then
+            err "E_EXISTS" (`Assoc [("plan", json_str rel)])
+              "Plan already exists with different content; refusing to overwrite." 1
+        end else begin
+          let oc = open_out_bin path in output_string oc content; close_out oc
+        end) plans;
+      print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true);
+        ("plans", `List (List.map (fun (p, _) -> json_str p) plans))]); 0
+  | "hooks" :: _ ->
+      (* fail-open emitter: Hooks.handle never raises, always exit 0 *)
+      print_endline (Yojson.Safe.to_string (Hooks.handle ())); 0
+  | "icebox" :: rest -> do_icebox rest
+  | [] -> usage "no command"
+  | first :: rest when is_verb first ->
+      let verb = normalize_verb first in
+      (match verb, rest with
+       | "c", graph :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in graph create";
+           let v = do_graph_create graph fl id in print_verdict ~fmt:fl.fmt v; 0
+       | "c", [] -> usage "graph create needs a graph name"
+       | "r", [] ->
+           let qs = List.map (fun q ->
+             let (view, _, _, _) = graph_view q in view) (list_graphs ()) in
+           print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true); ("graphs", `List qs)]); 0
+       | "r", [graph] ->
+           let (pos, fl) = ( [graph], { reason=None; commit=None; verdict=None; target=None; typ=None; depends_on=None; fmt="json" } ) in
+           ignore pos;
+           (* re-parse: graph may be followed by --format in original rest; handled below *)
+           ignore fl;
+           let (view, _, _, _) = graph_view graph in
+           print_verdict ~fmt:"json" (`Assoc (("ok", `Bool true) ::
+             (match view with `Assoc fs -> fs | _ -> []))); 0
+       | "r", graph :: tail ->
+           let (pos, fl) = split_flags (graph :: tail) in
+           (match pos with
+            | [q] ->
+                let (view, _, _, _) = graph_view q in
+                print_verdict ~fmt:fl.fmt (`Assoc (("ok", `Bool true) ::
+                  (match view with `Assoc fs -> fs | _ -> []))); 0
+            | _ -> usage "graph read takes at most one graph")
+       | "d", graph :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in graph delete";
+           let v = do_graph_delete graph fl id in print_verdict ~fmt:fl.fmt v; 0
+       | "d", [] -> usage "graph delete needs a graph name"
+       | _ -> usage "graph door verbs are c, r, d")
+  | _q :: "diagram" :: (h :: _) when is_help h -> print_string help_diagram; 0
+  | graph :: "diagram" :: tail -> do_diagram graph tail
+  | _q :: "dep" :: (h :: _) when is_help h -> print_string help_dep; 0
+  | graph :: "dep" :: node :: tail ->
+      let (pos, fl) = split_flags tail in
+      if pos <> [] then usage "stray positional in dep";
+      let v = do_node_dep graph node fl id in print_verdict ~fmt:fl.fmt v; 0
+  | graph :: verb_raw :: rest when is_verb verb_raw ->
+      let verb = normalize_verb verb_raw in
+      (match verb, rest with
+       | "c", node :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in node create";
+           let v = do_node_create graph node fl id in print_verdict ~fmt:fl.fmt v; 0
+       | "c", [] -> usage "node create needs an node name"
+       | "r", [] ->
+           let (view, _, _, _) = graph_view graph in
+           print_verdict ~fmt:"json" (`Assoc (("ok", `Bool true) ::
+             (match view with `Assoc fs -> fs | _ -> []))); 0
+       | "r", [node] ->
+           (match fold_graph graph with None -> not_found "graph" graph | Some _ -> ());
+           (match fold_node graph node with
+            | None -> not_found "node" node
+            | Some (_, s, text) -> print_verdict ~fmt:"json" (node_verdict graph node s (deps_of_text text) (timing_of_text text)); 0)
+       | "r", node :: tail ->
+           let (pos, fl) = split_flags (node :: tail) in
+           (match pos with
+            | [e] ->
+                (match fold_graph graph with None -> not_found "graph" graph | Some _ -> ());
+                (match fold_node graph e with
+                 | None -> not_found "node" e
+                 | Some (_, s, text) -> print_verdict ~fmt:fl.fmt (node_verdict graph e s (deps_of_text text) (timing_of_text text)); 0)
+            | _ -> usage "node read takes at most one node")
+       | "u", node :: edge :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in update";
+           let v = do_update graph node edge fl id in
+           let v = match ctx_rc with
+             | Some rc -> with_context v rc ctx_source | None -> v in
+           print_verdict ~fmt:fl.fmt v; 0
+       | "u", _ -> usage "update needs <node> <edge>"
+       | "d", node :: tail ->
+           let (pos, fl) = split_flags tail in
+           if pos <> [] then usage "stray positional in node delete";
+           let v = do_node_delete graph node fl id in print_verdict ~fmt:fl.fmt v; 0
+       | "d", [] -> usage "node delete needs an node name"
+       | _ -> usage "node door verbs are c, r, u, d")
+  | _ -> usage "expected: q c|r|d ... or q <graph> c|r|u|d ..."
+
+let () =
+  let argv = List.tl (Array.to_list Sys.argv) in
+  try exit (run argv)
+  with Verdict (code, v) ->
+    print_endline (Yojson.Safe.to_string (stamp_run_id v));
+    exit code
+
+
+==> skills/bp3g-frame/SKILL.md <==
+---
+name: graph
+description: Turn a known intent into a bp3 Graph file at docs/quests/<date>-<slug>.md with nodes, acceptance checks, and human touchpoints.
+---
+
+
+==> skills/bp3g-landing-demo/SKILL.md <==
+---
+name: red-ink-bp3g-landing-demo
+description: Produce the Landing IIUC for a bp3 Graph being promoted — diligence gate first (every node checked against its own acceptance; unsettled or improperly-done nodes route to red-ink, not landing), then decision record, settled picture, demo traces, files touched, verification, and deliberately-open items.
+---
+
+
+==> skills/bp3g/SKILL.md <==
+---
+name: bp3g
+description: Conduct one bp3 g from the main session — read state with bp3 g r, dispatch the one step that state calls for, re-read, until the graph is terminal or a human decision is owed.
+---
+
+
+==> skills/bp3g-no-human/SKILL.md <==
+---
+name: bp3g-no-human
+description: Run several bp3 graphs with no human present using the bp3g conductor — fleet preflight, park blocked work in the inbox, and end with the check-in report; never attests, never pages, never promotes.
+---
+
+=== bp3-q refs ===
+Makefile:48:RELEASE_ARTIFACT := dist/bp3-q-v$(RELEASE_VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
+scripts/install-bp3.sh:2:# install-bp3.sh: install the release artifact as bp3-q (+ bp3 shim).
+scripts/install-bp3.sh:4:# Artifact defaults to dist/bp3-q-v<version>-<os>-<arch> in this
+scripts/install-bp3.sh:13:artifact=${1:-"$root/dist/bp3-q-v$version-$os-$arch"}
+scripts/install-bp3.sh:18:      --pattern "bp3-q-v$version-$os-$arch*" --dir "$root/dist" 2>/dev/null || true
+scripts/install-bp3.sh:27:[ -x "$prefix/bin/bp3-q" ] && old=$("$prefix/bin/bp3-q" --version 2>/dev/null || echo none)
+scripts/install-bp3.sh:29:rm -f "$prefix/bin/bp3-q" "$prefix/bin/bp3"
+scripts/install-bp3.sh:30:cp "$artifact" "$prefix/bin/bp3-q"
+scripts/install-bp3.sh:32:chmod +x "$prefix/bin/bp3-q" "$prefix/bin/bp3"
+scripts/install-bp3.sh:33:echo "installed bp3-q $version -> $prefix/bin/bp3-q (was: $old)"
+scripts/bp3-shim:2:# bp3 shim (installed next to bp3-q by scripts/install-bp3.sh).
+scripts/bp3-shim:4:#   bp3 g|graph ...   -> bp3-q ...        bp3 init-repo -> bp3-q init-repo
+scripts/bp3-shim:5:#   bp3 -h|--version  -> bp3-q same       anything else -> bp3-q as-is
+scripts/bp3-shim:10:exec bp3-q "$@"
+release.conf:4:ASSETS=dist/bp3-q-v<version>-<os>-<arch> dist/bp3-q-v<version>-<os>-<arch>.sha256
+test/install.sh:13:art="$work/dist/bp3-q-v$version-$os-$arch"
+test/install.sh:18:echo "$out" | grep -q "installed bp3-q $version" || fail "install print: $out"
+test/install.sh:20:[ -x "$work/prefix/bin/bp3-q" ] || fail "bp3-q not installed"
+test/install.sh:30:out=$(bp3-q init-repo) || fail "init-repo: $out"
+test/install.sh:43:if out=$(bp3-q init-repo 2>&1); then fail "init-repo clobbered differing plan"; fi
+File "src/graph/store.ml", line 102, characters 15-26:
+102 |       let re = Str.regnode "max_cycles:[ \t]*\\([0-9]+\\)" in
+                     ^^^^^^^^^^^
+Error: Unbound value "Str.regnode"
+build-exit:0
+ls: _build/default/src/graph/main.exe: No such file or directory
++   by the bp3g workflow launcher before it spawns each
++   carry it. The bp3 g u <edge> grammar and the ledger
++(* The bp3g workflow launcher is the named writer: it is
++(* The bp3g workflow launcher is the named binder: it runs
++      let bp3_calls = count_sub text "bp3 g " + count_sub text "bp3 harness" in
++            add_finding (code ^ " refusal with no handoff") "bp3 g u / hooks") refusals;
++  Reads every .jsonl tape under the corpus (default: the engine's tape source), folds mechanical facts per tape (BP3_RUN_ID bindings, bp3 invocations, E_* refusals, commit shas, finish/exit evidence, torn tails; pi tapes also yield session-id, entry counts, and summed usage) and emits one verdict {ok, engine, corpus, tapes_replayed, identifiable, traces, findings}. Each finding names its tape, run-id, evidence lines, and proposed fix target (dispatcher, adapter, contract; muse findings keep bp3 g u / hooks). A parser crash fails the call; findings themselves never gate. Truncated, foreign, and torn tapes are reported in findings, never fatal. Replay is deterministic: same corpus, same verdict.\n\
++(* hooks — the bp3 g hooks emitter. Reads one Muse hook
++          if contains_sub command "bp3 g hooks" ||
++             contains_sub command "bp3 g hooks"
+=== suspicious ===
+src/graph/harness.ml:1170:        match (try Some (Str.search_forward (Str.regnode_string marker) text from) with _ -> None) with
+src/graph/harness.ml:1891:     let re = Str.regnode "E_[A-Z][A-Z0-9_][A-Z0-9_]+" in
+src/graph/hooks.ml:53:    let re = Str.regnode (key ^ "=\\([^ \t\"']+\\)") in
+src/graph/hooks.ml:95:    let re = Str.regnode "\"code\"[ \t]*:[ \t]*\"\\(E_[A-Z_]+\\)\"" in
+src/graph/store.ml:102:      let re = Str.regnode "max_cycles:[ \t]*\\([0-9]+\\)" in
+=== diff stat ===
+ test/release.sh                          |   8 +-
+ test/skills.sh                           | 148 ++++-----
+ test/tape.sh                             |  22 +-
+ test/worktree.sh                         |  96 +++---
+ 71 files changed, 2168 insertions(+), 2092 deletions(-)
+ M .claude/settings.json
+ M AGENTS.md
+ M Brewfile
+ M CLAUDE.md
+ M Makefile
+ M bin/bp3
+ M completions/_bp3
+ M completions/bp3.bash
+ M docs/designs/bp3-control-mvp.md
+ M docs/designs/bp3-control.md
+ M docs/dossiers/bp3-pi-basics.md
+ M docs/dossiers/muse-workflows-hooks.md
+ M extensions/bp3-pi/README.md
+ M extensions/bp3-pi/index.ts
+ M extensions/bp3-pi/roles/author.md
+ M extensions/bp3-pi/roles/reviewer.md
+ M extensions/bp3-pi/src/contract.ts
+ M extensions/bp3-pi/src/dispatcher.ts
+ M extensions/bp3-pi/test/bp3-pi.test.mjs
+ M plans/default.yaml
+work=/tmp/bp3g-smoke.wsBvXq
+--- g -h ---
+bp3 g - graph/node state. Doors:
+bp3 g c|r|d ...              graph door (create, read, delete)
+bp3 g <graph> c|r|u|d ...    node door for one graph
+bp3 g <graph> n <node> r     read one node (canonical nested address)
+bp3 g <graph> n <node> e <edge> [flags]   take one node's edge (canonical nested address)
+bp3 g <graph> diagram ...    generated graph diagram from the live rollup (mvp.4)
+bp3 g icebox r [term...]     search frozen icebox entries (read-only)
+bp3 n [r]                    claimed node door: read the claimed run's node (rename.1)
+bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)
+bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias
+bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)
+bp3 g hooks                  harness hook emitter (fail-open)
+Run bp3 g <door> -h for that door's verbs, edges, and flags.
+--- q refuses ---
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]
+q-exit:2
+--- create graph+node ---
+{"ok":true,"graph":"demo","state":"proposed"}
+{"ok":true,"graph":"demo","node":"node-1","state":"todo","cycle":1,"deps":[],"legal_edges":["handoff","block","delete"]}
+{"ok":true,"graph":"demo","node":"node-1","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null}
+--- nested read ---
+{"ok":true,"graph":"demo","node":"node-1","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null}
+--- n unclaimed ---
+{"ok":false,"error":{"code":"E_NO_CONTEXT","facts":{"desk":"/private/tmp/bp3g-smoke.wsBvXq"},"guidance":"No claimed context resolves for this call (no session claim, no desk context). Claim a link first, or address the call explicitly."}}
+n-exit:1
+--- handoff via nested e ---
+{"ok":true,"graph":"demo","node":"node-1","state":"handed_off","cycle":1,"commit":"60c6c5667876c7f415b63c877d442d9d6e7bb0cc","legal_edges":["grade","verify","block","delete"]}
+{"ok":true,"graph":"demo","state":"proposed","nodes":[{"node":"node-1","state":"handed_off","fin":null,"cycle":1,"commit":"60c6c5667876c7f415b63c877d442d9d6e7bb0cc","deps":[],"timing":{"wall_s":null,"wait_s":1,"dwell_s":{"todo":1},"cycles":1},"legal_edges":["grade","verify","block","delete"],"blocked":null,"changes":[]}],"ready_set_waves":[],"ready":[],"starved":[],"setup":[],"rollup":"active","fin":null,"inbox":[]}
+installed naming -> .claude/skills/naming/SKILL.md (claude)
+installed naming -> .agents/skills/naming/SKILL.md (codex)
+installed naming -> .agents/skills/naming/SKILL.md (muse)
+installed red-ink -> .pi/skills/red-ink/SKILL.md (pi)
+installed red-ink -> .claude/skills/red-ink/SKILL.md (claude)
+installed red-ink -> .agents/skills/red-ink/SKILL.md (codex)
+installed red-ink -> .agents/skills/red-ink/SKILL.md (muse)
+installed using-bp3 -> .pi/skills/using-bp3/SKILL.md (pi)
+installed using-bp3 -> .claude/skills/using-bp3/SKILL.md (claude)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (codex)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (muse)
+installed node-loop -> .agents/workflows/node-loop.js
+installed bp3g-grade -> .agents/workflows/bp3g-grade.js
+installed bp3g-land -> .agents/workflows/bp3g-land.js
+installed bp3g-node -> .agents/workflows/bp3g-node.js
+installed hooks -> .claude/hooks.json
+installed hooks -> .claude/settings.json
+installed hooks -> .muse/hooks.json
+installed _bp3 -> /opt/homebrew/share/zsh/site-functions/_bp3
+completion: source /Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/completions/bp3.bash (bash)
+install-exit:0
+.agents/skills/:
+add-bp3-skill
+add-yap-skill
+bp3g
+bp3g-frame
+bp3g-landing-demo
+bp3g-no-human
+icebox
+naming
+red-ink
+using-bp3
+
+.agents/workflows/:
+bp3g-grade.js
+bp3g-land.js
+bp3g-node.js
+node-loop.js
+
+skills/:
+add-bp3-skill
+add-yap-skill
+bp3g
+bp3g-frame
+bp3g-landing-demo
+bp3g-no-human
+icebox
+naming
+red-ink
+using-bp3
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/g.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/bp3g.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check test/pi-tree.test.mjs
+node --check skills/bp3g/workflows/bp3g-node.js
+node --check skills/bp3g/workflows/node-loop.js
+node --check skills/bp3g/workflows/bp3g-grade.js
+node --check skills/bp3g/workflows/bp3g-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+false
+FAIL: jq -e .defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/graph/SKILL.md","!**/.agents/skills/red-ink/SKILL.md","!**/.agents/skills/red-ink-bp3g-landing-demo/SKILL.md","!**/.agents/skills/bp3g/SKILL.md","!**/.agents/skills/bp3g-no-human/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"] /var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T//bp3-skills-tests.3bjdP8/project with spaces/.pi/settings.json
+make: *** [check] Error 1
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (128 assertions)
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/g.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/bp3g.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check test/pi-tree.test.mjs
+node --check skills/bp3g/workflows/bp3g-node.js
+node --check skills/bp3g/workflows/node-loop.js
+node --check skills/bp3g/workflows/bp3g-grade.js
+node --check skills/bp3g/workflows/bp3g-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (128 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/graph/main.exe
+./test/g.sh
+q tests: ok
+./test/ready.sh
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/diagram.sh
+diagram tests: ok
+./test/blocked.sh
+blocked tests: ok
+node test/pi-tree.test.mjs
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]
+node:internal/errors:998
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/bp3-pi-tree-KGwxII/repo/bin/bp3 q c demo
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]
+
+    at genericNodeError (node:internal/errors:998:15)
+    at wrappedFn (node:internal/errors:543:14)
+    at checkExecSyncError (node:child_process:925:11)
+    at execFileSync (node:child_process:961:15)
+    at bp3 (file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/test/pi-tree.test.mjs:53:15)
+    at file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/test/pi-tree.test.mjs:143:3
+    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:654:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  status: 2,
+  signal: null,
+  output: [
+    null,
+    '',
+    'usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]\n'
+  ],
+  pid: 56326,
+  stdout: '',
+  stderr: 'usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]\n'
+}
+
+Node.js v25.4.0
+make: *** [check] Error 1
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/g.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/bp3g.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check test/pi-tree.test.mjs
+node --check skills/bp3g/workflows/bp3g-node.js
+node --check skills/bp3g/workflows/node-loop.js
+node --check skills/bp3g/workflows/bp3g-grade.js
+node --check skills/bp3g/workflows/bp3g-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (128 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/graph/main.exe
+./test/g.sh
+q tests: ok
+./test/ready.sh
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/diagram.sh
+diagram tests: ok
+./test/blocked.sh
+blocked tests: ok
+node test/pi-tree.test.mjs
+pi-tree tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 19646 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 19772 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 20163 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 19098 Terminated: 15          sleep 60
+./test/harness.sh: line 501: 22275 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 22558 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/dogfood-link.sh
+dogfood-link tests: ok
+./test/dogfood-parallel.sh
+scorecard: {
+  "ready_wall_ms": 3948,
+  "serial_sum_ms": 6961,
+  "wall_saved_ms": 3013,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 2
+    },
+    "flappy-night": {
+      "wall_s": 1
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]
+node:internal/errors:998
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/tmp.uwmYlBLKLG/repo/bin/bp3 q c bubpi
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]
+
+    at genericNodeError (node:internal/errors:998:15)
+    at wrappedFn (node:internal/errors:543:14)
+    at checkExecSyncError (node:child_process:925:11)
+    at execFileSync (node:child_process:961:15)
+    at bp3 (file:///private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/tmp.uwmYlBLKLG/bubble-drive.mjs:18:15)
+    at file:///private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/tmp.uwmYlBLKLG/bubble-drive.mjs:107:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:654:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  status: 2,
+  signal: null,
+  output: [
+    null,
+    '',
+    'usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]\n'
+  ],
+  pid: 29537,
+  stdout: '',
+  stderr: 'usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]\n'
+}
+
+Node.js v25.4.0
+FAIL: bubble drive: 
+make: *** [check] Error 1
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/g.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/bp3g.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check test/pi-tree.test.mjs
+node --check skills/bp3g/workflows/bp3g-node.js
+node --check skills/bp3g/workflows/node-loop.js
+node --check skills/bp3g/workflows/bp3g-grade.js
+node --check skills/bp3g/workflows/bp3g-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (128 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/graph/main.exe
+./test/g.sh
+q tests: ok
+./test/ready.sh
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/diagram.sh
+diagram tests: ok
+./test/blocked.sh
+blocked tests: ok
+node test/pi-tree.test.mjs
+pi-tree tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 92418 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 92544 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 92943 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 91869 Terminated: 15          sleep 60
+./test/harness.sh: line 502: 94999 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 95251 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/dogfood-link.sh
+dogfood-link tests: ok
+./test/dogfood-parallel.sh
+scorecard: {
+  "ready_wall_ms": 3968,
+  "serial_sum_ms": 6901,
+  "wall_saved_ms": 2933,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 1
+    },
+    "flappy-night": {
+      "wall_s": 3
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]
+node:internal/errors:998
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/tmp.kIQFsV7joO/repo/bin/bp3 q c bubpi
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]
+
+    at genericNodeError (node:internal/errors:998:15)
+    at wrappedFn (node:internal/errors:543:14)
+    at checkExecSyncError (node:child_process:925:11)
+    at execFileSync (node:child_process:961:15)
+    at bp3 (file:///private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/tmp.kIQFsV7joO/bubble-drive.mjs:18:15)
+    at file:///private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/tmp.kIQFsV7joO/bubble-drive.mjs:107:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:654:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  status: 2,
+  signal: null,
+  output: [
+    null,
+    '',
+    'usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]\n'
+  ],
+  pid: 2434,
+  stdout: '',
+  stderr: 'usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]\n'
+}
+
+Node.js v25.4.0
+FAIL: bubble drive: 
+make: *** [check] Error 1
+q tests: ok
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/g.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/bp3g.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check test/pi-tree.test.mjs
+node --check skills/bp3g/workflows/bp3g-node.js
+node --check skills/bp3g/workflows/node-loop.js
+node --check skills/bp3g/workflows/bp3g-grade.js
+node --check skills/bp3g/workflows/bp3g-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (128 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/graph/main.exe
+./test/g.sh
+g tests: ok
+./test/ready.sh
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/diagram.sh
+diagram tests: ok
+./test/blocked.sh
+blocked tests: ok
+node test/pi-tree.test.mjs
+pi-tree tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277:  8158 Terminated: 15          sleep 30
+./test/harness.sh: line 292:  8284 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314:  8666 Terminated: 15          sleep 30
+./test/harness.sh: line 409:  7613 Terminated: 15          sleep 60
+./test/harness.sh: line 502: 10644 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 10892 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/dogfood-link.sh
+dogfood-link tests: ok
+./test/dogfood-parallel.sh
+scorecard: {
+  "ready_wall_ms": 3973,
+  "serial_sum_ms": 6928,
+  "wall_saved_ms": 2955,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 2
+    },
+    "flappy-night": {
+      "wall_s": 3
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+bubble scorecard: {"pi_bubble":"blocked","pi_fresh_run":"20261117T091504Z-node-pi-test-model-c1","pi_wall_ms":2495,"claude_bubble":"blocked","claude_fresh":"landed","sibling_pi":"handed_off","sibling_claude":"landed"}
+dogfood-parallel tests: ok
+./test/context.sh
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (25.508083ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.1245ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (252.137958ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (229.929833ms)
+✔ roles route model/thinking into the child env: override > role > conductor (446.778542ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (164.003167ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1570.232209ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (2958.360709ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (119994.967917ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (226.728208ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.405375ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (192.779ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (20.639541ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 126148.71625
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/bp3g.sh
+node-loop tests: ok
+bp3g-node tests: ok
+file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/skills/bp3g/workflows/bp3g-grade.js:152
+  const eq = s.match(new RegNode(stem + "\\s*=\\s*(yes|no)\\b"));
+                         ^
+
+ReferenceError: RegNode is not defined
+    at lineHasFile (file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/skills/bp3g/workflows/bp3g-grade.js:152:26)
+    at file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/skills/bp3g/workflows/bp3g-grade.js:163:12
+    at Array.filter (<anonymous>)
+    at validate_run_folder_present (file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/skills/bp3g/workflows/bp3g-grade.js:162:26)
+    at file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/skills/bp3g/workflows/bp3g-grade.js:218:54
+    at Array.map (<anonymous>)
+    at runValidations (file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/skills/bp3g/workflows/bp3g-grade.js:218:28)
+    at workflow (file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/skills/bp3g/workflows/bp3g-grade.js:584:21)
+    at async file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/test/bp3g-grade.test.mjs:129:18
+
+Node.js v25.4.0
+make: *** [check] Error 1
+node-loop tests: ok
+bp3g-node tests: ok
+bp3g-grade tests: ok
+bp3g-land tests: ok
+bp3g-conduct tests: ok
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/g.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/bp3g.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check test/pi-tree.test.mjs
+node --check skills/bp3g/workflows/bp3g-node.js
+node --check skills/bp3g/workflows/node-loop.js
+node --check skills/bp3g/workflows/bp3g-grade.js
+node --check skills/bp3g/workflows/bp3g-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (128 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/graph/main.exe
+./test/g.sh
+g tests: ok
+./test/ready.sh
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/diagram.sh
+diagram tests: ok
+./test/blocked.sh
+blocked tests: ok
+node test/pi-tree.test.mjs
+pi-tree tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 96339 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 96483 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 96862 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 95792 Terminated: 15          sleep 60
+./test/harness.sh: line 502: 98774 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 99022 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/dogfood-link.sh
+dogfood-link tests: ok
+./test/dogfood-parallel.sh
+scorecard: {
+  "ready_wall_ms": 3967,
+  "serial_sum_ms": 6925,
+  "wall_saved_ms": 2958,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 2
+    },
+    "flappy-night": {
+      "wall_s": 3
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+bubble scorecard: {"pi_bubble":"blocked","pi_fresh_run":"20261117T092418Z-node-pi-test-model-c1","pi_wall_ms":2625,"claude_bubble":"blocked","claude_fresh":"landed","sibling_pi":"handed_off","sibling_claude":"landed"}
+dogfood-parallel tests: ok
+./test/context.sh
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (25.475417ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.1255ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (204.673417ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (234.0265ms)
+✔ roles route model/thinking into the child env: override > role > conductor (439.918875ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (159.877291ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (2137.236667ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (2966.036916ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (118007.78225ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (219.565208ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.395625ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (203.929875ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (20.638625ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 124683.5415
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/bp3g.sh
+node-loop tests: ok
+bp3g-node tests: ok
+bp3g-grade tests: ok
+bp3g-land tests: ok
+bp3g-conduct tests: ok
+./test/completion.sh
+FAIL: candidates [] missing toy-drive
+make: *** [check] Error 1
+completion tests: ok
+release tests: ok
+release-exit:0
+install tests: ok
+install-exit:0
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/g.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/bp3g.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check test/pi-tree.test.mjs
+node --check skills/bp3g/workflows/bp3g-node.js
+node --check skills/bp3g/workflows/node-loop.js
+node --check skills/bp3g/workflows/bp3g-grade.js
+node --check skills/bp3g/workflows/bp3g-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (128 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/graph/main.exe
+./test/g.sh
+g tests: ok
+./test/ready.sh
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/diagram.sh
+diagram tests: ok
+./test/blocked.sh
+blocked tests: ok
+node test/pi-tree.test.mjs
+pi-tree tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 86948 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 87068 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 87447 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 86399 Terminated: 15          sleep 60
+./test/harness.sh: line 501: 90649 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 90897 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/dogfood-link.sh
+dogfood-link tests: ok
+./test/dogfood-parallel.sh
+scorecard: {
+  "ready_wall_ms": 3952,
+  "serial_sum_ms": 6910,
+  "wall_saved_ms": 2958,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 3
+    },
+    "flappy-night": {
+      "wall_s": 2
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+bubble scorecard: {"pi_bubble":"blocked","pi_fresh_run":"20261117T093344Z-node-pi-test-model-c1","pi_wall_ms":2557,"claude_bubble":"blocked","claude_fresh":"landed","sibling_pi":"handed_off","sibling_claude":"landed"}
+dogfood-parallel tests: ok
+./test/context.sh
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (25.59175ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.131833ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (197.960458ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (230.642709ms)
+✔ roles route model/thinking into the child env: override > role > conductor (435.278666ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (164.103167ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1416.241667ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (2993.35325ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (118984.976625ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (228.870666ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.379083ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (189.025667ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (21.195667ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 124953.088834
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/bp3g.sh
+node-loop tests: ok
+bp3g-node tests: ok
+bp3g-grade tests: ok
+bp3g-land tests: ok
+bp3g-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+ M .agents/skills/add-bp3-skill/SKILL.md
+ M .agents/skills/icebox/SKILL.md
+ M .agents/skills/naming/SKILL.md
+D  .agents/skills/quest/SKILL.md
+D  .agents/skills/red-ink-quest-landing-demo/SKILL.md
+ M .agents/skills/red-ink/SKILL.md
+D  .agents/skills/traverse-no-human/SKILL.md
+D  .agents/skills/traverse/SKILL.md
+ M .agents/skills/using-bp3/SKILL.md
+ M .agents/workflows/node-loop.js
+ M .claude/hooks.json
+ M .claude/settings.json
+ M .claude/skills/add-bp3-skill/SKILL.md
+ M .claude/skills/icebox/SKILL.md
+ M .claude/skills/naming/SKILL.md
+D  .claude/skills/quest/SKILL.md
+D  .claude/skills/red-ink-quest-landing-demo/SKILL.md
+ M .claude/skills/red-ink/SKILL.md
+D  .claude/skills/traverse-no-human/SKILL.md
+D  .claude/skills/traverse/SKILL.md
+ M .claude/skills/using-bp3/SKILL.md
+ M .muse/hooks.json
+ M .pi/settings.json
+ M .pi/skills/add-bp3-skill/SKILL.md
+ M .pi/skills/icebox/SKILL.md
+ M .pi/skills/naming/SKILL.md
+D  .pi/skills/quest/SKILL.md
+D  .pi/skills/red-ink-quest-landing-demo/SKILL.md
+ M .pi/skills/red-ink/SKILL.md
+D  .pi/skills/traverse-no-human/SKILL.md
+---
+     112
+ rename test/{quest-land.test.mjs => bp3g-land.test.mjs} (91%)
+ rename test/{induct-node.test.mjs => bp3g-node.test.mjs} (96%)
+ create mode 100755 test/bp3g.sh
+ rename test/{q.sh => g.sh} (65%)
+ delete mode 100755 test/traverse.sh
+4e0f1bd0d90f13a12623012b5628f7c38165577c
+clean-check done
+{"ok":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-rename-1-bp3g-rename","state":"handed_off","cycle":1,"commit":"4e0f1bd0d90f13a12623012b5628f7c38165577c","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-rename-1-bp3g-rename","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-rename-1-bp3g-rename","edge":"handoff","run_id":"20261117T084553Z-handoff-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T084553Z-handoff-muse-code-muse-wonder-1.0-c1"}
+handoff-exit:0

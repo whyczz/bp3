@@ -1,0 +1,631 @@
+=== TAPE START audit 20261116T212019Z ===
+commit bound: 321b96563128806237b1804d650654a77d61ba4b
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+886e1af docs(icebox): kill engine fan-out, addressed by graph-engine quest
+1fdb11e docs(icebox): freeze lint, portable dogfood, engine fan-out sketches
+--- git status ---
+--- HEAD ---
+321b96563128806237b1804d650654a77d61ba4b
+--- git-common-dir ---
+/Users/whycz/m/bp3/.git
+=== RUNS ===
+20261116T194936Z-handoff-muse-code-muse-wonder-1.0-c1
+20261116T195727Z-audit-muse-code-muse-wonder-1.0-c1
+20261116T195727Z-grade-muse-code-muse-wonder-1.0-c1
+20261116T195727Z-verify-muse-code-muse-wonder-1.0-c1
+20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2
+20261116T212019Z-audit-muse-code-muse-wonder-1.0-c2
+=== QUEST LEDGER search ===
+experiments
+QUEST.md
+=== git show stat bound ===
+commit 321b96563128806237b1804d650654a77d61ba4b
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 16:19:03 2026 -0500
+
+    test(mig.2): add traverse conduction smoke drive
+
+ test/traverse-conduct.test.mjs | 125 +++++++++++++++++++++++++++++++++++++++++
+ test/traverse.sh               |   1 +
+ 2 files changed, 126 insertions(+)
+=== git show stat feat ===
+commit 65d55af9528668e741d23578d6579f67ba74cb20
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 14:56:13 2026 -0500
+
+    feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+
+ .agents/skills/induct-quest/SKILL.md               |  15 ---
+ .agents/skills/quest/SKILL.md                      |   2 +-
+ .../SKILL.md                                       |  24 ++---
+ .agents/skills/{induct => traverse}/SKILL.md       |  22 ++--
+ .agents/workflows/induct-grade.js                  |   2 +-
+ .../workflows/node-loop.js                         |   6 +-
+ .agents/workflows/quest-land.js                    |   2 +-
+ .claude/skills/induct-quest/SKILL.md               |  15 ---
+ .claude/skills/quest/SKILL.md                      |   2 +-
+ .../skills/traverse-no-human}/SKILL.md             |  24 ++---
+ .claude/skills/{induct => traverse}/SKILL.md       |  22 ++--
+ .pi/settings.json                                  |   7 +-
+ .pi/skills/induct-quest/SKILL.md                   |  15 ---
+ .pi/skills/quest/SKILL.md                          |   2 +-
+ .../skills/traverse-no-human}/SKILL.md             |  24 ++---
+ .pi/skills/{induct => traverse}/SKILL.md           |  22 ++--
+ Makefile                                           |  10 +-
+ bin/bp3                                            |   8 +-
+ skills/induct-quest/SKILL.md                       |  14 ---
+ skills/quest/SKILL.md                              |   2 +-
+ .../SKILL.md                                       |  22 ++--
+ skills/{induct => traverse}/SKILL.md               |  20 ++--
+ .../{induct => traverse}/workflows/induct-grade.js |   2 +-
+ .../traverse/workflows/node-loop.js                |   6 +-
+ .../{induct => traverse}/workflows/quest-land.js   |   2 +-
+ src/quest/harness.ml                               |   6 +-
+ src/quest/worktree.ml                              |   2 +-
+ test/induct-grade.test.mjs                         |   4 +-
+ test/{induct-exp.test.mjs => node-loop.test.mjs}   |   8 +-
+ test/quest-land.test.mjs                           |   4 +-
+ test/skills.sh                                     | 113 +++++++++++----------
+ test/{induct.sh => traverse.sh}                    |   4 +-
+ 32 files changed, 188 insertions(+), 245 deletions(-)
+=== handoff c2 folder ===
+total 136
+drwxr-xr-x@ 4 whycz  staff    128 Nov 16 16:19 .
+drwxr-xr-x@ 8 whycz  staff    256 Nov 16 16:20 ..
+-rw-r--r--@ 1 whycz  staff   1071 Nov 16 16:19 notes.md
+-rw-r--r--@ 1 whycz  staff  64318 Nov 16 16:19 tape.log
+=== handoff c2 notes ===
+# mig.2 traverse-rename — run notes (c2)
+
+- Cycle 1 rename (65d55af) was clean but graded `missing` on
+  `traverse conducts`: only per-workflow mock parity existed, no
+  end-to-end conduction artifact. Cycle 2 adds exactly that row.
+- New `test/traverse-conduct.test.mjs`: a conductor loop over the
+  traverse dispatch table drives one fixture node through the real
+  `node-loop.js` -> `induct-grade.js` -> `quest-land.js` files
+  against a shared fixture state machine (todo -> handed_off ->
+  approved -> landed/exp_fin), asserting dispatch order, stage
+  order (author,audit,grade,verify,land), and bound-commit flow.
+  Wired into `test/traverse.sh`; mock host only, no agent calls.
+- Mock-host lesson: dispatch stage children by label, not input
+  text — grade/verify briefs mention `harness find-tape` in ladder
+  text, so input-matching intercepts them and starves the matrix.
+- Verified: `./test/traverse.sh` (incl. traverse-conduct: ok),
+  `./test/skills.sh` (121 assertions), `bp3 skills install
+  --harness=all` leaves tree clean, full `make check` exit 0.
+=== ledger find ===
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-1-induct-grade/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-2-induct-exp-slim/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-4-desks/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-5-grade-matrix-fix/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-3-conductor/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/ledger.jsonl
+docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/ledger.jsonl
+docs/quests/2026-11-09-bp3-land-verdicts/ledger.jsonl
+docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-4-pi-extension-drive/runs/20261116T063944Z-submit-muse-code-muse-wonder-1.0-c1/drive.jsonl
+docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-4-pi-extension-drive/runs/20261116T063944Z-submit-muse-code-muse-wonder-1.0-c1/drive-attempt1.jsonl
+./docs/quests/2026-11-14-bp3-workflows-v2/ledger.jsonl
+./docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/ledger.jsonl
+./docs/quests/2026-11-09-bp3-land-verdicts/ledger.jsonl
+pi-sessions
+run-lifecycle-derivations
+=== derivation logs ===
+20261116T065645Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T065645Z-check-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T065645Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T070430Z-land-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T073334Z-submit-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T074238Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T074238Z-check-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T074238Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T080000Z-land-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T191513Z-submit-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T193614Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T193614Z-grade-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T193614Z-verify-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T194825Z-land-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T194936Z-handoff-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T195727Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T195727Z-grade-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T195727Z-verify-muse-code-muse-wonder-1.0-c1.jsonl
+20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2.jsonl
+20261116T212019Z-audit-muse-code-muse-wonder-1.0-c2.jsonl
+=== quest dir ===
+notes.md
+tape.log
+=== exp ledger path ===
+cat: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/ledger.jsonl: No such file or directory
+=== quest ledger tail ===
+ls: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/*.jsonl: No such file or directory
+=== derivation handoff c2 ===
+{"kind":"init_record","run_id":"20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2","harness":"muse-code","ts":"2026-11-16T21:12:38Z","quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-2-traverse-rename","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","model":"muse-wonder-1.0"}
+{"kind":"tape_binding","run_id":"20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2","tape_path":"/Users/whycz/.local/share/muse/sessions/2026/11/11/01a1cbc0-ae53-75b3-8e53-0aae0b18151d/subagent/3d16c2c0-2c7b-7d14-85b5-9a076f256d4c/session.jsonl","ts":"2026-11-16T21:20:03Z"}
+=== derivation audit c2 (own) ===
+{"kind":"init_record","run_id":"20261116T212019Z-audit-muse-code-muse-wonder-1.0-c2","harness":"muse-code","ts":"2026-11-16T21:20:32Z","quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-2-traverse-rename","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","model":"muse-wonder-1.0"}
+=== find ledgers under quest ===
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/QUEST.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-rename-1-bp3g-rename/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-verify-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-verify-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T194936Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T194936Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212019Z-audit-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-grade-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-grade-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-audit-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-audit-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-grade-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-grade-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-verify-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-verify-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-audit-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-audit-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T191513Z-submit-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T191513Z-submit-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T194825Z-land-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T194825Z-land-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-3-ready-set-timing/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-4-diagram-emit/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/EXPERIMENT.md
+=== QUEST.md head ===
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+| tape | tape | the harness session recording (unchanged) |
+
+States rest in the root worker's read. Edges are
+subagents. A child holds nothing across edges;
+context is claimed, never remembered.
+
+Edge names (settled red-ink names round, owner —
+option A; rides rename.1, old ledgers keep old
+words and the rename table maps them):
+
+| Coded today | Settled name | Caller does |
+|---|---|---|
+| `submit` | `handoff` | author binds the finished commit |
+| `review` | `grade` | reviewer grades the exact commit (`ship\|needs_fix`) |
+| `check` | `verify` | machine checks (`pass\|fail`) |
+| `land` | `land` | merge into the graph branch |
+| state `submitted` | state `handed_off` | verb/state rhyme: `handoff` hands off, node rests `handed_off` |
+| `block` | `block` | park for a human decision |
+| `resume` | `resume` | human answer re-enters (`BP3_DECIDER=human`) |
+
+Link mint/claim are verbs, not flags:
+`bp3 harness link mint --kind node|edge …` and
+`bp3 harness link claim <token>`. A node link
+carries no edge name — the node worker executes
+no transition when it claims.
+
+Door letter settled: `bp3 g`, not `bp3 t`.
+Nodes form a DAG (shared deps, diamonds — a tree
+allows one parent), scheduled by BFS ready-set
+waves; the *execution* is a tree of workers.
+Tree survives as a view (`--format tree`) and as
+the worker-tree shape, never as the addressed
+noun.
+
+## Success picture
+
+A root worker dispatches a node with a one-line
+brief: "claim this link, do this edge." The child
+claims, works, calls its own edge, dies. Ready
+nodes in a ready-set build and grade in parallel
+desks; landing is a serial queue. The rollup
+shows every node's wall, wait, and dwell time.
+The grader joins any tape's session-id to run-id
+in one lookup. At the end, everything on live
+surfaces — CLI, skills, workflows, records —
+speaks graph/node/state/edge and answers to
+`bp3 g` and `/bp3g`.
+
+## Scope
+
+| In | Out |
+|---|---|
+| `bp3 harness link` mint/claim, CAS claim store, by-session index, context resolution; run config replaces InitRecord (`creator:{}`/`claim:{}`/`tape_path`), `record-init` retires, lifecycle fold reads the run config | rewriting landed quests' ledger history text |
+| ready-set scheduling, per-node timing derived from ledger + derivations, local thresholds | anything committed for metrics; timing judgments stay in `<git-common-dir>/bp3/` |
+| setup timing measured always; optimize only when setup > 3 min (`W_SETUP_SLOW`) | desk pools (killed 2026-11-16; ad hoc desks, measured) |
+| generated ASCII/mermaid diagram from live rollup | writing into harness session logs (tapes stay harness-written) |
+| rename last: `bp3 g`, `bp3g` skills, graph terms on live surfaces | rewriting landed quests' ledger history text |
+| session-id discovery: muse, pi; graceful floor (pid+cwd+window) | adversarial threat model (links are for confused children, not attackers) |
+
+## Timing gates (in-system, local)
+
+- Per node: `wall` (first handoff → land), `wait`
+  (create → first handoff), `dwell` per state,
+  cycles. Derived from ledger timestamps, shown
+  on read, thresholds local, never committed.
+- Per Run setup: desk create → first bp3 answer;
+  `W_SETUP_SLOW` when > 3 minutes.
+- Scorecards report wall minutes AND tokens per
+  node. Visibility, not caps.
+
+## Context layer (kubectl pattern, settled red-ink round 1)
+
+One door per noun, nested as the canonical address:
+`bp3 g <graph> n <node> e <edge>`. Bare `bp3 e …`
+is the claimed shorthand. A context layer resolves
+=== bp3 state find ===
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T065016Z-land-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T011324Z-audit-muse-code-muse-wonder-1.0-c2.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T030300Z-audit-muse-code-muse-wonder-1.0-c4.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T060036Z-submit-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T004619Z-check-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T051811Z-review-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261115T224809Z-review-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T011324Z-audit-muse-code-muse-wonder-1.0-c2.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T020249Z-submit-muse-code-muse-wonder-1.0-c4.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T045445Z-submit-muse-code-muse-wonder-1.0-c6.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T045728Z-check-muse-code-muse-wonder-1.0-c6.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T194825Z-land-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261115T215646Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T012738Z-review-muse-code-muse-wonder-1.0-c3.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261115T221254Z-land-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T002125Z-audit-muse-code-muse-wonder-1.0-c2.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T045728Z-review-muse-code-muse-wonder-1.0-c6.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T051026Z-check-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T051026Z-check-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T010251Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T045112Z-check-muse-code-muse-wonder-1.0-c5.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T043306Z-review-muse-code-muse-wonder-1.0-c2.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T005620Z-land-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261115T224331Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T031856Z-audit-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261115T222344Z-audit-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T010251Z-check-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T003423Z-submit-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T053352Z-submit-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261115T220235Z-audit-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261115T220706Z-check-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T050026Z-land-muse-code-muse-wonder-1.0-c6.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261115T215646Z-audit-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T062011Z-land-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T012226Z-submit-muse-code-muse-wonder-1.0-c3.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T005744Z-submit-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T065645Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T054139Z-land-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T063853Z-land-muse-code-muse-wonder-1.0-c1.json
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T023114Z-submit-muse-code-muse-wonder-1.0-c1.json
+=== rung2 skills present ===
+skills/traverse-no-human/SKILL.md
+skills/traverse/SKILL.md
+skills/traverse/workflows/node-loop.js
+.agents/skills/traverse/SKILL.md
+=== old names sweep ===
+ls: skills/induct-quest: No such file or directory
+ls: skills/induct*: No such file or directory
+ls: .agents/skills/induct*: No such file or directory
+ls: skills/traverse/workflows/induct-exp.js: No such file or directory
+=== grep old names in skills/workflows ===
+=== node-loop test file head ===
+// Mock-host test for skills/traverse/workflows/node-loop.js.
+// Covers the exp Acceptance table for the slimmed build-only
+// step: the launcher's record-init writer precedes the author
+// child on a todo exp (mvp.8; a refused write spawns nothing),
+// only the author child spawns on a todo exp, the launcher's
+// bind step follows the author (followup.3: find-tape resolves
+// the session tape, bind-tape binds it; a refused resolution
+// binds nothing), the file carries no other stage's edge
+// commands, a handed_off exp is refused with zero stage
+// children (state untouched), and the env-set run-id still
+// holds for the author.
+import { readFileSync } from "node:fs";
+import workflow from "../skills/traverse/workflows/node-loop.js";
+
+const TS = "20260101T000000Z";
+let failures = 0;
+function assert(cond, msg) {
+  if (!cond) { console.error("FAIL: " + msg); failures++; }
+}
+
+function mockHost({ reads, initFails, bindFails }) {
+  let readIdx = 0;
+  const labels = [];
+  const inputs = {};
+  const inits = [];
+  const binds = [];
+  const host = {
+    args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model" },
+    async agent({ label, input }) {
+      if (input.includes("harness record-init")) {
+=== traverse-conduct test ===
+// Conduction smoke drive for /traverse (skills/traverse/SKILL.md).
+// One fixture node is driven end to end by the conductor dispatch
+// table — todo -> node-loop, handed_off -> induct-grade,
+// approved -> quest-land — against a shared fixture state
+// machine, ending landed (reported exp_fin). Each step is the
+// real workflow file; only the host (agent spawns and bp3 reads)
+// is mocked, so this proves conduction, not per-workflow parity.
+import { readFileSync } from "node:fs";
+import nodeLoop from "../skills/traverse/workflows/node-loop.js";
+import inductGrade from "../skills/traverse/workflows/induct-grade.js";
+import questLand from "../skills/traverse/workflows/quest-land.js";
+
+const TS = "20260101T000000Z";
+const COMMIT = "abc1234";
+let failures = 0;
+function assert(cond, msg) {
+  if (!cond) { console.error("FAIL: " + msg); failures++; }
+}
+
+function passRow(name) {
+  return {
+    case: name,
+    evidence: { kind: "command", ref: "test/traverse.sh", quote: "traverse tests: ok" },
+    verdict: "pass",
+  };
+}
+
+// Shared fixture: one exp whose state only the stage children
+// advance, exactly as bp3 q u edges would. Reads always report
+// the current fixture state.
+function fixtureHost() {
+  let current = { state: "todo", cycle: 1, commit: null, legal_edges: ["handoff"] };
+  const stages = [];
+  const host = {
+    args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: null },
+    async agent({ label, input }) {
+      // Stage children first: their briefs mention harness
+      // commands (find-tape in the ladder text) without calling them.
+      const stage = label.split(" ")[0];
+      if (["author", "audit", "grade", "verify", "land"].includes(stage)) {
+        stages.push(stage);
+        if (stage === "author") {
+          current = { state: "handed_off", cycle: 1, commit: COMMIT, legal_edges: ["grade", "verify"] };
+          host.args.commit = COMMIT;
+          return JSON.stringify({ ok: true, run_id: "r-author", commit: COMMIT, verdict: { ok: true } });
+        }
+        if (stage === "audit") {
+          return JSON.stringify({ ok: true, run_id: "r-audit", matrix: [passRow("acceptance: fixture node")] });
+        }
+        if (stage === "verify") {
+          current = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["land"] };
+          return JSON.stringify({ ok: true, run_id: "r-verify", commit: COMMIT, verdict: { ok: true } });
+        }
+        if (stage === "land") {
+          current = { state: "landed", cycle: 1, commit: COMMIT, legal_edges: [] };
+          return JSON.stringify({ ok: true, run_id: "r-land", commit: COMMIT, verdict: { ok: true } });
+        }
+        return JSON.stringify({ ok: true, run_id: "r-" + stage, commit: COMMIT, verdict: { ok: true } });
+      }
+      if (input.includes("harness record-init")) {
+=== bin/bp3 ledger help ===
+119:  # same hooks under settings.json produced ledger event lines).
+=== rung3 run traverse.sh ===
+node-loop tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+EXIT:0
+=== rung3 run skills.sh ===
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (121 assertions)
+EXIT:0
+=== renders clean check ===
+installed traverse-no-human -> .pi/skills/traverse-no-human/SKILL.md (pi)
+installed traverse-no-human -> .claude/skills/traverse-no-human/SKILL.md (claude)
+installed traverse-no-human -> .agents/skills/traverse-no-human/SKILL.md (codex)
+installed traverse-no-human -> .agents/skills/traverse-no-human/SKILL.md (muse)
+installed traverse -> .pi/skills/traverse/SKILL.md (pi)
+installed traverse -> .claude/skills/traverse/SKILL.md (claude)
+installed traverse -> .agents/skills/traverse/SKILL.md (codex)
+installed traverse -> .agents/skills/traverse/SKILL.md (muse)
+installed using-bp3 -> .pi/skills/using-bp3/SKILL.md (pi)
+installed using-bp3 -> .claude/skills/using-bp3/SKILL.md (claude)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (codex)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (muse)
+installed node-loop -> .agents/workflows/node-loop.js
+installed induct-grade -> .agents/workflows/induct-grade.js
+installed quest-land -> .agents/workflows/quest-land.js
+installed hooks -> .claude/hooks.json
+installed hooks -> .claude/settings.json
+installed hooks -> .muse/hooks.json
+installed _bp3 -> /opt/homebrew/share/zsh/site-functions/_bp3
+completion: source /Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/completions/bp3.bash (bash)
+EXIT:0
+status-end
+=== validator ===
+=== old names full sweep ===
+skills/traverse/SKILL.md
+.agents/skills/traverse/SKILL.md
+.claude/skills/traverse/SKILL.md
+.pi/skills/traverse/SKILL.md
+add-bp3-skill
+add-yap-skill
+icebox
+naming
+quest
+red-ink
+red-ink-quest-landing-demo
+traverse
+traverse-no-human
+using-bp3
+induct-grade.js
+node-loop.js
+quest-land.js
+=== traverse skill head ===
+---
+name: traverse
+description: Conduct one bp3 quest from the main session — read state with bp3 q r, dispatch the one step that state calls for, re-read, until the quest is terminal or a human decision is owed.
+---
+
+# Traverse
+
+Use when a human in a bp3-enabled repo invokes this skill by
+name (`/traverse <quest>`, `$traverse <quest>`) or asks to "traverse",
+"run", or "keep going on" a named quest until it lands or
+blocks. One quest per traverse. One output: step dispatches
+through `bp3 q`, ending in a traverse report — what reached
+`exp_fin`, what is blocked, and what human decision is owed
+next. Finish lines have report words: `exp_fin` names an exp
+whose state is `landed` (its `land` edge taken); `quest_fin`
+names quest promotion to master, the only owner-gated finish
+line. The FSM states stay `landed`; `exp_fin`/`quest_fin`
+name the finish lines in reports, never new edges.
+
+Use `quest` instead to frame a new quest. Use `using-bp3`
+instead for a single state operation by hand (one handoff, one
+grade, recovery after a dead session). Use
+`red-ink-quest-landing-demo` instead when the quest is done and the
+human wants the landing writeup. A design under review is
+`red-ink`'s job, not a traverse.
+
+## Conductor rule
+
+This skill is the conductor: it owns the loop and nothing
+else. It reads state, dispatches the one step the state calls
+for, and re-reads. It never does a step's work itself, never
+calls a verdict edge for a step, and never re-judges a grade
+matrix — it quotes the matrix verbatim. Legality is `bp3 q`'s
+call, never this skill's: a refusal is information, answered by
+re-reading, not by arguing or retrying unchanged.
+
+Cycles are weather; blocks are decisions. A `needs_fix`
+verdict below the cycle cap is weather: the conductor rides
+it (Procedure step 3) without paging the owner. `blocked` is
+the only page: it means a decision only a human can make is
+=== traverse-no-human head ===
+---
+name: traverse-no-human
+description: Run several bp3 quests with no human present using the traverse conductor — fleet preflight, park blocked work in the inbox, and end with the check-in report; never attests, never pages, never promotes.
+---
+
+# Traverse, no human
+
+Use when a human in a bp3-enabled repo invokes this skill
+by name (`/traverse-no-human <quest>...`,
+`$traverse-no-human`) or asks to run quests unattended,
+overnight, or in a queue with no human present. Several
+quests may be named; a Run budget may be stated. One
+output: the check-in report (step 5). For one quest with a
+human present, use `traverse` instead.
+
+=== induct mention in traverse ===
+86:   | `handed_off` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit, desk}` with `commit` from this read |
+99:   free: re-dispatching `induct-grade` on the same `commit`
+=== bp3 help ===
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk)
+  bp3 q -h for quest/exp doors
+=== find-tape build run entries ===
+{"ok":true,"run_id":"20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2","harness":"muse-code","session_id":null,"wal":"/Users/whycz/.local/share/muse/sessions/2026/11/11/01a1cbc0-ae53-75b3-8e53-0aae0b18151d/subagent/3d16c2c0-2c7b-7d14-85b5-9a076f256d4c/session.jsonl","tape_path":"/Users/whycz/.local/share/muse/sessions/2026/11/11/01a1cbc0-ae53-75b3-8e53-0aae0b18151d/subagent/3d16c2c0-2c7b-7d14-85b5-9a076f256d4c/session.jsonl","pid":null}
+=== bp3 q help ===
+bp3 q - quest/exp state. Doors:
+bp3 q c|r|d ...              quest door (create, read, delete)
+bp3 q <quest> c|r|u|d ...    exp door for one quest
+bp3 q icebox r [term...]     search frozen icebox entries (read-only)
+bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias
+bp3 q hooks                  harness hook emitter (fail-open)
+Run bp3 q <door> -h for that door's verbs, edges, and flags.
+=== bp3 q r quest ===
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"proposed","exps":[{"exp":"exp-config-1-bp3-config","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-dogfood-1-link-drive","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-dogfood-2-parallel-drive","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-landing-1-landing-wrapup","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mig-1-handoff-verbs","state":"landed","fin":"exp_fin","cycle":1,"commit":"44196725860125de048415ff6a4be350a90c033b","legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"u","path":".agents/skills/naming/SKILL.md"},{"change":"u","path":".agents/skills/quest/SKILL.md"},{"change":"u","path":".agents/skills/red-ink/SKILL.md"},{"change":"u","path":".agents/skills/using-bp3/SKILL.md"},{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".claude/skills/naming/SKILL.md"},{"change":"u","path":".claude/skills/quest/SKILL.md"},{"change":"u","path":".claude/skills/red-ink/SKILL.md"},{"change":"u","path":".claude/skills/using-bp3/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/naming/SKILL.md"},{"change":"u","path":".pi/skills/quest/SKILL.md"},{"change":"u","path":".pi/skills/red-ink/SKILL.md"},{"change":"u","path":".pi/skills/using-bp3/SKILL.md"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/roles/author.md"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"skills/naming/SKILL.md"},{"change":"u","path":"skills/quest/SKILL.md"},{"change":"u","path":"skills/red-ink/SKILL.md"},{"change":"u","path":"skills/using-bp3/SKILL.md"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"u","path":"test/completion.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/hooks.sh"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/install.sh"},{"change":"u","path":"test/q.sh"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/tape.sh"},{"change":"u","path":"test/worktree.sh"}]},{"exp":"exp-mig-2-traverse-rename","state":"handed_off","fin":null,"cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","legal_edges":["grade","verify","block","delete"],"changes":[{"change":"+","path":"test/traverse-conduct.test.mjs"},{"change":"u","path":"test/traverse.sh"}]},{"exp":"exp-mvp-1-link-claim","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mvp-2-context-resolution","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mvp-3-ready-set-timing","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mvp-4-diagram-emit","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mvp-5-blocked-fail-fast","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-rename-1-bp3g-rename","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null}],"rollup":"active","fin":null,"inbox":[]}
+=== derivation full handoff c2 already seen; check ledger via q ===
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"quest read takes at most one quest"},"guidance":"Fix the call: quest read takes at most one quest"}}
+=== exp read ===
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-2-traverse-rename","state":"handed_off","fin":null,"cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","legal_edges":["grade","verify","block","delete"],"changes":[{"change":"+","path":"test/traverse-conduct.test.mjs"},{"change":"u","path":"test/traverse.sh"}]}
+
+=== grep run-id in common dir ===
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2.jsonl:{"kind":"init_record","run_id":"20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2","harness":"muse-code","ts":"2026-11-16T21:12:38Z","quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-2-traverse-rename","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","model":"muse-wonder-1.0"}
+/Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2.jsonl:{"kind":"tape_binding","run_id":"20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2","tape_path":"/Users/whycz/.local/share/muse/sessions/2026/11/11/01a1cbc0-ae53-75b3-8e53-0aae0b18151d/subagent/3d16c2c0-2c7b-7d14-85b5-9a076f256d4c/session.jsonl","ts":"2026-11-16T21:20:03Z"}
+=== store files ===
+ls: /Users/whycz/m/bp3/.git/bp3/*.json*: No such file or directory
+=== find-tape help ===
+bp3 harness find-tape - InitRecord-first tape lookup:
+bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]
+bp3 harness find-tape --session-id <id>
+Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate. A tape named by an InitRecord or a binding row wins over any scan; when a scan finds several referencing tapes, only tapes carrying the Run's own engine-fsm-edge invocation (BP3_RUN_ID bound to its bp3 q ... u <exp> <engine-fsm-edge> call, engine-fsm-edge from the run-id, exp from the InitRecord) can resolve, and among them the earliest session started at-or-after the Run's InitRecord wins; a tie or none is E_AMBIGUOUS.
+--entry returns the one digest-verified entry (sha256 over its exact line, with byte range), widened by --before-entries/--after-entries (non-negative integers, default 0).
+Emits {ok, run_id, harness, session_id, wal, pid} or, with --entry, plus {entry, entries}.
+Example: bp3 harness find-tape --run-id 20261115T000000Z-handoff-pi-model-c1
+=== build run tape tail (run folder tape, not harness tape) ===
+./test/install.sh
+install tests: ok
+MAKE_CHECK_EXIT:0
+ M test/traverse.sh
+?? test/traverse-conduct.test.mjs
+===ignored?===
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2/tape.log
+[quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines 321b965] test(mig.2): add traverse conduction smoke drive
+ 2 files changed, 126 insertions(+)
+ create mode 100644 test/traverse-conduct.test.mjs
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+FULL_SHA:321b96563128806237b1804d650654a77d61ba4b
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-2-traverse-rename","state":"handed_off","cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","legal_edges":["grade","verify","block","delete"],"run_id":"20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2"}
+HANDOFF_EXIT:0
+=== build run files ===
+total 136
+-rw-r--r--@ 1 whycz  staff   1071 Nov 16 16:19 notes.md
+-rw-r--r--@ 1 whycz  staff  64318 Nov 16 16:19 tape.log
+notes written

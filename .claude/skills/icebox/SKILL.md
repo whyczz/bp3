@@ -1,18 +1,18 @@
 ---
 name: icebox
-description: Freeze a not-yet-ready idea as a future-quest sketch in docs/icebox with today's context, the smallest workable shape, blockers, and a promotion trigger.
+description: Freeze a not-yet-ready idea as a future-graph sketch in docs/icebox with today's context, the smallest workable shape, blockers, and a promotion trigger.
 ---
 <!-- GENERATED from skills/icebox/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->
 
 # Icebox
 
 Use when a human in bp3 says to icebox, freeze, or park an idea
-for a future quest (`/icebox`), or when a design session settles
-a direction but deliberately defers it past the current quest.
-One output: one entry in `docs/icebox/` that a later `/quest`
+for a future graph (`/icebox`), or when a design session settles
+a direction but deliberately defers it past the current graph.
+One output: one entry in `docs/icebox/` that a later `/graph`
 can promote by transcription.
 
-Use `quest` instead when the idea is ready to frame now.
+Use `graph` instead when the idea is ready to frame now.
 Use `add-bp3-skill` or `add-yap-skill` when the idea is a skill.
 Use `red-ink` when an existing design needs a decision walk.
 
@@ -43,23 +43,23 @@ Use `red-ink` when an existing design needs a decision walk.
 
 ## Promotion (receiving end)
 
-Promotion is defined in the `quest` skill (section
+Promotion is defined in the `graph` skill (section
 "Promotion from the icebox"): trigger fires, owner names the
-entry, the Quest procedure re-decides everything, and at
+entry, the Graph procedure re-decides everything, and at
 owner approval the entry is copied verbatim to `ICEBOX.md`
-in the Quest folder, gains a `promoted:` field pointing
-at the Quest, and is then **deleted** — git history is the
+in the Graph folder, gains a `promoted:` field pointing
+at the Graph, and is then **deleted** — git history is the
 fossil. This skill never edits an entry beyond that field
 before the delete.
 
 ## Rules
 
-- An icebox entry is not a quest, not state, and never a
+- An icebox entry is not a graph, not state, and never a
   decision record. It freezes a sketch; promotion re-decides
   anything the entry merely assumed.
-- Quick means quick: one short file. If the sketch needs exp
-  breakdowns and acceptance checks, it is ready for `/quest`.
-- On promotion, set `promoted:` to the quest path, then
+- Quick means quick: one short file. If the sketch needs node
+  breakdowns and acceptance checks, it is ready for `/graph`.
+- On promotion, set `promoted:` to the graph path, then
   delete the entry (owner rule, 2026-11-15). Git history is
   the fossil record; an unpromoted entry is never deleted.
 - Whenever a `/quest` or `/graph` is written from an entry,

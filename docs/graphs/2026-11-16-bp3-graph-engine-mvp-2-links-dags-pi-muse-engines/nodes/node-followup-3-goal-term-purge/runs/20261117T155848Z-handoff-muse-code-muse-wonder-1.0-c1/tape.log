@@ -1,0 +1,35 @@
+ff48418 followup.3 + dogfood.3: goal-term purge and external-drive nodes (owner)
+e37190a test(followup.2): cycle-2 real foreign-dialect conduct — fixture landed, zero read refusals
+de97538 followup.2: cycle-2 real foreign-dialect conduct task (owner A)
+6f124a6 feat(followup.2): workflow-birth — desk reads, context, claim-session tape, render freshness
+afd0d80 docs(followup.2): pull forward with workflow-birth defect list
+4e0f1bd feat(rename.1): bp3g rename — bp3 g/n doors, bp3g skill family, graph/node vocabulary
+quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+?? .bp3-context.json
+token-sed-done
+check2-exit:2
+true
+true
+true
+true
+true
+true
+skills tests: ok (134 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/graph/main.exe
+File "src/graph/main.ml", line 189, characters 65-67:
+189 |    | Some (_, _, qt, _, _) -> ignore (effective_knobs ~goal_type:qt ~node_type:etype)
+                                                                       ^^
+Error: The function applied to this argument has type
+         graph_type:string -> knobs
+This argument cannot be applied with label "~goal_type"
+make: *** [check] Error 1
+{"ok":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"todo","nodes":[{"node":"exp-config-1-bp3-config","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null},{"node":"exp-dogfood-1-link-drive","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null},{"node":"exp-dogfood-2-parallel
+read-exit:0
+check3-exit:0
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+{"ok":false,"error":{"code":"E_DIRTY_TREE","facts":{},"guidance":"Worktree is dirty; clean it and retry."},"run_id":"20261117T155848Z-handoff-muse-code-muse-wonder-1.0-c1"}

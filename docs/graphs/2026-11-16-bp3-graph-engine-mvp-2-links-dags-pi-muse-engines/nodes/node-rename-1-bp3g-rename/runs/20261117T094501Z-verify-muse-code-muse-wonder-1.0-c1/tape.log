@@ -1,0 +1,511 @@
+=== git status ===
+status rc=0
+=== git show header ===
+commit 4e0f1bd0d90f13a12623012b5628f7c38165577c
+Author:     bp3 <bp3@local>
+AuthorDate: Tue Nov 17 04:36:58 2026 -0500
+Commit:     bp3 <bp3@local>
+CommitDate: Tue Nov 17 04:36:58 2026 -0500
+
+    feat(rename.1): bp3g rename — bp3 g/n doors, bp3g skill family, graph/node vocabulary
+    
+    Retire bp3 q and quest/exp wording on live surfaces: graph/node verdicts, nested bp3 g <graph> n <node> e <edge> address, skills traverse->bp3g (+frame/no-human/landing-demo), src/graph, bp3-g artifact. Frozen refs, storage paths, and landed ledgers untouched; pre-rename ledger keys fold in one place. make check green.
+
+ .agents/skills/add-bp3-skill/SKILL.md              |   4 +-
+ .../quest => .agents/skills/bp3g-frame}/SKILL.md   | 164 +++----
+ .../skills/bp3g-landing-demo}/SKILL.md             |  52 +--
+ .agents/skills/bp3g-no-human/SKILL.md              | 149 ++++++
+ .../traverse => .agents/skills/bp3g}/SKILL.md      | 121 ++---
+ .agents/skills/icebox/SKILL.md                     |  26 +-
+ .agents/skills/naming/SKILL.md                     |  38 +-
+ .agents/skills/red-ink/SKILL.md                    |  52 +--
+ .agents/skills/traverse-no-human/SKILL.md          | 149 ------
+ .agents/skills/using-bp3/SKILL.md                  |  40 +-
+ .../workflows/{induct-grade.js => bp3g-grade.js}   | 170 +++----
+ .../workflows/bp3g-land.js                         |  70 +--
+ .agents/workflows/{induct-node.js => bp3g-node.js} | 104 ++---
+ .agents/workflows/node-loop.js                     |  82 ++--
+ .claude/hooks.json                                 |  18 +-
+ .claude/settings.json                              |  18 +-
+ .claude/skills/add-bp3-skill/SKILL.md              |   4 +-
+ .../quest => .claude/skills/bp3g-frame}/SKILL.md   | 164 +++----
+ .../skills/bp3g-landing-demo}/SKILL.md             |  52 +--
+ .claude/skills/bp3g-no-human/SKILL.md              | 149 ++++++
+ .../traverse => .claude/skills/bp3g}/SKILL.md      | 121 ++---
+ .claude/skills/icebox/SKILL.md                     |  26 +-
+ .claude/skills/naming/SKILL.md                     |  38 +-
+ .claude/skills/red-ink/SKILL.md                    |  52 +--
+ .claude/skills/traverse-no-human/SKILL.md          | 149 ------
+ .claude/skills/using-bp3/SKILL.md                  |  40 +-
+ .muse/hooks.json                                   |  18 +-
+ .pi/settings.json                                  |   9 +-
+ .pi/skills/add-bp3-skill/SKILL.md                  |   4 +-
+ .../quest => .pi/skills/bp3g-frame}/SKILL.md       | 164 +++----
+ .../skills/bp3g-landing-demo}/SKILL.md             |  52 +--
+ .pi/skills/bp3g-no-human/SKILL.md                  | 149 ++++++
+ .../skills/traverse => .pi/skills/bp3g}/SKILL.md   | 121 ++---
+ .pi/skills/icebox/SKILL.md                         |  26 +-
+ .pi/skills/naming/SKILL.md                         |  38 +-
+ .pi/skills/red-ink/SKILL.md                        |  52 +--
+ .pi/skills/traverse-no-human/SKILL.md              | 149 ------
+ .pi/skills/using-bp3/SKILL.md                      |  40 +-
+ AGENTS.md                                          |  56 +--
+ Brewfile                                           |   2 +-
+ CLAUDE.md                                          |  56 +--
+ Makefile                                           |  26 +-
+ bin/bp3                                            |  67 +--
+ completions/_bp3                                   |  51 ++-
+ completions/bp3.bash                               |  53 ++-
+ docs/designs/bp3-control-mvp.md                    | 286 ++++++------
+ docs/designs/bp3-control.md                        | 146 +++---
+ docs/dossiers/bp3-pi-basics.md                     |  10 +-
+ docs/dossiers/muse-workflows-hooks.md              |  20 +-
+ extensions/bp3-pi/README.md                        |   4 +-
+=== HEAD ===
+4e0f1bd0d90f13a12623012b5628f7c38165577c
+=== runs dir ===
+total 400
+-rw-r--r--@ 1 whycz  staff    2417 Nov 17 04:36 notes.md
+-rw-r--r--@ 1 whycz  staff  151903 Nov 17 04:37 tape.log
+=== ledger ===
+cat: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-rename-1-bp3g-rename/ledger.jsonl: No such file or directory
+=== fold_state_name ===
+src/graph/store.ml:172:let fold_state_name = function "submitted" -> "handed_off" | s -> s
+src/graph/store.ml:191:        let to_ = fold_state_name (get_str j "to" "") in
+src/graph/store.ml:405:        let to_ = fold_state_name (get_str j "to" "") in
+let get_opt j key =
+  try match Yojson.Safe.Util.member key j with `String s -> Some s | _ -> None
+  with _ -> None
+
+(* The one compat mapping (mig.1, rename.1): pre-rename ledger
+   strings fold to the new words here and nowhere else; new ledger
+   lines already carry the new words. Verb/state words arrived in
+   mig.1; the graph/node type keys arrived in rename.1. *)
+let fold_edge = function
+  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+  | e -> e
+
+let fold_state_name = function "submitted" -> "handed_off" | s -> s
+
+(* Pre-rename type keys, read only here: a frozen ledger's create
+   line names its plan with the old key; new lines use the new key. *)
+let fold_type_key j new_key old_key default =
+  match get_opt j new_key with
+  | Some v -> v
+  | None -> get_str j old_key default
+
+let fold_ledger text =
+  let s = fresh_state () in
+  let graph_type = ref "default" in
+  let depends_on = ref [] in
+  String.split_on_char '\n' text |> List.iter (fun ln ->
+=== find ledger ===
+=== exp dir ===
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-rename-1-bp3g-rename//runs:
+20261117T084553Z-handoff-muse-code-muse-wonder-1.0-c1
+20261117T094051Z-node-muse-code-muse-wonder-1.0-c1
+20261117T094456Z-grade-muse-code-muse-wonder-1.0-c1
+20261117T094501Z-verify-muse-code-muse-wonder-1.0-c1
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-rename-1-bp3g-rename//runs/20261117T084553Z-handoff-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-rename-1-bp3g-rename//runs/20261117T094051Z-node-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-rename-1-bp3g-rename//runs/20261117T094456Z-grade-muse-code-muse-wonder-1.0-c1:
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-rename-1-bp3g-rename//runs/20261117T094501Z-verify-muse-code-muse-wonder-1.0-c1:
+tape.log
+=== git ls-files ledger ===
+docs/quests/2026-11-09-bp3-land-verdicts/ledger.jsonl
+docs/quests/2026-11-09-bp3-mvp-plugin-git-cas-lands/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-1-induct-grade/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-2-induct-exp-slim/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-3-conductor/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-4-desks/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-5-grade-matrix-fix/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-6-cycle-autonomy/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-7-landing-vocabulary/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-8-induct-solo/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/experiments/exp-9-parallel-quests/ledger.jsonl
+docs/quests/2026-11-14-bp3-workflows-v2/ledger.jsonl
+=== history frozen check ===
+grep rc=1
+=== graph dir ===
+experiments
+QUEST.md
+=== find state ===
+ls: .bp3/: No such file or directory
+=== EXPERIMENT.md ===
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: rename.1
+status: proposed
+---
+
+# rename.1 - bp3g-rename: every live surface speaks graph
+
+## TL;DR
+
+Last step, full rename (owner-approved
+2026-11-16, superseding the naming skill's
+standing vocabulary — that skill is updated here
+too). CLI: `bp3 g` door for graphs and nodes,
+retiring `bp3 q` and quest/exp wording on live
+surfaces. Skills: the conducting family becomes
+`bp3g` (`/bp3g` conducts a graph; framing and
+no-human variants take bp3g- names) because bare
+"goal" collides across harnesses; G stands for
+goal and graph. Launcher workflows, templates,
+and active docs migrate in the same change.
+Landed quests' ledger text is history and stays
+untouched.
+
+## Demo (design trace)
+
+```text
+before: bp3 q <quest> r exp-… ; /induct the quest
+after:  bp3 g <graph> r <node> ; /bp3g the graph
+grep live surfaces for quest|exp (outside history) -> 0 hits
+```
+
+## Diagram
+
+```text
+CLI door ─┐
+skills ───┼─► one rename commit series ─► installs re-rendered
+workflows ┤    (bp3g family)                 all harnesses
+templates ┘
+landed ledger text: frozen, excluded by path
+```
+
+## Pseudocode
+
+```python
+SURFACES = [cli_strings, skills_src, workflows, templates, active_docs]
+for term in [quest, exp, invoke]:
+    assert grep(term, SURFACES, exclude=landed_history) == 0
+assert bp3_g_roundtrip() and bp3g_skill_conducts_one_node()
+```
+
+| Field | Value |
+|---|---|
+| Intent | one vocabulary everywhere the system is alive |
+| Lane | high-blast-radius |
+| Output | renamed CLI + bp3g skill family + migrated live surfaces; surface-count report |
+| Depends on | dogfood.2 (rename is last) |
+
+## Overall directive
+
+One name, no tower of Babel. After this exp, any
+concept has exactly one live spelling across code,
+CLI, skills, workflows, completions, tests, and
+active docs. The compat mapping for pre-rename
+ledger strings lives in exactly one place (the
+fold), is listed in the rename table, and appears
+nowhere else — no aliases, no silent synonyms, no
+`bp3 q` left working beside `bp3 g`.
+
+## Locations to change (scanned 2026-11-16)
+
+Scoped to FSM identifiers (`submit/review/check`
+as edges, `submitted` as state, quest/exp terms);
+plain-English prose uses of those words are not
+identifiers and stay.
+
+| Area | Locations | Change |
+|---|---|---|
+| FSM core | `src/quest/main.ml` (edge dispatch, `legal_edges`, ledger lines), `src/quest/store.ml` (state table), `src/quest/render.ml` (state display) | verbs `handoff/grade/verify`, state `handed_off`; fold maps old ledger strings once |
+| harness | `src/quest/harness.ml`, `src/quest/hooks.ml`, `src/quest/worktree.ml` | edge/state strings in supervisor + hook payloads |
+| workflows | `skills/induct/workflows/induct-exp.js`, `induct-grade.js`, `quest-land.js` (author/grade briefs spell the `bp3 … submit` calls) | briefs call `handoff/grade/verify`; outcomes read `handed_off` |
+| skills | `skills/using-bp3`, `skills/naming`, `skills/quest`, `skills/induct`, `skills/induct-quest*`, `skills/red-ink`, `skills/red-ink-quest-landing-demo` + all renders | vocabulary sections teach graph terms; renders re-installed, never hand-edited |
+| CLI surface | `completions/bp3.bash`, `completions/_bp3`, help strings in `main.ml` | `bp3 g/n/e` completion + help; `bp3 q` refuses |
+| tests | `test/q.sh`, `test/harness.sh`, `test/hooks.sh`, `test/tape.sh`, `test/worktree.sh`, `test/completion.sh`, `test/induct-exp.test.mjs`, `test/induct-grade.test.mjs`, `test/quest-land.test.mjs` | fixtures drive new verbs; one compat fixture folds a pre-rename ledger |
+| active docs | this quest's live records at rename time; `docs/` non-history pages | graph vocabulary; landed quests' ledgers untouched |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| verbs already migrated | edge verbs + `handed_off` landed in mig.1; this node's grep confirms zero old verb spellings remain on live surfaces and the fold compat mapping still lives in exactly one place |
+| `bp3 g` is the door | graph/node create-read-update-delete round-trips through `bp3 g`; state survives the rename (same refs folded, no state rewrite) |
+| old door gone | `bp3 q` refuses as unknown door on live surfaces (no silent synonym left behind) |
+| bp3g skills conduct | `/bp3g` family installed for all harnesses; one node conducted end to end by the renamed skill in a smoke drive |
+| vocabulary zero | grep for quest/exp/invoke terms over CLI strings, skills, workflows, templates, active docs: zero outside frozen history paths (listed explicitly) |
+| naming skill updated | the naming skill's vocabulary section teaches graph/node/state/edge/dep and bp3g, same change |
+| history frozen | no landed ledger.jsonl or run artifact modified (diff by path allowlist) |
+
+## Acceptance test (goal block)
+
+- **Objective:** after this exp, a newcomer meets
+  only the graph vocabulary on any live surface.
+- **Prove by:** `bp3 g` round-trip, smoke
+  conduction by `/bp3g`, grep surface report,
+  history-path diff.
+- **Done when:** zero old terms live, graph
+  conducts, history untouched, observed.
+
+## Tests
+
+Full `make check` plus: CLI rename fixtures
+(old strings absent), skills render/install
+assertions for every harness, workflow tests
+updated to `bp3 g`. Property: state refs folded
+before and after rename produce identical
+rollups for an existing graph.
+
+## Context
+
+Names harden into paths, ledger fields, and the
+words sessions think in — the supervisor quest's
+own records showed the cost of drift (stale
+rendered workflows vs source). Rename is last so
+the machinery being renamed is final, and total
+so no synonym survives to drift again.
+=== naming skill ===
+21:- Planning: graph, node, Run. The conducting skill family is
+---
+name: naming
+description: "Choose concrete, short names in bp3's existing vocabulary for graphs, nodes, skills, plans, engines, and CLI verbs."
+---
+<!-- GENERATED from skills/naming/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+
+# Naming
+
+Use when a human, Controller, or Worker in bp3 must name or
+rename something: a graph slug, node, skill, plan (`graph_type`),
+engine, CLI verb, file, or state. Invoked by name (`/naming`,
+`$naming`). One output: one recommended name, with the vocabulary
+it reuses. A shortlist only when two names genuinely tie.
+
+Use `bp3g-frame` for framing a graph (it delegates naming here),
+`using-bp3` for operating the CLI, and general judgment for
+ordinary code identifiers with no bp3 meaning.
+
+## The vocabulary (reuse before inventing)
+
+- Planning: graph, node, Run. The conducting skill family is
+  `bp3g`: `/bp3g` conducts a graph, `/bp3g-frame` frames one,
+  `/bp3g-no-human` runs unattended (G stands for goal and graph;
+  bare "goal" collides across harnesses).
+- Doors: `bp3 g` (graph), `bp3 n` (claimed node), `bp3 e`
+  (claimed edge); the canonical address nests:
+  `bp3 g <graph> n <node> e <edge>`. One door per noun; the
+  retired `bp3 q` door refuses.
+- Node states (where a node rests): todo, handed_off, approved,
+  landed, blocked, deleted. Graph lifecycle: proposed, active,
+  landed, canceled. Never archived, cancelled, aborted, killed.
+- Edges (one transition, executed by exactly one Run):
+  handoff, grade, verify, land, block, resume. A dep links
+  nodes; a dep is not an edge. Stages: author, grade, fix,
+  ready, landed, blocked, canceled.
+- Dimensions: `graph_type` (the plan: default is implemented;
+  design, mvp, refactor, frontend, backend are proposed), `engine` (who executes: single,
+  master-subagents, panes, workflows).
+- Artifacts: GRAPH.md, state.yaml, ledger.jsonl,
+  tape.log, notes.md, runs/. Storage paths and ledger history
+  keep their frozen spellings; only the fold maps them.
+- Ceremony lanes: micro, standard, high-blast-radius.
+
+## Procedure
+
+1. Name the kind of thing and where it will be read (CLI, file
+   path, graph doc, chat). The same concept may need the kind's
+   local spelling: kebab-case for slugs and files, lowercase
+   words for verbs and stages.
+2. Search the vocabulary above and the repo for the concept's
+   existing word. If a word exists, use it, even imperfectly.
+3. If no word exists, coin the shortest concrete one: a noun for
+   things, a verb for moves. Two syllables beat three; a word a
+   newcomer guesses correctly beats a clever one.
+4. Check the name against its neighbors: it must not collide
+   with, abbreviate, or synonym-shadow an existing term.
+5. Say the name, the word it reuses or why none fit, and stop.
+
+## Rules
+
+- One concept, one word, one spelling, everywhere: files, CLI,
+  docs, and chat. `canceled` in a status and `cancelled` in a
+  stage is a bug, not a dialect.
+- Concrete over abstract: prefer what the thing does or is
+  (tape, ledger, handoff) over machinery metaphors (flavor,
+  harness adapter, pipeline stage) unless the metaphor is
+  already the vocabulary.
+- No new planning words. Task, Milestone, and workflow
+  terms stay out; graph and node are the planning vocabulary.
+  The retired pre-rename spellings for graph and node live
+  only in frozen history and the fold's compat mapping.
+- Renames are explicit edits the human approves, with every
+  reference updated in the same change. A rename that leaves a
+  synonym behind in docs has not happened.
+- Instructions only: this skill decides words, never state.
+=== QUEST.md head ===
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+| tape | tape | the harness session recording (unchanged) |
+
+States rest in the root worker's read. Edges are
+subagents. A child holds nothing across edges;
+context is claimed, never remembered.
+
+Edge names (settled red-ink names round, owner —
+option A; rides rename.1, old ledgers keep old
+words and the rename table maps them):
+
+| Coded today | Settled name | Caller does |
+|---|---|---|
+| `submit` | `handoff` | author binds the finished commit |
+| `review` | `grade` | reviewer grades the exact commit (`ship\|needs_fix`) |
+| `check` | `verify` | machine checks (`pass\|fail`) |
+| `land` | `land` | merge into the graph branch |
+| state `submitted` | state `handed_off` | verb/state rhyme: `handoff` hands off, node rests `handed_off` |
+| `block` | `block` | park for a human decision |
+| `resume` | `resume` | human answer re-enters (`BP3_DECIDER=human`) |
+
+Link mint/claim are verbs, not flags:
+`bp3 harness link mint --kind node|edge …` and
+`bp3 harness link claim <token>`. A node link
+carries no edge name — the node worker executes
+no transition when it claims.
+
+Door letter settled: `bp3 g`, not `bp3 t`.
+Nodes form a DAG (shared deps, diamonds — a tree
+allows one parent), scheduled by BFS ready-set
+waves; the *execution* is a tree of workers.
+Tree survives as a view (`--format tree`) and as
+the worker-tree shape, never as the addressed
+noun.
+
+## Success picture
+=== bp3 g read ===
+{"ok":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-rename-1-bp3g-rename","state":"handed_off","fin":null,"cycle":1,"commit":"4e0f1bd0d90f13a12623012b5628f7c38165577c","deps":[],"timing":{"wall_s":null,"wait_s":51867,"dwell_s":{"todo":51867},"cycles":1},"legal_edges":["grade","verify","block","delete"],"blocked":null,"changes":[{"change":"u","path":".agents/skills/add-bp3-skill/SKILL.md"},{"change":"+","path":".agents/skills/bp3g-frame/SKILL.md"},{"change":"+","path":".agents/skills/bp3g-landing-demo/SKILL.md"},{"change":"+","path":".agents/skills/bp3g-no-human/SKILL.md"},{"change":"+","path":".agents/skills/bp3g/SKILL.md"},{"change":"u","path":".agents/skills/icebox/SKILL.md"},{"change":"u","path":".agents/skills/naming/SKILL.md"},{"change":"-","path":".agents/skills/quest/SKILL.md"},{"change":"-","path":".agents/skills/red-ink-quest-landing-demo/SKILL.md"},{"change":"u","path":".agents/skills/red-ink/SKILL.md"},{"change":"-","path":".agents/skills/traverse-no-human/SKILL.md"},{"change":"-","path":".agents/skills/traverse/SKILL.md"},{"change":"u","path":".agents/skills/using-bp3/SKILL.md"},{"change":"+","path":".agents/workflows/bp3g-grade.js"},{"change":"+","path":".agents/workflows/bp3g-land.js"},{"change":"+","path":".agents/workflows/bp3g-node.js"},{"change":"-","path":".agents/workflows/induct-grade.js"},{"change":"-","path":".agents/workflows/induct-node.js"},{"change":"u","path":".agents/workflows/node-loop.js"},{"change":"-","path":".agents/workflows/quest-land.js"},{"change":"u","path":".claude/hooks.json"},{"change":"u","path":".claude/settings.json"},{"change":"u","path":".claude/skills/add-bp3-skill/SKILL.md"},{"change":"+","path":".claude/skills/bp3g-frame/SKILL.md"},{"change":"+","path":".claude/skills/bp3g-landing-demo/SKILL.md"},{"change":"+","path":".claude/skills/bp3g-no-human/SKILL.md"},{"change":"+","path":".claude/skills/bp3g/SKILL.md"},{"change":"u","path":".claude/skills/icebox/SKILL.md"},{"change":"u","path":".claude/skills/naming/SKILL.md"},{"change":"-","path":".claude/skills/quest/SKILL.md"},{"change":"-","path":".claude/skills/red-ink-quest-landing-demo/SKILL.md"},{"change":"u","path":".claude/skills/red-ink/SKILL.md"},{"change":"-","path":".claude/skills/traverse-no-human/SKILL.md"},{"change":"-","path":".claude/skills/traverse/SKILL.md"},{"change":"u","path":".claude/skills/using-bp3/SKILL.md"},{"change":"u","path":".muse/hooks.json"},{"change":"u","path":".pi/settings.json"},{"change":"u","path":".pi/skills/add-bp3-skill/SKILL.md"},{"change":"+","path":".pi/skills/bp3g-frame/SKILL.md"},{"change":"+","path":".pi/skills/bp3g-landing-demo/SKILL.md"},{"change":"+","path":".pi/skills/bp3g-no-human/SKILL.md"},{"change":"+","path":".pi/skills/bp3g/SKILL.md"},{"change":"u","path":".pi/skills/icebox/SKILL.md"},{"change":"u","path":".pi/skills/naming/SKILL.md"},{"change":"-","path":".pi/skills/quest/SKILL.md"},{"change":"-","path":".pi/skills/red-ink-quest-landing-demo/SKILL.md"},{"change":"u","path":".pi/skills/red-ink/SKILL.md"},{"change":"-","path":".pi/skills/traverse-no-human/SKILL.md"},{"change":"-","path":".pi/skills/traverse/SKILL.md"},{"change":"u","path":".pi/skills/using-bp3/SKILL.md"},{"change":"u","path":"AGENTS.md"},{"change":"u","path":"Brewfile"},{"change":"u","path":"CLAUDE.md"},{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"docs/designs/bp3-control-mvp.md"},{"change":"u","path":"docs/designs/bp3-control.md"},{"change":"u","path":"docs/dossiers/bp3-pi-basics.md"},{"change":"u","path":"docs/dossiers/muse-workflows-hooks.md"},{"change":"u","path":"extensions/bp3-pi/README.md"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/roles/author.md"},{"change":"u","path":"extensions/bp3-pi/roles/reviewer.md"},{"change":"u","path":"extensions/bp3-pi/src/contract.ts"},{"change":"u","path":"extensions/bp3-pi/src/dispatcher.ts"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"u","path":"readme.md"},{"change":"u","path":"release.conf"},{"change":"u","path":"scripts/bp3-shim"},{"change":"u","path":"scripts/install-bp3.sh"},{"change":"u","path":"scripts/osx/link-clt-after-osx-update.sh"},{"change":"u","path":"scripts/release-check"},{"change":"u","path":"skills/add-bp3-skill/SKILL.md"},{"change":"+","path":"skills/bp3g-frame/SKILL.md"},{"change":"+","path":"skills/bp3g-landing-demo/SKILL.md"},{"change":"+","path":"skills/bp3g-no-human/SKILL.md"},{"change":"+","path":"skills/bp3g/SKILL.md"},{"change":"+","path":"skills/bp3g/workflows/bp3g-grade.js"},{"change":"+","path":"skills/bp3g/workflows/bp3g-land.js"},{"change":"+","path":"skills/bp3g/workflows/bp3g-node.js"},{"change":"+","path":"skills/bp3g/workflows/node-loop.js"},{"change":"u","path":"skills/icebox/SKILL.md"},{"change":"u","path":"skills/naming/SKILL.md"},{"change":"-","path":"skills/quest/SKILL.md"},{"change":"-","path":"skills/red-ink-quest-landing-demo/SKILL.md"},{"change":"u","path":"skills/red-ink/SKILL.md"},{"change":"-","path":"skills/traverse-no-human/SKILL.md"},{"change":"-","path":"skills/traverse/SKILL.md"},{"change":"-","path":"skills/traverse/workflows/induct-grade.js"},{"change":"-","path":"skills/traverse/workflows/induct-node.js"},{"change":"-","path":"skills/traverse/workflows/node-loop.js"},{"change":"-","path":"skills/traverse/workflows/quest-land.js"},{"change":"u","path":"skills/using-bp3/SKILL.md"},{"change":"+","path":"src/graph/config.ml"},{"change":"+","path":"src/graph/dune"},{"change":"+","path":"src/graph/gitx.ml"},{"change":"+","path":"src/graph/harness.ml"},{"change":"+","path":"src/graph/hooks.ml"},{"change":"+","path":"src/graph/main.ml"},{"change":"+","path":"src/graph/render.ml"},{"change":"+","path":"src/graph/store.ml"},{"change":"+","path":"src/graph/worktree.ml"},{"change":"-","path":"src/quest/config.ml"},{"change":"-","path":"src/quest/dune"},{"change":"-","path":"src/quest/gitx.ml"},{"change":"-","path":"src/quest/harness.ml"},{"change":"-","path":"src/quest/hooks.ml"},{"change":"-","path":"src/quest/main.ml"},{"change":"-","path":"src/quest/render.ml"},{"change":"-","path":"src/quest/store.ml"},{"change":"-","path":"src/quest/worktree.ml"},{"change":"u","path":"test/blocked.sh"},{"change":"+","path":"test/bp3g-conduct.test.mjs"},{"change":"+","path":"test/bp3g-grade.test.mjs"},{"change":"+","path":"test/bp3g-land.test.mjs"},{"change":"+","path":"test/bp3g-node.test.mjs"},{"change":"+","path":"test/bp3g.sh"},{"change":"u","path":"test/completion.sh"},{"change":"u","path":"test/config.sh"},{"change":"u","path":"test/context.sh"},{"change":"u","path":"test/diagram.sh"},{"change":"u","path":"test/dogfood-link.sh"},{"change":"u","path":"test/dogfood-parallel.sh"},{"change":"+","path":"test/g.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/hooks.sh"},{"change":"-","path":"test/induct-grade.test.mjs"},{"change":"-","path":"test/induct-node.test.mjs"},{"change":"u","path":"test/install.sh"},{"change":"u","path":"test/link.sh"},{"change":"u","path":"test/node-loop.test.mjs"},{"change":"u","path":"test/pi-tree.test.mjs"},{"change":"-","path":"test/q.sh"},{"change":"-","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/ready.sh"},{"change":"u","path":"test/release.sh"},{"change":"u","path":"test/skills.sh"},{"change":"u","path":"test/tape.sh"},{"change":"-","path":"test/traverse-conduct.test.mjs"},{"change":"-","path":"test/traverse.sh"},{"change":"u","path":"test/worktree.sh"}],"run_id":"20261117T094501Z-verify-muse-code-muse-wonder-1.0-c1"}
+rc=0
+=== bp3 g list ===
+{"ok":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"proposed","nodes":[{"node":"exp-config-1-bp3-config","state":"landed","fin":"node_fin","cycle":2,"commit":"3c47fe532642369348656be958eb577fc662881d","deps":[],"timing":{"wall_s":6135,"wait_s":8448,"dwell_s":{"approved":67,"blocked":5080,"handed_off":536,"todo":8900},"cycles":2},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"}]},{"node":"exp-dogfood-1-link-drive","state":"landed","fin":"node_fin","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","deps":[],"timing":{"wall_s":882,"wait_s":40045,"dwell_s":{"approved":68,"handed_off":814,"todo":40045},"cycles":1},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"+","path":"test/dogfood-link.sh"}]},{"node":"exp-dogfood-2-parallel-drive","state":"landed","fin":"node_fin","cycle":2,"commit":"7a0dfca3d413f17647d6beb63ad267d25ff881ac","deps":[],"timing":{"wall_s":6979,"wait_s":41780,"dwell_s":{"approved":65,"blocked":3495,"handed_off":2871,"todo":42328},"cycles":2},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"test/dogfood-parallel.sh"}]},{"node":"exp-followup-1-grade-evidence","state":"landed","fin":"node_fin","cycle":2,"commit":"8411e0a61f8f0e72ff17caa630ea93345cba3d90","deps":[],"timing":{"wall_s":1816,"wait_s":17337,"dwell_s":{"approved":70,"blocked":317,"handed_off":939,"todo":17827},"cycles":2},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"skills/traverse/workflows/induct-grade.js"},{"change":"u","path":"test/induct-grade.test.mjs"}]},{"node":"exp-followup-2-workflow-birth","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null},{"node":"exp-landing-1-landing-wrapup","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null},{"node":"exp-mig-1-handoff-verbs","state":"landed","fin":"node_fin","cycle":1,"commit":"44196725860125de048415ff6a4be350a90c033b","deps":[],"timing":{"wall_s":863,"wait_s":1376,"dwell_s":{"approved":68,"handed_off":795,"todo":1376},"cycles":1},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"u","path":".agents/skills/naming/SKILL.md"},{"change":"u","path":".agents/skills/quest/SKILL.md"},{"change":"u","path":".agents/skills/red-ink/SKILL.md"},{"change":"u","path":".agents/skills/using-bp3/SKILL.md"},{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".claude/skills/naming/SKILL.md"},{"change":"u","path":".claude/skills/quest/SKILL.md"},{"change":"u","path":".claude/skills/red-ink/SKILL.md"},{"change":"u","path":".claude/skills/using-bp3/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/naming/SKILL.md"},{"change":"u","path":".pi/skills/quest/SKILL.md"},{"change":"u","path":".pi/skills/red-ink/SKILL.md"},{"change":"u","path":".pi/skills/using-bp3/SKILL.md"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/roles/author.md"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"skills/naming/SKILL.md"},{"change":"u","path":"skills/quest/SKILL.md"},{"change":"u","path":"skills/red-ink/SKILL.md"},{"change":"u","path":"skills/using-bp3/SKILL.md"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"u","path":"test/completion.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/hooks.sh"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/install.sh"},{"change":"u","path":"test/q.sh"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/tape.sh"},{"change":"u","path":"test/worktree.sh"}]},{"node":"exp-mig-2-traverse-rename","state":"landed","fin":"node_fin","cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","deps":[],"timing":{"wall_s":5241,"wait_s":2660,"dwell_s":{"approved":63,"blocked":3928,"handed_off":838,"todo":3072},"cycles":2},"legal_edges":[],"blocked":null,"changes":[{"change":"+","path":"test/traverse-conduct.test.mjs"},{"change":"u","path":"test/traverse.sh"}]},{"node":"exp-mvp-1-link-claim","state":"landed","fin":"node_fin","cycle":1,"commit":"09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3","deps":[],"timing":{"wall_s":3167,"wait_s":16553,"dwell_s":{"approved":61,"handed_off":3106,"todo":16553},"cycles":1},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"extensions/bp3-pi/README.md"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/src/contract.ts"},{"change":"u","path":"extensions/bp3-pi/src/dispatcher.ts"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"skills/traverse/workflows/induct-grade.js"},{"change":"u","path":"skills/traverse/workflows/node-loop.js"},{"change":"u","path":"skills/traverse/workflows/quest-land.js"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"+","path":"test/link.sh"},{"change":"u","path":"test/node-loop.test.mjs"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/traverse-conduct.test.mjs"}]},{"node":"exp-mvp-2-context-resolution","state":"landed","fin":"node_fin","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","deps":[],"timing":{"wall_s":1990,"wait_s":21098,"dwell_s":{"approved":1315,"handed_off":675,"todo":21098},"cycles":1},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"+","path":"test/context.sh"}]},{"node":"exp-mvp-3-ready-set-timing","state":"landed","fin":"node_fin","cycle":2,"commit":"105cbea174e8b204413cf2428aea78eec2e344d0","deps":[],"timing":{"wall_s":4941,"wait_s":28377,"dwell_s":{"approved":74,"blocked":252,"handed_off":3665,"todo":29327},"cycles":2},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"test/ready.sh"}]},{"node":"exp-mvp-4-diagram-emit","state":"landed","fin":"node_fin","cycle":1,"commit":"fe6efe79513040a1ad8b7a8d7e2d275f961d7415","deps":[],"timing":{"wall_s":744,"wait_s":33940,"dwell_s":{"approved":76,"handed_off":668,"todo":33940},"cycles":1},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"+","path":"test/diagram.sh"}]},{"node":"exp-mvp-5-blocked-fail-fast","state":"landed","fin":"node_fin","cycle":2,"commit":"f5b434d04e91e4160ea8f36522822e90effa1cc0","deps":[],"timing":{"wall_s":1905,"wait_s":37147,"dwell_s":{"approved":221,"blocked":572,"handed_off":695,"todo":37564},"cycles":2},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"+","path":"test/pi-tree.test.mjs"}]},{"node":"exp-rename-1-bp3g-rename","state":"handed_off","fin":null,"cycle":1,"commit":"4e0f1bd0d90f13a12623012b5628f7c38165577c","deps":[],"timing":{"wall_s":null,"wait_s":51867,"dwell_s":{"todo":51867},"cycles":1},"legal_edges":["grade","verify","block","delete"],"blocked":null,"changes":[{"change":"u","path":".agents/skills/add-bp3-skill/SKILL.md"},{"change":"+","path":".agents/skills/bp3g-frame/SKILL.md"},{"change":"+","path":".agents/skills/bp3g-landing-demo/SKILL.md"},{"change":"+","path":".agents/skills/bp3g-no-human/SKILL.md"},{"change":"+","path":".agents/skills/bp3g/SKILL.md"},{"change":"u","path":".agents/skills/icebox/SKILL.md"},{"change":"u","path":".agents/skills/naming/SKILL.md"},{"change":"-","path":".agents/skills/quest/SKILL.md"},{"change":"-","path":".agents/skills/red-ink-quest-landing-demo/SKILL.md"},{"change":"u","path":".agents/skills/red-ink/SKILL.md"},{"change":"-","path":".agents/skills/traverse-no-human/SKILL.md"},{"change":"-","path":".agents/skills/traverse/SKILL.md"},{"change":"u","path":".agents/skills/using-bp3/SKILL.md"},{"change":"+","path":".agents/workflows/bp3g-grade.js"},{"change":"+","path":".agents/workflows/bp3g-land.js"},{"change":"+","path":".agents/workflows/bp3g-node.js"},{"change":"-","path":".agents/workflows/induct-grade.js"},{"change":"-","path":".agents/workflows/induct-node.js"},{"change":"u","path":".agents/workflows/node-loop.js"},{"change":"-","path":".agents/workflows/quest-land.js"},{"change":"u","path":".claude/hooks.json"},{"change":"u","path":".claude/settings.json"},{"change":"u","path":".claude/skills/add-bp3-skill/SKILL.md"},{"change":"+","path":".claude/skills/bp3g-frame/SKILL.md"},{"change":"+","path":".claude/skills/bp3g-landing-demo/SKILL.md"},{"change":"+","path":".claude/skills/bp3g-no-human/SKILL.md"},{"change":"+","path":".claude/skills/bp3g/SKILL.md"},{"change":"u","path":".claude/skills/icebox/SKILL.md"},{"change":"u","path":".claude/skills/naming/SKILL.md"},{"change":"-","path":".claude/skills/quest/SKILL.md"},{"change":"-","path":".claude/skills/red-ink-quest-landing-demo/SKILL.md"},{"change":"u","path":".claude/skills/red-ink/SKILL.md"},{"change":"-","path":".claude/skills/traverse-no-human/SKILL.md"},{"change":"-","path":".claude/skills/traverse/SKILL.md"},{"change":"u","path":".claude/skills/using-bp3/SKILL.md"},{"change":"u","path":".muse/hooks.json"},{"change":"u","path":".pi/settings.json"},{"change":"u","path":".pi/skills/add-bp3-skill/SKILL.md"},{"change":"+","path":".pi/skills/bp3g-frame/SKILL.md"},{"change":"+","path":".pi/skills/bp3g-landing-demo/SKILL.md"},{"change":"+","path":".pi/skills/bp3g-no-human/SKILL.md"},{"change":"+","path":".pi/skills/bp3g/SKILL.md"},{"change":"u","path":".pi/skills/icebox/SKILL.md"},{"change":"u","path":".pi/skills/naming/SKILL.md"},{"change":"-","path":".pi/skills/quest/SKILL.md"},{"change":"-","path":".pi/skills/red-ink-quest-landing-demo/SKILL.md"},{"change":"u","path":".pi/skills/red-ink/SKILL.md"},{"change":"-","path":".pi/skills/traverse-no-human/SKILL.md"},{"change":"-","path":".pi/skills/traverse/SKILL.md"},{"change":"u","path":".pi/skills/using-bp3/SKILL.md"},{"change":"u","path":"AGENTS.md"},{"change":"u","path":"Brewfile"},{"change":"u","path":"CLAUDE.md"},{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"docs/designs/bp3-control-mvp.md"},{"change":"u","path":"docs/designs/bp3-control.md"},{"change":"u","path":"docs/dossiers/bp3-pi-basics.md"},{"change":"u","path":"docs/dossiers/muse-workflows-hooks.md"},{"change":"u","path":"extensions/bp3-pi/README.md"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/roles/author.md"},{"change":"u","path":"extensions/bp3-pi/roles/reviewer.md"},{"change":"u","path":"extensions/bp3-pi/src/contract.ts"},{"change":"u","path":"extensions/bp3-pi/src/dispatcher.ts"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"u","path":"readme.md"},{"change":"u","path":"release.conf"},{"change":"u","path":"scripts/bp3-shim"},{"change":"u","path":"scripts/install-bp3.sh"},{"change":"u","path":"scripts/osx/link-clt-after-osx-update.sh"},{"change":"u","path":"scripts/release-check"},{"change":"u","path":"skills/add-bp3-skill/SKILL.md"},{"change":"+","path":"skills/bp3g-frame/SKILL.md"},{"change":"+","path":"skills/bp3g-landing-demo/SKILL.md"},{"change":"+","path":"skills/bp3g-no-human/SKILL.md"},{"change":"+","path":"skills/bp3g/SKILL.md"},{"change":"+","path":"skills/bp3g/workflows/bp3g-grade.js"},{"change":"+","path":"skills/bp3g/workflows/bp3g-land.js"},{"change":"+","path":"skills/bp3g/workflows/bp3g-node.js"},{"change":"+","path":"skills/bp3g/workflows/node-loop.js"},{"change":"u","path":"skills/icebox/SKILL.md"},{"change":"u","path":"skills/naming/SKILL.md"},{"change":"-","path":"skills/quest/SKILL.md"},{"change":"-","path":"skills/red-ink-quest-landing-demo/SKILL.md"},{"change":"u","path":"skills/red-ink/SKILL.md"},{"change":"-","path":"skills/traverse-no-human/SKILL.md"},{"change":"-","path":"skills/traverse/SKILL.md"},{"change":"-","path":"skills/traverse/workflows/induct-grade.js"},{"change":"-","path":"skills/traverse/workflows/induct-node.js"},{"change":"-","path":"skills/traverse/workflows/node-loop.js"},{"change":"-","path":"skills/traverse/workflows/quest-land.js"},{"change":"u","path":"skills/using-bp3/SKILL.md"},{"change":"+","path":"src/graph/config.ml"},{"change":"+","path":"src/graph/dune"},{"change":"+","path":"src/graph/gitx.ml"},{"change":"+","path":"src/graph/harness.ml"},{"change":"+","path":"src/graph/hooks.ml"},{"change":"+","path":"src/graph/main.ml"},{"change":"+","path":"src/graph/render.ml"},{"change":"+","path":"src/graph/store.ml"},{"change":"+","path":"src/graph/worktree.ml"},{"change":"-","path":"src/quest/config.ml"},{"change":"-","path":"src/quest/dune"},{"change":"-","path":"src/quest/gitx.ml"},{"change":"-","path":"src/quest/harness.ml"},{"change":"-","path":"src/quest/hooks.ml"},{"change":"-","path":"src/quest/main.ml"},{"change":"-","path":"src/quest/render.ml"},{"change":"-","path":"src/quest/store.ml"},{"change":"-","path":"src/quest/worktree.ml"},{"change":"u","path":"test/blocked.sh"},{"change":"+","path":"test/bp3g-conduct.test.mjs"},{"change":"+","path":"test/bp3g-grade.test.mjs"},{"change":"+","path":"test/bp3g-land.test.mjs"},{"change":"+","path":"test/bp3g-node.test.mjs"},{"change":"+","path":"test/bp3g.sh"},{"change":"u","path":"test/completion.sh"},{"change":"u","path":"test/config.sh"},{"change":"u","path":"test/context.sh"},{"change":"u","path":"test/diagram.sh"},{"change":"u","path":"test/dogfood-link.sh"},{"change":"u","path":"test/dogfood-parallel.sh"},{"change":"+","path":"test/g.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/hooks.sh"},{"change":"-","path":"test/induct-grade.test.mjs"},{"change":"-","path":"test/induct-node.test.mjs"},{"change":"u","path":"test/install.sh"},{"change":"u","path":"test/link.sh"},{"change":"u","path":"test/node-loop.test.mjs"},{"change":"u","path":"test/pi-tree.test.mjs"},{"change":"-","path":"test/q.sh"},{"change":"-","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/ready.sh"},{"change":"u","path":"test/release.sh"},{"change":"u","path":"test/skills.sh"},{"change":"u","path":"test/tape.sh"},{"change":"-","path":"test/traverse-conduct.test.mjs"},{"change":"-","path":"test/traverse.sh"},{"change":"u","path":"test/worktree.sh"}]}],"ready_set_waves":[["exp-followup-2-workflow-birth","exp-landing-1-landing-wrapup"]],"ready":["exp-followup-2-workflow-birth","exp-landing-1-landing-wrapup"],"starved":[],"setup":[{"run_id":"20261117T003239Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":null,"setup_wall_s":14},{"run_id":"20261117T003626Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":"grade","setup_wall_s":25},{"run_id":"20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":"verify","setup_wall_s":15},{"run_id":"20261117T004025Z-land-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":"land","setup_wall_s":10},{"run_id":"20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"handoff","setup_wall_s":124},{"run_id":"20261117T010557Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":null,"setup_wall_s":9},{"run_id":"20261117T010735Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"grade","setup_wall_s":18},{"run_id":"20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"verify","setup_wall_s":14},{"run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"land","setup_wall_s":11},{"run_id":"20261117T013825Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":"handoff","setup_wall_s":34},{"run_id":"20261117T030756Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":null,"setup_wall_s":10},{"run_id":"20261117T031033Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":"grade","setup_wall_s":16},{"run_id":"20261117T031039Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":"verify","setup_wall_s":12},{"run_id":"20261117T032158Z-handoff-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":"handoff","setup_wall_s":13},{"run_id":"20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-followup-1-grade-evidence","edge":"handoff","setup_wall_s":33},{"run_id":"20261117T035432Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-followup-1-grade-evidence","edge":null,"setup_wall_s":8},{"run_id":"20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-followup-1-grade-evidence","edge":"grade","setup_wall_s":26},{"run_id":"20261117T035551Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-followup-1-grade-evidence","edge":"verify","setup_wall_s":12},{"run_id":"20261117T040644Z-handoff-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":"handoff","setup_wall_s":17},{"run_id":"20261117T041834Z-node-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":null,"setup_wall_s":7},{"run_id":"20261117T041924Z-grade-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":"grade","setup_wall_s":18},{"run_id":"20261117T041930Z-verify-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":"verify","setup_wall_s":14},{"run_id":"20261117T042103Z-land-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":"land","setup_wall_s":10},{"run_id":"20261117T042227Z-node-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":null,"setup_wall_s":10},{"run_id":"20261117T042421Z-grade-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":"grade","setup_wall_s":18},{"run_id":"20261117T042426Z-verify-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":"verify","setup_wall_s":14},{"run_id":"20261117T042701Z-land-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":"land","setup_wall_s":11},{"run_id":"20261117T042817Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":"handoff","setup_wall_s":40},{"run_id":"20261117T044013Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":null,"setup_wall_s":13},{"run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":"grade","setup_wall_s":16},{"run_id":"20261117T044120Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":"verify","setup_wall_s":10},{"run_id":"20261117T044950Z-land-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":"land","setup_wall_s":7},{"run_id":"20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-5-blocked-fail-fast","edge":"handoff","setup_wall_s":21},{"run_id":"20261117T053338Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-5-blocked-fail-fast","edge":null,"setup_wall_s":14},{"run_id":"20261117T053455Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-5-blocked-fail-fast","edge":"grade","setup_wall_s":20},{"run_id":"20261117T053502Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-5-blocked-fail-fast","edge":"verify","setup_wall_s":18},{"run_id":"20261117T054559Z-handoff-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-5-blocked-fail-fast","edge":"handoff","setup_wall_s":11},{"run_id":"20261117T055441Z-node-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-5-blocked-fail-fast","edge":null,"setup_wall_s":5},{"run_id":"20261117T055712Z-grade-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-5-blocked-fail-fast","edge":"grade","setup_wall_s":22},{"run_id":"20261117T055719Z-verify-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-5-blocked-fail-fast","edge":"verify","setup_wall_s":11},{"run_id":"20261117T060015Z-land-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-5-blocked-fail-fast","edge":"land","setup_wall_s":10},{"run_id":"20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-1-link-drive","edge":"handoff","setup_wall_s":24},{"run_id":"20261117T062205Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-1-link-drive","edge":null,"setup_wall_s":13},{"run_id":"20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-1-link-drive","edge":"grade","setup_wall_s":16},{"run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-1-link-drive","edge":"verify","setup_wall_s":12},{"run_id":"20261117T063415Z-land-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-1-link-drive","edge":"land","setup_wall_s":8},{"run_id":"20261117T063524Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-2-parallel-drive","edge":"handoff","setup_wall_s":17},{"run_id":"20261117T065327Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-2-parallel-drive","edge":null,"setup_wall_s":10},{"run_id":"20261117T065632Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-2-parallel-drive","edge":"grade","setup_wall_s":18},{"run_id":"20261117T065638Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-2-parallel-drive","edge":"verify","setup_wall_s":14},{"run_id":"20261117T075624Z-handoff-muse-code-muse-wonder-1.0-c2","node":"exp-dogfood-2-parallel-drive","edge":"handoff","setup_wall_s":10},{"run_id":"20261117T080958Z-node-muse-code-muse-wonder-1.0-c2","node":"exp-dogfood-2-parallel-drive","edge":null,"setup_wall_s":12},{"run_id":"20261117T082017Z-grade-muse-code-muse-wonder-1.0-c2","node":"exp-dogfood-2-parallel-drive","edge":"grade","setup_wall_s":20},{"run_id":"20261117T082024Z-verify-muse-code-muse-wonder-1.0-c2","node":"exp-dogfood-2-parallel-drive","edge":"verify","setup_wall_s":12},{"run_id":"20261117T084452Z-land-muse-code-muse-wonder-1.0-c2","node":"exp-dogfood-2-parallel-drive","edge":"land","setup_wall_s":11},{"run_id":"20261117T084553Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-rename-1-bp3g-rename","edge":"handoff","setup_wall_s":10},{"run_id":"20261117T094051Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-rename-1-bp3g-rename","edge":null,"setup_wall_s":9},{"run_id":"20261117T094456Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-rename-1-bp3g-rename","edge":"grade","setup_wall_s":19},{"run_id":"20261117T094501Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-rename-1-bp3g-rename","edge":"verify","setup_wall_s":15}],"rollup":"active","fin":null,"inbox":[],"run_id":"20261117T094501Z-verify-muse-code-muse-wonder-1.0-c1"}
+=== sh test/g.sh ===
+g tests: ok
+g rc=0
+=== old door bp3 q ===
+q exit=2
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]
+=== sh test/bp3g.sh ===
+node-loop tests: ok
+bp3g-node tests: ok
+bp3g-grade tests: ok
+bp3g-land tests: ok
+bp3g-conduct tests: ok
+bp3g rc=0
+=== sh test/skills.sh ===
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (128 assertions)
+skills rc=0
+=== fold uniqueness ===
+src/graph/store.ml:168:let fold_edge = function
+src/graph/store.ml:172:let fold_state_name = function "submitted" -> "handed_off" | s -> s
+src/graph/store.ml:176:let fold_type_key j new_key old_key default =
+src/graph/store.ml:190:        let edge = fold_edge (get_str j "edge" "") in
+src/graph/store.ml:191:        let to_ = fold_state_name (get_str j "to" "") in
+src/graph/store.ml:195:            s.node_type <- fold_type_key j "node_type" "exp_type"
+src/graph/store.ml:196:              (fold_type_key j "graph_type" "quest_type" "default");
+src/graph/store.ml:197:            graph_type := fold_type_key j "graph_type" "quest_type" !graph_type
+src/graph/store.ml:404:        let edge = fold_edge (get_str j "edge" "") in
+src/graph/store.ml:405:        let to_ = fold_state_name (get_str j "to" "") in
+src/graph/store.ml:169:  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+src/graph/store.ml:172:let fold_state_name = function "submitted" -> "handed_off" | s -> s
+=== make check ===
+✔ dispatcher never signals a pid: watch is the sole killer (0.379333ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (194.817792ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (20.375875ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 123998.908042
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/bp3g.sh
+node-loop tests: ok
+bp3g-node tests: ok
+bp3g-grade tests: ok
+bp3g-land tests: ok
+bp3g-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+make rc=0
+{"ok":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-rename-1-bp3g-rename","state":"approved","cycle":1,"commit":"4e0f1bd0d90f13a12623012b5628f7c38165577c","legal_edges":["land","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-rename-1-bp3g-rename","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-rename-1-bp3g-rename","edge":"verify","run_id":"20261117T094501Z-verify-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T094501Z-verify-muse-code-muse-wonder-1.0-c1"}

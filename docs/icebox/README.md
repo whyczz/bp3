@@ -16,10 +16,10 @@ know — so that when we are ready, promoting it to a Quest with
 
 Entries live flat here as `YYYY-MM-DD-<slug>.md`. Nothing in
 this folder is state; the ledger never points here. When an
-entry thaws, its context is copied into the quest, the entry
-gains `promoted: <quest path>`, and it is then deleted — git
-history is the fossil (owner rule, 2026-11-15). An unpromoted
-entry is never deleted.
+entry thaws, its context is copied into the quest under
+`docs/graphs/`, the entry gains `promoted: <quest path>`, and it
+is then deleted — git history is the fossil (owner rule,
+2026-11-15). An unpromoted entry is never deleted.
 
 Standing rule (owner, 2026-11-17): whenever a quest or graph
 is written from an icebox entry — and at every promotion —

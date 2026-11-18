@@ -1,0 +1,132 @@
+#!/bin/bash
+# check-changed — change-scoped verification (node-followup-6-check-tiers).
+# Runs the retired-term sweep first (seconds, before any suite),
+# prints the chosen suites, then runs only those. Unknown or
+# unmapped paths fail safe to the fast tier: never zero suites.
+#
+# Usage:
+#   scripts/check-changed.sh [--list] [--fast] [path ...]
+#   make check-changed        # paths from git diff vs HEAD + untracked
+#   make check-fast           # the fast tier below
+# --list prints the chosen suite ids, runs nothing (fixture door).
+# -h/--help prints this text, exit 0, reads no state.
+#
+# Suite table (single source; ids name Makefile check suites).
+#   id            command
+#   lint          make lint
+#   check-skills  ./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+#   skills-check  ./bin/bp3 skills check
+#   skills        ./test/skills.sh
+#   build         dune build src/graph/main.exe (Makefile SDK rule)
+#   g             ./test/g.sh
+#   pi-tree       node test/pi-tree.test.mjs
+#   bp3-pi        node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+#   bp3g          ./test/bp3g.sh (all workflow node tests)
+#   wf:<name>     node test/<name>.test.mjs (one workflow test)
+#   check-tiers   ./test/check-tiers.sh (selector fixtures)
+#   test:<path>   the changed test file itself
+#
+# Fast tier (check-fast): lint + skills checks + unit/workflow
+# tests, zero wall-clock timer fixtures. Membership (one table):
+#   lint check-skills skills build bp3g pi-tree bp3-pi check-tiers
+# test/harness.sh is the wall-clock suite (sleep/watch cases)
+# and stays full-tier only; so do the integration drives
+# (g, ready, dogfood-*, worktree, tape, release, install),
+# reached through the mapping below or full make check.
+#
+# Path -> suite mapping (first match wins):
+#   skills/bp3g/workflows/*.js, .agents/workflows/*.js
+#       -> skills-check + the one matching wf:<name> test
+#   skills/**, .pi/skills/**, .agents/skills/**, .claude/skills/**
+#       -> check-skills skills bp3g        (never harness)
+#   src/**  -> build g                     (never skills suites)
+#   test/** -> build + the changed suite itself
+#   extensions/** -> bp3-pi
+#   bin/**, scripts/**, completions/**, Makefile -> fast tier
+#   anything else (docs/** included)        -> fast tier
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+cd "$root"
+list_only=0; fast=0; paths=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --list) list_only=1 ;;
+    --fast) fast=1 ;;
+    -h|--help) grep '^#' "$0" | head -50; exit 0 ;;
+    *) paths+=("$1") ;;
+  esac
+  shift
+done
+# Makefile's SDK rule, mirrored: 26.5 SDK links on this host.
+dune_build="dune build"
+[ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ] && dune_build="SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build"
+case "$root" in */.bp3/worktrees/*) dune_build="$dune_build --root=." ;; esac
+cmd_for() {
+  case "$1" in
+    lint) echo "make lint" ;;
+    check-skills) echo "./scripts/check-skills skills .pi/skills .agents/skills .claude/skills" ;;
+    skills-check) echo "./bin/bp3 skills check" ;;
+    skills) echo "./test/skills.sh" ;;
+    build) echo "$dune_build src/graph/main.exe" ;;
+    g) echo "./test/g.sh" ;;
+    pi-tree) echo "node test/pi-tree.test.mjs" ;;
+    bp3-pi) echo "node --test extensions/bp3-pi/test/bp3-pi.test.mjs" ;;
+    bp3g) echo "./test/bp3g.sh" ;;
+    check-tiers) echo "./test/check-tiers.sh" ;;
+    wf:*) echo "node test/${1#wf:}.test.mjs" ;;
+    test:*) local p=${1#test:}; case "$p" in *.sh) echo "./$p" ;; *) echo "node $p" ;; esac ;;
+    *) echo "unknown suite: $1" >&2; return 1 ;;
+  esac
+}
+order="lint check-skills skills-check skills build g pi-tree bp3-pi bp3g check-tiers"
+declare -a want=()
+add() { local s; for s in "${want[@]:-}"; do [ "$s" = "$1" ] && return 0; done; want+=("$1"); }
+add_fast() { local s; for s in lint check-skills skills build bp3g pi-tree bp3-pi check-tiers; do add "$s"; done; }
+if [ "$fast" = 1 ]; then
+  add_fast
+else
+  if [ ${#paths[@]} -eq 0 ]; then
+    while IFS= read -r p; do [ -n "$p" ] && paths+=("$p"); done < <({ git diff --name-only HEAD; git ls-files --others --exclude-standard; } | sort -u)
+  fi
+  if [ ${#paths[@]} -eq 0 ]; then
+    echo "check-changed: no changed paths; fast tier (fail-safe)" >&2
+    add_fast
+  fi
+  for p in "${paths[@]:-}"; do
+    [ -n "$p" ] || continue
+    case "$p" in
+      skills/bp3g/workflows/*.js|.agents/workflows/*.js)
+        add skills-check
+        case "$(basename "$p")" in
+          node-loop.js) add wf:node-loop ;;
+          bp3g-node.js) add wf:bp3g-node ;;
+          bp3g-grade.js) add wf:bp3g-grade ;;
+          bp3g-land.js) add wf:bp3g-land ;;
+          *) add bp3g ;;
+        esac ;;
+      skills/*|.pi/skills/*|.agents/skills/*|.claude/skills/*)
+        add check-skills; add skills; add bp3g ;;
+      src/*) add build; add g ;;
+      test/*) add build; add "test:$p" ;;
+      extensions/*) add bp3-pi ;;
+      bin/*|scripts/*|completions/*|Makefile) add_fast ;;
+      *) add_fast ;;
+    esac
+  done
+fi
+# Emit in canonical order, then any wf:/test: ids sorted.
+declare -a suites=()
+for s in $order; do for w in "${want[@]:-}"; do [ "$w" = "$s" ] && suites+=("$s"); done; done
+while IFS= read -r s; do [ -n "$s" ] && suites+=("$s"); done < <(printf '%s\n' "${want[@]:-}" | grep -E '^(wf:|test:)' | LC_ALL=C sort -u || true)
+[ ${#suites[@]} -gt 0 ] || { echo "check-changed: zero suites selected (bug)" >&2; exit 1; }
+if [ "$list_only" = 1 ]; then printf '%s\n' "${suites[@]}"; exit 0; fi
+echo "check-changed: suites: ${suites[*]}"
+# Retired-term sweep first: a stale term fails in seconds,
+# before any suite runs (fast tier and check-changed alike).
+./scripts/check-retired-terms.sh
+for s in "${suites[@]}"; do
+  c=$(cmd_for "$s")
+  echo "check-changed: run $s: $c"
+  bash -c "$c"
+done
+echo "check-changed: ok (${#suites[@]} suites)"

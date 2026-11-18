@@ -1,23 +1,27 @@
-// bp3-pi dispatcher: spawn + handoff only (dogfood.2
-// component B, completed by followup.6). It validates
-// input, loads the role file, mints the run-id, spawns
-// one pi child, and hands spawn/exit facts to the
-// supervisor through `bp3 harness record-init` (live pid,
-// before the child's work) and `bp3 harness bind-tape`
-// (after exit). Role files route model/thinking into the
-// child env (override > role > conductor). It owns no
-// watchdog, no lifecycle fold, and no persistent writer:
-// every derivation row is written by bp3, never by this
-// process, and it never signals a pid. await_runs is a
-// thin relay over `bp3 harness watch` (the sole killer);
-// list_runs relays the supervisor's derived cache/verdict;
-// release_desk relays `bp3 harness desk release`.
+// bp3-pi dispatcher: spawn + handoff only. It validates
+// input, loads the role file, mints a one-time link via
+// `bp3 harness link mint` (the run config is the
+// InitRecord-equivalent), spawns one pi child explicitly
+// loaded with bp3-pi, and binds the tape via
+// `bp3 harness bind-tape` (after exit, into the run
+// config). The child's first action claims the link; a
+// child that never claimed is claimed by the dispatcher
+// fallback with the session file identity, so no worker
+// is silently unsupervised. Role files route
+// model/thinking into the child env (override > role >
+// conductor). It owns no watchdog, no lifecycle fold,
+// and no persistent writer: every run config is written
+// by bp3, never by this process, and it never signals a
+// pid. await_runs is a thin relay over `bp3 harness
+// watch` (the sole killer); list_runs relays watch
+// verdicts over run configs; release_desk relays
+// `bp3 harness desk release`.
 
 import { spawn, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { mintRunId, validateInput, type SpawnInput } from "./contract.ts";
+import { validateInput, type SpawnInput } from "./contract.ts";
 import { loadRole, resolveEffective, UnknownRole } from "./roles.ts";
 
 export interface DispatcherOptions {
@@ -26,6 +30,7 @@ export interface DispatcherOptions {
   piBin?: string;
   env?: NodeJS.ProcessEnv;
   rolesDir?: string;
+  extensionPath?: string;
 }
 
 export interface SpawnResult {
@@ -74,7 +79,7 @@ function gitTopLevel(cwd: string): string {
 // The repo root is the worktree the caller sits in, never
 // the caller's cwd and never the main checkout behind the
 // common dir: the worktree's bin/bp3 and desks are the ones
-// the dispatcher serves. Shared quest state still resolves
+// the dispatcher serves. Shared graph state still resolves
 // via the common dir (derivationsDir, pi-sessions).
 export function resolveRepoRoot(cwd: string): string {
   return gitTopLevel(cwd);
@@ -84,6 +89,13 @@ export function derivationsDir(cwd: string): string {
   return path.join(gitCommonDir(cwd), "bp3", "run-lifecycle-derivations");
 }
 
+export function runsDir(cwd: string): string {
+  return path.join(gitCommonDir(cwd), "bp3", "runs");
+}
+
+const defaultExtensionPath = path.join(
+  path.dirname(fileURLToPath(import.meta.url)), "..", "index.ts");
+
 export class Dispatcher {
   readonly cwd: string;
   readonly root: string;
@@ -91,6 +103,7 @@ export class Dispatcher {
   readonly piBin: string;
   readonly env: NodeJS.ProcessEnv;
   readonly rolesDir: string;
+  readonly extensionPath: string;
 
   constructor(opts: DispatcherOptions) {
     this.cwd = opts.cwd;
@@ -99,6 +112,7 @@ export class Dispatcher {
     this.piBin = opts.piBin ?? process.env.BP3_PI_BIN ?? "pi";
     this.env = opts.env ?? process.env;
     this.rolesDir = opts.rolesDir ?? process.env.BP3_PI_ROLES_DIR ?? defaultRolesDir;
+    this.extensionPath = opts.extensionPath ?? process.env.BP3_PI_EXTENSION ?? defaultExtensionPath;
   }
 
   private bp3Json(args: string[]): Record<string, unknown> {
@@ -115,6 +129,27 @@ export class Dispatcher {
         const verdict = JSON.parse(text) as Record<string, unknown>;
         if (verdict && verdict.ok === false) return verdict;
       } catch { /* fall through to the typed refusal below */ }
+      throw new TypedRefusal("E_BP3_FAILED", `bp3 ${args.slice(0, 2).join(" ")} failed`, { args });
+    }
+    return JSON.parse(out.trim().split("\n").pop() ?? "{}") as Record<string, unknown>;
+  }
+
+  private bp3JsonEnv(args: string[], extra: NodeJS.ProcessEnv): Record<string, unknown> {
+    let out: string;
+    try {
+      out = execFileSync(this.bp3Bin, args, {
+        cwd: this.root, encoding: "utf8", env: { ...process.env, ...extra },
+      });
+    } catch (err) {
+      const e = err as NodeJS.ErrnoException & { stdout?: string };
+      if (e.code === "ENOENT") {
+        throw new TypedRefusal("E_BP3_UNREACHABLE", `bp3 unreachable at ${this.bp3Bin}; refusing, session unaffected`, { bp3: this.bp3Bin });
+      }
+      const text = (e.stdout ?? "").trim().split("\n").pop() ?? "";
+      try {
+        const verdict = JSON.parse(text) as Record<string, unknown>;
+        if (verdict && verdict.ok === false) return verdict;
+      } catch { /* fall through */ }
       throw new TypedRefusal("E_BP3_FAILED", `bp3 ${args.slice(0, 2).join(" ")} failed`, { args });
     }
     return JSON.parse(out.trim().split("\n").pop() ?? "{}") as Record<string, unknown>;
@@ -137,7 +172,7 @@ export class Dispatcher {
     const cycle = req.cycle ?? 1;
     // Roles route model/thinking: override beats role,
     // role beats the conductor's env. The effective values
-    // are what the child env and the InitRecord carry, so
+    // are what the child env and the run config carry, so
     // routing is observed, never silently inherited.
     let role;
     if (req.role !== undefined) {
@@ -153,24 +188,46 @@ export class Dispatcher {
     const effective = resolveEffective(req, role, this.env);
     const model = effective.model;
     const thinking = effective.thinking;
-    const runId = mintRunId(req.edge, model, cycle);
+    // Setup proof before work: without the bp3-pi extension
+    // file the child cannot prove its tools are loaded, so
+    // refuse typed and spawn nothing unsupervised.
+    if (!fs.existsSync(this.extensionPath)) {
+      throw new TypedRefusal("E_SETUP", `bp3-pi extension not loaded: ${this.extensionPath}`, { extension: this.extensionPath });
+    }
+    // Mint before spawn: the run config exists before the
+    // child does, and the run-id arrives via the claim.
+    const mintArgs = ["harness", "link", "mint", "--kind", "edge",
+      "--graph", req.graph, "--node", req.node, "--edge", req.edge,
+      "--harness", "pi", "--model", model, "--cycle", String(cycle),
+      "--desk", this.root];
+    if (thinking) mintArgs.push("--thinking", thinking);
+    const parentRunId = this.env.BP3_RUN_ID;
+    if (parentRunId) mintArgs.push("--parent-run-id", parentRunId);
+    const minted = this.bp3Json(mintArgs);
+    if (minted.ok !== true) {
+      throw new TypedRefusal("E_LINK_MINT", `link mint refused for ${req.graph}/${req.node}`, { verdict: minted });
+    }
+    const runId = String(minted.run_id);
+    const token = String(minted.token);
     const sessionDir = path.join(gitCommonDir(this.cwd), "bp3", "pi-sessions", runId);
     fs.mkdirSync(sessionDir, { recursive: true });
 
     const args = ["-p", "--mode", "json", "--session-dir", sessionDir];
+    args.push("--extension", this.extensionPath);
     args.push("--model", model);
     if (thinking) args.push("--thinking", thinking);
     if (effective.tools && effective.tools.length > 0) args.push("--tools", effective.tools.join(","));
-    args.push(req.prompt);
+    args.push(`Claim this link first (bp3 harness link claim ${token}), then: ${req.prompt}`);
 
     const childEnv: NodeJS.ProcessEnv = {
       ...this.env,
-      BP3_RUN_ID: runId,
-      BP3_QUEST: req.quest,
-      BP3_EXP: req.exp,
+      BP3_LINK_TOKEN: token,
+      BP3_GRAPH: req.graph,
+      BP3_NODE: req.node,
       BP3_HARNESS: "pi",
       BP3_MODEL: model,
     };
+    delete childEnv.BP3_RUN_ID;
     if (thinking) childEnv.BP3_THINKING = thinking;
     else delete childEnv.BP3_THINKING;
     delete childEnv.BP3_DECIDER;
@@ -187,24 +244,30 @@ export class Dispatcher {
       child.once("exit", (code) => resolve(code));
     });
 
-    // The InitRecord names the live pid before the child's
-    // work is observed; bp3 is the only writer of the row.
-    // Effective model/thinking ride the row so role routing
-    // is gradeable from the record, not from env folklore.
-    const initArgs = ["harness", "record-init", "--run-id", runId, "--harness", "pi",
-      "--quest", req.quest, "--exp", req.exp, "--pid", String(pid), "--model", model];
-    if (thinking) initArgs.push("--thinking", thinking);
-    const init = this.bp3Json(initArgs);
-    if (init.ok !== true) {
-      throw new TypedRefusal("E_RECORD_INIT", `record-init refused for ${runId}`, { verdict: init });
-    }
-
     const exitCode = await exited;
     const tapes = fs.readdirSync(sessionDir).filter((n) => n.endsWith(".jsonl")).sort();
     if (tapes.length !== 1) {
       throw new TypedRefusal("E_TAPE_BIND", `expected exactly one session tape for ${runId}, found ${tapes.length}`, { run_id: runId, tapes });
     }
     const tapePath = path.join(sessionDir, tapes[0]);
+    // The child claims first; if it never did, bind its
+    // session file identity here so the Run is supervised.
+    const state = this.bp3Json(["harness", "link", "lookup", "--run-id", runId]);
+    if (state.ok === true && state.state === "minted") {
+      let sessionId: string | null = null;
+      for (const line of fs.readFileSync(tapePath, "utf8").split("\n")) {
+        try {
+          const row = JSON.parse(line) as Record<string, unknown>;
+          if (row.type === "session" && typeof row.id === "string") { sessionId = row.id; break; }
+        } catch { /* keep scanning */ }
+      }
+      const claimArgs = ["harness", "link", "claim", token];
+      if (sessionId) claimArgs.push("--session-id", sessionId);
+      const claimed = this.bp3JsonEnv(claimArgs, { PI_SESSION_FILE: tapePath });
+      if (claimed.ok !== true) {
+        throw new TypedRefusal("E_LINK_CLAIM", `link claim refused for ${runId}`, { verdict: claimed });
+      }
+    }
     const bound = this.bp3Json(["harness", "bind-tape", "--run-id", runId, "--tape-path", tapePath]);
     if (bound.ok !== true) {
       throw new TypedRefusal("E_TAPE_BIND", `bind-tape refused for ${runId}`, { verdict: bound });
@@ -234,35 +297,24 @@ export class Dispatcher {
     });
   }
 
-  // Lifecycle words come only from the supervisor: the
-  // derived .json cache it writes, or a watch verdict it
-  // returns. This process folds nothing itself.
-  listRuns(quest?: string): Record<string, unknown>[] {
+  // Lifecycle words come only from bp3: a watch verdict
+  // over the run config. This process folds nothing itself.
+  listRuns(graph?: string): Record<string, unknown>[] {
     this.requireBp3();
-    const dir = derivationsDir(this.cwd);
+    const dir = runsDir(this.cwd);
     if (!fs.existsSync(dir)) return [];
     const rows: Record<string, unknown>[] = [];
-    for (const name of fs.readdirSync(dir).filter((n) => n.endsWith(".jsonl")).sort()) {
-      const runId = name.slice(0, -".jsonl".length);
-      const logPath = path.join(dir, name);
-      let initQuest: unknown = null;
-      let harness: unknown = null;
-      for (const line of fs.readFileSync(logPath, "utf8").split("\n")) {
-        try {
-          const row = JSON.parse(line) as Record<string, unknown>;
-          if (row.kind === "init_record") { initQuest = row.quest ?? null; harness = row.harness ?? null; }
-        } catch { /* torn tail: the fold's word, not ours */ }
-      }
-      if (harness !== "pi") continue;
-      if (quest !== undefined && initQuest !== quest) continue;
-      const cachePath = path.join(dir, `${runId}.json`);
-      if (fs.existsSync(cachePath)) {
-        const cache = JSON.parse(fs.readFileSync(cachePath, "utf8")) as Record<string, unknown>;
-        rows.push({ run_id: runId, lifecycle: cache.lifecycle ?? null, harness, quest: initQuest });
-      } else {
-        const [verdict] = this.awaitRuns([runId], { timeoutSeconds: 5 });
-        rows.push({ run_id: runId, lifecycle: verdict.lifecycle ?? null, harness, quest: initQuest });
-      }
+    for (const name of fs.readdirSync(dir).filter((n) => n.endsWith(".json")).sort()) {
+      let cfg: Record<string, unknown>;
+      try {
+        cfg = JSON.parse(fs.readFileSync(path.join(dir, name), "utf8")) as Record<string, unknown>;
+      } catch { continue; /* torn config: bp3's word, not ours */ }
+      const creator = (cfg.creator ?? {}) as Record<string, unknown>;
+      if (creator.harness !== "pi") continue;
+      if (graph !== undefined && cfg.graph !== graph) continue;
+      const runId = String(cfg.run_id ?? name.slice(0, -".json".length));
+      const [verdict] = this.awaitRuns([runId], { timeoutSeconds: 5 });
+      rows.push({ run_id: runId, lifecycle: verdict.lifecycle ?? null, harness: "pi", graph: cfg.graph ?? null });
     }
     return rows;
   }

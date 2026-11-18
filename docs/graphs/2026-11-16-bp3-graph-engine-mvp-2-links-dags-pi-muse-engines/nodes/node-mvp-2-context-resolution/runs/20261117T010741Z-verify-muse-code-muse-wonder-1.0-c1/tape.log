@@ -1,0 +1,372 @@
+=== verify run 20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1 ===
+commit bound: 63d49cd86c64452f10d64e0fa7c2c6f231e3db37
+--- git HEAD ---
+63d49cd86c64452f10d64e0fa7c2c6f231e3db37
+63d49cd feat(mvp.2): context resolution — session/desk rungs, bp3 e door, claimed run-id stamping
+febc3ac docs(graph-engine): add followup.2 workflow-birth node
+09b9d8d feat(mvp.1): one-time link claim binding (mint/claim/lookup/cleanup)
+c9a76eb docs(graph-engine): add followup.1 grade-evidence node
+3c47fe5 fix(config.1): attribute mkdir failures, scope thresholds claim
+--- git show bound commit stat ---
+commit 63d49cd86c64452f10d64e0fa7c2c6f231e3db37
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 20:03:39 2026 -0500
+
+    feat(mvp.2): context resolution — session/desk rungs, bp3 e door, claimed run-id stamping
+
+ Makefile             |   3 +-
+ bin/bp3              |   6 ++-
+ completions/_bp3     |   4 +-
+ completions/bp3.bash |   4 +-
+ src/quest/config.ml  | 110 +++++++++++++++++++++++++++++++++++++++++++++++++
+ src/quest/harness.ml |  17 +-------
+ src/quest/main.ml    | 113 ++++++++++++++++++++++++++++++++++++++++++++++++++-
+ src/quest/render.ml  |  22 +++++++---
+ src/quest/store.ml   |  23 ++++++++---
+ test/context.sh      | 113 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 10 files changed, 382 insertions(+), 33 deletions(-)
+--- quest/exp records (rung1) ---
+cat: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/quest.json: No such file or directory
+EXPERIMENT.md
+runs
+cat: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/*.json: No such file or directory
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: mvp.2
+status: proposed
+---
+
+# mvp.2 - context-resolution: bp3 knows where it is
+
+## TL;DR
+
+After a claim (mvp.1), every bp3 call resolves its
+context from the claim store — session-id first,
+desk (cwd) second — and stamps graph, node, edge,
+and run-id into verdicts and ledger lines. The
+child types no quest, no exp, no export ritual.
+Env vars survive only as hints that bp3 may
+cross-check, never as the store. Unclaimed
+invocations behave exactly as today, plus
+`W_CONTEXT_UNCLAIMED`.
+
+## Demo (design trace)
+
+```text
+child (claimed session): bp3 e handoff --commit …
+  -> resolves session -> run-id/edge; ledger line stamped
+child (claimed, in desk): bp3 e
+  -> prints resolved context + source rung + legal edges, no names typed
+stranger shell: bp3 q …
+  -> behaves as today + W_CONTEXT_UNCLAIMED
+```
+
+## Diagram
+
+```text
+bp3 call ─► session-id? ─► by-session index ─► claim {graph,node,edge,run}
+              └─► cwd desk? ─► desk context file ─► claim
+              └─► none ─► today's behavior + W_CONTEXT_UNCLAIMED
+env: hint only, cross-checked, mismatch -> W_CONTEXT_ENV_MISMATCH
+```
+
+## Pseudocode
+
+```python
+def resolve_context(env, cwd, session_id):
+    claim = by_session(session_id) or desk_context(cwd)
+    if claim and env.get("BP3_RUN_ID") not in (None, claim.run_id):
+        warn("W_CONTEXT_ENV_MISMATCH")
+    return claim  # stamps every verdict + ledger line
+```
+
+| Field | Value |
+|---|---|
+| Intent | context is resolved, never carried; the export ritual dies |
+| Lane | standard |
+| Output | context resolution in the CLI doors; stamped verdicts/ledger |
+| Depends on | mvp.1 |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| claimed session | `bp3` calls with no graph/node arguments resolve and stamp the claimed run-id + edge on verdicts and the handoff ledger line |
+| claimed desk, new shell | a fresh shell in the desk (no session-id) resolves via desk context |
+| bare `bp3 e` after claim | prints resolved context, source rung, and legal edges; the worker never types graph/node/run-id or exports on any call |
+| unclaimed | legacy behavior unchanged, one `W_CONTEXT_UNCLAIMED` warning |
+| env disagreement | env naming a different run-id warns `W_CONTEXT_ENV_MISMATCH` and the claim wins |
+| desk rung never guesses (red-chair) | when a desk holds more than one live claimed run config and no session rung resolves, resolution refuses (`E_NO_CONTEXT`, facts naming the live run_ids) instead of picking the latest claim |
+| no false claim | a session in an unclaimed desk never inherits a sibling node's context (desk context is per-claim, checked against cwd) |
+| env-set run-id (standing ruling) | the stamped run-id on grade evidence is the claimed one; hooks witness does not gate |
+
+## Acceptance test (goal block)
+
+- **Objective:** a claimed child drives a full
+  edge touching zero context flags and zero
+  exports, and the ledger proves it.
+- **Prove by:** handoff drive from a claimed
+  session + fresh desk shell; ledger line stamps;
+  mismatch and unclaimed warning cases.
+- **Done when:** the handoff ledger line carries
+  the claimed run-id with no env set, observed.
+
+## Tests
+
+Resolution precedence fixtures (session > desk >
+none), mismatch warnings, cross-node isolation in
+one repo (two desks, two claims, no bleed),
+regression: every existing CLI test unchanged in
+behavior for unclaimed callers.
+
+## Context
+
+The mvp.1-era ruling made run-id env-set because
+flags were worse; env was always a transport, not
+a home. The claim store is the home. This exp is
+where the brief shrinks to one line in practice:
+after claim, the child just works.
+--- ledger tail ---
+cat: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/ledger.jsonl: No such file or directory
+--- find quest files ---
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/QUEST.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-rename-1-bp3g-rename/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-2-workflow-birth/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-3-ready-set-timing/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-4-diagram-emit/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/EXPERIMENT.md
+--- git diff bound vs parent (names) ---
+ Makefile             |   3 +-
+ bin/bp3              |   6 ++-
+ completions/_bp3     |   4 +-
+ completions/bp3.bash |   4 +-
+ src/quest/config.ml  | 110 +++++++++++++++++++++++++++++++++++++++++++++++++
+ src/quest/harness.ml |  17 +-------
+ src/quest/main.ml    | 113 ++++++++++++++++++++++++++++++++++++++++++++++++++-
+ src/quest/render.ml  |  22 +++++++---
+ src/quest/store.ml   |  23 ++++++++---
+ test/context.sh      | 113 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 10 files changed, 382 insertions(+), 33 deletions(-)
+--- test/context.sh head ---
+     113 test/context.sh
+#!/usr/bin/env bash
+# mvp.2 context resolution: session rung, then desk rung;
+# the claim stamps verdicts and ledger lines, env is a hint.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+lk() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
+store=".git/bp3"
+NOSID=(env -u MUSE_SESSION_ID -u MUSE_THREAD_ID -u BP3_SESSION_ID -u PI_SESSION_ID -u PI_SESSION_FILE -u BP3_RUN_ID)
+es() { MUSE_SESSION_ID="$1" BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 e "${@:2}"; }
+
+# --- help: e door documented, exit 0, no store created ---
+out=$(BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 e -h) || fail "e -h exit"
+echo "$out" | grep -q "bp3 e" || fail "e help: $out"
+echo "$out" | grep -q "E_NO_CONTEXT" || fail "e help codes: $out"
+out=$(q -h) || fail "q -h exit"
+echo "$out" | grep -q "bp3 e" || fail "q help lists e: $out"
+[ ! -e "$store" ] || fail "help created the store"
+
+q c g1 >/dev/null
+for n in n0 n1 n2 n3 n4 n5; do q g1 c "$n" >/dev/null; done
+echo work > b.txt; git add b.txt; git commit -qm work
+B=$(git rev-parse HEAD)
+
+# --- unclaimed: bare e refuses, explicit edge warns once ---
+if out=$("${NOSID[@]}" BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 e 2>&1); then fail "unclaimed bare e accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NO_CONTEXT"' >/dev/null || fail "unclaimed bare e code: $out"
+out=$("${NOSID[@]}" BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q g1 u n0 handoff --commit "$B" --reason "stranger")
+echo "$out" | jq -e '.ok == true and .warnings == ["W_CONTEXT_UNCLAIMED"] and (has("run_id") | not)' >/dev/null || fail "unclaimed explicit: $out"
+git show bp3/exp/g1/n0:docs/quests/g1/experiments/n0/ledger.jsonl | tail -1 | jq -e 'has("run_id") | not' >/dev/null || fail "unclaimed ledger stamped"
+
+# --- claimed session: zero context flags, claim stamps ---
+out=$(lk mint --kind edge --graph g1 --node n1 --edge handoff --depth 2)
+TOK=$(echo "$out" | jq -r .token); RID=$(echo "$out" | jq -r .run_id)
+MUSE_SESSION_ID=sess-a lk claim "$TOK" >/dev/null
+rm -f .bp3-context.json
+out=$(es sess-a) || fail "bare e exit: $out"
+echo "$out" | jq -e --arg r "$RID" '.ok == true and .graph == "g1" and .node == "n1" and .edge == "handoff"
+  and .run_id == $r and .source == "session" and .state == "todo"
+  and (.legal_edges | index("handoff") != null) and (.thresholds.depth_cap | type == "number")' \
+  >/dev/null || fail "bare e context: $out"
+out=$(es sess-a handoff --commit "$B" --reason "claimed cut") || fail "e handoff: $out"
+echo "$out" | jq -e --arg r "$RID" '.ok == true and .state == "handed_off" and .run_id == $r and .source == "session"' >/dev/null || fail "e handoff verdict: $out"
+out=$(es sess-a grade --verdict ship --reason "right")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "e grade: $out"
+out=$(es sess-a verify --verdict pass --reason "green")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "e verify: $out"
+out=$(es sess-a land --reason "ship it")
+echo "$out" | jq -e --arg r "$RID" '.state == "landed" and .run_id == $r' >/dev/null || fail "e land: $out"
+git show bp3/exp/g1/n1:docs/quests/g1/experiments/n1/ledger.jsonl | tail -4 | jq -s -e --arg r "$RID" 'all(.run_id == $r)' >/dev/null || fail "claimed ledger stamps"
+
+# explicit address from the claimed session stamps the claim too
+out=$(lk mint --kind edge --graph g1 --node n2 --edge handoff --depth 2)
+TOK2=$(echo "$out" | jq -r .token); RID2=$(echo "$out" | jq -r .run_id)
+MUSE_SESSION_ID=sess-b lk claim "$TOK2" >/dev/null
+rm -f .bp3-context.json
+out=$(BP3_RUN_ID=someone-else MUSE_SESSION_ID=sess-b BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q g1 u n2 handoff --commit "$B" --reason "mismatch") || fail "mismatch handoff: $out"
+echo "$out" | jq -e --arg r "$RID2" '.ok == true and .run_id == $r and (.warnings | index("W_CONTEXT_ENV_MISMATCH") != null)' >/dev/null || fail "env mismatch, claim wins: $out"
+git show bp3/exp/g1/n2:docs/quests/g1/experiments/n2/ledger.jsonl | tail -1 | jq -e --arg r "$RID2" '.run_id == $r' >/dev/null || fail "mismatch ledger claimed run-id"
+
+# a session claiming again resolves to its latest claim
+out=$(lk mint --kind edge --graph g1 --node n0 --edge grade --depth 2)
+TOKL=$(echo "$out" | jq -r .token); RIDL=$(echo "$out" | jq -r .run_id)
+MUSE_SESSION_ID=sess-a lk claim "$TOKL" >/dev/null
+rm -f .bp3-context.json
+out=$(es sess-a) || fail "reclaim bare e: $out"
+echo "$out" | jq -e --arg r "$RIDL" '.run_id == $r and .node == "n0" and .source == "session"' >/dev/null || fail "latest claim wins: $out"
+
+# --- claimed desk, new shell: desk rung, checked against cwd ---
+mkdir -p "$work/desk3"
+out=$(lk mint --kind edge --graph g1 --node n3 --edge handoff --depth 2 --desk "$work/desk3")
+TOK3=$(echo "$out" | jq -r .token); RID3=$(echo "$out" | jq -r .run_id)
+MUSE_SESSION_ID=sess-c lk claim "$TOK3" >/dev/null
+rm -f .bp3-context.json
+out=$(cd "$work/desk3" && "${NOSID[@]}" BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" e) || fail "desk bare e: $out"
+echo "$out" | jq -e --arg r "$RID3" '.run_id == $r and .source == "desk" and .node == "n3"' >/dev/null || fail "desk rung: $out"
+out=$(cd "$work/desk3" && "${NOSID[@]}" BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" e handoff --commit "$B" --reason "from desk") || fail "desk handoff: $out"
+echo "$out" | jq -e --arg r "$RID3" '.state == "handed_off" and .run_id == $r and .source == "desk"' >/dev/null || fail "desk handoff verdict: $out"
+
+# --- no false claim: an unclaimed desk inherits nothing ---
+mkdir -p "$work/elsewhere"
+if out=$(cd "$work/elsewhere" && "${NOSID[@]}" BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" e 2>&1); then fail "sibling context inherited"; fi
+echo "$out" | jq -e '.error.code == "E_NO_CONTEXT"' >/dev/null || fail "no-false-claim code: $out"
+
+# --- desk rung never guesses: two live claims, one desk ---
+mkdir -p "$work/desk-amb"
+for spec in "n4 sess-d1" "n5 sess-d2"; do
+  node_name="${spec%% *}"; sess_name="${spec##* }"
+  out=$(lk mint --kind edge --graph g1 --node "$node_name" --edge handoff --depth 2 --desk "$work/desk-amb")
+  tok=$(echo "$out" | jq -r .token)
+  MUSE_SESSION_ID="$sess_name" lk claim "$tok" >/dev/null
+done
+rm -f .bp3-context.json
+if out=$(cd "$work/desk-amb" && "${NOSID[@]}" BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" e 2>&1); then fail "ambiguous desk accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NO_CONTEXT" and (.error.facts.live_run_ids | length) == 2' >/dev/null || fail "ambiguous facts name live runs: $out"
+# the session rung still wins inside that same desk
+out=$(cd "$work/desk-amb" && MUSE_SESSION_ID=sess-d1 BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" e) || fail "session over ambiguous desk: $out"
+echo "$out" | jq -e '.node == "n4" and .source == "session"' >/dev/null || fail "session rung wins: $out"
+
+echo "context tests: ok"
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (121 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 48032 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 48768 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 50294 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 46787 Terminated: 15          sleep 60
+./test/harness.sh: line 501: 57759 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 58003 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/context.sh
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (30.141542ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.133375ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (239.030125ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (229.691584ms)
+✔ roles route model/thinking into the child env: override > role > conductor (464.958416ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (186.475083ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1610.040833ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (2947.186125ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (113027.000458ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (229.560917ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.559917ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (189.906417ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (21.002083ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 119247.677542
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+MAKE_CHECK_EXIT:0
+--- git status ---
+ M .agents/workflows/induct-grade.js
+ M .agents/workflows/node-loop.js
+ M .agents/workflows/quest-land.js
+--- HEAD vs bound ---
+63d49cd86c64452f10d64e0fa7c2c6f231e3db37
+bound 63d49cd86c64452f10d64e0fa7c2c6f231e3db37
+--- bare bp3 e with claimed run-id env ---
+{"ok":true,"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-2-context-resolution","exp":"exp-mvp-2-context-resolution","edge":"verify","kind":"edge","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","source":"session","source_rung":"session","state":"handed_off","legal_edges":["grade","verify","block","delete"],"context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-2-context-resolution","edge":"verify","run_id":"20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"thresholds":{"setup_slow_s":180,"depth_cap":3},"run_id":"20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1"}
+--- bp3 e help check ---
+bp3 e - claimed edge door (mvp.2): context is resolved, never carried:
+bp3 e                                    print the resolved context, its source rung (session|desk), state, and legal edges
+bp3 e <edge> [flags]                     take the claimed run's edge: handoff grade verify land block resume (same flags as bp3 q <quest> u <exp> <edge>)
+Resolution: session claim first, desk context second, checked against cwd; no rung refuses E_NO_CONTEXT, an ambiguous desk refuses E_NO_CONTEXT naming the live run_ids. Env BP3_RUN_ID is a hint only: a mismatch warns W_CONTEXT_ENV_MISMATCH and the claim wins; an unclaimed explicit edge call warns W_CONTEXT_UNCLAIMED.
+Example: bp3 e handoff --commit abc123 --reason "ready"
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-2-context-resolution","state":"approved","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","legal_edges":["land","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-2-context-resolution","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-2-context-resolution","edge":"verify","run_id":"20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1"}

@@ -5,7 +5,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root/_build/default/src/graph/main.exe" "$work/repo/g-bin"
 cd "$work/repo"
 git init -q -b master
 git config user.email t@t.t; git config user.name t
@@ -15,18 +15,18 @@ SHA=$(git rev-parse HEAD)
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
 # Since mvp.6 this door is the documented alias of bp3 harness desk;
 # this file is its full regression suite (desk parity lives in harness.sh).
-wt() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 worktree "$@"; }
+wt() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 worktree "$@"; }
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 # --- derive: exact hard-coded path ---
-out=$(wt derive demo exp-a R1)
-echo "$out" | jq -e '.ok == true and .path == ".bp3/worktrees/demo/exp-a/R1"' >/dev/null || fail "derive exact: $out"
+out=$(wt derive demo node-a R1)
+echo "$out" | jq -e '.ok == true and .path == ".bp3/worktrees/demo/node-a/R1"' >/dev/null || fail "derive exact: $out"
 
 # derive is pure and total over generated slugs, and never escapes the root
-for q in demo quest-2 a; do
-  for e in exp-a exp-9 z; do
-    for r in R1 run-2 20261114t221957z-submit-x-c1; do
+for q in demo graph-2 a; do
+  for e in node-a node-9 z; do
+    for r in R1 run-2 20261114t221957z-handoff-x-c1; do
       p=$(wt derive "$q" "$e" "$r" | jq -r '.path')
       [ "$p" = ".bp3/worktrees/$q/$e/$r" ] || fail "derive generated: $p"
       case "/$p/" in *"/../"*) fail "derive escapes root: $p" ;; esac
@@ -36,26 +36,26 @@ done
 
 # escaping or malformed components are refused, always as E_USAGE
 for bad in ".." "." "a/b" 'a\b' ".dot" "a..b" "-dash" ""; do
-  if out=$(wt derive demo exp-a "$bad" 2>&1); then fail "derive accepted run id: [$bad]"; fi
+  if out=$(wt derive demo node-a "$bad" 2>&1); then fail "derive accepted run id: [$bad]"; fi
   echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "derive escape code [$bad]: $out"
 done
-if out=$(wt derive demo ../evil R1 2>&1); then fail "derive accepted escaping exp"; fi
-echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "derive exp escape code: $out"
+if out=$(wt derive demo ../evil R1 2>&1); then fail "derive accepted escaping node"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "derive node escape code: $out"
 
 # --- create on a branch; inspect reads it back ---
-p1=$(wt derive demo exp-a R1 | jq -r '.path')
-out=$(wt create "$p1" --branch bp3/exp/demo/exp-a)
-echo "$out" | jq -e '.ok == true and .ref == "bp3/exp/demo/exp-a" and .dirty == false' >/dev/null || fail "create branch: $out"
+p1=$(wt derive demo node-a R1 | jq -r '.path')
+out=$(wt create "$p1" --branch bp3/node/demo/node-a)
+echo "$out" | jq -e '.ok == true and .ref == "bp3/node/demo/node-a" and .dirty == false' >/dev/null || fail "create branch: $out"
 [ -f "$p1/a.txt" ] || fail "worktree files missing"
-[ "$(git -C "$p1" branch --show-current)" = "bp3/exp/demo/exp-a" ] || fail "branch not checked out"
+[ "$(git -C "$p1" branch --show-current)" = "bp3/node/demo/node-a" ] || fail "branch not checked out"
 out=$(wt inspect "$p1")
-echo "$out" | jq -e '.ok == true and .ref == "bp3/exp/demo/exp-a" and .dirty == false and .changed_count == 0' >/dev/null || fail "inspect clean: $out"
+echo "$out" | jq -e '.ok == true and .ref == "bp3/node/demo/node-a" and .dirty == false and .changed_count == 0' >/dev/null || fail "inspect clean: $out"
 
 # existing path and already-checked-out branch: clean refusals, no raw git error
 if out=$(wt create "$p1" --branch other-branch 2>&1); then fail "create on existing path accepted"; fi
 echo "$out" | jq -e '.ok == false and .error.code == "E_EXISTS"' >/dev/null || fail "existing path code: $out"
-p2=$(wt derive demo exp-a R2 | jq -r '.path')
-if out=$(wt create "$p2" --branch bp3/exp/demo/exp-a 2>&1); then fail "create on checked-out branch accepted"; fi
+p2=$(wt derive demo node-a R2 | jq -r '.path')
+if out=$(wt create "$p2" --branch bp3/node/demo/node-a 2>&1); then fail "create on checked-out branch accepted"; fi
 echo "$out" | jq -e '.ok == false and .error.code == "E_BRANCH_CHECKED_OUT"' >/dev/null || fail "checked-out code: $out"
 case "$out" in *fatal*) fail "raw git error leaked: $out" ;; esac
 [ ! -e "$p2" ] || fail "refused create left a worktree"
@@ -63,8 +63,8 @@ if out=$(wt create "$p2" --branch master 2>&1); then fail "create on main-worktr
 echo "$out" | jq -e '.error.code == "E_BRANCH_CHECKED_OUT"' >/dev/null || fail "main branch code: $out"
 
 # --- create --commit twice: two detached worktrees at the same sha ---
-pa=$(wt derive demo exp-a GA | jq -r '.path')
-pb=$(wt derive demo exp-a GB | jq -r '.path')
+pa=$(wt derive demo node-a GA | jq -r '.path')
+pb=$(wt derive demo node-a GB | jq -r '.path')
 out=$(wt create "$pa" --commit "$SHA")
 echo "$out" | jq -e --arg s "$SHA" '.ok == true and .ref == $s' >/dev/null || fail "create commit A: $out"
 out=$(wt create "$pb" --commit "$SHA")
@@ -73,7 +73,7 @@ echo "$out" | jq -e --arg s "$SHA" '.ok == true and .ref == $s' >/dev/null || fa
 [ "$(git -C "$pb" rev-parse HEAD)" = "$SHA" ] || fail "detached B at wrong sha"
 out=$(wt inspect "$pa")
 echo "$out" | jq -e --arg s "$SHA" '.ref == $s and .dirty == false' >/dev/null || fail "inspect detached: $out"
-if out=$(wt create "$(wt derive demo exp-a GC | jq -r '.path')" --commit deadbeefdeadbeef 2>&1); then fail "create on missing commit accepted"; fi
+if out=$(wt create "$(wt derive demo node-a GC | jq -r '.path')" --commit deadbeefdeadbeef 2>&1); then fail "create on missing commit accepted"; fi
 echo "$out" | jq -e '.ok == false' >/dev/null || fail "missing commit not refused: $out"
 case "$out" in *fatal*) fail "raw git error leaked: $out" ;; esac
 
@@ -91,7 +91,7 @@ echo "$out" | jq -e '.ok == true and .removed == true' >/dev/null || fail "force
 
 # --- a dirty worktree is never removed without --force, for any edit kind ---
 for kind in modified untracked staged; do
-  pk=$(wt derive demo exp-a "edit-$kind" | jq -r '.path')
+  pk=$(wt derive demo node-a "edit-$kind" | jq -r '.path')
   wt create "$pk" --commit "$SHA" >/dev/null
   case "$kind" in
     modified) echo x >> "$pk/a.txt" ;;
@@ -118,17 +118,17 @@ if out=$(wt inspect "$pb" 2>&1); then fail "inspect of missing worktree accepted
 echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "missing inspect code: $out"
 
 # --- bookkeeping: prepare is idempotent per Run ID ---
-out=$(wt prepare demo exp-a --run RA)
-echo "$out" | jq -e '.ok == true and .run_id == "RA" and .path == ".bp3/worktrees/demo/exp-a/RA" and .ref == "bp3/exp/demo/exp-a"' >/dev/null || fail "prepare RA: $out"
-pa_path=$(wt derive demo exp-a RA | jq -r '.path')
+out=$(wt prepare demo node-a --run RA)
+echo "$out" | jq -e '.ok == true and .run_id == "RA" and .path == ".bp3/worktrees/demo/node-a/RA" and .ref == "bp3/node/demo/node-a"' >/dev/null || fail "prepare RA: $out"
+pa_path=$(wt derive demo node-a RA | jq -r '.path')
 [ -f "$pa_path/a.txt" ] || fail "prepared worktree files missing"
-out=$(wt prepare demo exp-a --run RA)
-echo "$out" | jq -e '.ok == true and .existing == true and .path == ".bp3/worktrees/demo/exp-a/RA"' >/dev/null || fail "prepare RA again (existing): $out"
+out=$(wt prepare demo node-a --run RA)
+echo "$out" | jq -e '.ok == true and .existing == true and .path == ".bp3/worktrees/demo/node-a/RA"' >/dev/null || fail "prepare RA again (existing): $out"
 [ "$(git worktree list --porcelain | grep -c '^worktree ')" = "2" ] || fail "prepare twice made extra worktrees"
 
 # check recomputes dirty/stale live by Run ID
 out=$(wt check --run RA)
-echo "$out" | jq -e '.ok == true and .dirty == false and .ref == "bp3/exp/demo/exp-a" and .stale_s >= 0' >/dev/null || fail "check RA clean: $out"
+echo "$out" | jq -e '.ok == true and .dirty == false and .ref == "bp3/node/demo/node-a" and .stale_s >= 0' >/dev/null || fail "check RA clean: $out"
 echo stray >> "$pa_path/a.txt"
 out=$(wt check --run RA)
 echo "$out" | jq -e '.dirty == true' >/dev/null || fail "check RA dirty: $out"
@@ -136,7 +136,7 @@ if out=$(wt check 2>&1); then fail "check without a Run ID accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "check no-run code: $out"
 
 # exit and release refuse a dirty worktree; record stays intact
-if out=$(cd "$pa_path" && BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" worktree exit 2>&1); then fail "dirty exit accepted"; fi
+if out=$(cd "$pa_path" && BP3_G_BIN="$work/repo/g-bin" "$work/repo/bin/bp3" worktree exit 2>&1); then fail "dirty exit accepted"; fi
 echo "$out" | jq -e '.error.code == "E_DIRTY_TREE"' >/dev/null || fail "dirty exit code: $out"
 [ -d "$pa_path" ] || fail "dirty exit deleted the worktree"
 if out=$(wt release --run RA 2>&1); then fail "dirty release accepted"; fi
@@ -150,11 +150,11 @@ echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "forc
 [ ! -e "$pa_path" ] || fail "force release left the worktree"
 if out=$(wt check --run RA 2>&1); then fail "check after release accepted"; fi
 echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "check released code: $out"
-out=$(wt prepare demo exp-a --run RA)
+out=$(wt prepare demo node-a --run RA)
 echo "$out" | jq -e '.ok == true and (.existing // false) == false' >/dev/null || fail "re-prepare after release (tombstone?): $out"
 
 # exit from inside a clean worktree releases it and prints the conductor path
-out=$(cd "$pa_path" && BP3_Q_BIN="$work/repo/q-bin" "$work/repo/bin/bp3" worktree exit)
+out=$(cd "$pa_path" && BP3_G_BIN="$work/repo/g-bin" "$work/repo/bin/bp3" worktree exit)
 conductor=$(cd "$work/repo" && pwd -P)
 echo "$out" | jq -e --arg c "$conductor" '.ok == true and .released == true and .conductor_path == $c' >/dev/null || fail "clean exit: $out"
 [ ! -e "$pa_path" ] || fail "clean exit left the worktree"
@@ -162,7 +162,7 @@ if out=$(wt check --run RA 2>&1); then fail "check after exit accepted"; fi
 
 # --path override is recorded under the same Run ID
 override="$work/override-wt"
-out=$(wt prepare demo exp-a --run RO --path "$override")
+out=$(wt prepare demo node-a --run RO --path "$override")
 echo "$out" | jq -e --arg p "$override" '.ok == true and .path == $p' >/dev/null || fail "prepare override: $out"
 out=$(wt check --run RO)
 echo "$out" | jq -e --arg p "$override" '.ok == true and .path == $p and .dirty == false' >/dev/null || fail "check override by Run ID: $out"
@@ -171,14 +171,14 @@ echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "rele
 [ ! -e "$override" ] || fail "release left the override worktree"
 
 # prepare --commit gives a detached worktree addressable by Run ID
-out=$(wt prepare demo exp-a --run RC --commit "$SHA")
+out=$(wt prepare demo node-a --run RC --commit "$SHA")
 echo "$out" | jq -e --arg s "$SHA" '.ok == true and .ref == $s and .detached == true' >/dev/null || fail "prepare commit: $out"
 out=$(wt release RC)
 echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "release positional Run ID: $out"
 
 # parallel detached prepares keep every record (one file per Run ID)
 for i in 1 2 3 4 5; do
-  ( wt prepare demo exp-a --run "P$i" --commit "$SHA" > "$work/par-P$i.json" ) &
+  ( wt prepare demo node-a --run "P$i" --commit "$SHA" > "$work/par-P$i.json" ) &
 done
 wait
 for i in 1 2 3 4 5; do
@@ -196,16 +196,16 @@ for i in 1 2 3 4 5; do
   [ ! -e ".bp3/desks/P$i.json" ] || fail "parallel release P$i left a desk file"
 done
 
-# list shows every record plus orphans flagged; --quest filters
-out=$(wt prepare demo exp-a --run RL)
+# list shows every record plus orphans flagged; --graph filters
+out=$(wt prepare demo node-a --run RL)
 echo "$out" | jq -e '.ok == true' >/dev/null || fail "prepare RL: $out"
-porph=$(wt derive demo exp-a ORPH | jq -r '.path')
+porph=$(wt derive demo node-a ORPH | jq -r '.path')
 wt create "$porph" --commit "$SHA" >/dev/null
 out=$(wt list)
 echo "$out" | jq -e '[.worktrees[] | select(.run_id == "RL" and (.orphan == false))] | length == 1' >/dev/null || fail "list record RL: $out"
 echo "$out" | jq -e '[.worktrees[] | select(.run_id == "ORPH" and .orphan == true)] | length == 1' >/dev/null || fail "list orphan ORPH: $out"
-out=$(wt list --quest nope)
-echo "$out" | jq -e '.worktrees == []' >/dev/null || fail "list quest filter: $out"
+out=$(wt list --graph nope)
+echo "$out" | jq -e '.worktrees == []' >/dev/null || fail "list graph filter: $out"
 out=$(wt release --run RL)
 echo "$out" | jq -e '.ok == true' >/dev/null || fail "release RL: $out"
 out=$(wt remove "$porph")
@@ -217,17 +217,17 @@ echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "release u
 
 echo "worktree tests: ok"
 
-# --- quest-level desk (Exp 8): prepare/release --quest ---
-out=$(wt prepare --quest demoq)
-echo "$out" | jq -e '.ok == true and .quest == "demoq" and .exp == "(quest)" and .path == ".bp3/worktrees/demoq" and .ref == "quest/demoq"' >/dev/null || fail "quest prepare: $out"
-[ -d .bp3/worktrees/demoq ] || fail "quest desk missing on disk"
-out=$(wt prepare --quest demoq)
-echo "$out" | jq -e '.ok == true and .existing == true' >/dev/null || fail "quest prepare idempotent: $out"
+# --- graph-level desk (Node 8): prepare/release --graph ---
+out=$(wt prepare --graph demoq)
+echo "$out" | jq -e '.ok == true and .graph == "demoq" and .node == "(graph)" and .path == ".bp3/worktrees/demoq" and .ref == "graph/demoq"' >/dev/null || fail "graph prepare: $out"
+[ -d .bp3/worktrees/demoq ] || fail "graph desk missing on disk"
+out=$(wt prepare --graph demoq)
+echo "$out" | jq -e '.ok == true and .existing == true' >/dev/null || fail "graph prepare idempotent: $out"
 out=$(wt list)
-echo "$out" | jq -e '.worktrees | map(.quest) | index("demoq") != null' >/dev/null || fail "quest desk in list: $out"
+echo "$out" | jq -e '.worktrees | map(.graph) | index("demoq") != null' >/dev/null || fail "graph desk in list: $out"
 echo stray > .bp3/worktrees/demoq/stray.txt
-if out=$(wt release --quest demoq 2>&1); then fail "dirty quest release accepted"; fi
+if out=$(wt release --graph demoq 2>&1); then fail "dirty graph release accepted"; fi
 rm .bp3/worktrees/demoq/stray.txt
-out=$(wt release --quest demoq)
-echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "quest release: $out"
-[ ! -d .bp3/worktrees/demoq ] || fail "quest desk not removed"
+out=$(wt release --graph demoq)
+echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "graph release: $out"
+[ ! -d .bp3/worktrees/demoq ] || fail "graph desk not removed"

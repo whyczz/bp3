@@ -2,7 +2,7 @@
 # release-script v1 - source: bp3 scripts/release-check
 # release-check: gate a release on version/tag agreement.
 # Usage: release-check [version | VERSION-file]
-# Version defaults to bp3_version in src/quest/gitx.ml; a
+# Version defaults to bp3_version in src/graph/gitx.ml; a
 # VERSION file argument (bp3-yap-skills style) is read whole.
 # Refuses (exit 1, message on stderr) unless annotated tag
 # v<version> exists and points at HEAD. Prints version on ok.
@@ -12,7 +12,7 @@ version=${1:-}
 if [ -n "$version" ] && [ -f "$root/$version" ]; then
   version=$(tr -d ' \r\n' < "$root/$version")
 elif [ -z "$version" ]; then
-  version=$(sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' "$root/src/quest/gitx.ml" | head -1)
+  version=$(sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' "$root/src/graph/gitx.ml" | head -1)
 fi
 [ -n "$version" ] || { echo "release-check: no version found" >&2; exit 1; }
 tag="v$version"

@@ -1,0 +1,464 @@
+=== GRADE START c2 commit-bound 321b965 ===
+/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+321b96563128806237b1804d650654a77d61ba4b
+status-end
+{"ok":false,"error":{"code":"E_NOT_FOUND","facts":{"quest":"exp-mig-2-traverse-rename"},"guidance":"quest not found: exp-mig-2-traverse-rename"}}
+--- bp3 help ---
+bp3 q - quest/exp state. Doors:
+bp3 q c|r|d ...              quest door (create, read, delete)
+bp3 q <quest> c|r|u|d ...    exp door for one quest
+bp3 q icebox r [term...]     search frozen icebox entries (read-only)
+bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias
+bp3 q hooks                  harness hook emitter (fail-open)
+Run bp3 q <door> -h for that door's verbs, edges, and flags.
+--- q read with quest ---
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-2-traverse-rename","state":"handed_off","fin":null,"cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","legal_edges":["grade","verify","block","delete"],"changes":[{"change":"+","path":"test/traverse-conduct.test.mjs"},{"change":"u","path":"test/traverse.sh"}]}
+--- diff stat ---
+commit 321b96563128806237b1804d650654a77d61ba4b
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 16:19:03 2026 -0500
+
+    test(mig.2): add traverse conduction smoke drive
+
+ test/traverse-conduct.test.mjs | 125 +++++++++++++++++++++++++++++++++++++++++
+ test/traverse.sh               |   1 +
+ 2 files changed, 126 insertions(+)
+--- full log ---
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+886e1af docs(icebox): kill engine fan-out, addressed by graph-engine quest
+1fdb11e docs(icebox): freeze lint, portable dogfood, engine fan-out sketches
+3478ac1 docs(quest): rename graph-link to bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+13ebfdb fix(skills-test): expect red-ink in pi settings exclusions
+0334cdf docs(graph-link): adopt red-inked design; 12 nodes framed
+--- quest files ---
+experiments
+QUEST.md
+--- skills traverse ---
+skills/traverse:
+SKILL.md
+workflows
+
+skills/traverse-no-human:
+SKILL.md
+--- old skills ---
+ls: skills/induct*: No such file or directory
+--- workflows ---
+induct-grade.js
+node-loop.js
+quest-land.js
+ls: workflows/: No such file or directory
+./test/node-loop.test.mjs
+./.agents/workflows/node-loop.js
+./skills/traverse/workflows/node-loop.js
+--- 65d55af stat ---
+commit 65d55af9528668e741d23578d6579f67ba74cb20
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 14:56:13 2026 -0500
+
+    feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+
+ .agents/skills/induct-quest/SKILL.md               |  15 ---
+ .agents/skills/quest/SKILL.md                      |   2 +-
+ .../SKILL.md                                       |  24 ++---
+ .agents/skills/{induct => traverse}/SKILL.md       |  22 ++--
+ .agents/workflows/induct-grade.js                  |   2 +-
+ .../workflows/node-loop.js                         |   6 +-
+ .agents/workflows/quest-land.js                    |   2 +-
+ .claude/skills/induct-quest/SKILL.md               |  15 ---
+ .claude/skills/quest/SKILL.md                      |   2 +-
+ .../skills/traverse-no-human}/SKILL.md             |  24 ++---
+ .claude/skills/{induct => traverse}/SKILL.md       |  22 ++--
+ .pi/settings.json                                  |   7 +-
+ .pi/skills/induct-quest/SKILL.md                   |  15 ---
+ .pi/skills/quest/SKILL.md                          |   2 +-
+ .../skills/traverse-no-human}/SKILL.md             |  24 ++---
+ .pi/skills/{induct => traverse}/SKILL.md           |  22 ++--
+ Makefile                                           |  10 +-
+ bin/bp3                                            |   8 +-
+ skills/induct-quest/SKILL.md                       |  14 ---
+ skills/quest/SKILL.md                              |   2 +-
+ .../SKILL.md                                       |  22 ++--
+ skills/{induct => traverse}/SKILL.md               |  20 ++--
+ .../{induct => traverse}/workflows/induct-grade.js |   2 +-
+ .../traverse/workflows/node-loop.js                |   6 +-
+ .../{induct => traverse}/workflows/quest-land.js   |   2 +-
+ src/quest/harness.ml                               |   6 +-
+ src/quest/worktree.ml                              |   2 +-
+ test/induct-grade.test.mjs                         |   4 +-
+ test/{induct-exp.test.mjs => node-loop.test.mjs}   |   8 +-
+ test/quest-land.test.mjs                           |   4 +-
+ test/skills.sh                                     | 113 +++++++++++----------
+ test/{induct.sh => traverse.sh}                    |   4 +-
+ 32 files changed, 188 insertions(+), 245 deletions(-)
+--- traverse SKILL head ---
+---
+name: traverse
+description: Conduct one bp3 quest from the main session — read state with bp3 q r, dispatch the one step that state calls for, re-read, until the quest is terminal or a human decision is owed.
+---
+
+# Traverse
+
+Use when a human in a bp3-enabled repo invokes this skill by
+name (`/traverse <quest>`, `$traverse <quest>`) or asks to "traverse",
+"run", or "keep going on" a named quest until it lands or
+blocks. One quest per traverse. One output: step dispatches
+through `bp3 q`, ending in a traverse report — what reached
+`exp_fin`, what is blocked, and what human decision is owed
+next. Finish lines have report words: `exp_fin` names an exp
+whose state is `landed` (its `land` edge taken); `quest_fin`
+names quest promotion to master, the only owner-gated finish
+line. The FSM states stay `landed`; `exp_fin`/`quest_fin`
+name the finish lines in reports, never new edges.
+
+Use `quest` instead to frame a new quest. Use `using-bp3`
+instead for a single state operation by hand (one handoff, one
+grade, recovery after a dead session). Use
+`red-ink-quest-landing-demo` instead when the quest is done and the
+human wants the landing writeup. A design under review is
+`red-ink`'s job, not a traverse.
+
+## Conductor rule
+
+This skill is the conductor: it owns the loop and nothing
+else. It reads state, dispatches the one step the state calls
+for, and re-reads. It never does a step's work itself, never
+calls a verdict edge for a step, and never re-judges a grade
+matrix — it quotes the matrix verbatim. Legality is `bp3 q`'s
+call, never this skill's: a refusal is information, answered by
+re-reading, not by arguing or retrying unchanged.
+
+Cycles are weather; blocks are decisions. A `needs_fix`
+verdict below the cycle cap is weather: the conductor rides
+it (Procedure step 3) without paging the owner. `blocked` is
+the only page: it means a decision only a human can make is
+--- traverse-no-human SKILL ---
+---
+name: traverse-no-human
+description: Run several bp3 quests with no human present using the traverse conductor — fleet preflight, park blocked work in the inbox, and end with the check-in report; never attests, never pages, never promotes.
+---
+
+# Traverse, no human
+
+Use when a human in a bp3-enabled repo invokes this skill
+by name (`/traverse-no-human <quest>...`,
+`$traverse-no-human`) or asks to run quests unattended,
+overnight, or in a queue with no human present. Several
+quests may be named; a Run budget may be stated. One
+output: the check-in report (step 5). For one quest with a
+human present, use `traverse` instead.
+
+`/traverse-no-human <quest>...` means `/traverse <quest>` per
+quest, in queue order, under the no-human rails below. Follow
+the canonical `traverse` skill (`skills/traverse/SKILL.md`)
+procedure and rules as written there — read state with
+`bp3 q r`, dispatch the one step that state calls for,
+re-read. This file carries no step procedure of its own,
+so the two names cannot drift; it adds only the rails
+that make the conductor safe with no human in the room.
+
+## Shape
+
+This ships as a skill mode of `traverse`, not its own FSM.
+The rails below (preflight, parking, budget, check-in report)
+all state as conductor rules over the existing exp FSM
+without special cases: the queue is ordered iteration,
+parking is stopping a quest on a `blocked` read, the
+budget is a stop on dispatching, and the check-in report is
+a read. No queue-level state is written anywhere; queue
+words name report outcomes, never new edges.
+
+## Fleet
+
+Several named quests are one fleet, not several queues.
+A fleet declares its merge order before the queue starts:
+the order quests were named, unless the invoker names a
+different order in the same breath. The merge order is
+fixed for the whole fleet; finishing first never moves a
+quest up it. Names below reuse the exp's words: `fleet`,
+`footprint`, `merge order`, and `check-in report`.
+
+- Footprint: the paths a quest declares it will touch —
+  every path named in its QUEST.md Scope and in each
+  exp's Output. Two footprints overlap when they name
+  the same path, or one names a directory the other
+  names a path under. A quest with no declared footprint
+  fails preflight: disjointness cannot be shown for it.
+- Disjoint quests run in parallel: each quest rides its
+  own conductor loop at the same time, desks per child,
+  one quest per checkout. A parked quest never holds up
+  a disjoint quest; parking stops only its own quest.
+- The fleet never merges: quests ready for `quest_fin`
+  are only listed, in merge order, for the owner to
+  promote one at a time in that order.
+
+## No-human rails
+
+- Desks only: every step Run works from a prepared
+  `bp3 harness desk` desk, one quest per checkout. No-human
+  never works in the shared tree and never runs two
+  quests in one checkout at once.
+- No-human never attests: `BP3_DECIDER` stays unset for
+  the whole run, exactly as the launcher left it.
+  No-human never takes `resume` or `delete`, and never
+  pages a question to the owner. A decision only a human
+  can make is not asked for; the work parks (below) and
+  waits for morning.
+- No-human never promotes or pushes: `quest_fin` stays the
+  owner gate. A quest whose exps all reach `exp_fin`
+  stops there; promotion waits for the owner.
+
+## Procedure
+
+1. Preflight each named quest before queueing it, and
+   declare the merge order before the queue starts. A
+   quest is not queued — and is reported with the failed
+   check named — when any of these fails:
+   - every exp's EXPERIMENT.md carries Acceptance rows
+     (an exp missing Acceptance rows fails this check);
+   - no EXPERIMENT.md in the quest carries an open
+     design question;
+   - `make check` is green (`make check` red fails
+     this check);
+   - the quest declares a footprint (see Fleet).
+   Footprint preflight: in merge order, the first quest
+   claims its footprint; a quest whose footprint overlaps
+   an already-admitted quest's is refused at preflight.
+   An overlapping quest is refused at preflight, named
+   in the report, with zero Runs spent on it. Anything
+   shared queues serially in a later fleet, never in
+   parallel in this one.
+   A quest that fails preflight is reported, not queued;
+   the queue moves on to the next named quest.
+2. Run admitted quests in parallel, each in merge order
+   for reporting. Per quest, ride the `traverse` conductor
+   loop: `needs_fix` below the cycle cap rides to the
+   next cycle (Exp 6 rule, no owner question); `landed`
+   is reported as `exp_fin` and the conductor advances
+   to the next exp.
+3. Park, never page: when an exp enters `blocked`, or
+   the cycle cap is hit, park it — the exp stays in the
+   blocked inbox with its reason, its quest stops, and
+   the fleet moves on to the other quests. Nothing is
+   resumed, deleted, or attested to unpark it.
+4. Fleet budget: one budget caps the whole fleet, not
+   one budget per quest. Every step Run in every quest
+   counts against the one fleet budget. When the fleet
+   budget is spent, every quest stops, even mid-quest.
+   No new step is dispatched in any quest after the
+   budget is spent, and the report says the budget stopped it.
+5. Check-in report (the only output): one combined
+   report for the whole fleet, from `bp3 q r`, the run
+   registry, and `bp3 harness desk list` — never from
+   memory or tape text:
+   - quests ready for `quest_fin`, listed in the
+     predeclared merge order (fleet never merges);
+   - exps at `exp_fin` (state `landed`), per quest;
+   - parked items from all quests in one check-in list,
+     grouped by quest, each with its inbox reason;
+   - shared-decision parks: parked items whose inbox
+     reasons name the same human decision appear as one
+     decision with its dependent quests listed; owner
+     words are still attested per exp at resume time,
+     by a human, outside the fleet;
+   - refusals from preflight, each quest named with the
+     failed check or the footprint it overlapped;
+   - `usage_recorded` token totals summed per quest;
+   - the worktree sweep result: `bp3 harness desk list`
+     output, naming any desk still open.
+   Then stop. Judgment waits for a human; this report
+   is where the night hands over.
+
+## Rules
+
+- The skill writes no state. `bp3 q u` is the only
+  writer, called by step children; no-human itself takes
+  no verdict edge and no human edge.
+- Identity rides env (`BP3_HARNESS`, `BP3_MODEL`) as in
+  `traverse`; `BP3_DECIDER` is the one env name no-human
+  must never set.
+- Instructions only: this skill holds no state, spawns
+  no daemon, and assumes no runtime beyond the main
+  session, its workflow children, and the `bp3 q`
+  binary.
+--- traverse tests ---
+#!/bin/sh
+# traverse workflow contract tests (mock host, no agent calls).
+set -eu
+cd "$(dirname "$0")/.."
+node test/node-loop.test.mjs
+node test/induct-grade.test.mjs
+node test/quest-land.test.mjs
+node test/traverse-conduct.test.mjs
+=== RUNG3: traverse.sh ===
+node-loop tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+exit=0
+=== RUNG3: skills.sh ===
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (121 assertions)
+skills-exit=0
+=== old-names sweep ===
+skills/traverse/workflows/induct-grade.js:1:// induct-grade: judge one handed_off exp on its bound commit.
+skills/traverse/workflows/induct-grade.js:2:// Installed to .agents/workflows/induct-grade.js by
+skills/traverse/SKILL.md:86:   | `handed_off` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit, desk}` with `commit` from this read |
+skills/traverse/SKILL.md:99:   free: re-dispatching `induct-grade` on the same `commit`
+test/traverse.sh:6:node test/induct-grade.test.mjs
+---stale-induct in harness renders---
+=== renders clean ===
+skills check: ok (10 files)
+installed add-bp3-skill -> .pi/skills/add-bp3-skill/SKILL.md (pi)
+installed add-bp3-skill -> .claude/skills/add-bp3-skill/SKILL.md (claude)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (codex)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (muse)
+installed add-yap-skill -> .pi/skills/add-yap-skill/SKILL.md (pi)
+installed add-yap-skill -> .claude/skills/add-yap-skill/SKILL.md (claude)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (codex)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (muse)
+installed icebox -> .pi/skills/icebox/SKILL.md (pi)
+installed icebox -> .claude/skills/icebox/SKILL.md (claude)
+installed icebox -> .agents/skills/icebox/SKILL.md (codex)
+installed icebox -> .agents/skills/icebox/SKILL.md (muse)
+installed naming -> .pi/skills/naming/SKILL.md (pi)
+installed naming -> .claude/skills/naming/SKILL.md (claude)
+installed naming -> .agents/skills/naming/SKILL.md (codex)
+installed naming -> .agents/skills/naming/SKILL.md (muse)
+installed quest -> .pi/skills/quest/SKILL.md (pi)
+installed quest -> .claude/skills/quest/SKILL.md (claude)
+installed quest -> .agents/skills/quest/SKILL.md (codex)
+installed quest -> .agents/skills/quest/SKILL.md (muse)
+installed red-ink-quest-landing-demo -> .pi/skills/red-ink-quest-landing-demo/SKILL.md (pi)
+installed red-ink-quest-landing-demo -> .claude/skills/red-ink-quest-landing-demo/SKILL.md (claude)
+installed red-ink-quest-landing-demo -> .agents/skills/red-ink-quest-landing-demo/SKILL.md (codex)
+installed red-ink-quest-landing-demo -> .agents/skills/red-ink-quest-landing-demo/SKILL.md (muse)
+installed red-ink -> .pi/skills/red-ink/SKILL.md (pi)
+installed red-ink -> .claude/skills/red-ink/SKILL.md (claude)
+installed red-ink -> .agents/skills/red-ink/SKILL.md (codex)
+installed red-ink -> .agents/skills/red-ink/SKILL.md (muse)
+installed traverse-no-human -> .pi/skills/traverse-no-human/SKILL.md (pi)
+install-exit=0
+status-end
+=== conduct test preview ===
+// Conduction smoke drive for /traverse (skills/traverse/SKILL.md).
+// One fixture node is driven end to end by the conductor dispatch
+// table — todo -> node-loop, handed_off -> induct-grade,
+// approved -> quest-land — against a shared fixture state
+// machine, ending landed (reported exp_fin). Each step is the
+// real workflow file; only the host (agent spawns and bp3 reads)
+// is mocked, so this proves conduction, not per-workflow parity.
+import { readFileSync } from "node:fs";
+import nodeLoop from "../skills/traverse/workflows/node-loop.js";
+import inductGrade from "../skills/traverse/workflows/induct-grade.js";
+import questLand from "../skills/traverse/workflows/quest-land.js";
+
+const TS = "20260101T000000Z";
+const COMMIT = "abc1234";
+let failures = 0;
+function assert(cond, msg) {
+  if (!cond) { console.error("FAIL: " + msg); failures++; }
+}
+
+function passRow(name) {
+  return {
+    case: name,
+    evidence: { kind: "command", ref: "test/traverse.sh", quote: "traverse tests: ok" },
+    verdict: "pass",
+  };
+}
+
+// Shared fixture: one exp whose state only the stage children
+// advance, exactly as bp3 q u edges would. Reads always report
+// the current fixture state.
+function fixtureHost() {
+  let current = { state: "todo", cycle: 1, commit: null, legal_edges: ["handoff"] };
+  const stages = [];
+  const host = {
+    args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: null },
+    async agent({ label, input }) {
+      // Stage children first: their briefs mention harness
+      // commands (find-tape in the ladder text) without calling them.
+      const stage = label.split(" ")[0];
+      if (["author", "audit", "grade", "verify", "land"].includes(stage)) {
+        stages.push(stage);
+        if (stage === "author") {
+          current = { state: "handed_off", cycle: 1, commit: COMMIT, legal_edges: ["grade", "verify"] };
+          host.args.commit = COMMIT;
+          return JSON.stringify({ ok: true, run_id: "r-author", commit: COMMIT, verdict: { ok: true } });
+        }
+        if (stage === "audit") {
+          return JSON.stringify({ ok: true, run_id: "r-audit", matrix: [passRow("acceptance: fixture node")] });
+        }
+        if (stage === "verify") {
+          current = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["land"] };
+          return JSON.stringify({ ok: true, run_id: "r-verify", commit: COMMIT, verdict: { ok: true } });
+        }
+        if (stage === "land") {
+          current = { state: "landed", cycle: 1, commit: COMMIT, legal_edges: [] };
+          return JSON.stringify({ ok: true, run_id: "r-land", commit: COMMIT, verdict: { ok: true } });
+        }
+        return JSON.stringify({ ok: true, run_id: "r-" + stage, commit: COMMIT, verdict: { ok: true } });
+      }
+      if (input.includes("harness record-init")) {
+=== QUEST open questions ===
+=== node-loop behavior note ===
+// node-loop: build one todo exp, then stop. Installed to
+// .agents/workflows/node-loop.js by `bp3 skills install`.
+// This step owns exactly one transition family: it reads state,
+// spawns the single author child for a `todo` exp, re-reads, and
+// returns what the re-read reports. Any other state belongs to
+// a different step; this file refuses it untouched. All state
+// moves through `bp3 q u`, called directly by the author child;
+// this script never writes state. Its one write is proof, not
+// state: as the named InitRecord writer (mvp.8) it records the
+// child's InitRecord via `bp3 harness record-init` before the
+// child spawns; the child never writes its own proof. As the
+// named tape binder (followup.3) it then binds the child's
+// session tape via `bp3 harness bind-tape` after the child
+// returns; the child writes no InitRecord, binding, or
+// observation.
+// Args are supplied by the calling traverse skill as {quest, exp,
+// ts, harness, model}; ts is a UTC compact timestamp from the
+// caller, embedded by the child in its run-id because scripts
+// cannot read the clock.
+
+function textOf(result) {
+  if (typeof result === "string") return result;
+  if (!result || typeof result !== "object") return "";
+  if (typeof result.output === "string") return result.output;
+  if (typeof result.text === "string") return result.text;
+  if (typeof result.content === "string") return result.content;
+  try {
+    return JSON.stringify(result);
+  } catch (e) {
+    return "";
+installed traverse-no-human -> .pi/skills/traverse-no-human/SKILL.md (pi)
+installed traverse-no-human -> .claude/skills/traverse-no-human/SKILL.md (claude)
+installed traverse-no-human -> .agents/skills/traverse-no-human/SKILL.md (codex)
+installed traverse-no-human -> .agents/skills/traverse-no-human/SKILL.md (muse)
+installed traverse -> .pi/skills/traverse/SKILL.md (pi)
+installed traverse -> .claude/skills/traverse/SKILL.md (claude)
+installed traverse -> .agents/skills/traverse/SKILL.md (codex)
+installed traverse -> .agents/skills/traverse/SKILL.md (muse)
+---old-exp---
+ls: .agents/workflows/induct-exp.js: No such file or directory
+ls: skills/traverse/workflows/induct-exp.js: No such file or directory
+ls: skills/induct: No such file or directory
+ls: skills/induct-quest: No such file or directory
+status-end
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-2-traverse-rename","state":"approved","cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","legal_edges":["land","block","delete"],"run_id":"20261116T212019Z-grade-muse-code-muse-wonder-1.0-c2"}

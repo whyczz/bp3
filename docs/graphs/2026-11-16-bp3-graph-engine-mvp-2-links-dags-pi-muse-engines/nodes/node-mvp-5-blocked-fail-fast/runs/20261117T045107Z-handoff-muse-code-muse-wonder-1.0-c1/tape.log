@@ -1,0 +1,1046 @@
+total 0
+drwxr-xr-x@ 2 whycz  staff  64 Nov 16 23:51 .
+drwxr-xr-x@ 3 whycz  staff  96 Nov 16 23:51 ..
+created docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1
+
+## Deliberately open (explored in-graph)
+
+Not pre-decided; each is measured or decided by
+its owning node during the graph, from evidence:
+
+| Question | Explored by | How it closes |
+|---|---|---|
+| session-id exposure per harness — which resolution rung do muse/pi claims actually land on? | dogfood.1 | measured rung distribution in the A/B drive; a third rung is designed only if session+desk both fail routinely |
+| dep freeze rule — may deps change after a node leaves `todo`? | mvp.3 | scheduler built with deps mutable-but-logged; anomalies (or their absence) in dogfood.2 propose the freeze rule to the root worker |
+| Pi extension loading into spawned children — does a child pi session get `bp3-pi` tools without explicit loading? | mvp.1, proven in dogfood.1 | nested Pi claim drive either passes as-is or mvp.1 adds explicit extension loading to the spawn |
+
+## Human touchpoints
+
+- Blocked gates only, per root-worker rails.
+- graph_fin promotion — owner, after demo.
+
+## Fail-fast and blocked handling (settled red-ink round 2, owner)
+
+Failure is a state transition, never a waiting
+process. Workers fail fast: complete the edge,
+return a typed failure, or exit through `block`.
+No worker parks, polls for the human, retries
+forever, or carries the decision in memory.
+
+Blocked is a node state, not a parked process:
+
+```text
+edge worker fails / needs a decision
+  -> node worker calls `block` (commits WIP iff the
+     human needs the diff to decide), returns blocked
+  -> node workflow EXITS; nothing waits or parks
+  -> root worker pages the human (live + inbox)
+  -> human answers in conversation; root worker
+     attests BP3_DECIDER=human, calls `resume`
+  -> root worker relaunches induct-node for that node;
+     it re-reads state and continues
+```
+
+`needs_fix` under the cycle cap never blocks: the
+node worker rides it, carrying the reviewer's named
+fix verbatim. Exceeding the cap escalates to
+blocked. A blocked node starves only its
+dependents; the rest of the ready-set keeps moving.
+Workers are cattle: blocked kills the run, and the
+ledger — never the dead worker's memory — is what
+the relaunch resumes from.
+
+The entire worker tree dies with the bubble. On
+Pi: edge session terminates, node session records
+`blocked` and exits, root main session receives
+the facts and can revive the node after `resume`
+by spawning a fresh tree. On Muse: all agents in
+the node workflow return, the workflow exits, and
+revival launches a fresh workflow. The human can
+revive from the root because bp3 — not any worker
+process — holds the node, reason, run chain, and
+next legal move.
+
+## Exps
+
+Exp display names are `<milestone>.<number> - <slug>`.
+Folders and bp3 exp IDs use the dotless spelling
+`exp-<milestone>-<number>-<slug>`.
+
+### Milestone: migration — words first
+
+### mig.1 - handoff-verbs — [record](experiments/exp-mig-1-handoff-verbs/EXPERIMENT.md)
+First node. FSM verbs/state take settled names
+(`submit -> handoff`, `review -> grade`,
+`check -> verify`, `submitted -> handed_off`) in
+code, workflow briefs, and tests. Old quest files
+never move; the fold maps old ledger strings on
+read, new lines write new words.
+
+### mig.2 - traverse-rename — [record](experiments/exp-mig-2-traverse-rename/EXPERIMENT.md)
+Conducting skills take graph names early:
+`/induct` + `/induct-quest` -> `/traverse`,
+`/induct-quest-no-human` -> `/traverse-no-human`,
+and the `induct-exp` workflow becomes `node-loop`
+(the node worker's loop; mvp.3 generalizes it).
+
+### Milestone: config — the local store
+
+### config.1 - bp3-config — [record](experiments/exp-config-1-bp3-config/EXPERIMENT.md)
+The machine-local hard store, named: `bp3 config`
+tree under the git common dir (contexts, desks,
+local thresholds, claims, by-session index,
+derivations). Written only by bp3 verbs, viewed
+via `bp3 config`, never committed, zero setup.
+
+### Milestone: mvp — link, context, schedule, diagram
+
+### mvp.1 - link-claim — [record](experiments/exp-mvp-1-link-claim/EXPERIMENT.md)
+`bp3 harness link`: mint a one-time link for one
+edge execution; child claims as first action. CAS
+in the common-dir store (one winner,
+`E_LINK_SPENT` names the first claimant). Claim
+records caller facts and the by-session index.
+
+### mvp.2 - context-resolution — [record](experiments/exp-mvp-2-context-resolution/EXPERIMENT.md)
+bp3 resolves graph/node/edge/run from the claim
+store (session, then desk) and stamps verdicts
+and ledger lines. No env ritual, no retyped
+context. Env is a hint only.
+
+### mvp.3 - ready-set-timing — [record](experiments/exp-mvp-3-ready-set-timing/EXPERIMENT.md)
+BFS ready-set waves from node deps; rollup emits ready
+nodes and per-node wall/wait/dwell; setup timing
+per Run with the 3-minute `W_SETUP_SLOW` gate.
+Parallel build/grade in per-node desks, serial
+land queue semantics stated and readied. Named
+deliverable: `induct-node` — one workflow run per
+node owning the whole FSM loop (the old
+induct-exp / induct-grade / quest-land become
+phases inside it); the root worker dispatches
+ready-set waves and handles blocked + graph_fin only.
+
+### mvp.4 - diagram-emit — [record](experiments/exp-mvp-4-diagram-emit/EXPERIMENT.md)
+Generated ASCII + mermaid from a live rollup:
+nodes with state/cycle, deps as ready-set waves, blocked
+nodes naming what they starve.
+
+### mvp.5 - blocked-fail-fast — [record](experiments/exp-mvp-5-blocked-fail-fast/EXPERIMENT.md)
+No parked workers. An edge worker completes its
+edge or fails it immediately; the node worker
+records the decision point through `block` and
+exits when a human is required. `needs_fix` below
+the cycle cap rides automatically, a dead edge
+worker is replaced from derived `orphaned`, and a
+fresh node worker resumes from bp3 after `resume`.
+
+### Milestone: dogfood — use it ourselves
+
+### dogfood.1 - link-drive — [record](experiments/exp-dogfood-1-link-drive/EXPERIMENT.md)
+A/B proof on the flappy node: old brief vs link
+brief on both harnesses, seeded setup attacks
+refusing at claim. Metrics are the acceptance.
+
+### dogfood.2 - parallel-drive — [record](experiments/exp-dogfood-2-parallel-drive/EXPERIMENT.md)
+Two independent flappy-variant nodes, one ready-set,
+parallel desks, parallel build+grade, serial
+land. Scorecard: wall and tokens per node.
+
+### Milestone: rename — migrate everything, last
+
+### rename.1 - bp3g-rename — [record](experiments/exp-rename-1-bp3g-rename/EXPERIMENT.md)
+Full rename on live surfaces: `bp3 g` CLI door,
+graph/node/state/edge/dep vocabulary, skills
+become the `bp3g` family (`/bp3g` conducts,
+`bp3g` variants for framing/no-human), launcher
+workflows, templates. (Edge verbs and the
+`submitted -> handed_off` state already migrated
+in mig.1; this node is nouns, doors, and skills.)
+The rename table in Terms is the
+mapping, and every live surface takes the new
+verbs in this one change. Old terms grep to zero
+on live surfaces; landed ledger text is history
+and keeps the old edge words.
+
+### Milestone: followup — papercuts found live
+
+### followup.1 - grade-evidence — [record](experiments/exp-followup-1-grade-evidence/EXPERIMENT.md)
+
+### followup.2 - workflow-birth — [record](experiments/exp-followup-2-workflow-birth/EXPERIMENT.md)
+Renders must track workflow sources: a dispatch
+never launches a desk render older than its
+source (re-render or `E_RENDER_STALE`). mvp.1's
+grade died on a stale render calling the retired
+`record-init`; owner fix path A formalized.
+Missing evidence is not a defect: grade-audit
+rows must carry typed evidence or the audit
+re-collects internally. Evidence gaps never burn
+an author cycle or page the human (config.1
+cycle-1 papercut).
+
+### Milestone: landing
+
+### landing.1 - landing-wrapup — [record](experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md)
+Scorecard (timing included), findings
+disposition, landing walkthrough actually run
+(red-ink-quest-landing-demo diligence), for the
+owner's promotion review.
+
+## Scorecard
+
+Fields: claims observed (minted/claimed/spent),
+context resolutions, per-node wall/wait/dwell,
+setup wall per Run, ready-set wall vs serial estimate,
+tokens per node, drives observed per harness,
+human-active minutes — or "unmeasured", never zero.
+
+## Exp diagram
+
+```text
+mig.1 ──────────────┐ (verbs first; everything after speaks handoff/grade)
+config.1 ─► mvp.1 ─► mvp.2 ─┬─► mvp.3 ─► mvp.4
+                            ├─► mvp.5 ────────┐
+                            └─► dogfood.1 ─► dogfood.2 ─► rename.1 ─► landing.1
+                                              ▲
+                            mvp.3 ────────────┘ (and mvp.5, dogfood.1 feed it)
+
+ready-set waves: [mig.1, config.1] -> [mig.2, mvp.1] -> [mvp.2] -> [mvp.3, dogfood.1]
+         -> [mvp.4, mvp.5] -> [dogfood.2] -> [rename.1] -> [followup.1, followup.2] -> [landing.1]
+rename.1 = nouns/doors/skills only; verbs already migrated in mig.1
+```
+=== git log ===
+fe6efe7 feat(mvp.4): diagram verb — generated ascii/mermaid from live rollup
+8411e0a fix(followup.1): make run-folder validation trustworthy
+0aa087d docs(followup.1): name cycle-2 fix for run-folder validation false fail
+5cce4cc feat(followup.1): grade validations, audit re-collect, named verdict race
+6e2dd7c docs(followup.1): amend grade-evidence with grade validations design
+105cbea test(mvp.3): quotable no-hand-edited-state guard for cycle-2 grade
+b765d07 feat(mvp.3): ready-set waves, node deps, derived timing, setup gate, induct-node loop
+b2250e3 chore: sync installed workflow renders with committed sources
+63d49cd feat(mvp.2): context resolution — session/desk rungs, bp3 e door, claimed run-id stamping
+febc3ac docs(graph-engine): add followup.2 workflow-birth node
+09b9d8d feat(mvp.1): one-time link claim binding (mint/claim/lookup/cleanup)
+c9a76eb docs(graph-engine): add followup.1 grade-evidence node
+3c47fe5 fix(config.1): attribute mkdir failures, scope thresholds claim
+229a6ba feat(config.1): add bp3 config store and view door
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+886e1af docs(icebox): kill engine fan-out, addressed by graph-engine quest
+1fdb11e docs(icebox): freeze lint, portable dogfood, engine fan-out sketches
+3478ac1 docs(quest): rename graph-link to bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+=== prior exps status ===
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"proposed","exps":[{"exp":"exp-config-1-bp3-config","state":"landed","fin":"exp_fin","cycle":2,"commit":"3c47fe532642369348656be958eb577fc662881d","deps":[],"timing":{"wall_s":6135,"wait_s":8448,"dwell_s":{"approved":67,"blocked":5080,"handed_off":536,"todo":8900},"cycles":2},"legal_edges":[],"changes":[{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"}]},{"exp":"exp-dogfood-1-link-drive","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-dogfood-2-parallel-drive","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-followup-1-grade-evidence","state":"landed","fin":"exp_fin","cycle":2,"commit":"8411e0a61f8f0e72ff17caa630ea93345cba3d90","deps":[],"timing":{"wall_s":1816,"wait_s":17337,"dwell_s":{"approved":70,"blocked":317,"handed_off":939,"todo":17827},"cycles":2},"legal_edges":[],"changes":[{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"skills/traverse/workflows/induct-grade.js"},{"change":"u","path":"test/induct-grade.test.mjs"}]},{"exp":"exp-followup-2-workflow-birth","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-landing-1-landing-wrapup","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mig-1-handoff-verbs","state":"landed","fin":"exp_fin","cycle":1,"commit":"44196725860125de048415ff6a4be350a90c033b","deps":[],"timing":{"wall_s":863,"wait_s":1376,"dwell_s":{"approved":68,"handed_off":795,"todo":1376},"cycles":1},"legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"u","path":".agents/skills/naming/SKILL.md"},{"change":"u","path":".agents/skills/quest/SKILL.md"},{"change":"u","path":".agents/skills/red-ink/SKILL.md"},{"change":"u","path":".agents/skills/using-bp3/SKILL.md"},{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".claude/skills/naming/SKILL.md"},{"change":"u","path":".claude/skills/quest/SKILL.md"},{"change":"u","path":".claude/skills/red-ink/SKILL.md"},{"change":"u","path":".claude/skills/using-bp3/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/naming/SKILL.md"},{"change":"u","path":".pi/skills/quest/SKILL.md"},{"change":"u","path":".pi/skills/red-ink/SKILL.md"},{"change":"u","path":".pi/skills/using-bp3/SKILL.md"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/roles/author.md"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"skills/naming/SKILL.md"},{"change":"u","path":"skills/quest/SKILL.md"},{"change":"u","path":"skills/red-ink/SKILL.md"},{"change":"u","path":"skills/using-bp3/SKILL.md"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"u","path":"test/completion.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/hooks.sh"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/install.sh"},{"change":"u","path":"test/q.sh"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/tape.sh"},{"change":"u","path":"test/worktree.sh"}]},{"exp":"exp-mig-2-traverse-rename","state":"landed","fin":"exp_fin","cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","deps":[],"timing":{"wall_s":5241,"wait_s":2660,"dwell_s":{"approved":63,"blocked":3928,"handed_off":838,"todo":3072},"cycles":2},"legal_edges":[],"changes":[{"change":"+","path":"test/traverse-conduct.test.mjs"},{"change":"u","path":"test/traverse.sh"}]},{"exp":"exp-mvp-1-link-claim","state":"landed","fin":"exp_fin","cycle":1,"commit":"09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3","deps":[],"timing":{"wall_s":3167,"wait_s":16553,"dwell_s":{"approved":61,"handed_off":3106,"todo":16553},"cycles":1},"legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"extensions/bp3-pi/README.md"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/src/contract.ts"},{"change":"u","path":"extensions/bp3-pi/src/dispatcher.ts"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"skills/traverse/workflows/induct-grade.js"},{"change":"u","path":"skills/traverse/workflows/node-loop.js"},{"change":"u","path":"skills/traverse/workflows/quest-land.js"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"+","path":"test/link.sh"},{"change":"u","path":"test/node-loop.test.mjs"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/traverse-conduct.test.mjs"}]},{"exp":"exp-mvp-2-context-resolution","state":"landed","fin":"exp_fin","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","deps":[],"timing":{"wall_s":1990,"wait_s":21098,"dwell_s":{"approved":1315,"handed_off":675,"todo":21098},"cycles":1},"legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"+","path":"test/context.sh"}]},{"exp":"exp-mvp-3-ready-set-timing","state":"landed","fin":"exp_fin","cycle":2,"commit":"105cbea174e8b204413cf2428aea78eec2e344d0","deps":[],"timing":{"wall_s":4941,"wait_s":28377,"dwell_s":{"approved":74,"blocked":252,"handed_off":3665,"todo":29327},"cycles":2},"legal_edges":[],"changes":[{"change":"u","path":"test/ready.sh"}]},{"exp":"exp-mvp-4-diagram-emit","state":"landed","fin":"exp_fin","cycle":1,"commit":"fe6efe79513040a1ad8b7a8d7e2d275f961d7415","deps":[],"timing":{"wall_s":744,"wait_s":33940,"dwell_s":{"approved":76,"handed_off":668,"todo":33940},"cycles":1},"legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"+","path":"test/diagram.sh"}]},{"exp":"exp-mvp-5-blocked-fail-fast","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-rename-1-bp3g-rename","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null}],"ready_set_waves":[["exp-dogfood-1-link-drive","exp-dogfood-2-parallel-drive","exp-followup-2-workflow-birth","exp-landing-1-landing-wrapup","exp-mvp-5-blocked-fail-fast","exp-rename-1-bp3g-rename"]],"ready":["exp-dogfood-1-link-drive","exp-dogfood-2-parallel-drive","exp-followup-2-workflow-birth","exp-landing-1-landing-wrapup","exp-mvp-5-blocked-fail-fast","exp-rename-1-bp3g-rename"],"starved":[],"setup":[{"run_id":"20261117T003239Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":null,"setup_wall_s":14},{"run_id":"20261117T003626Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":"grade","setup_wall_s":25},{"run_id":"20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":"verify","setup_wall_s":15},{"run_id":"20261117T004025Z-land-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":"land","setup_wall_s":10},{"run_id":"20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"handoff","setup_wall_s":124},{"run_id":"20261117T010557Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":null,"setup_wall_s":9},{"run_id":"20261117T010735Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"grade","setup_wall_s":18},{"run_id":"20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"verify","setup_wall_s":14},{"run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"land","setup_wall_s":11},{"run_id":"20261117T013825Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":"handoff","setup_wall_s":34},{"run_id":"20261117T030756Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":null,"setup_wall_s":10},{"run_id":"20261117T031033Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":"grade","setup_wall_s":16},{"run_id":"20261117T031039Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":"verify","setup_wall_s":12},{"run_id":"20261117T032158Z-handoff-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":"handoff","setup_wall_s":13},{"run_id":"20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-followup-1-grade-evidence","edge":"handoff","setup_wall_s":33},{"run_id":"20261117T035432Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-followup-1-grade-evidence","edge":null,"setup_wall_s":8},{"run_id":"20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-followup-1-grade-evidence","edge":"grade","setup_wall_s":26},{"run_id":"20261117T035551Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-followup-1-grade-evidence","edge":"verify","setup_wall_s":12},{"run_id":"20261117T040644Z-handoff-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":"handoff","setup_wall_s":17},{"run_id":"20261117T041834Z-node-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":null,"setup_wall_s":7},{"run_id":"20261117T041924Z-grade-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":"grade","setup_wall_s":18},{"run_id":"20261117T041930Z-verify-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":"verify","setup_wall_s":14},{"run_id":"20261117T042103Z-land-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":"land","setup_wall_s":10},{"run_id":"20261117T042227Z-node-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":null,"setup_wall_s":10},{"run_id":"20261117T042421Z-grade-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":"grade","setup_wall_s":18},{"run_id":"20261117T042426Z-verify-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":"verify","setup_wall_s":14},{"run_id":"20261117T042701Z-land-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":"land","setup_wall_s":11},{"run_id":"20261117T042817Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":"handoff","setup_wall_s":40},{"run_id":"20261117T044013Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":null,"setup_wall_s":13},{"run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":"grade","setup_wall_s":16},{"run_id":"20261117T044120Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":"verify","setup_wall_s":10},{"run_id":"20261117T044950Z-land-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":"land","setup_wall_s":7},{"run_id":"20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-5-blocked-fail-fast","edge":"handoff","setup_wall_s":21}],"rollup":"active","fin":null,"inbox":[],"run_id":"20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1"}
+=== src tree ===
+src/quest/config.ml
+src/quest/dune
+src/quest/gitx.ml
+src/quest/harness.ml
+src/quest/hooks.ml
+src/quest/main.ml
+src/quest/render.ml
+src/quest/store.ml
+src/quest/worktree.ml
+=== test tree ===
+test/completion.sh
+test/config.sh
+test/context.sh
+test/diagram.sh
+test/harness.sh
+test/hooks.sh
+test/induct-grade.test.mjs
+test/induct-node.test.mjs
+test/install.sh
+test/link.sh
+test/node-loop.test.mjs
+test/pi-discovery.mjs
+test/q.sh
+test/quest-land.test.mjs
+test/ready.sh
+test/release.sh
+test/skills.sh
+test/tape.sh
+test/traverse-conduct.test.mjs
+test/traverse.sh
+test/worktree.sh
+=== skills ===
+skills/add-bp3-skill/SKILL.md
+skills/add-yap-skill/SKILL.md
+skills/icebox/SKILL.md
+skills/naming/SKILL.md
+skills/quest/SKILL.md
+skills/red-ink-quest-landing-demo/SKILL.md
+skills/red-ink/SKILL.md
+skills/traverse-no-human/SKILL.md
+skills/traverse/SKILL.md
+skills/traverse/workflows/induct-grade.js
+skills/traverse/workflows/induct-node.js
+skills/traverse/workflows/node-loop.js
+skills/traverse/workflows/quest-land.js
+skills/using-bp3/SKILL.md
+     408 src/quest/config.ml
+     125 src/quest/gitx.ml
+    2695 src/quest/harness.ml
+     394 src/quest/hooks.ml
+     800 src/quest/main.ml
+     475 src/quest/render.ml
+     522 src/quest/store.ml
+     547 src/quest/worktree.ml
+    5966 total
+=== grep blocked ===
+src/quest/worktree.ml:263:    base @ [("missing", `Bool true); ("orphan", `Bool false)]
+src/quest/worktree.ml:271:               ("orphan", `Bool false)]
+src/quest/worktree.ml:273:       base @ [("missing", `Bool true); ("orphan", `Bool false)])
+src/quest/worktree.ml:398:let orphan_entry abs =
+src/quest/worktree.ml:417:                        ("orphan", `Bool true); ("missing", `Bool false);
+src/quest/worktree.ml:432:  let orphans = List.filter_map (fun p ->
+src/quest/worktree.ml:434:    else match orphan_entry p with
+src/quest/worktree.ml:441:                                 shown_records @ orphans))]
+src/quest/main.ml:139:  let any_blocked = List.exists (fun e ->
+src/quest/main.ml:140:    match fold_exp quest e with Some (_, s, _) -> s.st = "blocked" | None -> false) exps in
+src/quest/main.ml:141:  if any_blocked && not id.decider_human then
+src/quest/main.ml:143:      "An exp is blocked; a human decision is required (BP3_DECIDER=human)." 1;
+src/quest/main.ml:241:       if s.st = "blocked" && not id.decider_human then
+src/quest/main.ml:243:           "Deleting a blocked exp requires a human (BP3_DECIDER=human)." 1;
+src/quest/main.ml:275:      let blocked_by = List.filter (fun d -> not (dep_satisfied d)) deps in
+src/quest/main.ml:276:      if blocked_by <> [] then
+src/quest/main.ml:277:        err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str blocked_by))])
+src/quest/main.ml:281:      let node_blocked = List.filter (fun d ->
+src/quest/main.ml:285:      if node_blocked <> [] then
+src/quest/main.ml:286:        err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str node_blocked))])
+src/quest/main.ml:298:      let valid = if edge = "grade" then (v = "ship" || v = "needs_fix") else (v = "pass" || v = "fail") in
+src/quest/main.ml:311:          if s.cycle >= knobs.max_cycles then ("blocked", s.cycle) else ("todo", s.cycle + 1) in
+src/quest/main.ml:313:        if nst = "blocked" then begin ns.blocked_reason <- reason; ns.blocked_since <- now_ts () end;
+src/quest/main.ml:317:        if nst = "blocked" then
+src/quest/main.ml:387:      let ns = { s with st = "blocked"; blocked_reason = reason;
+src/quest/main.ml:388:                 blocked_checkpoint = checkpoint; blocked_since = now_ts () } in
+src/quest/main.ml:389:      let line = ledger_line ~edge ~from:s.st ~to_:"blocked" ~cycle:s.cycle
+src/quest/main.ml:394:      if s.st <> "blocked" then illegal s.st edge;
+src/quest/main.ml:575:  Nodes carry state and cycle (landed nodes carry exp_fin), deps are drawn once, todo nodes are grouped into ready-set waves, and a blocked node names the dependents it starves. Output is generated at call time from live state; its header carries the rollup timestamp (generated_at). ascii suits terminals and records, mermaid suits rendered docs, json carries the same facts plus both texts for diffing.\n\
+src/quest/main.ml:581:  grade  --verdict ship|needs_fix --reason <why>\n\
+src/quest/main.ml:608:  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. The depth cap is enforced at link mint (mvp.1, E_DEPTH); W_SETUP_SLOW fires on the quest rollup when a claimed Run's setup_wall_s exceeds setup_slow_s (mvp.3, local only). First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
+src/quest/render.ml:87:        if s.st = "blocked" then Some (`Assoc [
+src/quest/render.ml:89:          ("reason", json_str s.blocked_reason);
+src/quest/render.ml:90:          ("checkpoint", (match s.blocked_checkpoint with Some c -> json_str c | None -> `Null));
+src/quest/render.ml:91:          ("cycle", `Int s.cycle); ("since", json_str s.blocked_since);
+src/quest/render.ml:96:        else if List.exists (fun (_, s) -> s.st = "blocked") exp_states then "blocked"
+src/quest/render.ml:107:           `Assoc [("blocked", json_str b); ("starved", `List (List.map json_str ids))]) starved));
+src/quest/render.ml:110:      ] @ (if setup_slow then [("warnings", `List [json_str "W_SETUP_SLOW"])] else [])),
+src/quest/render.ml:115:  | "handed_off" | "approved" | "blocked" -> "u"
+src/quest/render.ml:188:        let owed = if state = "blocked" then "  (human owed)" else "" in
+src/quest/render.ml:333:   waves group the todo layers, and a blocked node names
+src/quest/render.ml:369:        Some (dstr fs "blocked",
+src/quest/render.ml:399:   | _ -> List.iter (fun (blocked, ids) ->
+src/quest/render.ml:400:       Printf.bprintf b "  %s starves: %s\n" blocked (String.concat ", " ids)) starved);
+src/quest/render.ml:426:  List.iter (fun (blocked, ids) ->
+src/quest/render.ml:427:    Printf.bprintf b "  %%%% %s starves: %s\n" blocked (String.concat ", " ids)) starved;
+src/quest/config.ml:15:   land (depth cap at link mint in mvp.1, W_SETUP_SLOW in
+src/quest/harness.ml:85:   finished / orphaned. A live pid is never finished,
+src/quest/harness.ml:99:      else if not obs.fresh && obs.pid_alive <> Some true then Some "orphaned"
+src/quest/harness.ml:754:      let orphans = List.filter_map (fun v ->
+src/quest/harness.ml:755:        if v.rv_lifecycle = Some "orphaned" then Some (json_str v.rv_id)
+src/quest/harness.ml:765:        ("orphans", `List orphans);
+src/quest/harness.ml:1584:   finish evidence is orphaned at once; a settle row or
+src/quest/harness.ml:1588:  else if alive = Some false then "orphaned"
+src/quest/harness.ml:1590:  else if not fresh && alive <> Some true then "orphaned"
+src/quest/harness.ml:1700:      finish "watchdog_killed" "orphaned"
+src/quest/harness.ml:2589:  Streams NDJSON lifecycle_change rows on stdout, ends with one JSON verdict {ok, quest, outcome, settled, rollup, runs, inbox, orphans}.\n\
+src/quest/harness.ml:2612:  Finish evidence is per harness, read off the tape tail: muse-code scans whole entries from the end, skipping task entries, and the first non-task entry decides — a session.end entry closes the tape, and a runtime terminal entry is a child tape's exit entry (child tapes carry no close marker and end with task entries after it); pi never closes, so only its last whole entry counts (a session_closed entry or a final assistant entry that stopped is its clean end). Exit plus finish evidence (or settle plus finish evidence) with no live pid is settled; a live pid is never finished. A torn final tape entry finishes nothing and warns W_TORN_TAIL. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. Finish evidence or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
+src/quest/store.ml:140:  mutable blocked_reason : string;
+src/quest/store.ml:141:  mutable blocked_checkpoint : string option;
+src/quest/store.ml:142:  mutable blocked_since : string;
+src/quest/store.ml:150:  blocked_reason = ""; blocked_checkpoint = None; blocked_since = "";
+src/quest/store.ml:200:        if (edge = "grade" && get_str j "verdict" "" = "needs_fix") ||
+src/quest/store.ml:205:        if to_ = "blocked" then begin
+src/quest/store.ml:206:          s.blocked_reason <- get_str j "reason" "";
+src/quest/store.ml:207:          s.blocked_checkpoint <- get_opt j "checkpoint";
+src/quest/store.ml:208:          s.blocked_since <- get_str j "ts" ""
+src/quest/store.ml:288:  | "blocked" -> ["resume"; "delete"]
+src/quest/store.ml:446:    if b.n_state <> "blocked" then None
+=== node-loop / induct-node ===
+     821 skills/traverse/workflows/induct-grade.js
+     359 skills/traverse/workflows/induct-node.js
+     349 skills/traverse/workflows/node-loop.js
+     260 skills/traverse/workflows/quest-land.js
+     132 test/completion.sh
+     147 test/config.sh
+     113 test/context.sh
+     101 test/diagram.sh
+     709 test/harness.sh
+     183 test/hooks.sh
+      46 test/install.sh
+     209 test/link.sh
+     591 test/q.sh
+     171 test/ready.sh
+      65 test/release.sh
+     168 test/skills.sh
+      69 test/tape.sh
+       9 test/traverse.sh
+     233 test/worktree.sh
+     561 test/induct-grade.test.mjs
+     103 test/induct-node.test.mjs
+     184 test/node-loop.test.mjs
+      55 test/pi-discovery.mjs
+     111 test/quest-land.test.mjs
+     135 test/traverse-conduct.test.mjs
+    5884 total
+=== sample prior exp changes mvp3 ===
+commit b765d076ad5aca6b322a95f193c15ae190825a9c
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 22:05:07 2026 -0500
+
+    feat(mvp.3): ready-set waves, node deps, derived timing, setup gate, induct-node loop
+
+ .agents/workflows/induct-node.js         | 359 +++++++++++++++++++++++++++++++
+ Makefile                                 |   4 +-
+ bin/bp3                                  |   2 +-
+ skills/traverse/SKILL.md                 |  17 ++
+ skills/traverse/workflows/induct-node.js | 359 +++++++++++++++++++++++++++++++
+ src/quest/main.ml                        |  86 +++++++-
+ src/quest/render.ml                      |  74 ++++++-
+ src/quest/store.ml                       | 118 +++++++++-
+ test/induct-node.test.mjs                | 103 +++++++++
+ test/ready.sh                            | 163 ++++++++++++++
+ test/skills.sh                           |   2 +
+ test/traverse.sh                         |   1 +
+ 12 files changed, 1266 insertions(+), 22 deletions(-)
+./test/harness.sh:345:# --- supervisor mechanism (mvp.4 writer/cache; mvp.5 legacy read retired) ---
+./test/harness.sh:376:echo "$last" | jq -e '([.runs[] | select(.run_id == "L-leg")] | length) == 0' >/dev/null || fail "mvp.5 legacy registry still read: $last"
+./test/harness.sh:377:echo "$last" | jq -e '([.runs[] | select(.run_id == "L-events")] | length) == 0' >/dev/null || fail "mvp.5 legacy events still read: $last"
+./test/harness.sh:378:echo "$last" | jq -e '(.runs[] | select(.run_id == "R-active") | .lifecycle == "active")' >/dev/null || fail "mvp.5 derived wins, no silent merge: $last"
+./test/harness.sh:388:[ "$(shasum -a 256 "$reg" | cut -d' ' -f1)" = "$reg_hash" ] || fail "mvp.5 legacy registry rewritten"
+./test/harness.sh:389:[ "$(stat -f %m "$reg" 2>/dev/null || stat -c %Y "$reg")" = "$reg_mtime" ] || fail "mvp.5 legacy registry mtime moved"
+./test/harness.sh:390:[ "$(shasum -a 256 "$evdir/L-events.jsonl" | cut -d' ' -f1)" = "$ev_hash" ] || fail "mvp.5 legacy events rewritten"
+./test/harness.sh:701:if grep -q "bp3-run-registry" "$root/src/quest/harness.ml"; then fail "mvp.5 retired registry spelling in harness.ml"; fi
+./test/harness.sh:702:if grep -q "bp3-run-events" "$root/src/quest/harness.ml"; then fail "mvp.5 retired events spelling in harness.ml"; fi
+./test/harness.sh:703:if grep -q "legacy_views" "$root/src/quest/harness.ml"; then fail "mvp.5 legacy import still in harness.ml"; fi
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/QUEST.md:490:bp3.call_edge(ctx, result) if result.ok else fail_fast(result)
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/QUEST.md:623:### mvp.5 - blocked-fail-fast — [record](experiments/exp-mvp-5-blocked-fail-fast/EXPERIMENT.md)
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/QUEST.md:697:                            ├─► mvp.5 ────────┐
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/QUEST.md:700:                            mvp.3 ────────────┘ (and mvp.5, dogfood.1 feed it)
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/QUEST.md:703:         -> [mvp.4, mvp.5] -> [dogfood.2] -> [rename.1] -> [followup.1, followup.2] -> [landing.1]
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/EXPERIMENT.md:53:| Depends on | mvp.3, mvp.5, dogfood.1 |
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/EXPERIMENT.md:4:exp: mvp.5
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/EXPERIMENT.md:8:# mvp.5 - blocked-fail-fast: no parked workers
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/QUEST.md:150:verdicts — not a file family. mvp.5 owns deleting
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/QUEST.md:325:### mvp.5 - delete-redundant — [record](experiments/exp-mvp-5-delete-redundant/EXPERIMENT.md)
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/TEST-HARDENING.md:94:## Local derived-log storage (mvp.5)
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-mvp-5-delete-redundant/EXPERIMENT.md:4:exp: mvp.5
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-mvp-5-delete-redundant/EXPERIMENT.md:8:# mvp.5 - delete-redundant: remove superseded witness plumbing
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md:20:findings: 14 -> fixed 9 (mvp.4-mvp.5), iceboxed 3, rejected 2
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-landing-1-landing-wrapup/runs/20261116T053352Z-submit-muse-code-muse-wonder-1.0-c1/scorecard.md:25:| exp-mvp-5-delete-redundant | landed, cycle 1 | `3b8cb47e67ae74a47f351adc0a70922a0cf057e3` | shared-map witness deleted after shadow parity; `run-lifecycle-derivations` sole store |
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-mvp-4-supervisor-mechanism/EXPERIMENT.md:101:Deletion of the replaced machinery is mvp.5, not
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/DECISION-RECORD.md:45:| 14 | Names/code | The rename binds implementation, not just prose: new OCaml code/tests use `init_record` and the four lifecycle strings; `SpawnRecord` and the old lifecycle synonyms are retired. Current `src/` has no `SpawnRecord` identifier — the legacy hooks `binding` record is separate legacy machinery, deleted by mvp.5 rather than cosmetically renamed. |
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/DECISION-RECORD.md:71:| S19 | mvp.5 deletion pass is its own MVP step | registry/prefix machinery is live in code, workflows, and tests, so deletion needs inventory + parity + cutover, not a footnote | mvp.5 record + QUEST railway |
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/DECISION-RECORD.md:117:derivations migration); new mvp.5 deletes redundant
+./_build/default/src/quest/harness.ml:17:   per Run. Since mvp.5 it is also the sole reader: the
+./_build/default/src/quest/harness.ml:2592:  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Since mvp.5 the derivation logs are the sole lifecycle read path; the retired shared maps are never read or written. Writer discipline (followup.1): each row is a single write() on an O_APPEND descriptor and the cache is a uniquely named temp file in the same directory, fsynced and renamed over the old cache, so parallel supervisors never tear a row or the cache; a torn final line is ignored by the fold and reported as W_TORN_TAIL. Tape binding (followup.3, pinned by followup.4): when the InitRecord names no tape, the first pointer-only tape_binding row in the same log names it, one tape to one Run, never rebound; with no tape at all the probe is blind (W_SUPERVISOR_BLIND) and the lifecycle stays init.\n\
+./src/quest/harness.ml:17:   per Run. Since mvp.5 it is also the sole reader: the
+./src/quest/harness.ml:2592:  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Since mvp.5 the derivation logs are the sole lifecycle read path; the retired shared maps are never read or written. Writer discipline (followup.1): each row is a single write() on an O_APPEND descriptor and the cache is a uniquely named temp file in the same directory, fsynced and renamed over the old cache, so parallel supervisors never tear a row or the cache; a torn final line is ignored by the fold and reported as W_TORN_TAIL. Tape binding (followup.3, pinned by followup.4): when the InitRecord names no tape, the first pointer-only tape_binding row in the same log names it, one tape to one Run, never rebound; with no tape at all the probe is blind (W_SUPERVISOR_BLIND) and the lifecycle stays init.\n\
+=== harness watch/orphan ===
+2:   find-tape, watch, desk. mvp.1 built the door, the
+5:   watch in mvp.3, and desk in mvp.6 (a thin delegation to
+10:   from a watch outcome: tick phases are tell -> watch ->
+85:   finished / orphaned. A live pid is never finished,
+99:      else if not obs.fresh && obs.pid_alive <> Some true then Some "orphaned"
+103:   watchdog_killed the terminal domain class (1). No
+109:  | "watchdog_killed" -> 1
+722:    (* tell: derive Runs; watch: passive observation only,
+754:      let orphans = List.filter_map (fun v ->
+755:        if v.rv_lifecycle = Some "orphaned" then Some (json_str v.rv_id)
+765:        ("orphans", `List orphans);
+1431:(* ---------- watch (mvp.3) ---------- *)
+1476:   is watched blind (W_SUPERVISOR_BLIND) on its pid alone.
+1480:let resolve_watch fl =
+1482:   | None, None -> usage "watch needs --run-id or --session-id"
+1584:   finish evidence is orphaned at once; a settle row or
+1586:let watch_lifecycle ~alive ~exit_obs ~evidence ~settle ~tape_seen ~fresh =
+1588:  else if alive = Some false then "orphaned"
+1590:  else if not fresh && alive <> Some true then "orphaned"
+1593:let do_watch args =
+1595:  let (wal, harness, session_id, pid, run_id, blind0) = resolve_watch fl in
+1653:    let lifecycle = watch_lifecycle ~alive ~exit_obs:!exit_obs
+1700:      finish "watchdog_killed" "orphaned"
+2209:       if not (List.mem e ["handoff"; "grade"; "verify"; "land"; "block"; "resume"])
+2576:  bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]   passive loop: tell -> watch -> judge -> finalize\n\
+2577:  bp3 harness init-check [--engine muse-code|pi]   probe tape sources; blindness is W_SUPERVISOR_BLIND, never blocking\n\
+2579:  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]   blocking watch: sole TERM/KILL owner\n\
+2585:Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init, t=bind-tape, b=backtest, l=link. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
+2589:  Streams NDJSON lifecycle_change rows on stdout, ends with one JSON verdict {ok, quest, outcome, settled, rollup, runs, inbox, orphans}.\n\
+2590:  Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
+2597:  Emits {ok, checks}; a missing or reshaped tape source adds W_SUPERVISOR_BLIND to warnings and never blocks work.\n\
+2608:let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
+2609:  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
+2610:  bp3 harness watch --session-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
+2611:  Engine is derived from the Run InitRecord, never stated. Finds the tape like find-tape, then blocks in code: streams NDJSON lifecycle_change rows and ends with one verdict {ok, run_id, harness, session_id, wal, pid, outcome, settled, lifecycle}.\n\
+2612:  Finish evidence is per harness, read off the tape tail: muse-code scans whole entries from the end, skipping task entries, and the first non-task entry decides — a session.end entry closes the tape, and a runtime terminal entry is a child tape's exit entry (child tapes carry no close marker and end with task entries after it); pi never closes, so only its last whole entry counts (a session_closed entry or a final assistant entry that stopped is its clean end). Exit plus finish evidence (or settle plus finish evidence) with no live pid is settled; a live pid is never finished. A torn final tape entry finishes nothing and warns W_TORN_TAIL. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. Finish evidence or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
+2614:  Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
+2615:Example: bp3 harness watch --run-id 20261115T000000Z-handoff-pi-model-c1 --silence-seconds 600\n"
+2655:  | "w" | "watch" -> "watch"
+2663:  | [] -> usage "harness needs a verb: supervisor, init-check, find-tape, watch, desk, link, record-init, bind-tape, or backtest"
+2670:        | "watch" -> help_watch
+2686:       | "watch" -> do_watch rest
+=== Makefile ===
+.PHONY: check test lint release publish install
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/ready.sh
+	./test/diagram.sh
+	./test/harness.sh
+	./test/config.sh
+	./test/link.sh
+	./test/context.sh
+	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/traverse.sh
+	./test/completion.sh
+	./test/release.sh
+	./test/install.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	node --check skills/traverse/workflows/induct-node.js
+	node --check skills/traverse/workflows/node-loop.js
+	node --check skills/traverse/workflows/induct-grade.js
+	node --check skills/traverse/workflows/quest-land.js
+
+test:
+	./test/skills.sh
+
+# --- release (Exp 5): tag-gated artifact + checksum; publish-once via gh ---
+RELEASE_VERSION := $(shell sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' src/quest/gitx.ml | head -1)
+RELEASE_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+RELEASE_ARCH := $(shell uname -m)
+RELEASE_ARTIFACT := dist/bp3-q-v$(RELEASE_VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
+
+release:
+	@./scripts/release-check >/dev/null
+	$(DUNE_BUILD) src/quest/main.exe
+	mkdir -p dist
+	cp _build/default/src/quest/main.exe $(RELEASE_ARTIFACT)
+	cd dist && shasum -a 256 $$(basename $(RELEASE_ARTIFACT)) > $$(basename $(RELEASE_ARTIFACT)).sha256
+	@echo "released $(RELEASE_ARTIFACT)"
+
+publish: release
+	./scripts/release-publish $(RELEASE_ARTIFACT) $(RELEASE_ARTIFACT).sha256
+
+PREFIX ?= $(HOME)/.local
+install:
+	PREFIX="$(PREFIX)" ./scripts/install-bp3.sh
+=== render inbox/blocked ===
+1:(* render — verdict builders and the human tree view. *)
+86:      let inbox = List.filter_map (fun (e, s) ->
+87:        if s.st = "blocked" then Some (`Assoc [
+89:          ("reason", json_str s.blocked_reason);
+90:          ("checkpoint", (match s.blocked_checkpoint with Some c -> json_str c | None -> `Null));
+91:          ("cycle", `Int s.cycle); ("since", json_str s.blocked_since);
+96:        else if List.exists (fun (_, s) -> s.st = "blocked") exp_states then "blocked"
+107:           `Assoc [("blocked", json_str b); ("starved", `List (List.map json_str ids))]) starved));
+109:        ("rollup", json_str rollup); ("fin", fin); ("inbox", `List inbox);
+111:       inbox, rollup, qs)
+115:  | "handed_off" | "approved" | "blocked" -> "u"
+188:        let owed = if state = "blocked" then "  (human owed)" else "" in
+203:  (match get "inbox" with
+205:       Printf.printf "human owed:\n";
+333:   waves group the todo layers, and a blocked node names
+369:        Some (dstr fs "blocked",
+399:   | _ -> List.iter (fun (blocked, ids) ->
+400:       Printf.bprintf b "  %s starves: %s\n" blocked (String.concat ", " ids)) starved);
+426:  List.iter (fun (blocked, ids) ->
+427:    Printf.bprintf b "  %%%% %s starves: %s\n" blocked (String.concat ", " ids)) starved;
+=== q.sh blocked tests ===
+32:echo "$out" | jq -e '.ok == true and .state == "todo" and .cycle == 1' >/dev/null || fail "exp create: $out"
+85:echo "$out" | jq -e '.ok == true and .state == "handed_off" and .cycle == 1' >/dev/null || fail "handoff: $out"
+112:append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:00:00Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":null,\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+114:echo "$out" | jq -e --arg c "$B" '.state == "handed_off" and .cycle == 1 and .commit == $c and (.legal_edges | index("grade") != null) and (.legal_edges | index("verify") != null)' >/dev/null || fail "compat old submit folds handed_off: $out"
+115:append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:01:00Z\",\"edge\":\"review\",\"from\":\"submitted\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"ship\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+116:append_ledger_line compat-exp "{\"ts\":\"2026-01-01T00:02:00Z\",\"edge\":\"check\",\"from\":\"submitted\",\"to\":\"approved\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"pass\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+118:echo "$out" | jq -e '.state == "approved" and .cycle == 1' >/dev/null || fail "compat old grade/verify fold approved: $out"
+136:append_ledger_line mixed-exp "{\"ts\":\"2026-01-01T00:03:00Z\",\"edge\":\"review\",\"from\":\"submitted\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"ship\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+137:append_ledger_line mixed-exp "{\"ts\":\"2026-01-01T00:04:00Z\",\"edge\":\"check\",\"from\":\"submitted\",\"to\":\"approved\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"pass\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
+139:echo "$out" | jq -e '.state == "approved" and .cycle == 1' >/dev/null || fail "mixed vocab folds approved: $out"
+157:# --- blocked inbox after needs_fix at max_cycles (default max_cycles=1) ---
+160:out=$(q demo u parser-fix2 grade --verdict needs_fix --reason "broken")
+161:echo "$out" | jq -e '.ok == true and .state == "blocked" and .human_action_required == true' >/dev/null || fail "needs_fix blocks at max: $out"
+163:echo "$out" | jq -e '(.inbox | length == 1) and .inbox[0].quest == "demo" and .inbox[0].exp == "parser-fix2" and .inbox[0].reason == "broken" and (.inbox[0] | has("checkpoint")) and (.inbox[0] | has("cycle")) and (.inbox[0] | has("since"))' >/dev/null || fail "blocked inbox: $out"
+168:echo "$tbl" | grep -q "parser-fix2" || fail "table missing blocked exp"
+169:echo "$tbl" | grep -q "blocked" || fail "table missing blocked state"
+173:echo "$tbl" | sed -n 2p | grep -Eq '^exp +state +cycle +commit +changes$' || fail "quest table columns: $tbl"
+178:echo "$etbl" | sed -n 1p | grep -Eq '^demo / parser-fix — landed, cycle 1, commit [0-9a-f]{7}, legal: ' || fail "exp table summary: $etbl"
+185:echo "$ntbl" | sed -n 1p | grep -q 'commit -, legal: handoff, block, delete' || fail "null commit cell: $ntbl"
+193:echo "$tree" | grep -q "u parser-fix2 - blocked" || fail "tree blocked marker: $tree"
+198:echo "$etree" | grep -q "u parser-fix2 - blocked" || fail "exp tree marker: $etree"
+199:echo "$etree" | grep -q "legal: resume, delete" || fail "exp tree legal edges: $etree"
+263:echo "$out" | jq -e '.state == "handed_off" and .cycle == 1' >/dev/null || fail "stale handoff A: $out"
+264:out=$(q demo u stale-exp block --reason "hold")
+265:echo "$out" | jq -e '.state == "blocked"' >/dev/null || fail "stale block: $out"
+266:out=$(BP3_DECIDER=human q demo u stale-exp resume --reason "go simpler")
+267:echo "$out" | jq -e '.state == "todo" and .cycle == 2' >/dev/null || fail "stale resume: $out"
+271:echo "$out" | jq -e '.state == "handed_off" and .cycle == 2' >/dev/null || fail "stale handoff B: $out"
+319:# --- needs_fix at max_cycles blocked; resume human gate (parser-fix2 above) ---
+321:if out=$(q demo u parser-fix2 resume --reason "go" 2>&1); then fail "resume without human accepted"; fi
+322:echo "$out" | jq -e '.ok == false and .error.code == "E_HUMAN_REQUIRED"' >/dev/null || fail "resume human code: $out"
+324:[ "$before" = "$after" ] || fail "refused resume ledgered"
+326:echo "$out" | jq -e '.state == "blocked" and .cycle == 1 and (.legal_edges | index("resume") != null) and (.legal_edges | index("delete") != null)' >/dev/null || fail "blocked legal edges: $out"
+327:out=$(BP3_DECIDER=human q demo u parser-fix2 resume --reason "go simpler")
+328:echo "$out" | jq -e '.ok == true and .state == "todo" and .cycle == 2' >/dev/null || fail "resume human todo cycle+1: $out"
+330:echo "$out" | jq -e '[.inbox[] | select(.exp == "parser-fix2")] | length == 0' >/dev/null || fail "resumed exp still in inbox: $out"
+384:cycle_before=$(q demo r land-d | jq -r '.cycle')
+386:echo "$out" | jq -e --argjson cyc "$cycle_before" '.ok == true and .state == "todo" and .cycle == $cyc and .facts.land_conflict == true' >/dev/null || fail "land-d conflict demotion: $out"
+388:echo "$out" | jq -e --argjson cyc "$cycle_before" '.state == "todo" and .cycle == $cyc' >/dev/null || fail "land-d cycle changed: $out"
+395:# --- dirty-tree handoff refused; block checkpoint is a real commit ---
+412:out=$(q demo u dirty-exp block --reason "stuck")
+413:echo "$out" | jq -e '.ok == true and .state == "blocked" and .human_action_required == true' >/dev/null || fail "dirty block: $out"
+415:[ -n "$checkpoint" ] && [ "$checkpoint" != "null" ] || fail "block checkpoint missing"
+421:# --- delete from blocked requires human; tombstone keeps branch ref ---
+423:if out=$(q demo d dirty-exp --reason "gone" 2>&1); then fail "delete blocked without human accepted"; fi
+424:echo "$out" | jq -e '.ok == false and .error.code == "E_HUMAN_REQUIRED"' >/dev/null || fail "delete blocked code: $out"
+428:echo "$out" | jq -e '.state == "blocked"' >/dev/null || fail "refused delete changed state: $out"
+430:echo "$out" | jq -e '.ok == true and .state == "deleted"' >/dev/null || fail "delete blocked human: $out"
+437:out=$(q demo c clone-blocked)
+438:echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "clone-blocked create: $out"
+441:out=$(q demo u clone-blocked handoff --commit "$CB_WORK" --reason "work")
+442:echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "clone-blocked handoff: $out"
+443:out=$(q demo u clone-blocked grade --verdict needs_fix --reason "clone blocked reason")
+444:echo "$out" | jq -e '.state == "blocked" and .human_action_required == true' >/dev/null || fail "clone-blocked blocks: $out"
+445:before_clone=$(q r demo | jq -S -c '{quest, state, rollup, exps: (.exps | sort_by(.exp) | map({exp, state, cycle, commit})), inbox: (.inbox | sort_by(.exp))}')
+450:test ! -f docs/quests/demo/experiments/clone-blocked/state.yaml || fail "clone worktree carries state.yaml; branch-tip proof unclear"
+452:after_clone=$(clone_q r demo | jq -S -c '{quest, state, rollup, exps: (.exps | sort_by(.exp) | map({exp, state, cycle, commit})), inbox: (.inbox | sort_by(.exp))}')
+454:out=$(clone_q demo r clone-blocked)
+455:echo "$out" | jq -e '.state == "blocked"' >/dev/null || fail "clone blocked exp: $out"
+461:echo "$out" | jq -e '.rollup == "blocked" and ([.inbox[] | select(.exp == "clone-blocked" and .reason == "clone blocked reason")] | length == 1)' >/dev/null || fail "clone rollup/inbox: $out"
+547:  blob=$(printf '%s\n{"ts":"2026-01-01T00:00:00Z","edge":"note","from":"todo","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"fixture stamp","harness":"t","model":"t","bp3_version":"%s"}\n' "$led" "$3" | git hash-object -w --stdin)
+559:out=$(q demo u vf-exp block --reason "minor ahead still writes")
+560:echo "$out" | jq -e '.ok == true and .state == "blocked" and (.warnings | index("W_VERSION_AHEAD") != null)' >/dev/null || fail "minor-ahead write: $out"
+563:if out=$(q demo u parser-fix block --reason "major ahead must refuse" 2>&1); then fail "major-ahead write accepted: $out"; fi
+578:for w in handoff grade verify land block resume --verdict --commit --reason --target; do echo "$out" | grep -qw -- "$w" || fail "update help missing $w: $out"; done
+=== pi extension ===
+extensions/bp3-pi/index.ts
+extensions/bp3-pi/package.json
+extensions/bp3-pi/README.md
+extensions/bp3-pi/roles/author.md
+extensions/bp3-pi/roles/checker.md
+extensions/bp3-pi/roles/lander.md
+extensions/bp3-pi/roles/reviewer.md
+extensions/bp3-pi/src/contract.ts
+extensions/bp3-pi/src/dispatcher.ts
+extensions/bp3-pi/src/roles.ts
+extensions/bp3-pi/test/bp3-pi.test.mjs
+=== traverse skill blocked ===
+11:blocks. One quest per traverse. One output: step dispatches
+13:`exp_fin`, what is blocked, and what human decision is owed
+37:Cycles are weather; blocks are decisions. A `needs_fix`
+39:it (Procedure step 3) without paging the owner. `blocked` is
+41:owed. Fake blocks train rubber-stamps; never manufacture one
+49:blocked work parks in the inbox instead of paging, a
+65:   the railway order, and the blocked inbox. Trust only this
+88:   | `blocked` | human gate (step 4) | — |
+100:   `blocked`, or `deleted`). The state-step workflows in
+104:   re-checked against the new quest tip. A blocked node
+129:   still uncollectable returns outcome `audit_failure`,
+131:   grader paperwork, never as a product `needs_fix`, and
+138:   Cycle autonomy: when a grade returns `needs_fix` (or a
+139:   verify returns `fail`) and the re-read shows the exp back
+149:   leaves the cycle (`landed`, `blocked`, or `deleted`) or
+151:   reached (the exp in `blocked` at the cap), the conductor
+153:   blocked gate instead of dispatching another cycle.
+159:   and never supplies a commit. A blocked Run is never
+182:  called by step children (and at the blocked gate, by this
+190:  Attestation is owed at the blocked gate only; a
+191:  `needs_fix` cycle below the cap needs no attestation,
+=== pi test blocked ===
+83:test("extension registers exactly four tools and loads fail-open", async () => {
+242:test("await_runs: hung child is killed by watch alone and lands orphaned, never finished", async () => {
+256:    assert.equal(verdict.lifecycle, "orphaned");
+286:test("fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish", async () => {
+6:// escalation only, blocked/confused/lying and named.
+17:// `audit_failure`, naming the row and the collection error,
+20:// verdict edges directly; a cast refused with E_ILLEGAL_EDGE
+22:// race, not an unexplained refusal. Grade children never
+26:// proof. Returns {outcome, matrix, run_ids, refusals};
+119:    verdict: ok ? "pass" : "fail",
+133:    verdict: shown && clean ? "pass" : "fail",
+175:    verdict: chosen !== "" ? "pass" : "fail",
+190:    verdict: ok ? "pass" : "fail",
+205:    verdict: ok ? "pass" : "fail",
+238:// Deferred is a disposition, not a failure: the exp's own
+264:  "only when blocked, confused, or lying, and named in the " +
+277:// naming none of blocked/confused/lying is no evidence.
+279:  return /\b(blocked|confused|lying)\b/i.test(text);
+283:// deferred; a verdict outside pass|fail|missing|deferred is
+292:    row && ["pass", "fail", "missing", "deferred"].indexOf(row.verdict) >= 0
+344:  if (state === "blocked" || state === "deleted" || state === "landed") {
+354:  if (state === "handed_off") return "refused";
+382:  const refusals = [];
+387:      outcome: "refused",
+390:      refusals: ["missing quest, exp, ts, or commit in workflow args"],
+404:        "code fences. If the command fails, return its stdout JSON " +
+463:  // refused write means that child never starts.
+465:    const fsm = ["handoff", "grade", "verify", "land", "block", "resume"].includes(edge);
+481:        "fails, return its stdout JSON verdict verbatim instead. " +
+487:      refusals.push(
+488:        "link mint refused before the " + edge + " child: " +
+510:      "the collision. Run-id folders must fail if they already " +
+526:    refusals.push("initial read failed: " + (before.raw || "no verdict"));
+527:    return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+530:    return { exp: exp, outcome: before.state, matrix: [], run_ids: runIds, refusals: refusals };
+534:    refusals.push(
+537:    return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+545:  // fails as an audit failure with no FSM verdict.
+578:    refusals.push(
+579:      "audit failure: grade validations pipeline returned no observations: " +
+582:    return { exp: exp, outcome: "audit_failure", matrix: [], run_ids: runIds, refusals: refusals };
+591:    return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+610:      "quote}, verdict: pass|fail|missing|deferred}: name the rung " +
+614:      "escalation (blocked, confused, or lying) in its case or " +
+619:      "Deferred is a disposition, not a failure: when an " +
+651:    // No matrix at all is a collection failure, not a defect.
+652:    refusals.push(
+653:      "audit failure: row \"evidence audit\" carries no typed evidence " +
+658:    return { exp: exp, outcome: "audit_failure", matrix: adherence, run_ids: runIds, refusals: refusals };
+663:  // the retry are an explicit audit failure, never needs_fix.
+678:        "ref, quote}, verdict: pass|fail|missing|deferred} quoting " +
+704:        refusals.push(
+705:          "audit failure: row \"" + name + "\" carries no typed evidence " +
+712:        outcome: "audit_failure",
+715:        refusals: refusals,
+723:  // or fail row means the positive verdict is not available to
+728:    "names the exp that owns it) and never block: ignore them. " +
+729:    "Any gated row with verdict fail or missing means the work " +
+731:    "A rung 5a fail row blocks citing its pointer: cast the " +
+733:    "names its escalation (blocked, confused, or lying); an " +
+739:    return { exp: exp, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
+772:    "or the same call with `--verdict fail` when any check " +
+773:    "fails. Children call `bp3 q u` directly; never only " +
+790:    refusals.push("re-read after grade failed: " + (after.raw || "no verdict"));
+792:      refusals.push(errorText(stageResults[i]));
+794:    return { exp: exp, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
+801:  // race and is named as such, never an unexplained refusal.
+807:      refusals.push(
+808:        "expected verdict race: " + stageEdges[i] + " cast refused with " +
+810:        after.state + "; the refused cast is expected and does not " +
+815:  if (outcome === "refused" && !raced) {
+817:      refusals.push(errorText(stageResults[i]));
+820:  return { exp: exp, outcome: outcome, matrix: matrix, run_ids: runIds, refusals: refusals };
+=== quest-land ===
+94:        "code fences. If the command fails, return its stdout JSON " +
+155:    const fsm = ["handoff", "grade", "verify", "land", "block", "resume"].includes(edge);
+171:        "fails, return its stdout JSON verdict verbatim instead. " +
+200:      "the collision. Run-id folders must fail if they already " +
+216:    refusals.push("initial read failed: " + (before.raw || "no verdict"));
+255:    refusals.push("re-read after land failed: " + (after.raw || "no verdict"));
+=== git diff base? ===
+On branch quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+nothing to commit, working tree clean
+=== recent diagram test ===
+#!/usr/bin/env bash
+# mvp.4: diagram verb — ascii + mermaid generated from the
+# live rollup. Fixture graphs are built through bp3 q itself;
+# both formats must carry the rollup facts of the same moment.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+commit_on_exp() { # $1 quest $2 exp $3 path $4 content -> new tip
+  local branch="refs/heads/bp3/exp/$1/$2" tip blob tree new_tip idx="$work/idx-$1-$2"
+  tip=$(git rev-parse "$branch"); rm -f "$idx"
+  blob=$(printf '%s' "$4" | git hash-object -w --stdin)
+  GIT_INDEX_FILE="$idx" git read-tree "$tip"
+  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$3"
+  tree=$(GIT_INDEX_FILE="$idx" git write-tree)
+  new_tip=$(printf 'work %s\n' "$2" | git commit-tree "$tree" -p "$tip")
+  git update-ref "$branch" "$new_tip" "$tip"; rm -f "$idx"
+  printf '%s' "$new_tip"
+}
+land_exp() { # $1 quest $2 exp $3 path
+  local c; c=$(commit_on_exp "$1" "$2" "$3" "content-$2")
+  q "$1" u "$2" handoff --commit "$c" --reason work >/dev/null
+  q "$1" u "$2" grade --verdict ship --reason ok >/dev/null
+  q "$1" u "$2" verify --verdict pass --reason ok >/dev/null
+  q "$1" u "$2" land --reason ship >/dev/null
+}
+
+# --- diamond: waves, deps, landed marker, honest labels ---
+q c graph1 >/dev/null
+q graph1 c na >/dev/null; q graph1 c nb >/dev/null
+q graph1 c nc --depends-on na,nb >/dev/null
+land_exp graph1 na fa.txt
+ascii=$(q graph1 diagram --format ascii)
+mermaid=$(q graph1 diagram --format mermaid)
+echo "$ascii" | grep -q "generated from live state at 20" || fail "ascii honest label: $ascii"
+echo "$mermaid" | grep -q "generated from live state at 20" || fail "mermaid honest label: $mermaid"
+echo "$ascii" | grep -qx "  na (landed, cycle 1, exp_fin)" || fail "ascii landed node: $ascii"
+echo "$ascii" | grep -qx "  nb (todo, cycle 1)" || fail "ascii todo node: $ascii"
+echo "$ascii" | grep -qx "  na .* nc" || fail "ascii dep na->nc: $ascii"
+echo "$ascii" | grep -qx "  nb .* nc" || fail "ascii dep nb->nc: $ascii"
+echo "$ascii" | grep -qx "  wave 1: nb" || fail "ascii wave: $ascii"
+echo "$mermaid" | grep -q 'na\["na (landed, cycle 1, exp_fin)"\]' || fail "mermaid landed node: $mermaid"
+echo "$mermaid" | grep -q 'nb -->|dep| nc' || fail "mermaid dep nb->nc: $mermaid"
+echo "$mermaid" | grep -q 'na -->|dep| nc' || fail "mermaid dep na->nc: $mermaid"
+echo "$mermaid" | grep -q 'wave 1' || fail "mermaid wave: $mermaid"
+# every node and dep exactly once per format (definitions)
+for fmt in ascii mermaid; do
+  out=$(q graph1 diagram --format "$fmt")
+  [ "$(echo "$out" | grep -c 'na (landed')" = 1 ] || fail "$fmt na defined once: $out"
+  [ "$(echo "$out" | grep -c 'nc (todo')" = 1 ] || fail "$fmt nc defined once: $out"
+  [ "$(echo "$out" | grep -c 'dep' )" -ge 2 ] || fail "$fmt deps drawn: $out"
+done
+# json carries the same facts plus both texts
+out=$(q graph1 diagram --format json)
+echo "$out" | jq -e '.ok == true and .format == "json" and (.generated_at | test("^20")) and .ready_set_waves == [["nb"],["nc"]] and (.deps | sort_by(.from) == [{"from":"na","to":"nc"},{"from":"nb","to":"nc"}]) and (.diagram_ascii | contains("na (landed, cycle 1, exp_fin)")) and (.diagram_mermaid | contains("graph LR"))' >/dev/null || fail "json facts: $out"
+
+# --- ascii is current: moving one node changes that node ---
+before=$(q graph1 diagram --format ascii)
+q graph1 u nb block --reason "choose storage" >/dev/null
+after=$(q graph1 diagram --format ascii)
+echo "$after" | grep -qx "  nb (blocked, cycle 1)" || fail "ascii current state: $after"
+echo "$after" | grep -qx "  nb starves: nc" || fail "ascii starved: $after"
+m2=$(q graph1 diagram --format mermaid)
+echo "$m2" | grep -q "nb starves: nc" || fail "mermaid starved: $m2"
+echo "$m2" | grep -q 'nb (blocked, cycle 1)' || fail "mermaid blocked node: $m2"
+[ "$(diff <(echo "$before") <(echo "$after") | grep -c '^[<>]')" -ge 2 ] || fail "diagram did not change"
+
+# --- read-only: diagram writes no ledger line ---
+tip_before=$(git rev-parse bp3/exp/graph1/nb)
+q graph1 diagram --format ascii >/dev/null; q graph1 diagram --format mermaid >/dev/null; q graph1 diagram --format json >/dev/null
+[ "$(git rev-parse bp3/exp/graph1/nb)" = "$tip_before" ] || fail "diagram wrote state"
+
+# --- strict argv + help at its door ---
+if out=$(q graph1 diagram --format svg 2>&1); then fail "bad format accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "bad format code: $out"
+if out=$(q graph1 diagram extra 2>&1); then fail "stray positional accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "stray code: $out"
+if out=$(q nope diagram --format ascii 2>&1); then fail "unknown quest accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "unknown quest code: $out"
+out=$(q graph1 diagram -h) || fail "diagram -h exit"
+echo "$out" | grep -q -- "--format ascii|mermaid|json" || fail "diagram help flags: $out"
+echo "$out" | grep -q "generated" || fail "diagram help generated: $out"
+out=$(q graph1 -h) || fail "exp door -h exit"
+echo "$out" | grep -q "diagram" || fail "exp door help diagram: $out"
+out=$(BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q -h) || fail "q -h exit"
+echo "$out" | grep -q "diagram" || fail "q help diagram: $out"
+
+echo "diagram tests: ok"
+agents copy identical
+induct-grade.js
+induct-node.js
+node-loop.js
+quest-land.js
+=== exp_verdict ===
+44:let exp_verdict quest e s deps t =
+69:let quest_view q =
+#!/bin/sh
+# traverse workflow contract tests (mock host, no agent calls).
+set -eu
+cd "$(dirname "$0")/.."
+node test/node-loop.test.mjs
+node test/induct-node.test.mjs
+node test/induct-grade.test.mjs
+node test/quest-land.test.mjs
+node test/traverse-conduct.test.mjs
+=== skills.sh mjs ===
+test/traverse.sh:5:node test/node-loop.test.mjs
+test/traverse.sh:6:node test/induct-node.test.mjs
+test/traverse.sh:7:node test/induct-grade.test.mjs
+test/traverse.sh:8:node test/quest-land.test.mjs
+test/traverse.sh:9:node test/traverse-conduct.test.mjs
+=== ready.sh cases ===
+44:# --- diamond: deps declared, waves, ready, handoff gate ---
+48:echo "$out" | jq -e '.ok == true and .deps == ["na","nb"]' >/dev/null || fail "create deps: $out"
+50:echo "$out" | jq -e '.deps == ["na","nb"] and .state == "todo"' >/dev/null || fail "deps read from record: $out"
+52:echo "$out" | jq -e '.ready_set_waves == [["na","nb","nd"],["nc"]] and .ready == ["na","nb","nd"] and .starved == []' >/dev/null || fail "diamond waves: $out"
+54:if out=$(q sched u nc handoff --commit "$W" --reason early 2>&1); then fail "dep-blocked handoff accepted"; fi
+55:echo "$out" | jq -e '.error.code == "E_DEPENDENCY" and (.error.facts.blocked_by == ["na","nb"])' >/dev/null || fail "handoff gate: $out"
+58:echo "$out" | jq -e '.ready == ["nc","nd"] and .ready_set_waves == [["nc","nd"]]' >/dev/null || fail "ready after land: $out"
+60:# --- cycle refused at write time, naming the cycle ---
+64:if out=$(q sched dep nc --depends-on nx --reason loop 2>&1); then fail "cycle dep accepted"; fi
+65:echo "$out" | jq -e '.error.code == "E_DEP_CYCLE" and (.error.facts.cycle | index("nc") != null) and (.error.facts.cycle | index("nx") != null)' >/dev/null || fail "cycle facts: $out"
+66:[ "$(exp_ledger sched nc | wc -l)" = "$before" ] || fail "cycle refusal ledgered"
+67:if out=$(q sched dep na --depends-on na --reason self 2>&1); then fail "self dep accepted"; fi
+68:echo "$out" | jq -e '.error.code == "E_DEP_CYCLE"' >/dev/null || fail "self cycle code: $out"
+69:if out=$(q sched c ghost --depends-on nope 2>&1); then fail "unknown dep accepted"; fi
+70:echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "unknown dep code: $out"
+72:# --- deps mutable-but-logged, mid-flight edit on the record ---
+74:echo "$out" | jq -e '.ok == true and .deps == ["na"] and .state == "todo"' >/dev/null || fail "dep edit: $out"
+75:exp_ledger sched nd | tail -1 | jq -e '.edge == "dep" and .from == "todo" and .to == "todo" and .depends_on == ["na"]' >/dev/null || fail "dep line logged"
+77:echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "nd handoff (dep landed): $out"
+79:echo "$out" | jq -e '.ok == true and .state == "handed_off" and .deps == ["nb"]' >/dev/null || fail "mid-flight dep edit: $out"
+80:exp_ledger sched nd | tail -1 | jq -e '.edge == "dep" and .from == "handed_off" and .to == "handed_off" and .cycle == 1 and .depends_on == ["nb"]' >/dev/null || fail "mid-flight dep line carries state+cycle"
+82:# --- blocked blast radius: starved dependents, independents ready ---
+88:echo "$out" | jq -e '.ready == ["bw"] and .starved == [{"blocked":"bx","starved":["by","bz"]}] and ([.inbox[] | select(.exp == "bx")] | length == 1)' >/dev/null || fail "starved rollup: $out"
+89:if out=$(q blast u by handoff --commit "$W" --reason early 2>&1); then fail "starved handoff accepted"; fi
+90:echo "$out" | jq -e '.error.code == "E_DEPENDENCY"' >/dev/null || fail "starved handoff gate: $out"
+92:# --- timing derived from ledger timestamps, hand-checked ---
+109:echo "$out" | jq -e '.state == "landed" and .timing.wait_s == 600 and .timing.wall_s == 2460 and .timing.dwell_s == {"todo":600,"handed_off":1200,"approved":1260} and .timing.cycles == 1' >/dev/null || fail "timing math: $out"
+111:echo "$out2" | jq -e '(.exps[] | select(.exp == "tm") | .timing.wall_s == 2460)' >/dev/null || fail "rollup timing: $out2"
+114:[ "$(git rev-parse bp3/exp/timing/tm)" = "$before" ] || fail "timing read wrote state"
+116:[ "$dirty" = "0" ] || fail "timing read dirtied worktree: $dirty entries"
+125:# --- setup measured per Run; slow fixture fires locally only ---
+129:echo "$out" | jq -e '.ok == true and .state == "claimed"' >/dev/null || fail "fast claim: $out"
+132:echo "$out" | jq -e --arg r "$RID" '(.setup[] | select(.run_id == $r) | .setup_wall_s >= 0 and .setup_wall_s < 180) and (has("warnings") | not or (.warnings | index("W_SETUP_SLOW") == null))' >/dev/null || fail "fast setup: $out"
+138:echo "$out" | jq -e --arg r "$SRID" '(.setup[] | select(.run_id == $r) | .setup_wall_s == 600) and (.warnings | index("W_SETUP_SLOW") != null)' >/dev/null || fail "slow setup gate: $out"
+140:  exp_ledger sched "$e" | grep -q setup_wall && fail "setup leaked into ledger $e"
+143:# --- serial land: second land re-checks against the new tip ---
+153:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "first land: $out"
+156:echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "second still approved: $out"
+158:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "second land: $out"
+159:git merge-base --is-ancestor "$tip1" bp3/quest/serial || fail "second land did not build on first tip"
+160:git merge-base --is-ancestor "$CB" bp3/quest/serial || fail "second reviewed commit not in quest tip"
+161:[ "$(git show bp3/quest/serial:sa.txt)" = "A" ] && [ "$(git show bp3/quest/serial:sb.txt)" = "B" ] || fail "serial merge lost files"
+163:# --- help: dep verb and flags documented at their doors ---
+164:out=$(q sched dep -h) || fail "dep -h exit"
+165:echo "$out" | grep -q -- "--depends-on" || fail "dep help flags: $out"
+166:echo "$out" | grep -q "E_DEP_CYCLE" || fail "dep help cycle: $out"
+167:out=$(q sched -h) || fail "exp door -h exit"
+168:echo "$out" | grep -q "dep" || fail "exp door help dep: $out"
+169:echo "$out" | grep -q -- "--depends-on" || fail "exp door help depends-on: $out"
+_build/
+bp3.install
+.bp3/
+dist/
+=== sample runs committed? ===
+=== worktree_dirty ===
+src/quest/gitx.ml:72:let worktree_dirty () =
+src/quest/gitx.ml-73-  let out, _ = git_out ["status"; "--porcelain"] in
+src/quest/gitx.ml-74-  String.trim out <> ""
+src/quest/gitx.ml-75-
+src/quest/gitx.ml-76-let head_sha () =
+src/quest/gitx.ml-77-  match ref_tip "HEAD" with Some s -> s | None -> usage "repository has no HEAD commit"
+src/quest/gitx.ml-78-
+src/quest/gitx.ml-79-let is_ancestor a b = git_ok ["merge-base"; "--is-ancestor"; a; b]
+src/quest/gitx.ml-80-
+--
+src/quest/gitx.ml:72:let worktree_dirty () =
+src/quest/gitx.ml-73-  let out, _ = git_out ["status"; "--porcelain"] in
+src/quest/gitx.ml-74-  String.trim out <> ""
+src/quest/gitx.ml-75-
+src/quest/gitx.ml-76-let head_sha () =
+src/quest/gitx.ml-77-  match ref_tip "HEAD" with Some s -> s | None -> usage "repository has no HEAD commit"
+src/quest/gitx.ml-78-
+src/quest/gitx.ml-79-let is_ancestor a b = git_ok ["merge-base"; "--is-ancestor"; a; b]
+src/quest/gitx.ml-80-
+--
+src/quest/main.ml:273:      if worktree_dirty () then
+src/quest/main.ml-274-        err "E_DIRTY_TREE" (`Assoc []) "Worktree is dirty; clean it and retry." 1;
+src/quest/main.ml-275-      let blocked_by = List.filter (fun d -> not (dep_satisfied d)) deps in
+src/quest/main.ml-276-      if blocked_by <> [] then
+src/quest/main.ml-277-        err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str blocked_by))])
+src/quest/main.ml-278-          "Dependencies are not landed yet." 1;
+src/quest/main.ml-279-      let node_deps = (match fold_exp quest exp with
+src/quest/main.ml-280-        | Some (_, _, text) -> deps_of_text text | None -> []) in
+src/quest/main.ml-281-      let node_blocked = List.filter (fun d ->
+--
+src/quest/main.ml:386:      let checkpoint = if worktree_dirty () then Some (make_checkpoint ()) else None in
+src/quest/main.ml-387-      let ns = { s with st = "blocked"; blocked_reason = reason;
+src/quest/main.ml-388-                 blocked_checkpoint = checkpoint; blocked_since = now_ts () } in
+src/quest/main.ml-389-      let line = ledger_line ~edge ~from:s.st ~to_:"blocked" ~cycle:s.cycle
+src/quest/main.ml-390-        ~commit:s.last_commit ~verdict:None ~reason ~id ?checkpoint () in
+src/quest/main.ml-391-      let base = finish ns line in
+src/quest/main.ml-392-      (match base with `Assoc fs -> `Assoc (fs @ [("human_action_required", `Bool true)]) | o -> o)
+src/quest/main.ml-393-  | "resume" ->
+src/quest/main.ml-394-      if s.st <> "blocked" then illegal s.st edge;
+=== skill copies ===
+.agents/skills/traverse/:
+SKILL.md
+
+.claude/skills/traverse/:
+SKILL.md
+
+.pi/skills/traverse/:
+SKILL.md
+
+skills/traverse/:
+SKILL.md
+workflows
+Files skills/traverse/SKILL.md and .agents/skills/traverse/SKILL.md differ
+Files skills/traverse/SKILL.md and .claude/skills/traverse/SKILL.md differ
+Files skills/traverse/SKILL.md and .pi/skills/traverse/SKILL.md differ
+done
+syntax ok
+induct-node tests: ok
+exit:0
+build exit:0
+blocked tests: ok
+blocked exit:0
+q tests: ok
+q exit:0
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+traverse exit:0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+ready exit:0
+diagram tests: ok
+diagram exit:0
+✔ dispatcher never signals a pid: watch is the sole killer (0.330791ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (198.525916ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (30.640042ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 121096.529
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+make check exit:0
+M  .agents/workflows/induct-node.js
+M  Makefile
+M  skills/traverse/SKILL.md
+M  skills/traverse/workflows/induct-node.js
+M  src/quest/render.ml
+A  test/blocked.sh
+M  test/induct-node.test.mjs
+[quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines 4d00100] feat(mvp.5): blocked-fail-fast — typed failure blocks once, orphans replaced, bubble carries facts
+ 7 files changed, 499 insertions(+), 12 deletions(-)
+ create mode 100755 test/blocked.sh
+4d00100df1ae03d273af85cb5065f73db0a71d54
+clean-check done
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-5-blocked-fail-fast","state":"handed_off","cycle":1,"commit":"4d00100df1ae03d273af85cb5065f73db0a71d54","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-5-blocked-fail-fast","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-5-blocked-fail-fast","edge":"handoff","run_id":"20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1"}

@@ -1,0 +1,2521 @@
+=== session start 2026-11-17T03:40:17Z run_id=20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1 ===
+---
+name: traverse
+description: Conduct one bp3 quest from the main session — read state with bp3 q r, dispatch the one step that state calls for, re-read, until the quest is terminal or a human decision is owed.
+---
+
+# Traverse
+
+Use when a human in a bp3-enabled repo invokes this skill by
+name (`/traverse <quest>`, `$traverse <quest>`) or asks to "traverse",
+"run", or "keep going on" a named quest until it lands or
+blocks. One quest per traverse. One output: step dispatches
+through `bp3 q`, ending in a traverse report — what reached
+`exp_fin`, what is blocked, and what human decision is owed
+next. Finish lines have report words: `exp_fin` names an exp
+whose state is `landed` (its `land` edge taken); `quest_fin`
+names quest promotion to master, the only owner-gated finish
+line. The FSM states stay `landed`; `exp_fin`/`quest_fin`
+name the finish lines in reports, never new edges.
+
+Use `quest` instead to frame a new quest. Use `using-bp3`
+instead for a single state operation by hand (one handoff, one
+grade, recovery after a dead session). Use
+`red-ink-quest-landing-demo` instead when the quest is done and the
+human wants the landing writeup. A design under review is
+`red-ink`'s job, not a traverse.
+
+## Conductor rule
+
+This skill is the conductor: it owns the loop and nothing
+else. It reads state, dispatches the one step the state calls
+for, and re-reads. It never does a step's work itself, never
+calls a verdict edge for a step, and never re-judges a grade
+matrix — it quotes the matrix verbatim. Legality is `bp3 q`'s
+call, never this skill's: a refusal is information, answered by
+re-reading, not by arguing or retrying unchanged.
+
+Cycles are weather; blocks are decisions. A `needs_fix`
+verdict below the cycle cap is weather: the conductor rides
+it (Procedure step 3) without paging the owner. `blocked` is
+the only page: it means a decision only a human can make is
+owed. Fake blocks train rubber-stamps; never manufacture one
+out of a cycle.
+
+## No-human variant
+
+With no human present, the `traverse-no-human` skill
+runs this same conductor over a queue of quests under
+no-human rails: preflight before queueing, desks only,
+blocked work parks in the inbox instead of paging, a
+stated Run budget stops the queue, and the run ends in
+the dawn report. No-human never attests (`BP3_DECIDER`
+stays unset), never takes `resume` or `delete`, and
+never promotes — `quest_fin` stays the owner gate. The
+rails live in `skills/traverse-no-human/SKILL.md`;
+this section names the variant only, so the procedure
+above stays the one conductor procedure.
+
+## Procedure
+
+1. Take exactly one argument: the quest. Confirm the engine
+   exists: `bp3 q r <quest>` must answer JSON. If `bp3 q` is
+   unavailable, stop and say so — never improvise state with
+   file edits or another command.
+2. Read the world live: `bp3 q r <quest>` gives exp states,
+   the railway order, and the blocked inbox. Trust only this
+   read — never session memory, `state.yaml`, or a ledger read
+   by hand. At a fan-out group, stop and ask the human which
+   members run; members are exploration only and never
+   landable.
+2.5. Quest worktree, by default: before the first dispatch,
+   `./bin/bp3 harness desk prepare --quest <quest>` and pass its
+   `path` as `desk` in every step's args. All step children
+   work in that one worktree for the whole quest; the
+   conductor's checkout is never worked in, so parallel
+   traverses and the owner's own work cannot collide with the
+   Run. If the desk cannot be prepared, stop and say so —
+   never fall back to the shared tree. Release it only at
+   `quest_fin` or on the owner's word (`bp3 harness desk
+   release --quest <quest>`; a dirty desk refuses and is
+   preserved).
+3. Dispatch exactly one step per read, by state only:
+
+   | State | Dispatch | Args |
+   |---|---|---|
+   | `todo` | `node-loop` workflow | `{quest, exp, ts, harness, model, desk}` |
+   | `handed_off` | `induct-grade` workflow | `{quest, exp, ts, harness, model, commit, desk}` with `commit` from this read |
+   | `approved` | `quest-land` workflow | `{quest, exp, ts, harness, model, desk}` |
+   | `blocked` | human gate (step 4) | — |
+   | `landed` / `deleted` | none | advance to the next exp, or report at terminal (`landed` is reported as `exp_fin`) |
+
+   Ready-set dispatch (mvp.3): the rollup read reports
+   `ready_set_waves`, `ready`, `starved`, per-exp `deps`
+   and `timing` (wall/wait/dwell derived from ledger
+   timestamps), and per-Run `setup` (`W_SETUP_SLOW` when a
+   setup exceeds the local threshold). Dispatch one
+   `induct-node` workflow run per node in `ready`, in
+   parallel desks: it owns that node's whole FSM loop
+   (author, grade+verify, and land as phases inside it)
+   and returns exactly one terminal outcome (`landed`,
+   `blocked`, or `deleted`). The state-step workflows in
+   the table above remain the phases' shapes and the
+   fallback when `induct-node` is not installed. Landing
+   stays serial: one node's land at a time, each land
+   re-checked against the new quest tip. A blocked node
+   starves only the dependents named in `starved`; the
+   rest of the ready set keeps moving.
+
+   `ts` is a UTC compact timestamp (for example
+   `20261107T143022Z`) supplied in args because workflow
+   scripts cannot read the clock; `harness` and `model` carry
+   this session's identity (`muse-code` and its model),
+   because workflow children do not inherit the launching
+   session's env. Steps are installed with this skill by
+   `bp3 skills install`; if a named step is missing, stop and
+   say so rather than improvising children. Grade replay is
+   free: re-dispatching `induct-grade` on the same `commit`
+   is always safe, so a killed grade is simply dispatched
+   again — no attempt bookkeeping here.
+
+   Cycle autonomy: when a grade returns `needs_fix` (or a
+   verify returns `fail`) and the re-read shows the exp back
+   in `todo` below the cycle cap, the conductor dispatches
+   the next author cycle itself, carrying the grader's
+   named fix — including any regression test or acceptance
+   amendment that fix demands — in the next dispatch's
+   context. It does not ask the owner about the cycle, does
+   not wait for an owner answer, and does not present the
+   cycle as a decision. The named fix rides along verbatim;
+   the conductor never re-judges it, widens it, or drops it.
+   It keeps dispatching grade → author → grade until the exp
+   leaves the cycle (`landed`, `blocked`, or `deleted`) or
+   the cap is hit. When the re-read shows the cycle cap
+   reached (the exp in `blocked` at the cap), the conductor
+   stops looping and escalates to the owner through the
+   blocked gate instead of dispatching another cycle.
+4. Blocked gate (the only page): present the inbox in the
+   main session (exp, reason, checkpoint, cycle), capture
+   the human's decision in their words, attest it
+   (`BP3_DECIDER=human`), and take `resume` or `delete`
+   through `bp3 q <quest> u <exp>`. The human never calls bp3
+   and never supplies a commit. A blocked Run is never
+   resumed in place; after a `resume`, the next read
+   dispatches a fresh step. Only human-only calls reach
+   this gate: scope changes, `delete`, and moves touching
+   another quest's state. The conductor never takes a
+   `delete` or a scope change autonomously, at any cycle.
+5. Re-read after every dispatch return (`bp3 q r <quest>`)
+   and go to step 3. A return that moved nothing (refusal, no
+   commit) is re-judged from the fresh read, never retried
+   unchanged against a moved tip.
+6. Stop when the rollup is terminal (every exp `landed` or
+   `deleted`) or a human decision is owed that this session
+   cannot get. Name each `landed` exp `exp_fin` in the
+   report; when the quest is promoted to master, name that
+   finish line `quest_fin` (owner gate, demo first). Report: dispatches per exp with their ledger
+   evidence, the grade matrices quoted verbatim, Runs and
+   tapes left behind, scorecard fields (wall time, context
+   tokens, human-active minutes — or "unmeasured", never
+   zero), and the next decision owed.
+
+## Rules
+
+- The skill writes no state. `bp3 q u` is the only writer,
+  called by step children (and at the blocked gate, by this
+  session on attested human words); ledger files, `state.yaml`,
+  and branch tips are never hand-edited, and tape is evidence,
+  never parsed into facts.
+- Human attestation comes only from actual human words in
+  this session. The engine never attests on the human's
+  behalf, and `resume` without it is refused
+  (`E_HUMAN_REQUIRED`) — that refusal is the gate working.
+  Attestation is owed at the blocked gate only; a
+  `needs_fix` cycle below the cap needs no attestation,
+  because no human decision is being recorded.
+- Identity rides env (`BP3_HARNESS`, `BP3_MODEL`) set per Run
+  by the launcher or hooks. Unset means `unknown` plus a
+  warning in the verdict; never guess a model name.
+- Verdicts bind the exact commit reviewed. A verdict naming a
+  superseded commit is refused; dispatch a fresh step against
+  the current commit instead of arguing with the refusal.
+- Instructions only: this skill holds no state, spawns no
+  daemon, and assumes no runtime beyond the main session, its
+  workflow children, and the `bp3 q` binary.
+#!/bin/sh
+# traverse workflow contract tests (mock host, no agent calls).
+set -eu
+cd "$(dirname "$0")/.."
+node test/node-loop.test.mjs
+node test/induct-node.test.mjs
+node test/induct-grade.test.mjs
+node test/quest-land.test.mjs
+node test/traverse-conduct.test.mjs
+===
+// Mock-host test for skills/traverse/workflows/induct-grade.js.
+// Covers the exp Acceptance table: typed matrix returned, a
+// missing-evidence row blocks approval, an untyped row never
+// carries pass, a deferred row naming its owning exp never
+// blocks (an unnamed or untyped deferral is missing), the
+// audit quotes env-preset evidence from the stamped ledger line,
+// row order never changes the outcome, replay on the same
+// commit returns the same matrix, the ladder fixtures (lying
+// pointer blocks, clean shows zero whole-log reads, confused
+// whole-tape escalation must name itself), and grade children are
+// judge-only (audit spawns no edge, grade/verify bind the
+// exact commit).
+import workflow from "../skills/traverse/workflows/induct-grade.js";
+
+const TS = "20260101T000000Z";
+const COMMIT = "abc1234";
+let failures = 0;
+function assert(cond, msg) {
+  if (!cond) { console.error("FAIL: " + msg); failures++; }
+}
+===
+skills/traverse/workflows/induct-grade.js:15:// refusals}; replay on the same commit is safe: the audit is
+skills/traverse/workflows/induct-grade.js:67:function typedEvidence(ev) {
+skills/traverse/workflows/induct-grade.js:125:function normalizeRow(row, i) {
+skills/traverse/workflows/induct-grade.js:135:  if (!typedEvidence(evidence)) {
+skills/traverse/workflows/induct-grade.js:139:      ref: "evidence audit",
+skills/traverse/workflows/induct-grade.js:148:      // label the audit put on the row.
+skills/traverse/workflows/induct-grade.js:168:        case: "evidence audit",
+skills/traverse/workflows/induct-grade.js:171:          ref: "evidence audit",
+skills/traverse/workflows/induct-grade.js:172:          quote: "audit returned no matrix",
+skills/traverse/workflows/induct-grade.js:179:  return raw.map(normalizeRow);
+skills/traverse/workflows/induct-grade.js:379:  if (!(await mintLink("audit", before.cycle))) {
+skills/traverse/workflows/induct-grade.js:384:  const audit = await host.agent({
+skills/traverse/workflows/induct-grade.js:385:    label: "audit " + exp,
+skills/traverse/workflows/induct-grade.js:387:      deskNote + "You are the audit child for exp `" + exp + "` of quest `" +
+skills/traverse/workflows/induct-grade.js:389:      tapePreamble("audit", before.cycle) +
+skills/traverse/workflows/induct-grade.js:436:  const auditVerdict = parseVerdict(audit);
+skills/traverse/workflows/induct-grade.js:437:  if (auditVerdict && typeof auditVerdict.run_id === "string" && auditVerdict.run_id) {
+skills/traverse/workflows/induct-grade.js:438:    runIds.push(auditVerdict.run_id);
+skills/traverse/workflows/induct-grade.js:440:  if (!auditVerdict || !Array.isArray(auditVerdict.matrix)) {
+skills/traverse/workflows/induct-grade.js:441:    refusals.push("audit returned no matrix: " + errorText(audit));
+skills/traverse/workflows/induct-grade.js:443:  const matrix = normalizeMatrix(auditVerdict ? auditVerdict.matrix : null);
+===
+config.ml
+dune
+gitx.ml
+harness.ml
+hooks.ml
+main.ml
+render.ml
+store.ml
+worktree.ml
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-followup-1-grade-evidence","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null,"run_id":"20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1"}
+---
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"proposed","exps":[{"exp":"exp-config-1-bp3-config","state":"landed","fin":"exp_fin","cycle":2,"commit":"3c47fe532642369348656be958eb577fc662881d","deps":[],"timing":{"wall_s":6135,"wait_s":8448,"dwell_s":{"approved":67,"blocked":5080,"handed_off":536,"todo":8900},"cycles":2},"legal_edges":[],"changes":[{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"}]},{"exp":"exp-dogfood-1-link-drive","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-dogfood-2-parallel-drive","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-followup-1-grade-evidence","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-followup-2-workflow-birth","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-landing-1-landing-wrapup","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mig-1-handoff-verbs","state":"landed","fin":"exp_fin","cycle":1,"commit":"44196725860125de048415ff6a4be350a90c033b","deps":[],"timing":{"wall_s":863,"wait_s":1376,"dwell_s":{"approved":68,"handed_off":795,"todo":1376},"cycles":1},"legal_edges":[],"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"u","path":".agents/skills/naming/SKILL.md"},{"change":"u","path":".agents/skills/quest/SKILL.md"},{"change":"u","path":".agents/skills/red-ink/SKILL.md"},{"change":"u","path":".agents/skills/using-bp3/SKILL.md"},{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".claude/skills/naming/SKILL.md"},{"change":"u","path":".claude/skills/quest/SKILL.md"},{"change":"u","path":".claude/skills/red-ink/SKILL.md"},{"change":"u","path":".claude/skills/using-bp3/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/naming/SKILL.md"},{"change":"u","path":".pi/skills/quest/SKILL.md"},{"change":"u","path":".pi/skills/red-ink/SKILL.md"},{"change":"u","path":".pi/skills/using-bp3/SKILL.md"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/roles/author.md"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"skills/naming/SKILL.md"},{"change":"u","path":"skills/quest/SKILL.md"},{"change":"u","path":"skills/red-ink/SKILL.md"},{"change":"u","path":"skills/using-bp3/SKILL.md"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"u","path":"test/completion.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/hooks.sh"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/install.sh"},{"change":"u","path":"test/q.sh"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/tape.sh"},{"change":"u","path":"test/worktree.sh"}]},{"exp":"exp-mig-2-traverse-rename","state":"landed","fin":"exp_fin","cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","deps":[],"timing":{"wall_s":5241,"wait_s":2660,"dwell_s":{"approved":63,"blocked":3928,"handed_off":838,"todo":3072},"cycles":2},"legal_edges":[],"changes":[{"change":"+","path":"test/traverse-conduct.test.mjs"},{"change":"u","path":"test/traverse.sh"}]},{"exp":"exp-mvp-1-link-claim","state":"landed","fin":"exp_fin","cycle":1,"commit":"09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3","deps":[],"timing":{"wall_s":3167,"wait_s":16553,"dwell_s":{"approved":61,"handed_off":3106,"todo":16553},"cycles":1},"legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"extensions/bp3-pi/README.md"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/src/contract.ts"},{"change":"u","path":"extensions/bp3-pi/src/dispatcher.ts"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"skills/traverse/workflows/induct-grade.js"},{"change":"u","path":"skills/traverse/workflows/node-loop.js"},{"change":"u","path":"skills/traverse/workflows/quest-land.js"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"+","path":"test/link.sh"},{"change":"u","path":"test/node-loop.test.mjs"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/traverse-conduct.test.mjs"}]},{"exp":"exp-mvp-2-context-resolution","state":"landed","fin":"exp_fin","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","deps":[],"timing":{"wall_s":1990,"wait_s":21098,"dwell_s":{"approved":1315,"handed_off":675,"todo":21098},"cycles":1},"legal_edges":[],"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"+","path":"test/context.sh"}]},{"exp":"exp-mvp-3-ready-set-timing","state":"handed_off","fin":null,"cycle":2,"commit":"105cbea174e8b204413cf2428aea78eec2e344d0","deps":[],"timing":{"wall_s":null,"wait_s":28377,"dwell_s":{"blocked":252,"handed_off":711,"todo":29327},"cycles":2},"legal_edges":["grade","verify","block","delete"],"changes":[{"change":"u","path":"test/ready.sh"}]},{"exp":"exp-mvp-4-diagram-emit","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-mvp-5-blocked-fail-fast","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null},{"exp":"exp-rename-1-bp3g-rename","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"changes":null}],"ready_set_waves":[["exp-dogfood-1-link-drive","exp-dogfood-2-parallel-drive","exp-followup-1-grade-evidence","exp-followup-2-workflow-birth","exp-landing-1-landing-wrapup","exp-mvp-4-diagram-emit","exp-mvp-5-blocked-fail-fast","exp-rename-1-bp3g-rename"]],"ready":["exp-dogfood-1-link-drive","exp-dogfood-2-parallel-drive","exp-followup-1-grade-evidence","exp-followup-2-workflow-birth","exp-landing-1-landing-wrapup","exp-mvp-4-diagram-emit","exp-mvp-5-blocked-fail-fast","exp-rename-1-bp3g-rename"],"starved":[],"setup":[{"run_id":"20261117T003239Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":null,"setup_wall_s":14},{"run_id":"20261117T003626Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":"grade","setup_wall_s":25},{"run_id":"20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":"verify","setup_wall_s":15},{"run_id":"20261117T004025Z-land-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":"land","setup_wall_s":10},{"run_id":"20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"handoff","setup_wall_s":124},{"run_id":"20261117T010557Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":null,"setup_wall_s":9},{"run_id":"20261117T010735Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"grade","setup_wall_s":18},{"run_id":"20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"verify","setup_wall_s":14},{"run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"land","setup_wall_s":11},{"run_id":"20261117T013825Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":"handoff","setup_wall_s":34},{"run_id":"20261117T030756Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":null,"setup_wall_s":10},{"run_id":"20261117T031033Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":"grade","setup_wall_s":16},{"run_id":"20261117T031039Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":"verify","setup_wall_s":12},{"run_id":"20261117T032158Z-handoff-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":"handoff","setup_wall_s":13},{"run_id":"20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-followup-1-grade-evidence","edge":"handoff","setup_wall_s":33}],"rollup":"active","fin":null,"inbox":[],"run_id":"20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1"}
+---
+name: naming
+description: "Choose concrete, short names in bp3's existing vocabulary for quests, exps, skills, plans, engines, and CLI verbs."
+---
+
+# Naming
+
+Use when a human, Controller, or Worker in bp3 must name or
+rename something: a quest slug, exp, skill, plan (`quest_type`),
+engine, CLI verb, file, or state. Invoked by name (`/naming`,
+`$naming`). One output: one recommended name, with the vocabulary
+it reuses. A shortlist only when two names genuinely tie.
+
+Use `quest` for framing a quest (it delegates naming here),
+`using-bp3` for operating the CLI, and general judgment for
+ordinary code identifiers with no bp3 meaning.
+
+## The vocabulary (reuse before inventing)
+
+- Planning: Quest, exp, Run. Lifecycle: proposed, active,
+  landed, canceled. Never archived, cancelled, aborted, killed.
+- Moves: handoff, grade, verify, land, block, resume. Stages: author,
+  grade, fix, ready, landed, blocked, canceled.
+- Dimensions: `quest_type` (the plan: default is implemented;
+  design, mvp, refactor, frontend, backend are proposed), `engine` (who executes: single,
+  master-subagents, panes, workflows).
+- Artifacts: QUEST.md, fsm.yaml, state.yaml, ledger.jsonl,
+  tape.log, notes.md, experiments/, runs/.
+- Ceremony lanes: micro, standard, high-blast-radius.
+
+## Procedure
+
+1. Name the kind of thing and where it will be read (CLI, file
+   path, quest doc, chat). The same concept may need the kind's
+   local spelling: kebab-case for slugs and files, lowercase
+   words for verbs and stages.
+2. Search the vocabulary above and the repo for the concept's
+   existing word. If a word exists, use it, even imperfectly.
+3. If no word exists, coin the shortest concrete one: a noun for
+   things, a verb for moves. Two syllables beat three; a word a
+   newcomer guesses correctly beats a clever one.
+4. Check the name against its neighbors: it must not collide
+   with, abbreviate, or synonym-shadow an existing term.
+5. Say the name, the word it reuses or why none fit, and stop.
+
+## Rules
+
+- One concept, one word, one spelling, everywhere: files, CLI,
+  docs, and chat. `canceled` in a status and `cancelled` in a
+  stage is a bug, not a dialect.
+- Concrete over abstract: prefer what the thing does or is
+  (tape, ledger, handoff) over machinery metaphors (flavor,
+  harness adapter, pipeline stage) unless the metaphor is
+  already the vocabulary.
+- No new planning words. Task, Milestone, workflow, and graph
+  terms stay out; Quest and exp are the planning vocabulary.
+- Renames are explicit edits the human approves, with every
+  reference updated in the same change. A rename that leaves a
+  synonym behind in docs has not happened.
+- Instructions only: this skill decides words, never state.
+===NAMING-END===
+     393
+src/quest/main.ml:99:  err "E_ILLEGAL_EDGE"
+test/q.sh:53:echo "$out" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "todo" and .error.facts.edge == "land" and (.error.facts.legal_edges | index("handoff") != null) and (.error.guidance | length > 0)' >/dev/null || fail "illegal edge facts: $out"
+test/q.sh:242:echo "$out_a" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "todo" and .error.facts.edge == "land"' >/dev/null || fail "alt guard A: $out_a"
+test/q.sh:243:echo "$out_b" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "todo" and .error.facts.edge == "land"' >/dev/null || fail "alt guard B: $out_b"
+test/q.sh:301:echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "approved"' >/dev/null || fail "parallel extra grade code: $out"
+test/q.sh:303:echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "approved"' >/dev/null || fail "parallel extra verify code: $out"
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "stale still handed_off: $out"
+out=$(q demo u stale-exp grade --verdict ship --commit "$STALE_B" --reason "current")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "stale grade current: $out"
+out=$(q demo u stale-exp verify --verdict pass --commit "$STALE_B" --reason "current")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "stale verify current: $out"
+out=$(q demo u stale-exp land --reason "ship")
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "stale land: $out"
+
+# --- grade + verify on same commit while handed_off: approved exactly once ---
+out=$(q demo c parallel-exp)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "parallel create: $out"
+echo par-work > par.txt; git add par.txt; git commit -qm par-work
+PAR=$(git rev-parse HEAD)
+out=$(q demo u parallel-exp handoff --commit "$PAR" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel handoff: $out"
+out=$(q demo u parallel-exp grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel grade first: $out"
+out=$(q demo u parallel-exp verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "parallel verify approves: $out"
+[ "$(exp_ledger parallel-exp | grep -c '"to":"approved"')" = "1" ] || fail "parallel approved count"
+if out=$(q demo u parallel-exp grade --verdict ship --reason "again" 2>&1); then fail "parallel extra grade accepted"; fi
+echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "approved"' >/dev/null || fail "parallel extra grade code: $out"
+if out=$(q demo u parallel-exp verify --verdict pass --reason "again" 2>&1); then fail "parallel extra verify accepted"; fi
+echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "approved"' >/dev/null || fail "parallel extra verify code: $out"
+[ "$(exp_ledger parallel-exp | grep -c '"to":"approved"')" = "1" ] || fail "parallel approved twice"
+out=$(q demo u parallel-exp land --reason "ship")
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "parallel land: $out"
+out=$(q demo c parallel-rev)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "parallel-rev create: $out"
+out=$(q demo u parallel-rev handoff --commit "$PAR" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel-rev handoff: $out"
+out=$(q demo u parallel-rev verify --verdict pass --reason "ok")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel-rev verify first: $out"
+out=$(q demo u parallel-rev grade --verdict ship --reason "ok")
+echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "parallel-rev grade approves: $out"
+[ "$(exp_ledger parallel-rev | grep -c '"to":"approved"')" = "1" ] || fail "parallel-rev approved count"
+out=$(q demo u parallel-rev land --reason "ship")
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "parallel-rev land: $out"
+
+# --- needs_fix at max_cycles blocked; resume human gate (parser-fix2 above) ---
+before=$(exp_ledger parser-fix2 | wc -l)
+if out=$(q demo u parser-fix2 resume --reason "go" 2>&1); then fail "resume without human accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_HUMAN_REQUIRED"' >/dev/null || fail "resume human code: $out"
+after=$(exp_ledger parser-fix2 | wc -l)
+[ "$before" = "$after" ] || fail "refused resume ledgered"
+out=$(q demo r parser-fix2)
+echo "$out" | jq -e '.state == "blocked" and .cycle == 1 and (.legal_edges | index("resume") != null) and (.legal_edges | index("delete") != null)' >/dev/null || fail "blocked legal edges: $out"
+out=$(BP3_DECIDER=human q demo u parser-fix2 resume --reason "go simpler")
+echo "$out" | jq -e '.ok == true and .state == "todo" and .cycle == 2' >/dev/null || fail "resume human todo cycle+1: $out"
+out=$(q r demo)
+echo "$out" | jq -e '[.inbox[] | select(.exp == "parser-fix2")] | length == 0' >/dev/null || fail "resumed exp still in inbox: $out"
+
+# --- two exps land into one quest branch: clean merge keeps verdicts ---
+out=$(q demo c land-a)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "land-a create: $out"
+out=$(q demo c land-b)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "land-b create: $out"
+LAND_A=$(commit_on_exp land-a fa.txt "A-content")
+LAND_B=$(commit_on_exp land-b fb.txt "B-content")
+out=$(q demo u land-a handoff --commit "$LAND_A" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-a handoff: $out"
+===
+84:type knobs = { max_cycles : int; grade_required : bool; verify_required : bool }
+106:  let grade_required =
+107:    (* look at grade section: 'required: false' after 'grade:' *)
+108:    if contains_sub text "required: false" && contains_sub text "grade:" then false
+109:    else if contains_sub text "grade.required: false" then false
+111:  let grade_required =
+113:      (* only counts if a grade: key exists or grade_required spelling *)
+114:      grade_required else grade_required in
+115:  let verify_required =
+116:    not (contains_sub text "verify: optional" || contains_sub text "verify: none"
+117:         || contains_sub text "verify:optional" || contains_sub text "verify:none") in
+118:  { max_cycles; grade_required; verify_required }
+138:  mutable grade_ok : bool;
+139:  mutable verify_ok : bool;
+149:  grade_ok = false; verify_ok = false;
+168:  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+197:        if edge = "handoff" then begin s.grade_ok <- false; s.verify_ok <- false end;
+198:        if edge = "grade" && get_str j "verdict" "" = "ship" then s.grade_ok <- true;
+199:        if edge = "verify" && get_str j "verdict" "" = "pass" then s.verify_ok <- true;
+200:        if (edge = "grade" && get_str j "verdict" "" = "needs_fix") ||
+201:           (edge = "verify" && get_str j "verdict" "" = "fail") then begin
+202:          s.grade_ok <- false; s.verify_ok <- false
+204:        if edge = "resume" then begin s.bound <- None; s.has_bound <- false; s.grade_ok <- false; s.verify_ok <- false end;
+286:  | "handed_off" -> ["grade"; "verify"; "block"; "delete"]
+463:   line parsing, malformed files degrade to [-] fields. *)
+===
+skills/traverse/workflows/induct-grade.js:288:      "` and note the run_id it returns (expected " + link.run_id +
+skills/traverse/workflows/induct-node.js:138:      "` and note the run_id it returns (expected " + link.run_id +
+skills/traverse/workflows/node-loop.js:147:      "` and note the run_id it returns (expected " + link.run_id +
+skills/traverse/workflows/node-loop.js:295:      "expected todo, got " + before.state + "; another step owns that state"
+skills/traverse/workflows/node-loop.js:340:    refusals.push("author left state " + after.state + ", expected handed_off");
+skills/traverse/workflows/quest-land.js:139:      "` and note the run_id it returns (expected " + link.run_id +
+skills/traverse/workflows/quest-land.js:221:      "expected approved, got " + before.state + "; another step owns that state"
+skills/traverse/workflows/quest-land.js:257:    refusals.push("land left state " + after.state + ", expected landed");
+src/quest/harness.ml:2647:  Reads every .jsonl tape under the corpus (default: the engine's tape source), folds mechanical facts per tape (BP3_RUN_ID bindings, bp3 invocations, E_* refusals, commit shas, finish/exit evidence, torn tails; pi tapes also yield session-id, entry counts, and summed usage) and emits one verdict {ok, engine, corpus, tapes_replayed, identifiable, traces, findings}. Each finding names its tape, run-id, evidence lines, and proposed fix target (dispatcher, adapter, contract; muse findings keep bp3 q u / hooks). A parser crash fails the call; findings themselves never gate. Truncated, foreign, and torn tapes are reported in findings, never fatal. Replay is deterministic: same corpus, same verdict.\n\
+src/quest/main.ml:735:  | _ -> usage "expected: q c|r|d ... or q <quest> c|r|u|d ..."
+  else load_plan_file ("plans/exp-" ^ exp_type ^ ".yaml")
+
+(* ---------- ledger fold ---------- *)
+type exp_state = {
+  mutable st : string;
+  mutable cycle : int;
+  mutable bound : string option;
+  mutable has_bound : bool;
+  mutable grade_ok : bool;
+  mutable verify_ok : bool;
+  mutable blocked_reason : string;
+  mutable blocked_checkpoint : string option;
+  mutable blocked_since : string;
+  mutable last_commit : string option;
+  mutable exp_type : string;
+}
+
+let fresh_state () = {
+  st = "todo"; cycle = 1; bound = None; has_bound = false;
+  grade_ok = false; verify_ok = false;
+  blocked_reason = ""; blocked_checkpoint = None; blocked_since = "";
+  last_commit = None; exp_type = "default";
+}
+
+let get_str j key default =
+  try match Yojson.Safe.Util.member key j with `String s -> s | _ -> default
+  with _ -> default
+let get_int j key default =
+  try match Yojson.Safe.Util.member key j with `Int n -> n | _ -> default
+  with _ -> default
+let get_opt j key =
+  try match Yojson.Safe.Util.member key j with `String s -> Some s | _ -> None
+  with _ -> None
+
+(* The one compat mapping (mig.1): pre-rename ledger strings fold
+   to the new words here and nowhere else; new ledger lines already
+   carry the new words. *)
+let fold_edge = function
+  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+  | e -> e
+
+let fold_state_name = function "submitted" -> "handed_off" | s -> s
+
+let fold_ledger text =
+  let s = fresh_state () in
+  let quest_type = ref "default" in
+  let depends_on = ref [] in
+  String.split_on_char '\n' text |> List.iter (fun ln ->
+    let ln = String.trim ln in
+    if ln <> "" then
+      try
+        let j = Yojson.Safe.from_string ln in
+        let edge = fold_edge (get_str j "edge" "") in
+        let to_ = fold_state_name (get_str j "to" "") in
+        let cyc = get_int j "cycle" s.cycle in
+        if edge = "create" || edge = "dep" then begin
+          if edge = "create" then begin
+            s.exp_type <- get_str j "exp_type" (get_str j "quest_type" "default");
+            quest_type := get_str j "quest_type" !quest_type
+          end;
+          (try match Yojson.Safe.Util.member "depends_on" j with
+             | `List xs -> depends_on := List.map (function `String x -> x | _ -> "") xs
+             | _ -> () with _ -> ())
+        end;
+        if to_ <> "" then s.st <- to_;
+        s.cycle <- cyc;
+        (match get_opt j "commit" with Some c -> s.last_commit <- Some c; s.bound <- Some c; s.has_bound <- true | None -> ());
+        if edge = "handoff" then begin s.grade_ok <- false; s.verify_ok <- false end;
+        if edge = "grade" && get_str j "verdict" "" = "ship" then s.grade_ok <- true;
+        if edge = "verify" && get_str j "verdict" "" = "pass" then s.verify_ok <- true;
+        if (edge = "grade" && get_str j "verdict" "" = "needs_fix") ||
+           (edge = "verify" && get_str j "verdict" "" = "fail") then begin
+          s.grade_ok <- false; s.verify_ok <- false
+        end;
+        if edge = "resume" then begin s.bound <- None; s.has_bound <- false; s.grade_ok <- false; s.verify_ok <- false end;
+        if to_ = "blocked" then begin
+          s.blocked_reason <- get_str j "reason" "";
+          s.blocked_checkpoint <- get_opt j "checkpoint";
+          s.blocked_since <- get_str j "ts" ""
+        end
+      with _ ->
+        err "E_INVALID_PLAN" (`Assoc []) "Malformed ledger line." 1
+  );
+  (s, !quest_type, !depends_on)
+
+let ledger_text branch path =
+  match ref_tip branch with
+  | None -> None
+  | Some tip -> (match git_show tip path with Some t -> Some (tip, t) | None -> Some (tip, ""))
+
+let quest_branch q = "refs/heads/bp3/quest/" ^ q
+let exp_branch q e = "refs/heads/bp3/exp/" ^ q ^ "/" ^ e
+let quest_dir q = "docs/quests/" ^ q
+let quest_ledger_path q = quest_dir q ^ "/ledger.jsonl"
+let exp_dir q e = quest_dir q ^ "/experiments/" ^ e
+let exp_ledger_path q e = exp_dir q e ^ "/ledger.jsonl"
+let exp_state_path q e = exp_dir q e ^ "/state.yaml"
+
+let list_refs prefix =
+  let out, code = git_out ["for-each-ref"; "--format=%(refname)"; prefix] in
+  if code <> 0 then [] else
+  String.split_on_char '\n' out |> List.map String.trim |> List.filter (fun s -> s <> "")
+
+let list_quests () =
+  list_refs "refs/heads/bp3/quest/" |> List.map (fun r ->
+    let p = "refs/heads/bp3/quest/" in String.sub r (String.length p) (String.length r - String.length p))
+
+let list_exps q =
+  let p = "refs/heads/bp3/exp/" ^ q ^ "/" in
+  list_refs p |> List.map (fun r -> String.sub r (String.length p) (String.length r - String.length p))
+
+(* newest bp3_version stamped in any quest/exp ledger in this repo *)
+let newest_bp3_version () =
+  let from_text acc text =
+    List.fold_left (fun acc line ->
+      try
+        match Yojson.Safe.from_string line with
+        | `Assoc fs ->
+            (match List.assoc_opt "bp3_version" fs with
+             | Some (`String v) ->
+                 (match acc with
+                  | Some cur when version_cmp (parse_version cur) (parse_version v) >= 0 -> acc
+                  | _ -> Some v)
+             | _ -> acc)
+        | _ -> acc
+      with _ -> acc) acc (String.split_on_char '\n' text) in
+  List.fold_left (fun acc q ->
+    let acc = match ledger_text (quest_branch q) (quest_ledger_path q) with
+      | Some (_, t) -> from_text acc t | None -> acc in
+    List.fold_left (fun acc e ->
+      match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+      | Some (_, t) -> from_text acc t | None -> acc) acc (list_exps q))
+    None (list_quests ())
+
+let version_ahead () =
+  match newest_bp3_version () with
+  | Some v when version_cmp (parse_version v) (parse_version bp3_version) > 0 -> Some v
+  | _ -> None
+
+let warnings_of id is_write =
+  (if is_write && id.incomplete then ["W_IDENTITY_UNKNOWN"] else [])
+  @ (match version_ahead () with Some _ -> ["W_VERSION_AHEAD"] | None -> [])
+
+let fold_exp q e =
+  match ledger_text (exp_branch q e) (exp_ledger_path q e) with
+  | None -> None
+  | Some (tip, text) -> let (s, _, _) = fold_ledger text in Some (tip, s, text)
+
+let fold_quest q =
+  match ledger_text (quest_branch q) (quest_ledger_path q) with
+  | None -> None
+  | Some (tip, text) -> let (s, qt, deps) = fold_ledger text in Some (tip, s, qt, deps, text)
+
+let legal_edges st =
+  match st with
+  | "todo" -> ["handoff"; "block"; "delete"]
+  | "handed_off" -> ["grade"; "verify"; "block"; "delete"]
+  | "approved" -> ["land"; "block"; "delete"]
+  | "blocked" -> ["resume"; "delete"]
+  | _ -> []
+
+let state_yaml q e s =
+  Printf.sprintf "quest: %s\nexp: %s\nstate: %s\ncycle: %d\ncommit: %s\n"
+    q e s.st s.cycle (match s.last_commit with Some c -> c | None -> "none")
+
+let ledger_line ~edge ~from ~to_ ~cycle ~commit ~verdict ~reason ~id
+    ?checkpoint ?extra () =
+  let base = [
+    ("ts", json_str (now_ts ()));
+    ("edge", json_str edge);
+    ("from", json_str from);
+    ("to", json_str to_);
+    ("cycle", `Int cycle);
+    ("commit", (match commit with Some c -> json_str c | None -> `Null));
+    ("verdict", (match verdict with Some v -> json_str v | None -> `Null));
+    ("reason", json_str reason);
+    ("harness", json_str id.harness);
+    ("model", json_str id.model);
+    ("bp3_version", json_str bp3_version);
+  ] in
+  let base = match id.run_id with Some r -> base @ [("run_id", json_str r)] | None -> base in
+  let base = match checkpoint with Some c -> base @ [("checkpoint", json_str c)] | None -> base in
+  let base = base @ (match extra with Some xs -> xs | None -> []) in
+  Yojson.Safe.to_string (`Assoc base)
+
+let append_exp_line q e line new_state =
+  let branch = exp_branch q e in
+  match ledger_text branch (exp_ledger_path q e) with
+  | None -> not_found "exp" e
+  | Some (tip, text) ->
+      let new_text = (if String.trim text = "" then "" else
+      let new_text = (if String.trim text = "" then "" else
+        (if text.[String.length text - 1] = '\n' then text else text ^ "\n")) ^ line ^ "\n" in
+      commit_files ~branch ~base_tip:tip ~expect_tip:tip
+        ~files:[(exp_ledger_path q e, new_text); (exp_state_path q e, state_yaml q e new_state)]
+        ~msg:("bp3: " ^ e)
+
+let make_checkpoint () =
+  let idx = tmp_path "ckpt-index" in
+  Unix.putenv "GIT_INDEX_FILE" idx;
+  let head = head_sha () in
+  ignore (run_status (git ["read-tree"; head]));
+  ignore (run_status (git ["add"; "-A"]));
+  let treef = tmp_path "ckpt-tree" in
+  ignore (Sys.command (String.concat " " (List.map Filename.quote (git ["write-tree"]))
+      ^ " > " ^ Filename.quote treef ^ " 2>/dev/null"));
+  let tree = String.trim (read_file_or treef "") in
+  let msgf = write_tmp "bp3 checkpoint" in
+  let cf = tmp_path "ckpt-commit" in
+  ignore (Sys.command (String.concat " " (List.map Filename.quote (git ["commit-tree"; tree; "-p"; head]))
+      ^ " < " ^ Filename.quote msgf ^ " > " ^ Filename.quote cf ^ " 2>/dev/null"));
+  Unix.putenv "GIT_INDEX_FILE" "";
+  String.trim (read_file_or cf "")
+
+let dep_satisfied dep =
+  match fold_quest dep with
+  | None -> false
+  | Some (_, qs, _, _, _) ->
+      if qs.st = "deleted" then false
+      else
+        let exps = list_exps dep in
+        exps <> [] && List.for_all (fun e ->
+          match fold_exp dep e with Some (_, s, _) -> s.st = "landed" || s.st = "deleted" | None -> false) exps
+
+(* ---------- schedule and timing (mvp.3) ---------- *)
+(* Node deps live in exp ledger records (create and dep
+   lines); ready-set waves, the ready set, starved sets,
+   and per-node timing are derived on read from ledger
+   timestamps and never written to any committed file. *)
+let days_from_civil y m d =
+  let y = if m <= 2 then y - 1 else y in
+  let era = (if y >= 0 then y else y - 399) / 400 in
+  let yoe = y - era * 400 in
+  let mp = if m > 2 then m - 3 else m + 9 in
+  let doy = (153 * mp + 2) / 5 + d - 1 in
+  let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy in
+  era * 146097 + doe - 719468
+
+let ts_epoch s =
+  try
+    if String.length s <> 20 || s.[4] <> '-' || s.[7] <> '-' || s.[10] <> 'T'
+       || s.[13] <> ':' || s.[16] <> ':' || s.[19] <> 'Z' then None
+    else
+      let num a b = int_of_string (String.sub s a b) in
+      let days = days_from_civil (num 0 4) (num 5 2) (num 8 2) in
+      Some (days * 86400 + (num 11 2) * 3600 + (num 14 2) * 60 + (num 17 2))
+  with _ -> None
+
+let deps_of_text text = let (_, _, deps) = fold_ledger text in deps
+
+type timing = { t_wall : int option; t_wait : int option;
+                t_dwell : (string * int) list }
+
+let timing_of_text text =
+  let created = ref None and first_handoff = ref None and landed = ref None in
+  let dwell : (string, int) Hashtbl.t = Hashtbl.create 8 in
+  let order = ref [] in
+  let cur = ref "" and since = ref None in
+  let add_dwell st secs =
+    if not (Hashtbl.mem dwell st) then order := !order @ [st];
+    Hashtbl.replace dwell st ((try Hashtbl.find dwell st with _ -> 0) + secs) in
+  String.split_on_char '\n' text |> List.iter (fun ln ->
+    let ln = String.trim ln in
+    if ln <> "" then
+      try
+        let j = Yojson.Safe.from_string ln in
+        let edge = fold_edge (get_str j "edge" "") in
+        let to_ = fold_state_name (get_str j "to" "") in
+        (match ts_epoch (get_str j "ts" "") with
+         | None -> ()
+         | Some t ->
+             if edge = "create" && !created = None then created := Some t;
+             if edge = "handoff" && !first_handoff = None then first_handoff := Some t;
+             if to_ = "landed" && !landed = None then landed := Some t;
+             if to_ <> "" then begin
+               (match !since with
+                | Some t0 when !cur <> "" -> add_dwell !cur (t - t0)
+                | _ -> ());
+               cur := to_; since := Some t
+             end)
+      with _ -> ());
+  let sub a b = match a, b with Some x, Some y -> Some (x - y) | _ -> None in
+  { t_wall = sub !landed !first_handoff; t_wait = sub !first_handoff !created;
+    t_dwell = List.sort compare
+      (List.map (fun st -> (st, Hashtbl.find dwell st)) !order) }
+
+let dep_cycle_through graph start =
+  let deps_of n = match List.assoc_opt n graph with Some ds -> ds | None -> [] in
+  let rec visit path n =
+    if n = start && path <> [] then Some (List.rev (n :: path))
+    else if List.mem n path then None
+    else List.fold_left (fun acc d ->
+      match acc with Some _ -> acc | None -> visit (n :: path) d) None (deps_of n) in
+  (match visit [] start with
+   | Some (_ :: _ :: _ as cyc) -> Some cyc
+   | _ -> None)
+
+type sched_node = { n_id : string; n_state : string; n_deps : string list }
+
+let sched_waves nodes =
+  let done0 = List.filter_map (fun n ->
+    if n.n_state = "landed" || n.n_state = "deleted" then Some n.n_id else None) nodes in
+  let todo = List.filter (fun n -> n.n_state = "todo") nodes in
+  let rec loop finished acc =
+    let layer = List.filter (fun n ->
+      not (List.mem n.n_id finished)
+      && List.for_all (fun d -> List.mem d finished) n.n_deps) todo in
+    match layer with
+    | [] -> List.rev acc
+    | _ -> loop (finished @ List.map (fun n -> n.n_id) layer)
+             ((List.sort String.compare (List.map (fun n -> n.n_id) layer)) :: acc) in
+  loop done0 []
+
+let sched_starved nodes =
+  let dependents d =
+    List.filter_map (fun n -> if List.mem d n.n_deps then Some n.n_id else None) nodes in
+  List.filter_map (fun b ->
+    if b.n_state <> "blocked" then None
+    else
+      let seen = ref [b.n_id] and frontier = ref [b.n_id] in
+      while !frontier <> [] do
+        let next = List.concat_map dependents !frontier in
+        frontier := List.filter (fun x -> not (List.mem x !seen)) next;
+        seen := !seen @ !frontier
+      done;
+      let starved = List.sort String.compare
+        (List.filter (fun id ->
+           id <> b.n_id
+           && (match List.find_opt (fun n -> n.n_id = id) nodes with
+               | Some n -> n.n_state = "todo" | None -> false)) !seen) in
+      if starved = [] then None else Some (b.n_id, starved)) nodes
+
+(* ---------- icebox reader ---------- *)
+(* Frozen entries are plain files, not state: read-only, dumb
+   line parsing, malformed files degrade to [-] fields. *)
+type icebox_entry = {
+  slug : string; date : string; status : string;
+  promoted : string option; title : string; text : string;
+}
+
+let parse_icebox_entry slug text =
+  let lines = String.split_on_char '\n' text in
+  let fm_lines = match lines with
+    | first :: rest when String.trim first = "---" ->
+        let rec take acc = function
+          | [] -> []
+          | l :: _ when String.trim l = "---" -> List.rev acc
+          | l :: r -> take (l :: acc) r in
+        take [] rest
+    | _ -> [] in
+  let field k =
+    let rec go = function
+      | [] -> None
+      | l :: r ->
+          (match String.index_opt l ':' with
+           | Some i when String.trim (String.sub l 0 i) = k ->
+               let v = String.trim (String.sub l (i + 1) (String.length l - i - 1)) in
+               if v = "" then None else Some v
+           | _ -> go r) in
+    go fm_lines in
+  let or_dash = function Some v -> v | None -> "-" in
+  let promoted = match field "promoted" with Some "null" -> None | other -> other in
+  let title =
+    let rec go = function
+      | [] -> "-"
+      | l :: r when String.length l >= 2 && String.sub l 0 2 = "# " ->
+          let t = String.trim (String.sub l 2 (String.length l - 2)) in
+          if t = "" then go r else t
+      | _ :: r -> go r in
+    go lines in
+  { slug; date = or_dash (field "date"); status = or_dash (field "status");
+    promoted; title; text }
+
+let list_icebox_entries () =
+  let dir = Filename.concat root "docs/icebox" in
+  let names = try Array.to_list (Sys.readdir dir) with _ -> [] in
+  names
+  |> List.filter (fun n -> n <> "README.md" && Filename.check_suffix n ".md"
+      && not (try Sys.is_directory (Filename.concat dir n) with _ -> false))
+  |> List.sort String.compare
+  |> List.map (fun n ->
+       parse_icebox_entry (Filename.remove_extension n)
+         (read_file_or (Filename.concat dir n) ""))
+
+let icebox_matches e terms =
+  let hay = String.lowercase_ascii (e.slug ^ "\n" ^ e.title ^ "\n" ^ e.text) in
+  List.for_all (fun t -> contains_sub hay (String.lowercase_ascii t)) terms
+
+let icebox_entry_json e =
+  `Assoc [("slug", json_str e.slug); ("date", json_str e.date);
+          ("status", json_str e.status);
+          ("promoted", (match e.promoted with Some p -> json_str p | None -> `Null));
+===MAIN grade===
+99:  err "E_ILLEGAL_EDGE"
+254:  if not (List.mem edge ["handoff"; "grade"; "verify"; "land"; "block"; "resume"]) then
+288:      let approved_now = (not knobs.grade_required) && (not knobs.verify_required) in
+291:                 grade_ok = false; verify_ok = false } in
+295:  | "grade" | "verify" ->
+298:      let valid = if edge = "grade" then (v = "ship" || v = "needs_fix") else (v = "pass" || v = "fail") in
+312:        let ns = { s with st = nst; cycle = ncyc; grade_ok = false; verify_ok = false } in
+321:        let ns = { s with grade_ok = (if edge = "grade" then true else s.grade_ok);
+322:                          verify_ok = (if edge = "verify" then true else s.verify_ok) } in
+324:          ((not knobs.grade_required) || ns.grade_ok) &&
+325:          ((not knobs.verify_required) || ns.verify_ok) in
+400:                 grade_ok = false; verify_ok = false } in
+525:  edges: handoff grade verify land block resume\n\
+526:  handoff --commit <sha> --reason <why>    bind a clean commit for grade\n\
+527:  grade  --verdict ship|needs_fix --reason <why>\n\
+528:  verify --verdict pass|fail --reason <why>\n\
+537:  bp3 e <edge> [flags]                     take the claimed run's edge: handoff grade verify land block resume (same flags as bp3 q <quest> u <exp> <edge>)\n\
+571:          "Repo was stamped by a newer MAJOR bp3; upgrade bp3 before writing." 1
+635:      let plans = [("plans/default.yaml", "quest_type: default\nmax_cycles: 1\ngrade:\n  required: true\nverify: required\n");
+636:                   ("plans/direct.yaml", "quest_type: direct\nmax_cycles: 0\ngrade:\n  required: false\nverify: required\n")] in
+       if s.st = "landed" || s.st = "deleted" then illegal s.st "delete";
+       if s.st = "blocked" && not id.decider_human then
+         err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest); ("exp", json_str exp)])
+           "Deleting a blocked exp requires a human (BP3_DECIDER=human)." 1;
+       let ns = { s with st = "deleted" } in
+       let line = ledger_line ~edge:"delete" ~from:s.st ~to_:"deleted" ~cycle:s.cycle
+         ~commit:s.last_commit ~verdict:None ~reason ~id () in
+       ignore (append_exp_line quest exp line ns));
+  with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+    ("exp", json_str exp); ("state", json_str "deleted")]
+
+let do_update quest exp edge fl id =
+  check_slug quest; check_slug exp;
+  let reason = require_reason fl in
+  if not (List.mem edge ["handoff"; "grade"; "verify"; "land"; "block"; "resume"]) then
+    usage ("unknown edge: " ^ edge);
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  let (_, s, _) = (match fold_exp quest exp with Some v -> v | None -> not_found "exp" exp) in
+  let (_, qt, deps) = (match fold_quest quest with Some (_, _, a, b, _) -> ((), a, b) | None -> not_found "quest" quest) in
+  let knobs = effective_knobs ~quest_type:qt ~exp_type:s.exp_type in
+  let finish ns line =
+    ignore (append_exp_line quest exp line ns);
+    with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+      ("exp", json_str exp); ("state", json_str ns.st); ("cycle", `Int ns.cycle);
+      ("commit", (match ns.last_commit with Some c -> json_str c | None -> `Null));
+      ("legal_edges", `List (List.map json_str (legal_edges ns.st)))] in
+  match edge with
+  | "handoff" ->
+      if s.st <> "todo" then illegal s.st edge;
+      let raw = (match fl.commit with Some c -> c | None -> usage "--commit is required for handoff") in
+      let full = (match resolve_commit raw with Some f -> f
+        | None -> err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str raw)])
+            "Commit does not exist; bind an existing commit." 1) in
+      if worktree_dirty () then
+        err "E_DIRTY_TREE" (`Assoc []) "Worktree is dirty; clean it and retry." 1;
+      let blocked_by = List.filter (fun d -> not (dep_satisfied d)) deps in
+      if blocked_by <> [] then
+        err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str blocked_by))])
+          "Dependencies are not landed yet." 1;
+      let node_deps = (match fold_exp quest exp with
+        | Some (_, _, text) -> deps_of_text text | None -> []) in
+      let node_blocked = List.filter (fun d ->
+        match fold_exp quest d with
+        | Some (_, ds, _) -> ds.st <> "landed" && ds.st <> "deleted"
+        | None -> true) node_deps in
+      if node_blocked <> [] then
+        err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str node_blocked))])
+          "Node deps are not landed yet." 1;
+      let approved_now = (not knobs.grade_required) && (not knobs.verify_required) in
+      let ns = { s with st = (if approved_now then "approved" else "handed_off");
+                 bound = Some full; has_bound = true; last_commit = Some full;
+                 grade_ok = false; verify_ok = false } in
+      let line = ledger_line ~edge ~from:s.st ~to_:ns.st ~cycle:s.cycle
+        ~commit:(Some full) ~verdict:None ~reason ~id () in
+      finish ns line
+  | "grade" | "verify" ->
+      if s.st <> "handed_off" then illegal s.st edge;
+      let v = (match fl.verdict with Some v -> v | None -> usage "--verdict is required") in
+      let valid = if edge = "grade" then (v = "ship" || v = "needs_fix") else (v = "pass" || v = "fail") in
+      if not valid then usage ("invalid verdict for " ^ edge ^ ": " ^ v);
+      (match fl.commit with
+       | Some c ->
+           let rc = (match resolve_commit c with Some f -> f | None -> c) in
+           let bound = (match s.bound with Some b -> b | None -> "") in
+           if rc <> bound then
+             err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str c); ("bound", json_str bound)])
+               "Verdict must bind the exact current commit; re-read and retry." 1
+       | None -> ());
+      let positive = (v = "ship" || v = "pass") in
+      if not positive then begin
+        let (nst, ncyc) =
+          if s.cycle >= knobs.max_cycles then ("blocked", s.cycle) else ("todo", s.cycle + 1) in
+        let ns = { s with st = nst; cycle = ncyc; grade_ok = false; verify_ok = false } in
+        if nst = "blocked" then begin ns.blocked_reason <- reason; ns.blocked_since <- now_ts () end;
+        let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:ncyc
+          ~commit:s.last_commit ~verdict:(Some v) ~reason ~id () in
+        let base = finish ns line in
+        if nst = "blocked" then
+          (match base with `Assoc fs -> `Assoc (fs @ [("human_action_required", `Bool true)]) | o -> o)
+        else base
+      end else begin
+        let ns = { s with grade_ok = (if edge = "grade" then true else s.grade_ok);
+                          verify_ok = (if edge = "verify" then true else s.verify_ok) } in
+        let now_approved =
+          ((not knobs.grade_required) || ns.grade_ok) &&
+          ((not knobs.verify_required) || ns.verify_ok) in
+        let nst = if now_approved then "approved" else "handed_off" in
+        let ns = { ns with st = nst } in
+        let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:s.cycle
+          ~commit:s.last_commit ~verdict:(Some v) ~reason ~id () in
+        finish ns line
+      end
+  | "land" ->
+      if s.st <> "approved" then illegal s.st edge;
+      (match fl.commit with
+       | Some c ->
+           let rc = (match resolve_commit c with Some f -> f | None -> c) in
+           let bound = (match s.bound with Some b -> b | None -> "") in
+           if rc <> bound then
+             err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str c)])
+               "Verdict must bind the exact current commit." 1
+       | None -> ());
+      (* 1. landed line on exp branch *)
+      let ns = { s with st = "landed" } in
+      let line = ledger_line ~edge ~from:s.st ~to_:"landed" ~cycle:s.cycle
+        ~commit:s.last_commit ~verdict:None ~reason ~id () in
+      ignore (append_exp_line quest exp line ns);
+      let exp_tip = (match ref_tip (exp_branch quest exp) with Some t -> t | None -> "") in
+      let qbranch = quest_branch quest in
+      let qtip = (match ref_tip qbranch with Some t -> t | None -> "") in
+      if is_ancestor qtip exp_tip then begin
+        if run_status (git ["update-ref"; qbranch; exp_tip; qtip]) <> 0 then
+          err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
+        with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+          ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+          ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
+          ("legal_edges", `List [])]
+      end else begin
+        let tree_out, code = git_out ["merge-tree"; "--write-tree"; qtip; exp_tip] in
+        let tree = (match String.split_on_char '\n' tree_out with t :: _ -> String.trim t | [] -> "") in
+        if code <> 0 || tree = "" then begin
+          let ns2 = { s with st = "todo" } in
+          let line2 = ledger_line ~edge:"land" ~from:"approved" ~to_:"todo" ~cycle:s.cycle
+            ~commit:s.last_commit ~verdict:None ~reason ~id () in
+          ignore (append_exp_line quest exp line2 ns2);
+          `Assoc [("ok", `Bool true); ("quest", json_str quest); ("exp", json_str exp);
+            ("state", json_str "todo"); ("cycle", `Int s.cycle);
+            ("facts", `Assoc [("land_conflict", `Bool true)]);
+            ("legal_edges", `List (List.map json_str (legal_edges "todo")))]
+        end else begin
+          let msgf = write_tmp ("bp3: land " ^ exp) in
+          let cf = tmp_path "merge-commit" in
+          ignore (Sys.command (String.concat " " (List.map Filename.quote
+              (git ["commit-tree"; tree; "-p"; qtip; "-p"; exp_tip]))
+            ^ " < " ^ Filename.quote msgf ^ " > " ^ Filename.quote cf ^ " 2>/dev/null"));
+          let mtip = String.trim (read_file_or cf "") in
+          if run_status (git ["update-ref"; qbranch; mtip; qtip]) <> 0 then
+            err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
+          with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+            ("exp", json_str exp); ("state", json_str "landed"); ("fin", json_str "exp_fin"); ("cycle", `Int s.cycle);
+            ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
+            ("legal_edges", `List [])]
+        end
+      end
+  | "block" ->
+      if not (List.mem s.st ["todo"; "handed_off"; "approved"]) then illegal s.st edge;
+      let checkpoint = if worktree_dirty () then Some (make_checkpoint ()) else None in
+      let ns = { s with st = "blocked"; blocked_reason = reason;
+                 blocked_checkpoint = checkpoint; blocked_since = now_ts () } in
+      let line = ledger_line ~edge ~from:s.st ~to_:"blocked" ~cycle:s.cycle
+        ~commit:s.last_commit ~verdict:None ~reason ~id ?checkpoint () in
+      let base = finish ns line in
+      (match base with `Assoc fs -> `Assoc (fs @ [("human_action_required", `Bool true)]) | o -> o)
+  | "resume" ->
+      if s.st <> "blocked" then illegal s.st edge;
+      if not id.decider_human then
+        err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest); ("exp", json_str exp)])
+          "Resume requires a human decision (BP3_DECIDER=human)." 1;
+      let ncyc = if s.has_bound then s.cycle + 1 else s.cycle in
+      let ns = { s with st = "todo"; cycle = ncyc; bound = None; has_bound = false;
+                 grade_ok = false; verify_ok = false } in
+      let line = ledger_line ~edge ~from:s.st ~to_:"todo" ~cycle:ncyc
+        ~commit:None ~verdict:None ~reason ~id () in
+      finish ns line
+  | _ -> usage ("unknown edge: " ^ edge)
+
+(* ---------- context door (mvp.2: bp3 e) ---------- *)
+let no_context amb =
+  match amb with
+  | Some ids ->
+      err "E_NO_CONTEXT"
+        (`Assoc [("run_ids", `List (List.map json_str ids));
+                 ("live_run_ids", `List (List.map json_str ids));
+                 ("desk", json_str (Sys.getcwd ()));
+                 ("source", json_str "desk")])
+        "Desk holds more than one live claimed run and no session rung resolves; refusing to guess. Claim a link for one run, or address the call explicitly." 1
+  | None ->
+      err "E_NO_CONTEXT"
+        (`Assoc [("desk", json_str (Sys.getcwd ()))])
+        "No claimed context resolves for this call (no session claim, no desk context). Claim a link first, or address the call explicitly." 1
+
+let with_context v (rc : Config.run_config) source =
+  match v with
+  | `Assoc fs ->
+      `Assoc (fs @ [("graph", json_str rc.Config.rc_graph);
+                    ("node", json_str rc.Config.rc_node);
+                    ("source", json_str source);
+                    ("source_rung", json_str source);
+                    ("context", Config.resolved_context_json rc source)])
+  | other -> other
+
+./docs/quests/2026-11-05-bp3-mvp/experiments/2026-11-06-reusable-workers-reviewers.md:271:  changed handoff are rejected or held before work. Fresh source validation must
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/QUEST.md:26:on validation; wall time may not be wasted on
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md:73:## Amendment (owner-locked 2026-11-17): grade validations
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md:84:Owner design, locked: **grade validations**.
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md:85:Each validation is a plug (Phoenix-plug style):
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md:87:row out, expectation declared in the validation
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md:92:  -> validations pipeline (deterministic, pre-audit)
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md:93:       validate_git_clean            git status --porcelain, expect empty
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md:94:       validate_clean_commit         git show + porcelain
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md:95:       validate_run_folder_present   tape.log + notes.md exist
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md:96:       validate_handoff_by_child     ledger handoff line
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md:97:       validate_env_run_id_stamped   ledger run_id
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md:105:def validate_git_clean(ctx) -> Row:
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md:138:| validations mint adherence rows | all adherence rows (git-clean, clean commit, run folder present, handoff by child, env run-id stamped) are produced by the deterministic validations pipeline before the audit child spawns; the audit brief no longer asks the LLM for adherence rows |
+./docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-3-ready-set-timing/EXPERIMENT.md:59:| Output | deps in node records + create validation; ready-set/ready/timing on rollup; local timing gates; `induct-node` worker contract (Muse workflow run; recursive Pi root -> node session -> edge session) emitting one terminal outcome per node |
+./docs/quests/2026-11-15-pi-engine-conductor/QUEST.md:141:with a validation unit and a smoke test):
+./docs/quests/2026-11-15-pi-engine-conductor/QUEST.md:148:  validate.*            # the validation unit
+./docs/quests/2026-11-15-pi-engine-conductor/QUEST.md:158:  muse workflow result, both fed through the validation
+./docs/quests/2026-11-15-pi-engine-conductor/QUEST.md:174:| Output types (`StepResult`, `RunEventRow`, `Report`) | `docs/engine-contract/*.schema.json` | every dispatcher/conductor | validation unit + smoke test (round 1) |
+./docs/quests/2026-11-15-pi-engine-conductor/QUEST.md:451:Two substeps: **2.1 shared conventions** — the engine-contract artifact (`docs/engine-contract/` schemas + validation unit), per-Run event log storage + fold, run-id derivation, checked against muse as the first adherent. **2.2 pi-step-runner** — dispatcher extension: one child pi process per Run, typed result, honest settled, emitting contract-shaped results from its first spawn. The smoke test against both engines rides Exp 7.
+./docs/quests/2026-11-15-pi-engine-conductor/QUEST.md:466:Quest-level demo: full toy drive + two-quest fleet on pi, check-in report, landing demo. Hosts the contract smoke test: one live pi dispatch + one captured muse result through the validation unit, and the model-per-role cast (author sol, reviewer astra/high, checker terra, lander terra/low) asserted from event log rows.
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-mvp-5-delete-redundant/EXPERIMENT.md:145:- Spawn safety, role validation, desk guards, and the
+./docs/quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/experiments/exp-dogfood-2-pi-supervisor-rethink/EXPERIMENT.md:124:| `docs/engine-contract/` schemas + validation unit as a new artifact | drop (for MVP) | QUEST.md records it as a to-build artifact, not an existing authority. Contract shapes above are the MVP contract; schemas return only if a second harness needs them. |
+./docs/designs/bp3-control-mvp.md:819:   invalidation before E0/E1; preserve the two-level planning vocabulary.
+./docs/designs/bp3-control.md:376:- **Adopt Invoker wholesale:** not proposed. Borrow dependency validation,
+./docs/designs/bp3-control.md:377:  immutable input lineage, and invalidation principles without assuming its
+./docs/designs/bp3-control.md:389:- [`MUTATION_POLICIES` and `applyInvalidation`](https://github.com/Neko-Catpital-Labs/Invoker/blob/79b62e131692614b9b5247520bf8c8e7eb03f248/packages/workflow-core/src/invalidation-policy.ts)
+./docs/designs/bp3-control.md:391:  invalidation/cascades.
+./docs/designs/bp3-control.md:408:| Graph validation | Missing references, self-dependencies, and cycles are rejected without partial mutation. |
+./docs/dossiers/muse-workflows-hooks.md:111:- **Configurable DAG.** What it takes: graph schema, validation,
+./src/quest/main.ml:171:let validate_deps quest self deps =
+./src/quest/main.ml:194:  validate_deps quest exp deps;
+./src/quest/main.ml:220:       validate_deps quest exp deps;
+===
+// node-loop: build one todo exp, then stop. Installed to
+// .agents/workflows/node-loop.js by `bp3 skills install`.
+// This step owns exactly one transition family: it reads state,
+// spawns the single author child for a `todo` exp, re-reads, and
+// returns what the re-read reports. Any other state belongs to
+// a different step; this file refuses it untouched. All state
+// moves through `bp3 q u`, called directly by the author child;
+// this script never writes state. Its one write is proof, not
+// state: as the link minter (mvp.1) it mints a one-time link via
+// `bp3 harness link mint` before the child spawns; the
+// child's first action claims it, and the claim binds
+// session to run-id. As the named tape binder it then
+// binds the child's session tape via `bp3 harness
+// bind-tape` after the child returns.
+// Args are supplied by the calling traverse skill as {quest, exp,
+// ts, harness, model}; ts is a UTC compact timestamp from the
+// caller, embedded by the child in its run-id because scripts
+// cannot read the clock.
+
+function textOf(result) {
+  if (typeof result === "string") return result;
+  if (!result || typeof result !== "object") return "";
+  if (typeof result.output === "string") return result.output;
+  if (typeof result.text === "string") return result.text;
+  if (typeof result.content === "string") return result.content;
+  try {
+    return JSON.stringify(result);
+  } catch (e) {
+    return "";
+  }
+}
+
+function parseVerdict(result) {
+  const text = textOf(result);
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    // fall through to embedded-JSON extraction
+  }
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(text.slice(start, end + 1));
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
+
+function errorText(result) {
+  const v = parseVerdict(result);
+  if (v && v.error && v.error.code) {
+    const facts = v.error.facts ? JSON.stringify(v.error.facts) : "";
+    return v.error.code + (facts ? " " + facts : "");
+  }
+  const text = textOf(result).trim();
+  return text ? text.slice(0, 500) : "no verdict returned";
+}
+
+export default async function workflow(host) {
+  const rawArgs = typeof host.args === "string"
+    ? JSON.parse(host.args)
+    : (host.args || {});
+  const quest = rawArgs.quest;
+  const exp = rawArgs.exp;
+  const ts = rawArgs.ts;
+  const harness = rawArgs.harness || "muse-code";
+  const model = rawArgs.model || "unknown";
+  const desk = rawArgs.desk ? String(rawArgs.desk) : "";
+  const envPrefix =
+    "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
+  const deskNote = desk ? ("Your working directory is the quest worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
+  const authorLoad =
+    "First load the code-writer skill (read_skill \"code-writer\") " +
+    "and follow its procedure, including naming discipline and " +
+    "its language references. ";
+  const refusals = [];
+  const runIds = [];
+  if (!quest || !exp || !ts) {
+    return {
+      exp: exp || null,
+      outcome: "refused",
+      commit: null,
+      run_ids: runIds,
+      refusals: ["missing quest, exp, or ts in workflow args"],
+    };
+  }
+
+  const expDir =
+    "docs/quests/" + quest + "/experiments/" + exp;
+
+  async function readState() {
+    const result = await host.agent({
+      label: "read " + exp,
+      input:
+        "Run exactly `" + envPrefix + "./bin/bp3 q " + quest + " r " + exp +
+        "` from the quest worktree if one is named below, else the repository root, and return only its stdout JSON " +
+        "verdict verbatim as your entire reply, with no prose and no " +
+        "code fences. If the command fails, return its stdout JSON " +
+        "verdict verbatim instead. Do not edit any file and do not " +
+        "call any `bp3 q u` update edge.",
+    });
+    const v = parseVerdict(result);
+    if (!v || typeof v.state !== "string") {
+      return {
+        state: "unknown",
+        commit: null,
+        cycle: 0,
+        legal_edges: [],
+        raw: textOf(result),
+      };
+    }
+    return {
+      state: v.state,
+      commit: v.commit === undefined ? null : v.commit,
+      cycle: typeof v.cycle === "number" ? v.cycle : 0,
+      legal_edges: Array.isArray(v.legal_edges) ? v.legal_edges : [],
+induct-grade tests: ok
+EXIT:0
+add-bp3-skill
+add-yap-skill
+icebox
+naming
+quest
+red-ink
+red-ink-quest-landing-demo
+traverse
+traverse-no-human
+using-bp3
+#!/bin/sh
+# traverse workflow contract tests (mock host, no agent calls).
+set -eu
+cd "$(dirname "$0")/.."
+node test/node-loop.test.mjs
+node test/induct-node.test.mjs
+node test/induct-grade.test.mjs
+node test/quest-land.test.mjs
+node test/traverse-conduct.test.mjs
+ls: skills/induct: No such file or directory
+ls: skills/induct/workflows/: No such file or directory
+induct-grade.js
+induct-node.js
+node-loop.js
+quest-land.js
+bin/bp3:3:# later; the interface stays: bp3 skills install --harness=<name|all>.
+bin/bp3:27:    /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
+bin/bp3:94:      cp "$src_dir/traverse/workflows/$workflow_name.js" "$root/.agents/workflows/$workflow_name.js"
+bin/bp3:170:usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+ERR Cannot find module '/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/skills/induct/workflows/induct-grade.js' imported from /Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/[eval]
+test/induct-grade.test.mjs
+test/induct-node.test.mjs
+test/node-loop.test.mjs
+test/pi-discovery.mjs
+test/quest-land.test.mjs
+test/traverse-conduct.test.mjs
+==> test/node-loop.test.mjs <==
+// Mock-host test for skills/traverse/workflows/node-loop.js.
+// Covers the exp Acceptance table for the slimmed build-only
+// step: the launcher's link mint precedes the author
+// child on a todo exp (mvp.1; a refused mint spawns nothing),
+// only the author child spawns on a todo exp, the launcher's
+
+==> test/induct-node.test.mjs <==
+// Mock-host test for skills/traverse/workflows/induct-node.js
+// (mvp.3): one run owns one node's FSM loop and returns
+// exactly one terminal outcome (landed, blocked, deleted).
+import workflow from "../skills/traverse/workflows/induct-node.js";
+
+// Mock-host test for skills/traverse/workflows/induct-grade.js.
+// Covers the exp Acceptance table: typed matrix returned, a
+// missing-evidence row blocks approval, an untyped row never
+// carries pass, a deferred row naming its owning exp never
+// blocks (an unnamed or untyped deferral is missing), the
+// audit quotes env-preset evidence from the stamped ledger line,
+// row order never changes the outcome, replay on the same
+// commit returns the same matrix, the ladder fixtures (lying
+// pointer blocks, clean shows zero whole-log reads, confused
+// whole-tape escalation must name itself), and grade children are
+// judge-only (audit spawns no edge, grade/verify bind the
+// exact commit).
+import workflow from "../skills/traverse/workflows/induct-grade.js";
+
+const TS = "20260101T000000Z";
+const COMMIT = "abc1234";
+let failures = 0;
+function assert(cond, msg) {
+  if (!cond) { console.error("FAIL: " + msg); failures++; }
+}
+DIFF_EXIT:0
+  for skill_dir in "$src_dir"/*/; do
+    skill="$(basename "$skill_dir")"
+    [ -f "$skill_dir/SKILL.md" ] || continue
+    for h in $harnesses; do
+      install_one "$skill" "$h"
+    done
+  done
+  if [ -n "$settings_plan" ]; then
+    printf '%s\n' "$settings_plan" | jq . > "$root/.pi/settings.json"
+  fi
+  local workflow_name
+  for workflow_name in $workflow_names; do
+    if [ -f "$src_dir/traverse/workflows/$workflow_name.js" ]; then
+      mkdir -p "$root/.agents/workflows"
+      cp "$src_dir/traverse/workflows/$workflow_name.js" "$root/.agents/workflows/$workflow_name.js"
+      echo "installed $workflow_name -> .agents/workflows/$workflow_name.js"
+    fi
+  done
+  # Muse hook registration: one fail-open emitter command for
+  # every event. Repos without this file never fire hooks.
+  mkdir -p "$root/.claude"
+  cat > "$root/.claude/hooks.json" <<'HOOKS_JSON'
+{
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "PostLLMCall": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SubagentStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "./bin/bp3 q hooks"}]}],
+test/skills.sh:75:assert test -f "$root/.agents/workflows/node-loop.js"
+test/skills.sh:76:assert cmp "$root/skills/traverse/workflows/node-loop.js" "$root/.agents/workflows/node-loop.js"
+test/skills.sh:77:assert test -f "$root/.agents/workflows/induct-node.js"
+test/skills.sh:78:assert cmp "$root/skills/traverse/workflows/induct-node.js" "$root/.agents/workflows/induct-node.js"
+test/skills.sh:79:assert test ! -e "$root/.agents/workflows/induct-exp.js"
+test/skills.sh:80:assert test -f "$root/.agents/workflows/induct-grade.js"
+test/skills.sh:81:assert cmp "$root/skills/traverse/workflows/induct-grade.js" "$root/.agents/workflows/induct-grade.js"
+test/skills.sh:82:assert test -f "$root/.agents/workflows/quest-land.js"
+test/skills.sh:83:assert cmp "$root/skills/traverse/workflows/quest-land.js" "$root/.agents/workflows/quest-land.js"
+test/skills.sh:97:assert cmp "$root/skills/traverse/workflows/node-loop.js" "$root/.agents/workflows/node-loop.js"
+test/skills.sh:98:assert cmp "$root/skills/traverse/workflows/induct-grade.js" "$root/.agents/workflows/induct-grade.js"
+test/skills.sh:99:assert cmp "$root/skills/traverse/workflows/quest-land.js" "$root/.agents/workflows/quest-land.js"
+6e2dd7c docs(followup.1): amend grade-evidence with grade validations design
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md
+105cbea test(mvp.3): quotable no-hand-edited-state guard for cycle-2 grade
+test/ready.sh
+b765d07 feat(mvp.3): ready-set waves, node deps, derived timing, setup gate, induct-node loop
+.agents/workflows/induct-node.js
+Makefile
+bin/bp3
+skills/traverse/SKILL.md
+skills/traverse/workflows/induct-node.js
+src/quest/main.ml
+src/quest/render.ml
+src/quest/store.ml
+test/induct-node.test.mjs
+test/ready.sh
+test/skills.sh
+test/traverse.sh
+     393 test/induct-grade.test.mjs
+     527 skills/traverse/workflows/induct-grade.js
+     920 total
+// Mock-host test for skills/traverse/workflows/induct-grade.js.
+// Covers the exp Acceptance table: typed matrix returned, a
+// missing-evidence row blocks approval, an untyped row never
+// carries pass, a deferred row naming its owning exp never
+// blocks (an unnamed or untyped deferral is missing), the
+// audit quotes env-preset evidence from the stamped ledger line,
+// row order never changes the outcome, replay on the same
+// commit returns the same matrix, the ladder fixtures (lying
+// pointer blocks, clean shows zero whole-log reads, confused
+// whole-tape escalation must name itself), and grade children are
+// judge-only (audit spawns no edge, grade/verify bind the
+// exact commit).
+import workflow from "../skills/traverse/workflows/induct-grade.js";
+
+const TS = "20260101T000000Z";
+const COMMIT = "abc1234";
+let failures = 0;
+function assert(cond, msg) {
+  if (!cond) { console.error("FAIL: " + msg); failures++; }
+}
+
+function passRow(name) {
+  return {
+    case: name,
+    evidence: { kind: "command", ref: "test/q.sh", quote: "q tests: ok" },
+    verdict: "pass",
+  };
+}
+
+function deferredRow(name) {
+  return {
+    case: name,
+    evidence: {
+      kind: "file",
+      ref: "docs/quests/toy/experiments/fx/EXPERIMENT.md:57",
+      quote: "| " + name + " | NOT gated by this exp |",
+    },
+    verdict: "deferred",
+  };
+}
+
+// reads: state replies in order; audit replies with auditRows;
+// grade/verify reply as cast verdicts. Records stage inputs.
+function mockHost({ reads, auditRows, initFails }) {
+  let readIdx = 0;
+  const inputs = {};
+  const order = [];
+  const inits = [];
+  const host = {
+    args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: COMMIT },
+    async agent({ label, input }) {
+      if (input.includes("harness link mint")) {
+        order.push("init");
+        inputs.init = input;
+        const e = input.match(/--edge (\S+)/);
+        const edge = e ? e[1] : "audit";
+        const runId = TS + "-" + edge + "-muse-code-test-model-c1";
+        inits.push(runId);
+        if (initFails) {
+          return JSON.stringify({ ok: false, error: { code: "E_DEPTH" } });
+        }
+        return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: runId, harness: "muse-code" });
+      }
+      if (input.startsWith("Run exactly")) {
+        return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
+      }
+      const edge = label.split(" ")[0];
+      inputs[edge] = input;
+      order.push(edge);
+      if (edge === "audit") {
+        return JSON.stringify({ ok: true, run_id: "r-audit", matrix: auditRows });
+      }
+      return JSON.stringify({ ok: true, run_id: "r-" + edge, commit: COMMIT, verdict: { ok: true } });
+    },
+    async parallel(calls) {
+      const out = [];
+      for (const c of calls) out.push(await host.agent(c));
+      return out;
+    },
+  };
+  return { host, inputs, order, inits };
+}
+
+const handedOff = { state: "handed_off", cycle: 1, commit: COMMIT, legal_edges: ["grade", "verify"] };
+const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["land"] };
+
+// --- grade a handed_off exp: outcome + typed matrix, bindings ---
+{
+  const { host, inputs, order, inits } = mockHost({
+    reads: [handedOff, approved],
+    auditRows: [passRow("acceptance: a"), passRow("adherence: tape present")],
+  });
+  const result = await workflow(host);
+  assert(result.outcome === "approved", "all-pass grade approves, got " + result.outcome);
+  assert(Array.isArray(result.matrix) && result.matrix.length === 2, "matrix has both rows");
+  assert(result.matrix.every((r) => r.verdict === "pass"), "all rows pass");
+  assert(order.join(",") === "init,audit,init,init,grade,verify", "writer precedes each grade child, got " + order.join(","));
+  assert(inits.join(",") === [TS + "-audit-muse-code-test-model-c1", TS + "-grade-muse-code-test-model-c1", TS + "-verify-muse-code-test-model-c1"].join(","),
+    "mints name every grade run-id, got " + inits.join(","));
+  for (const edge of ["audit", "grade", "verify"]) {
+    const input = inputs[edge];
+    assert(input, edge + " child was spawned");
+    assert(input.includes("runs/" + TS + "-" + edge + "-muse-code-test-model-c1"),
+      edge + " run folder matches the minted run-id");
+    assert(!input.includes("Prefix your FIRST"),
+      edge + " brief carries no first-command prefix instruction");
+    assert(input.includes("arrives via the"),
+      edge + " is told the run-id arrives via the claim");
+  }
+  for (const edge of ["grade", "verify"]) {
+    assert(inputs[edge].includes("link claim bp3link_test-" + edge), edge + " brief carries its claim token");
+    assert(inputs[edge].includes("BP3_RUN_ID=<that run_id>"), edge + " is told to stamp the claimed run-id");
+  }
+  assert(inputs.audit.includes("do not call any `bp3 q u` update edge"),
+    "audit child spawns no state edge");
+  assert(inputs.audit.includes("notes.md"), "audit writes matrix in its notes.md");
+  assert(inputs.grade.includes("grade --verdict ship --commit " + COMMIT),
+    "grade binds the exact commit");
+  assert(inputs.verify.includes("verify --verdict pass --commit " + COMMIT),
+    "verify binds the exact commit");
+  assert(result.run_ids.join(",") === [TS + "-audit-muse-code-test-model-c1", "r-audit", TS + "-grade-muse-code-test-model-c1", TS + "-verify-muse-code-test-model-c1", "r-grade", "r-verify"].join(","),
+    "run_ids collect mints and every grade child, got " + result.run_ids.join(","));
+}
+
+// --- no artifact: row missing, outcome cannot be approved ---
+{
+  const missing = passRow("acceptance: b");
+  missing.verdict = "missing";
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [passRow("acceptance: a"), missing] });
+  const result = await workflow(host);
+  assert(result.matrix[1].verdict === "missing", "missing row stays missing");
+  assert(result.outcome === "needs_fix", "missing row blocks approval, got " + result.outcome);
+}
+
+// --- untyped evidence never carries pass; free string is not a row ---
+{
+  const untyped = { case: "acceptance: c", evidence: "looked fine", verdict: "pass" };
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [untyped] });
+  const result = await workflow(host);
+  assert(result.matrix[0].verdict === "missing", "untyped pass downgraded to missing");
+  assert(result.matrix[0].verdict === "missing", "untyped pass downgraded to missing");
+  assert(result.outcome === "needs_fix", "untyped row blocks approval, got " + result.outcome);
+}
+
+// --- row order never changes the outcome ---
+{
+  const fail = passRow("acceptance: d");
+  fail.verdict = "fail";
+  const a = mockHost({ reads: [handedOff, approved], auditRows: [passRow("acceptance: a"), fail] });
+  const b = mockHost({ reads: [handedOff, approved], auditRows: [fail, passRow("acceptance: a")] });
+  const ra = await workflow(a.host);
+  const rb = await workflow(b.host);
+  assert(ra.outcome === rb.outcome && ra.outcome === "needs_fix",
+    "row order keeps outcome, got " + ra.outcome + "/" + rb.outcome);
+}
+
+// --- replay on the same commit: same matrix, still approved ---
+{
+  const rows = [passRow("acceptance: a")];
+  const first = mockHost({ reads: [handedOff, approved], auditRows: rows });
+  const r1 = await workflow(first.host);
+  const replay = mockHost({ reads: [approved, approved], auditRows: rows });
+  const r2 = await workflow(replay.host);
+  assert(r2.outcome === "approved", "replay on approved commit approves, got " + r2.outcome);
+  assert(JSON.stringify(r2.matrix) === JSON.stringify(r1.matrix), "replay returns the same matrix");
+}
+
+// --- not handed_off: no grade children spawn ---
+{
+  const todo = { state: "todo", cycle: 1, commit: null, legal_edges: ["handoff"] };
+  const { host, order } = mockHost({ reads: [todo], auditRows: [passRow("acceptance: a")] });
+  const result = await workflow(host);
+  assert(result.outcome === "todo", "todo exp is not graded, got " + result.outcome);
+  assert(order.length === 0, "no grade children spawn for todo");
+}
+
+// --- commit mismatch and missing args refuse without children ---
+{
+  const other = { state: "handed_off", cycle: 1, commit: "def5678", legal_edges: ["grade", "verify"] };
+  const { host, order } = mockHost({ reads: [other], auditRows: [passRow("acceptance: a")] });
+  const result = await workflow(host);
+  assert(result.outcome === "refused", "commit mismatch refuses, got " + result.outcome);
+  assert(order.length === 0, "no grade children spawn on mismatch");
+
+  const noCommit = {
+    args: { quest: "toy", exp: "fx", ts: TS },
+    async agent() { throw new Error("must not spawn"); },
+    async parallel() { throw new Error("must not spawn"); },
+  };
+  const refused = await workflow(noCommit);
+  assert(refused.outcome === "refused", "missing commit refuses");
+}
+
+// --- deferred row: owned elsewhere, excluded from the gate ---
+{
+  const { host, inputs } = mockHost({
+    reads: [handedOff, approved],
+    auditRows: [
+      passRow("acceptance: a"),
+      deferredRow("acceptance: full cycle — NOT gated by this exp, deferred to Exp 3"),
+    ],
+  });
+  const result = await workflow(host);
+  assert(result.matrix[1].verdict === "deferred", "deferred row stays deferred");
+  assert(result.matrix[1].evidence.kind === "file", "deferred row keeps its typed deferral evidence");
+  assert(result.outcome === "approved", "deferred row does not block approval, got " + result.outcome);
+  assert(inputs.audit.includes("verdict: pass|fail|missing|deferred"),
+    "audit may emit deferred rows");
+  assert(!inputs.audit.includes("bp3-run-registry"),
+    "audit never names the retired run registry");
+  assert(inputs.audit.includes("run-lifecycle-derivations"),
+    "audit corroborates from the per-Run derivation log");
+  assert(inputs.audit.includes("stamped"), "audit quotes the stamped ledger line");
+  assert(inputs.grade.includes("deferred"), "grade is told deferred rows never block");
+  assert(inputs.verify.includes("deferred"), "verify is told deferred rows never block");
+}
+
+// --- deferral naming no owning exp is missing, not deferred ---
+{
+  const unnamed = deferredRow("acceptance: later work — deferred");
+  unnamed.evidence.quote = "deferred to a later exp";
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [passRow("acceptance: a"), unnamed] });
+  const result = await workflow(host);
+  assert(result.matrix[1].verdict === "missing", "unnamed deferral downgraded to missing");
+  assert(result.outcome === "needs_fix", "unnamed deferral blocks approval, got " + result.outcome);
+}
+
+// --- deferral text naming its owner is deferred even if mislabeled missing ---
+{
+  const mislabeled = deferredRow("acceptance: full cycle — NOT gated by this exp, deferred to Exp 3");
+  mislabeled.verdict = "missing";
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [passRow("acceptance: a"), mislabeled] });
+  const result = await workflow(host);
+  assert(result.matrix[1].verdict === "deferred", "mislabeled deferral upgraded to deferred");
+  assert(result.outcome === "approved", "mislabeled deferral does not block approval, got " + result.outcome);
+}
+
+// --- deferred without typed evidence is missing, never deferred ---
+{
+  const untyped = { case: "acceptance: x — deferred to Exp 3", evidence: "deferred to Exp 3", verdict: "deferred" };
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [untyped] });
+  const result = await workflow(host);
+  assert(result.matrix[0].verdict === "missing", "untyped deferred downgraded to missing");
+  assert(result.outcome === "needs_fix", "untyped deferred blocks approval, got " + result.outcome);
+}
+
+// --- verdict outside pass|fail|missing|deferred is coerced ---
+{
+  const bogus = passRow("acceptance: e");
+  bogus.verdict = "bogus";
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [bogus] });
+  const result = await workflow(host);
+  assert(result.matrix[0].verdict === "missing", "unknown verdict coerced to missing");
+  assert(result.outcome === "needs_fix", "coerced row blocks approval, got " + result.outcome);
+}
+
+// --- generated matrices: order never matters, deferred never gates ---
+{
+  const kinds = ["pass", "fail", "missing", "deferred"];
+  function rowFor(v, i) {
+    if (v === "deferred") return deferredRow("acceptance: d" + i + " — deferred to Exp 3");
+    const r = passRow("acceptance: r" + i);
+    r.verdict = v;
+    return r;
+  }
+  async function outcomeOf(rows) {
+    const { host } = mockHost({ reads: [handedOff, approved], auditRows: rows });
+    return (await workflow(host)).outcome;
+  }
+  const seqs = [[]];
+  for (let len = 1; len <= 3; len++) {
+    const prev = seqs.filter((s) => s.length === len - 1);
+    for (const p of prev) for (const k of kinds) seqs.push(p.concat(k));
+  }
+  for (const seq of seqs) {
+    const got = await outcomeOf(seq.map(rowFor));
+    const gatedBad = seq.length === 0 || seq.some((v) => v !== "pass" && v !== "deferred");
+    const want = gatedBad ? "needs_fix" : "approved";
+    assert(got === want, "outcome for [" + seq.join(",") + "] is " + want + ", got " + got);
+    const rev = await outcomeOf(seq.slice().reverse().map(rowFor));
+    assert(rev === got, "row order keeps outcome for [" + seq.join(",") + "]");
+  }
+}
+
+// --- evidence ladder (mvp.7): prompts climb rungs in order ---
+{
+  const { host, inputs } = mockHost({
+    reads: [handedOff, approved],
+    auditRows: [passRow("acceptance: a")],
+  });
+  await workflow(host);
+  assert(inputs.audit.includes("rung 1 the quest and exp records"), "audit starts at rung 1 (records)");
+  assert(inputs.audit.includes("rung 2 committed code and git diff"), "audit climbs to rung 2 (diff)");
+  assert(inputs.audit.includes("rung 3 demos and tests, run"), "audit climbs to rung 3 (tests run)");
+  assert(inputs.audit.includes("rung 4 style"), "audit climbs to rung 4 (style)");
+  assert(inputs.audit.includes("bp3 harness find-tape --run-id <run-id> --entry"), "audit resolves pointers via find-tape --entry");
+  assert(inputs.audit.includes("rung 5b the whole tape, escalation only when blocked, confused, or lying"), "whole tape is named escalation only");
+  assert(inputs.audit.includes("zero whole-log reads"), "clean grade shows zero whole-log reads");
+  assert(inputs.audit.includes("rung: 1|2|3|4|5a|5b"), "rows name the rung that decided them");
+  assert(inputs.grade.includes("find-tape --run-id"), "grade is told the ladder");
+  assert(inputs.verify.includes("find-tape --run-id"), "verify is told the ladder");
+  assert(inputs.grade.includes("unnamed whole-tape read"), "grade gates unnamed whole-tape reads");
+  assert(inputs.verify.includes("unnamed whole-tape read"), "verify gates unnamed whole-tape reads");
+}
+
+function rungRow(name, rung, verdict, quote) {
+  return {
+    case: name,
+    rung: rung,
+    evidence: {
+      kind: "command",
+      ref: "bp3 harness find-tape --run-id R --entry E",
+      quote: quote || "entry E observed verbatim",
+    },
+    verdict: verdict,
+  };
+}
+
+// --- lying fixture: rungs 1-4 clean, rung 5a pointer contradicts ---
+{
+  const rows = [
+    rungRow("acceptance: records", "1", "pass"),
+    rungRow("acceptance: diff clean", "2", "pass"),
+    rungRow("acceptance: tests pass", "3", "pass"),
+    rungRow("acceptance: style", "4", "pass"),
+    rungRow("acceptance: claim holds", "5a", "fail", "entry E contradicts the claim"),
+  ];
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: rows });
+  const result = await workflow(host);
+  assert(result.outcome === "needs_fix", "lying fixture blocks, got " + result.outcome);
+  assert(result.matrix[4].verdict === "fail", "pointer row stays fail");
+  assert(result.matrix[4].rung === "5a", "pointer row keeps rung 5a");
+  assert(result.matrix[4].evidence.ref.includes("find-tape --run-id"), "block cites the rung-5 pointer");
+}
+
+// --- clean fixture: decided at rungs 1-4, zero whole-log reads ---
+{
+  const rows = [
+    rungRow("acceptance: records", "1", "pass"),
+    rungRow("acceptance: diff clean", "2", "pass"),
+    rungRow("acceptance: tests pass", "3", "pass"),
+    rungRow("acceptance: style", "4", "pass"),
+  ];
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: rows });
+  const result = await workflow(host);
+  assert(result.outcome === "approved", "clean fixture approves, got " + result.outcome);
+  assert(result.matrix.every((r) => r.rung !== "5b"), "clean trace shows zero whole-log reads");
+}
+
+// --- confused fixture: named whole-tape escalation is allowed ---
+{
+  const rows = [
+    rungRow("acceptance: records", "1", "pass"),
+    rungRow("acceptance: whole tape decides", "5b", "pass", "confused grade: rungs 1-5a undecided, whole tape read"),
+  ];
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: rows });
+  const result = await workflow(host);
+  assert(result.matrix[1].verdict === "pass", "named escalation keeps its verdict");
+  assert(result.matrix[1].rung === "5b", "escalation row keeps rung 5b");
+  assert(result.outcome === "approved", "named confused escalation can decide, got " + result.outcome);
+}
+
+// --- unnamed whole-tape read never carries a grade ---
+{
+  const rows = [
+    rungRow("acceptance: records", "1", "pass"),
+    rungRow("acceptance: tape looked fine", "5b", "pass", "read the whole tape"),
+  ];
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: rows });
+  const result = await workflow(host);
+  assert(result.matrix[1].verdict === "missing", "unnamed whole-tape pass downgraded to missing");
+  assert(result.outcome === "needs_fix", "unnamed whole-tape read blocks approval, got " + result.outcome);
+}
+
+// --- a rung outside the ladder is no rung ---
+{
+  const bogus = rungRow("acceptance: records", "9", "pass");
+  const { host } = mockHost({ reads: [handedOff, approved], auditRows: [bogus] });
+  const result = await workflow(host);
+  assert(result.matrix[0].rung === null, "unknown rung coerced to null");
+  assert(result.matrix[0].verdict === "pass", "row still judged on its typed evidence");
+}
+
+// --- writer refused: no grade child starts (mvp.8) ---
+{
+  const { host, order } = mockHost({ reads: [handedOff, approved], auditRows: [passRow("acceptance: a")], initFails: true });
+  const result = await workflow(host);
+  assert(result.outcome === "refused", "writer refusal refuses the grade, got " + result.outcome);
+  assert(order.join(",") === "init", "no grade child spawns after a refused mint, got " + order.join(","));
+  assert(result.refusals.some((r) => r.includes("link mint")), "refusal names link mint");
+}
+
+if (failures > 0) process.exit(1);
+console.log("induct-grade tests: ok");
+test/traverse-conduct.test.mjs:40:      if (["author", "audit", "grade", "verify", "land"].includes(stage)) {
+test/traverse-conduct.test.mjs:47:        if (stage === "audit") {
+test/traverse-conduct.test.mjs:48:          return JSON.stringify({ ok: true, run_id: "r-audit", matrix: [passRow("acceptance: fixture node")] });
+test/traverse-conduct.test.mjs:62:        const edge = e ? e[1] : "audit";
+test/traverse-conduct.test.mjs:112:  assert(stages.join(",") === "author,audit,grade,verify,land",
+unknown arg: --help
+// Conduction smoke drive for /traverse (skills/traverse/SKILL.md).
+// One fixture node is driven end to end by the conductor dispatch
+// table — todo -> node-loop, handed_off -> induct-grade,
+// approved -> quest-land — against a shared fixture state
+// machine, ending landed (reported exp_fin). Each step is the
+// real workflow file; only the host (agent spawns and bp3 reads)
+// is mocked, so this proves conduction, not per-workflow parity.
+import { readFileSync } from "node:fs";
+import nodeLoop from "../skills/traverse/workflows/node-loop.js";
+import inductGrade from "../skills/traverse/workflows/induct-grade.js";
+import questLand from "../skills/traverse/workflows/quest-land.js";
+
+const TS = "20260101T000000Z";
+const COMMIT = "abc1234";
+let failures = 0;
+function assert(cond, msg) {
+  if (!cond) { console.error("FAIL: " + msg); failures++; }
+}
+
+function passRow(name) {
+  return {
+    case: name,
+    evidence: { kind: "command", ref: "test/traverse.sh", quote: "traverse tests: ok" },
+    verdict: "pass",
+  };
+}
+
+// Shared fixture: one exp whose state only the stage children
+// advance, exactly as bp3 q u edges would. Reads always report
+// the current fixture state.
+function fixtureHost() {
+  let current = { state: "todo", cycle: 1, commit: null, legal_edges: ["handoff"] };
+  const stages = [];
+  const host = {
+    args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: null },
+    async agent({ label, input }) {
+      // Stage children first: their briefs mention harness
+      // commands (find-tape in the ladder text) without calling them.
+      const stage = label.split(" ")[0];
+      if (["author", "audit", "grade", "verify", "land"].includes(stage)) {
+        stages.push(stage);
+        if (stage === "author") {
+          current = { state: "handed_off", cycle: 1, commit: COMMIT, legal_edges: ["grade", "verify"] };
+          host.args.commit = COMMIT;
+          return JSON.stringify({ ok: true, run_id: "r-author", commit: COMMIT, verdict: { ok: true } });
+        }
+        if (stage === "audit") {
+          return JSON.stringify({ ok: true, run_id: "r-audit", matrix: [passRow("acceptance: fixture node")] });
+        }
+        if (stage === "verify") {
+          current = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["land"] };
+          return JSON.stringify({ ok: true, run_id: "r-verify", commit: COMMIT, verdict: { ok: true } });
+        }
+        if (stage === "land") {
+          current = { state: "landed", cycle: 1, commit: COMMIT, legal_edges: [] };
+          return JSON.stringify({ ok: true, run_id: "r-land", commit: COMMIT, verdict: { ok: true } });
+        }
+        return JSON.stringify({ ok: true, run_id: "r-" + stage, commit: COMMIT, verdict: { ok: true } });
+      }
+      if (input.includes("harness link mint")) {
+        const e = input.match(/--edge (\S+)/);
+        const edge = e ? e[1] : "audit";
+        return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: "20260101T000000Z-" + edge + "-muse-code-test-model-c1", harness: "muse-code" });
+      }
+      if (input.includes("harness find-tape")) {
+        const m = input.match(/--run-id (\S+)/);
+        return JSON.stringify({ ok: true, run_id: m ? m[1] : "", tape_path: "/tmp/session-tape.jsonl" });
+      }
+      if (input.includes("harness bind-tape")) {
+        return JSON.stringify({ ok: true, run_id: "bind", tape_path: "/tmp/session-tape.jsonl" });
+      }
+      if (input.startsWith("Run exactly")) {
+        return JSON.stringify(current);
+      }
+      return JSON.stringify({ ok: true, run_id: "r-unknown", verdict: { ok: true } });
+    },
+    async parallel(calls) {
+      const out = [];
+      for (const c of calls) out.push(await host.agent(c));
+      return out;
+    },
+  };
+  return { host, stages, state: () => current.state };
+}
+
+// --- traverse conducts: one fixture node, handoff -> grade -> land ---
+{
+  const { host, stages, state } = fixtureHost();
+  const dispatched = [];
+  const outcomes = [];
+  // Conductor loop, traverse Procedure steps 3/5: dispatch the
+  // one step the fresh state calls for, then re-read.
+  for (let step = 0; step < 6 && state() !== "landed"; step++) {
+    const s = state();
+    if (s === "todo") {
+      dispatched.push("node-loop");
+      outcomes.push((await nodeLoop(host)).outcome);
+    } else if (s === "handed_off") {
+      dispatched.push("induct-grade");
+      outcomes.push((await inductGrade(host)).outcome);
+    } else if (s === "approved") {
+      dispatched.push("quest-land");
+      outcomes.push((await questLand(host)).outcome);
+    } else {
+      break;
+    }
+  }
+  assert(dispatched.join(",") === "node-loop,induct-grade,quest-land",
+    "traverse dispatches handoff, grade, land in order, got " + dispatched.join(","));
+  assert(outcomes.join(",") === "handed_off,approved,landed",
+    "each step lands its transition, got " + outcomes.join(","));
+  assert(stages.join(",") === "author,audit,grade,verify,land",
+    "stage children run once each in order, got " + stages.join(","));
+  assert(state() === "landed", "fixture node reaches landed (exp_fin), got " + state());
+  assert(host.args.commit === COMMIT, "bound commit flows from handoff into grade");
+}
+
+// --- the conductor table in the skill names these same steps ---
+{
+  const skill = readFileSync(new URL("../skills/traverse/SKILL.md", import.meta.url), "utf8");
+  assert(skill.includes("`node-loop` workflow"), "traverse names node-loop for todo");
+  assert(skill.includes("`induct-grade` workflow"), "traverse names induct-grade for handed_off");
+  assert(skill.includes("`quest-land` workflow"), "traverse names quest-land for approved");
+}
+
+if (failures > 0) process.exit(1);
+console.log("traverse-conduct tests: ok");
+FAIL: all-pass grade approves, got audit_failure
+FAIL: matrix has both rows
+FAIL: writer precedes each grade child, got validations
+FAIL: mints name every grade run-id, got 
+FAIL: audit child was spawned
+file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/test/induct-grade.test.mjs:103
+    assert(input.includes("runs/" + TS + "-" + edge + "-muse-code-test-model-c1"),
+                 ^
+
+TypeError: Cannot read properties of undefined (reading 'includes')
+    at file:///Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/test/induct-grade.test.mjs:103:18
+
+Node.js v25.4.0
+176:  assert(result.matrix[1].verdict === "missing", "missing row stays missing");
+185:  assert(result.matrix[0].verdict === "missing", "untyped pass downgraded to missing");
+248:  assert(result.matrix[1].verdict === "deferred", "deferred row stays deferred");
+249:  assert(result.matrix[1].evidence.kind === "file", "deferred row keeps its typed deferral evidence");
+268:  assert(result.matrix[1].verdict === "missing", "unnamed deferral downgraded to missing");
+278:  assert(result.matrix[1].verdict === "deferred", "mislabeled deferral upgraded to deferred");
+287:  assert(result.matrix[0].verdict === "missing", "untyped deferred downgraded to missing");
+297:  assert(result.matrix[0].verdict === "missing", "unknown verdict coerced to missing");
+375:  assert(result.matrix[4].verdict === "fail", "pointer row stays fail");
+376:  assert(result.matrix[4].rung === "5a", "pointer row keeps rung 5a");
+377:  assert(result.matrix[4].evidence.ref.includes("find-tape --run-id"), "block cites the rung-5 pointer");
+402:  assert(result.matrix[1].verdict === "pass", "named escalation keeps its verdict");
+403:  assert(result.matrix[1].rung === "5b", "escalation row keeps rung 5b");
+415:  assert(result.matrix[1].verdict === "missing", "unnamed whole-tape pass downgraded to missing");
+424:  assert(result.matrix[0].rung === null, "unknown rung coerced to null");
+425:  assert(result.matrix[0].verdict === "pass", "row still judged on its typed evidence");
+index subs ok
+induct-grade tests: ok
+37:Cycles are weather; blocks are decisions. A `needs_fix`
+120:   Cycle autonomy: when a grade returns `needs_fix` (or a
+173:  `needs_fix` cycle below the cap needs no attestation,
+#!/usr/bin/env bash
+# bp3 project tooling (pre-binary). The OCaml CLI absorbs these subcommands
+# later; the interface stays: bp3 skills install --harness=<name|all>.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+src_dir="$root/skills"
+
+# harness -> skills_dir. Sources are plain Markdown: no templating in bp3.
+# The render is a copy plus a GENERATED notice after the frontmatter.
+harness_target() {
+  case "$1" in
+    pi)     echo ".pi/skills" ;;
+    claude) echo ".claude/skills" ;;
+    codex)  echo ".agents/skills" ;;
+    muse)   echo ".agents/skills" ;;
+    *) return 1 ;;
+  esac
+}
+
+install_one() {
+  local skill="$1" harness="$2" target_dir dest
+  target_dir="$(harness_target "$harness")"
+  dest="$root/$target_dir/$skill"
+  mkdir -p "$dest"
+  awk -v h="$harness" -v s="$skill" '
+    /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
+    { print }' "$src_dir/$skill/SKILL.md" > "$dest/SKILL.md"
+  echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness)"
+}
+
+skills_install() {
+  local harness="all"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --harness=*) harness="${1#--harness=}" ;;
+      --harness) [ $# -ge 2 ] || { echo '--harness needs a value' >&2; exit 2; }; harness="$2"; shift ;;
+      *) echo "unknown arg: $1" >&2; exit 2 ;;
+    esac
+    shift
+  done
+
+  local harnesses
+  if [ "$harness" = "all" ]; then
+    harnesses="pi claude codex muse"
+  else
+    harnesses="$harness"
+  fi
+
+  # Preflight every source and the selected harness before writing any render.
+  "$root/scripts/check-skills" "$src_dir"
+  local h
+  for h in $harnesses; do
+    harness_target "$h" >/dev/null || { echo "unknown harness: $h" >&2; exit 2; }
+  done
+
+  # Pi discovers .agents as well as .pi. Prefer our Pi copies per project,
+  # without deleting Codex/Muse skills or hiding unrelated .agents skills.
+  local settings_plan='' existing='{}' ids
+  case " $harnesses " in
+    *" pi "*)
+      if [ -e "$root/.pi/settings.json" ]; then
+        existing="$(jq -sce 'select(length == 1) | .[0] | select(type == "object")' "$root/.pi/settings.json")" || { echo 'invalid .pi/settings.json' >&2; exit 1; }
+      fi
+      ids="$(find "$src_dir" -mindepth 2 -maxdepth 2 -name SKILL.md | while IFS= read -r file; do basename "$(dirname "$file")"; done | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')"
+      settings_plan="$(jq -ce --argjson ids "$ids" '
+        if has("skills") and (.skills | type != "array" or any(.[]; type != "string")) then error("skills must be an array of strings") else . end |
+        (.skills // []) as $existing |
+        .skills = ($existing + [$ids[] | "!**/.agents/skills/" + . + "/SKILL.md" | select(. as $p | $existing | index($p) | not)])
+      ' <<< "$existing")" || { echo 'invalid .pi/settings.json skills list' >&2; exit 1; }
+      ;;
+  esac
+
+  # The traverse saved workflows ship with the traverse skill. They are
+  # plain copies (no render notice); the target is the project workflows
+  # dir every harness discovers. Absent source means nothing to copy.
+  local workflow_names="node-loop induct-grade quest-land induct-node"
+
+  local skill_dir skill
+  for skill_dir in "$src_dir"/*/; do
+skills check: ok (10 files)
+installed add-bp3-skill -> .pi/skills/add-bp3-skill/SKILL.md (pi)
+installed add-bp3-skill -> .claude/skills/add-bp3-skill/SKILL.md (claude)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (codex)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (muse)
+installed add-yap-skill -> .pi/skills/add-yap-skill/SKILL.md (pi)
+installed add-yap-skill -> .claude/skills/add-yap-skill/SKILL.md (claude)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (codex)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (muse)
+installed icebox -> .pi/skills/icebox/SKILL.md (pi)
+installed icebox -> .claude/skills/icebox/SKILL.md (claude)
+installed icebox -> .agents/skills/icebox/SKILL.md (codex)
+installed icebox -> .agents/skills/icebox/SKILL.md (muse)
+installed naming -> .pi/skills/naming/SKILL.md (pi)
+installed naming -> .claude/skills/naming/SKILL.md (claude)
+installed naming -> .agents/skills/naming/SKILL.md (codex)
+installed naming -> .agents/skills/naming/SKILL.md (muse)
+installed quest -> .pi/skills/quest/SKILL.md (pi)
+installed quest -> .claude/skills/quest/SKILL.md (claude)
+installed quest -> .agents/skills/quest/SKILL.md (codex)
+installed quest -> .agents/skills/quest/SKILL.md (muse)
+installed red-ink-quest-landing-demo -> .pi/skills/red-ink-quest-landing-demo/SKILL.md (pi)
+installed red-ink-quest-landing-demo -> .claude/skills/red-ink-quest-landing-demo/SKILL.md (claude)
+installed red-ink-quest-landing-demo -> .agents/skills/red-ink-quest-landing-demo/SKILL.md (codex)
+installed red-ink-quest-landing-demo -> .agents/skills/red-ink-quest-landing-demo/SKILL.md (muse)
+installed red-ink -> .pi/skills/red-ink/SKILL.md (pi)
+installed red-ink -> .claude/skills/red-ink/SKILL.md (claude)
+installed red-ink -> .agents/skills/red-ink/SKILL.md (codex)
+installed red-ink -> .agents/skills/red-ink/SKILL.md (muse)
+installed traverse-no-human -> .pi/skills/traverse-no-human/SKILL.md (pi)
+installed traverse-no-human -> .claude/skills/traverse-no-human/SKILL.md (claude)
+installed traverse-no-human -> .agents/skills/traverse-no-human/SKILL.md (codex)
+installed traverse-no-human -> .agents/skills/traverse-no-human/SKILL.md (muse)
+installed traverse -> .pi/skills/traverse/SKILL.md (pi)
+installed traverse -> .claude/skills/traverse/SKILL.md (claude)
+installed traverse -> .agents/skills/traverse/SKILL.md (codex)
+installed traverse -> .agents/skills/traverse/SKILL.md (muse)
+installed using-bp3 -> .pi/skills/using-bp3/SKILL.md (pi)
+installed using-bp3 -> .claude/skills/using-bp3/SKILL.md (claude)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (codex)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (muse)
+installed node-loop -> .agents/workflows/node-loop.js
+installed induct-grade -> .agents/workflows/induct-grade.js
+installed quest-land -> .agents/workflows/quest-land.js
+installed induct-node -> .agents/workflows/induct-node.js
+installed hooks -> .claude/hooks.json
+installed hooks -> .claude/settings.json
+installed hooks -> .muse/hooks.json
+installed _bp3 -> /opt/homebrew/share/zsh/site-functions/_bp3
+completion: source /Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/completions/bp3.bash (bash)
+ M .agents/skills/traverse/SKILL.md
+ M .agents/workflows/induct-grade.js
+ M .claude/skills/traverse/SKILL.md
+ M .pi/skills/traverse/SKILL.md
+ M skills/traverse/SKILL.md
+ M skills/traverse/workflows/induct-grade.js
+ M test/induct-grade.test.mjs
+ M test/traverse-conduct.test.mjs
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (123 assertions)
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check skills/traverse/workflows/induct-node.js
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (123 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/ready.sh
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 80609 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 80752 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 81130 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 80096 Terminated: 15          sleep 60
+./test/harness.sh: line 502: 82934 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 83173 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/context.sh
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (25.579458ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.11725ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (222.000458ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (238.797125ms)
+✔ roles route model/thinking into the child env: override > role > conductor (449.939666ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (172.5825ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1237.26575ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (3022.4895ms)
+ .agents/skills/traverse/SKILL.md          |  35 ++++
+ .agents/workflows/induct-grade.js         | 323 +++++++++++++++++++++++++++---
+ .claude/skills/traverse/SKILL.md          |  35 ++++
+ .pi/skills/traverse/SKILL.md              |  35 ++++
+ skills/traverse/SKILL.md                  |  18 ++
+ skills/traverse/workflows/induct-grade.js | 323 +++++++++++++++++++++++++++---
+ test/induct-grade.test.mjs                | 181 ++++++++++++++---
+ test/traverse-conduct.test.mjs            |   8 +
+ 8 files changed, 870 insertions(+), 88 deletions(-)
+diff --git a/skills/traverse/workflows/induct-grade.js b/skills/traverse/workflows/induct-grade.js
+index e735fac..f207625 100644
+--- a/skills/traverse/workflows/induct-grade.js
++++ b/skills/traverse/workflows/induct-grade.js
+@@ -3,17 +3,29 @@
+ // `bp3 skills install`. The grade climbs the evidence ladder
+ // (mvp.7): records, diff, tests run, style, then tape via
+ // derivation pointers (find-tape --entry); the whole tape is
+-// escalation only, blocked/confused/lying and named. Audit
+-// child builds the typed evidence matrix (acceptance rows +
+-// adherence rows, no edges), then
+-// grade and verify children run in parallel on the exact bound
+-// commit and call their verdict edges directly. Grade children
+-// never edit the work. As the link minter (mvp.1)
+-// this launcher mints each child's one-time link via
+-// `bp3 harness link mint` before that child spawns; no child
+-// writes its own proof. Returns {outcome, matrix, run_ids,
+-// refusals}; replay on the same commit is safe: the audit is
+-// read-only and re-cast verdicts bind the same commit.
++// escalation only, blocked/confused/lying and named.
++// Grade validations (followup.1): before the audit child
++// spawns, a deterministic validations pipeline mints every
++// adherence row in code (one plug per row, ctx in, one typed
++// evidence row out; silence can be the expectation and empty
++// stdout is quoted with the machine-minted token below, never
++// hand-quoted by an LLM). The audit child then builds only
++// acceptance rows. A row without typed evidence is an
++// audit-internal re-collect (one retry, named rows), never an
++// FSM verdict: it burns no author cycle and pages no human.
++// Evidence still uncollectable returns outcome
++// `audit_failure`, naming the row and the collection error,
++// with no grade/verify cast. Grade and verify children then
++// run in parallel on the exact bound commit and call their
++// verdict edges directly; a cast refused with E_ILLEGAL_EDGE
++// after its sibling moved state is a named expected verdict
++// race, not an unexplained refusal. Grade children never
++// edit the work. As the link minter (mvp.1) this launcher
++// mints each child's one-time link via `bp3 harness link
++// mint` before that child spawns; no child writes its own
++// proof. Returns {outcome, matrix, run_ids, refusals};
++// replay on the same commit is safe: the audit is read-only
++// and re-cast verdicts bind the same commit.
+ // Args are supplied by the calling traverse skill as
+ // {quest, exp, ts, harness, model, commit}; ts is a UTC compact
+ // timestamp from the caller, embedded by children in every
+@@ -74,6 +86,132 @@ function typedEvidence(ev) {
+   );
+ }
+ 
++// Machine-minted quote for command output (followup.1): an
++// empty stdout is evidence when silence is the expectation,
++// quoted with this token by code, never hand-quoted as "".
++function quoteForStdout(stdout, exit) {
++  const out = typeof stdout === "string" ? stdout : "";
++  if (out !== "") return out;
++  return "(empty stdout, exit " + String(exit) + ")";
++}
++
++function stdoutOf(obs) {
++  return obs && typeof obs.stdout === "string" ? obs.stdout : "";
++}
++
++function exitOf(obs) {
++  return obs && typeof obs.exit === "number" ? obs.exit : 1;
++}
++
++// Grade validations (followup.1, owner-locked names): each
++// plug is deterministic code — ctx in, one typed evidence
++// row out, expectation declared in the plug itself. ctx is
++// {expDir, commit, obs} where obs carries raw command output
++// gathered verbatim; plugs judge, transports never quote.
++function validate_git_clean(ctx) {
++  const stdout = stdoutOf(ctx.obs.git_clean);
++  const exit = exitOf(ctx.obs.git_clean);
++  const ok = exit === 0 && stdout === "";
++  return {
++    case: "adherence: no hand-edited state",
++    rung: "2",
++    evidence: { kind: "command", ref: "git status --porcelain", quote: quoteForStdout(stdout, exit) },
++    verdict: ok ? "pass" : "fail",
++  };
++}
++
++function validate_clean_commit(ctx) {
++  const stdout = stdoutOf(ctx.obs.git_show);
++  const exit = exitOf(ctx.obs.git_show);
++  const shown = exit === 0 && stdout.indexOf(ctx.commit) >= 0;
++  const clean = validate_git_clean(ctx).verdict === "pass";
++  const first = stdout.split("\n")[0] || "";
++  return {
++    case: "adherence: clean commit",
++    rung: "2",
++    evidence: { kind: "command", ref: "git show " + ctx.commit, quote: quoteForStdout(first, exit) },
++    verdict: shown && clean ? "pass" : "fail",
++  };
++}
++
++function validate_run_folder_present(ctx) {
++  const lines = Array.isArray(ctx.obs.run_folders) ? ctx.obs.run_folders : [];
++  const complete = lines.filter(function (l) {
++    return typeof l === "string" && l.indexOf("tape=yes") >= 0 && l.indexOf("notes=yes") >= 0;
++  });
++  const handoff = complete.filter(function (l) { return l.indexOf("-handoff-") >= 0; });
++  const chosen = handoff[0] || complete[0] || "";
++  return {
++    case: "adherence: run folder present",
++    rung: "2",
++    evidence: {
++      kind: "file",
++      ref: ctx.expDir + "/runs/",
++      quote: chosen !== "" ? chosen : "no run folder with tape.log and notes.md",
++    },
++    verdict: chosen !== "" ? "pass" : "fail",
++  };
++}
++
++function validate_handoff_by_child(ctx) {
++  const line = typeof ctx.obs.handoff_line === "string" ? ctx.obs.handoff_line : "";
++  const ok = line.indexOf('"edge":"handoff"') >= 0 || line.indexOf('"edge":"submit"') >= 0;
++  return {
++    case: "adherence: handoff by child",
++    rung: "2",
++    evidence: {
++      kind: "ledger",
++      ref: ctx.expDir + "/ledger.jsonl handoff line",
++      quote: line !== "" ? line : "(no handoff ledger line)",
++    },
++    verdict: ok ? "pass" : "fail",
++  };
++}
++
++function validate_env_run_id_stamped(ctx) {
++  const line = typeof ctx.obs.handoff_line === "string" ? ctx.obs.handoff_line : "";
++  const ok = /"run_id":"[^"]+"/.test(line);
++  return {
++    case: "adherence: env run-id stamped",
++    rung: "2",
++    evidence: {
++      kind: "ledger",
++      ref: ctx.expDir + "/ledger.jsonl handoff line",
++      quote: line !== "" ? line : "(no handoff ledger line)",
++    },
++    verdict: ok ? "pass" : "fail",
++  };
++}
++
++const GRADE_VALIDATIONS = [
++  validate_git_clean,
++  validate_clean_commit,
++  validate_run_folder_present,
++  validate_handoff_by_child,
++  validate_env_run_id_stamped,
++];
++
++function runValidations(ctx) {
++  return GRADE_VALIDATIONS.map(function (v) { return v(ctx); });
++}
++
++function rowCase(row, i) {
++  return row && typeof row.case === "string" && row.case !== ""
++    ? row.case
++    : "row " + String(i + 1);
++}
++
++// Rows the audit still owes typed evidence for. Any verdict
++// label on an untyped row is paperwork, not a judgment.
++function untypedRows(rows) {
++  if (!Array.isArray(rows)) return [];
++  const out = [];
++  rows.forEach(function (row, i) {
++    if (!typedEvidence(row ? row.evidence : null)) out.push(rowCase(row, i));
++  });
++  return out;
++}
++
+ // Deferred is a disposition, not a failure: the exp's own
+ // text defers the case to a named owning exp and the row's
+ // evidence is that deferral text. A deferral naming no owner
+@@ -376,6 +514,50 @@ export default async function workflow(host) {
+     return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+   }
+ 
++  // Grade validations pipeline (followup.1): deterministic
++  // code mints every adherence row before the audit child
++  // spawns. The probe child only transports raw command
++  // output verbatim; the plugs above judge it. A pipeline
++  // that returns no observations is grader paperwork, so it
++  // fails as an audit failure with no FSM verdict.
++  const validationsResult = await host.agent({
++    label: "validations " + exp,
++    input:
++      deskNote + "You are the grade validations transport for exp `" + exp +
++      "` of quest `" + quest + "`, bound to commit `" + commit + "`. " +
++      "Run these commands from the quest worktree and return only a JSON " +
++      "object {git_clean: {stdout, exit}, git_show: {stdout, exit}, " +
++      "run_folders, handoff_line} quoting stdout verbatim (never " +
++      "summarize, never edit any file, and do not call any `bp3 q u` " +
++      "update edge): (1) `git status --porcelain` for git_clean; " +
++      "(2) `git show --stat " + commit + "` for git_show; " +
++      "(3) for run_folders, one line per folder under `" + expDir +
++      "/runs/` in the form `<folder> tape=yes|no notes=yes|no` by " +
++      "testing tape.log and notes.md in each folder; (4) for " +
++      "handoff_line, the verbatim last handoff line of `" + expDir +
++      "/ledger.jsonl` on the exp branch (`git show bp3/exp/" + quest +
++      "/" + exp + ":" + expDir + "/ledger.jsonl`), or an empty string " +
++      "when there is none. Quote an empty stdout as an empty string; " +
++      "the validations pipeline mints its token in code.",
++  });
++  const validationsVerdict = parseVerdict(validationsResult);
++  if (
++    !validationsVerdict ||
++    typeof validationsVerdict.git_clean !== "object" ||
++    typeof validationsVerdict.git_show !== "object"
++  ) {
++    refusals.push(
++      "audit failure: grade validations pipeline returned no observations: " +
++      errorText(validationsResult)
++    );
++    return { exp: exp, outcome: "audit_failure", matrix: [], run_ids: runIds, refusals: refusals };
++  }
++  const adherence = runValidations({
++    expDir: expDir,
++    commit: commit,
++    obs: validationsVerdict,
++  });
++
+   if (!(await mintLink("audit", before.cycle))) {
+     return { exp: exp, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
+   }
+@@ -388,11 +570,12 @@ export default async function workflow(host) {
+       quest + "`, bound to commit `" + commit + "`. " +
+       tapePreamble("audit", before.cycle) +
+       " Read the exp's EXPERIMENT.md first. Build the evidence " +
+-      "matrix: one row per Acceptance case (acceptance rows), plus " +
+-      "adherence rows for the build Run that produced this commit " +
+-      "(handoff edge called by the child directly, env-set run-id " +
+-      "stamped by bp3, clean commit, tape.log and notes.md " +
+-      "present in its run folder, no hand-edited state). " + LADDER_TEXT +
++      "matrix: one row per Acceptance case (acceptance rows only). " +
++      "Adherence rows are minted by the grade validations pipeline " +
++      "before you spawn (adherence: no hand-edited state, " +
++      "adherence: clean commit, adherence: run folder present, " +
++      "adherence: handoff by child, adherence: env run-id stamped); " +
++      "never emit an adherence row. " + LADDER_TEXT +
+       "Every row " +
+       "is {case, rung: 1|2|3|4|5a|5b, evidence: {kind: file|command|ledger|grep, ref, " +
+       "quote}, verdict: pass|fail|missing|deferred}: name the rung " +
+@@ -412,15 +595,10 @@ export default async function workflow(host) {
+       "({kind: file, ref: the EXPERIMENT.md line, quote: the " +
+       "deferral line verbatim}); never mark such a case missing " +
+       "or pass for lacking this exp's artifact. A deferral that " +
+-      "names no owning exp is not deferred: emit missing. For " +
+-      "the adherence row `env-set run-id`, quote " +
+-      "the bp3-stamped ledger line for the handoff edge (the mvp.1 " +
+-      "mechanism: BP3_RUN_ID arrives via the link claim and bp3 stamps " +
+-      "it into the verdict and the ledger line): find the handoff " +
+-      "line whose run_id is the build Run that produced this commit " +
+-      "(the handoff run folder under this exp's runs/) and quote it " +
+-      "as {kind: ledger, ref: the exp ledger handoff line, quote: " +
+-      "the line verbatim}. Corroborate from the per-Run derivation " +
++      "names no owning exp is not deferred: emit missing. When a " +
++      "command's stdout is empty and its exit is 0, quote " +
++      "`(empty stdout, exit 0)` verbatim; never quote an empty " +
++      "string as evidence. Corroborate from the per-Run derivation " +
+       "log at `<git-common-dir>/bp3/run-lifecycle-derivations/" +
+       "<run-id>.jsonl` (resolve the common dir with " +
+       "`git rev-parse --git-common-dir`) when it exists. The hooks " +
+@@ -437,10 +615,79 @@ export default async function workflow(host) {
+   if (auditVerdict && typeof auditVerdict.run_id === "string" && auditVerdict.run_id) {
+     runIds.push(auditVerdict.run_id);
+   }
+-  if (!auditVerdict || !Array.isArray(auditVerdict.matrix)) {
+-    refusals.push("audit returned no matrix: " + errorText(audit));
++  let acceptance = auditVerdict && Array.isArray(auditVerdict.matrix)
++    ? auditVerdict.matrix
++    : null;
++  if (acceptance === null || acceptance.length === 0) {
++    // No matrix at all is a collection failure, not a defect.
++    refusals.push(
++      "audit failure: row \"evidence audit\" carries no typed evidence " +
++      "(collection error: " +
++      (acceptance === null ? errorText(audit) : "audit returned no matrix") +
++      "); no verdict was cast and the exp cycle is unchanged"
++    );
++    return { exp: exp, outcome: "audit_failure", matrix: adherence, run_ids: runIds, refusals: refusals };
++  }
++  // Audit-internal re-collect (followup.1): one retry naming
++  // the untyped rows, inside the same audit Run (no new mint,
++  // no FSM verdict, no cycle burn). Rows still untyped after
++  // the retry are an explicit audit failure, never needs_fix.
++  let missingTyped = untypedRows(acceptance);
++  if (missingTyped.length > 0) {
++    const recollect = await host.agent({
++      label: "audit " + exp,
++      input:
++        deskNote + "Re-collect typed evidence for exp `" + exp + "` of quest `" +
++        quest + "`, bound to commit `" + commit + "`. " +
++        tapePreamble("audit", before.cycle) +
++        " Your previous audit matrix carried no typed evidence for " +
++        "these named rows: " + missingTyped.join(", ") + ". Collect " +
++        "observed evidence for exactly those rows and reply with only " +
++        "a JSON object {ok, run_id, matrix} whose matrix holds one " +
++        "replacement row per named case, each {case, rung: " +
++        "1|2|3|4|5a|5b, evidence: {kind: file|command|ledger|grep, " +
++        "ref, quote}, verdict: pass|fail|missing|deferred} quoting " +
++        "observed evidence verbatim. When a command's stdout is " +
++        "empty and its exit is 0, quote `(empty stdout, exit 0)` " +
++        "verbatim; never quote an empty string. Judge only; do not " +
++        "edit any file and do not call any `bp3 q u` update edge.",
++    });
++    const recollectVerdict = parseVerdict(recollect);
++    if (recollectVerdict && typeof recollectVerdict.run_id === "string" && recollectVerdict.run_id) {
++      runIds.push(recollectVerdict.run_id);
++    }
++    if (recollectVerdict && Array.isArray(recollectVerdict.matrix)) {
++      const byCase = {};
++      recollectVerdict.matrix.forEach(function (row, i) {
++        byCase[rowCase(row, i)] = row;
++      });
++      acceptance = acceptance.map(function (row, i) {
++        const name = rowCase(row, i);
++        return Object.prototype.hasOwnProperty.call(byCase, name) ? byCase[name] : row;
++      });
++    }
++    missingTyped = untypedRows(acceptance);
++    if (missingTyped.length > 0) {
++      const collectionError = recollectVerdict && Array.isArray(recollectVerdict.matrix)
++        ? "re-collected row still carried no typed evidence"
++        : errorText(recollect);
++      for (const name of missingTyped) {
++        refusals.push(
++          "audit failure: row \"" + name + "\" carries no typed evidence " +
++          "after re-collect (collection error: " + collectionError +
++          "); no verdict was cast and the exp cycle is unchanged"
++        );
++      }
++      return {
++        exp: exp,
++        outcome: "audit_failure",
++        matrix: adherence.concat(normalizeMatrix(acceptance)),
++        run_ids: runIds,
++        refusals: refusals,
++      };
++    }
+   }
+-  const matrix = normalizeMatrix(auditVerdict ? auditVerdict.matrix : null);
++  const matrix = adherence.concat(normalizeMatrix(acceptance));
+   const matrixJson = JSON.stringify(matrix);
+ 
+   // Grade || verify on the exact bound commit. A gated missing
+@@ -518,7 +765,25 @@ export default async function workflow(host) {
+     return { exp: exp, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
+   }
+   const outcome = outcomeFor(after.state, matrix);
+-  if (outcome === "refused") {
++  // Verdict race (followup.1): grade and verify cast in
++  // parallel; the first cast can move state so the second
++  // cast's edge is no longer legal. When the re-read shows
++  // state moved, that E_ILLEGAL_EDGE is an expected verdict
++  // race and is named as such, never an unexplained refusal.
++  const stageEdges = ["grade", "verify"];
++  let raced = false;
++  for (let i = 0; i < stageResults.length; i++) {
++    if (textOf(stageResults[i]).indexOf("E_ILLEGAL_EDGE") >= 0 && after.state !== "handed_off") {
++      raced = true;
++      refusals.push(
++        "expected verdict race: " + stageEdges[i] + " cast refused with " +
++        "E_ILLEGAL_EDGE after the parallel verdict moved state to " +
++        after.state + "; the refused cast is expected and does not " +
++        "change the outcome"
++      );
++    }
++  }
++  if (outcome === "refused" && !raced) {
+     for (let i = 0; i < stageResults.length; i++) {
+       refusals.push(errorText(stageResults[i]));
+     }
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (113951.007625ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (222.86475ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.353875ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (183.494292ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (22.718042ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 119814.04575
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+ M .agents/skills/traverse/SKILL.md
+ M .agents/workflows/induct-grade.js
+ M .claude/skills/traverse/SKILL.md
+ M .pi/skills/traverse/SKILL.md
+ M skills/traverse/SKILL.md
+ M skills/traverse/workflows/induct-grade.js
+ M test/induct-grade.test.mjs
+ M test/traverse-conduct.test.mjs
+_build/
+bp3.install
+.bp3/
+dist/
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md
+notes.md
+tape.log
+[quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines 5cce4cc] feat(followup.1): grade validations, audit re-collect, named verdict race
+ 8 files changed, 870 insertions(+), 88 deletions(-)
+5cce4cc8c272a32c9a7e850cb9acea79411a026b
+CLEAN_CHECK_DONE
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-followup-1-grade-evidence","state":"handed_off","cycle":1,"commit":"5cce4cc8c272a32c9a7e850cb9acea79411a026b","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-1-grade-evidence","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-1-grade-evidence","edge":"handoff","run_id":"20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1"}

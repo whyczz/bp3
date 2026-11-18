@@ -1,0 +1,50 @@
+{"ok":true,"run_id":"20261117T063415Z-land-muse-code-muse-wonder-1.0-c1","kind":"edge","graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-1-link-drive","edge":"land","state":"claimed","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","pid":52399,"cwd":"/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","parent_run_id":"","depth":0,"claimed_at":"2026-11-17T06:34:23Z"}
+claim_exit:0
+---
+20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1
+20261117T062205Z-node-muse-code-muse-wonder-1.0-c1
+20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1
+20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1
+20261117T063415Z-land-muse-code-muse-wonder-1.0-c1
+---
+{"ok":true,"run_id":"20261117T063415Z-land-muse-code-muse-wonder-1.0-c1","kind":"edge","graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-1-link-drive","edge":"land","state":"claimed","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","pid":52399,"cwd":"/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","parent_run_id":"","depth":0,"claimed_at":"2026-11-17T06:34:23Z"}
+claim_exit:0
+---
+20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1
+20261117T062205Z-node-muse-code-muse-wonder-1.0-c1
+20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1
+20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1
+20261117T063415Z-land-muse-code-muse-wonder-1.0-c1
+---
+notes.md
+tape.log
+===
+# Grade notes — exp-dogfood-1-link-drive c1
+
+- Reviewed by code-reviewer procedure at commit adfd7b0: claims from EXPERIMENT.md vs diff (Makefile + test/dogfood-link.sh only, no product code).
+- Rung 3 observed: ./test/dogfood-link.sh -> "dogfood-link tests: ok"; node test/pi-tree.test.mjs standalone -> "pi-tree tests: ok".
+- Findings: no critical/major. Minor: metrics setup_refusals/cycles_to_land are fixed values recorded by the drive, time is second-granularity; calls log is the drive's own record, not a tape inventory. Comments agree with code; tests can fail (brief size/one-line, E_LINK_SPENT/E_NOT_FOUND/E_NO_CONTEXT, pi parent chain, supervisor fold).
+- Gate note: one `make check` run failed in pre-existing test/pi-tree.test.mjs orphan-watch (E_NOT_FOUND on watch after bind-tape) under make load, before dogfood ran; that file is untouched by this commit and passed standalone in this run. Treated as flake, not a defect of this diff.
+- Verdict: ship.
+===
+adfd7b0 test(dogfood.1): link-drive A/B proof — one-line brief, attacks refuse
+f5b434d test(mvp.5): Pi process-tree proof — bubble once, tree dead, fresh revival
+3ce9c2d docs(mvp.5): name cycle-2 Pi process-tree proof fix
+4d00100 feat(mvp.5): blocked-fail-fast — typed failure blocks once, orphans replaced, bubble carries facts
+fe6efe7 feat(mvp.4): diagram verb — generated ascii/mermaid from live rollup
+# Land notes — exp-dogfood-1-link-drive c1
+
+- Claimed one-time land link bp3link_6812e508a85167d4e3a81e72f1b533ba; returned run_id 20261117T063415Z-land-muse-code-muse-wonder-1.0-c1 matched expected.
+- Run folder did not pre-exist; created fresh, tape.log captures claim output verbatim.
+- Prior cycle evidence: node/grade/verify runs present; grade notes ship verdict at adfd7b0, dogfood-link tests ok.
+- Landing from approved state at cycle 1; no product code changed by this land child — state edge only.
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"landed","fin":"exp_fin","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","legal_edges":[],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-1-link-drive","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-1-link-drive","edge":"land","run_id":"20261117T063415Z-land-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T063415Z-land-muse-code-muse-wonder-1.0-c1"}
+land_exit:0
+---log---
+adfd7b0 test(dogfood.1): link-drive A/B proof — one-line brief, attacks refuse
+f5b434d test(mvp.5): Pi process-tree proof — bubble once, tree dead, fresh revival
+3ce9c2d docs(mvp.5): name cycle-2 Pi process-tree proof fix
+---ls run---
+total 24
+-rw-r--r--@ 1 whycz  staff   512 Nov 17 01:34 notes.md
+-rw-r--r--@ 1 whycz  staff  4704 Nov 17 01:34 tape.log

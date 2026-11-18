@@ -1,0 +1,1024 @@
+created docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T053338Z-node-muse-code-muse-wonder-1.0-c1
+=== rung2 git show --stat ===
+commit 4d00100df1ae03d273af85cb5065f73db0a71d54
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 00:31:25 2026 -0500
+
+    feat(mvp.5): blocked-fail-fast — typed failure blocks once, orphans replaced, bubble carries facts
+
+ .agents/workflows/induct-node.js         | 169 ++++++++++++++++++++++++++++++-
+ Makefile                                 |   3 +-
+ skills/traverse/SKILL.md                 |  15 +++
+ skills/traverse/workflows/induct-node.js | 169 ++++++++++++++++++++++++++++++-
+ src/quest/render.ml                      |   9 ++
+ test/blocked.sh                          |  84 +++++++++++++++
+ test/induct-node.test.mjs                |  62 +++++++++++-
+ 7 files changed, 499 insertions(+), 12 deletions(-)
+=== git diff name list ===
+.agents/workflows/induct-node.js
+Makefile
+skills/traverse/SKILL.md
+skills/traverse/workflows/induct-node.js
+src/quest/render.ml
+test/blocked.sh
+test/induct-node.test.mjs
+=== QUEST.md ===
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+| tape | tape | the harness session recording (unchanged) |
+
+States rest in the root worker's read. Edges are
+subagents. A child holds nothing across edges;
+context is claimed, never remembered.
+
+Edge names (settled red-ink names round, owner —
+option A; rides rename.1, old ledgers keep old
+words and the rename table maps them):
+
+| Coded today | Settled name | Caller does |
+|---|---|---|
+| `submit` | `handoff` | author binds the finished commit |
+| `review` | `grade` | reviewer grades the exact commit (`ship\|needs_fix`) |
+| `check` | `verify` | machine checks (`pass\|fail`) |
+| `land` | `land` | merge into the graph branch |
+| state `submitted` | state `handed_off` | verb/state rhyme: `handoff` hands off, node rests `handed_off` |
+| `block` | `block` | park for a human decision |
+| `resume` | `resume` | human answer re-enters (`BP3_DECIDER=human`) |
+
+Link mint/claim are verbs, not flags:
+`bp3 harness link mint --kind node|edge …` and
+`bp3 harness link claim <token>`. A node link
+carries no edge name — the node worker executes
+no transition when it claims.
+
+Door letter settled: `bp3 g`, not `bp3 t`.
+Nodes form a DAG (shared deps, diamonds — a tree
+allows one parent), scheduled by BFS ready-set
+waves; the *execution* is a tree of workers.
+Tree survives as a view (`--format tree`) and as
+the worker-tree shape, never as the addressed
+noun.
+
+## Success picture
+
+A root worker dispatches a node with a one-line
+brief: "claim this link, do this edge." The child
+claims, works, calls its own edge, dies. Ready
+nodes in a ready-set build and grade in parallel
+desks; landing is a serial queue. The rollup
+shows every node's wall, wait, and dwell time.
+The grader joins any tape's session-id to run-id
+in one lookup. At the end, everything on live
+surfaces — CLI, skills, workflows, records —
+speaks graph/node/state/edge and answers to
+`bp3 g` and `/bp3g`.
+
+## Scope
+
+| In | Out |
+|---|---|
+| `bp3 harness link` mint/claim, CAS claim store, by-session index, context resolution; run config replaces InitRecord (`creator:{}`/`claim:{}`/`tape_path`), `record-init` retires, lifecycle fold reads the run config | rewriting landed quests' ledger history text |
+| ready-set scheduling, per-node timing derived from ledger + derivations, local thresholds | anything committed for metrics; timing judgments stay in `<git-common-dir>/bp3/` |
+| setup timing measured always; optimize only when setup > 3 min (`W_SETUP_SLOW`) | desk pools (killed 2026-11-16; ad hoc desks, measured) |
+| generated ASCII/mermaid diagram from live rollup | writing into harness session logs (tapes stay harness-written) |
+| rename last: `bp3 g`, `bp3g` skills, graph terms on live surfaces | rewriting landed quests' ledger history text |
+| session-id discovery: muse, pi; graceful floor (pid+cwd+window) | adversarial threat model (links are for confused children, not attackers) |
+
+## Timing gates (in-system, local)
+
+- Per node: `wall` (first handoff → land), `wait`
+  (create → first handoff), `dwell` per state,
+  cycles. Derived from ledger timestamps, shown
+  on read, thresholds local, never committed.
+- Per Run setup: desk create → first bp3 answer;
+  `W_SETUP_SLOW` when > 3 minutes.
+- Scorecards report wall minutes AND tokens per
+  node. Visibility, not caps.
+
+## Context layer (kubectl pattern, settled red-ink round 1)
+
+One door per noun, nested as the canonical address:
+`bp3 g <graph> n <node> e <edge>`. Bare `bp3 e …`
+is the claimed shorthand. A context layer resolves
+which graph/node an unqualified call means, with
+kubectl's precedence — explicit always beats
+ambient:
+
+```text
+1. nested address in the call     bp3 g G n N e handoff
+2. session claim (mvp.1)          by-session index -> claim
+3. desk context (cwd)             desk context file from claim
+4. nothing                        E_NO_CONTEXT (post-rename)
+```
+
+| kubectl | bp3 |
+|---|---|
+| kubeconfig | claim store in `<git-common-dir>/bp3/` (machine-local, never committed) |
+| context | one claim: {graph, node, edge, run-id, session-id, desk} |
+| current-context | per-session, never global: parallel children hold different contexts, keyed by session-id, desk as fallback |
+| `-n` / explicit flags | the nested `g … n … e …` address; always wins, always printed in verdicts |
+
+`bp3 e` with no edge prints the resolved context
+and legal edges. Doors settled (owner, red-ink
+round 2): `bp3 g | bp3 n | bp3 e` — one door per
+noun, nested address canonical. Configuration
+surface: `bp3 config` views the whole store;
+bare `bp3 e` is the quick view — resolved context,
+its source rung, legal edges, and the config
+values in force for that context (thresholds,
+desk), so a child can self-diagnose in one call. Context is resolved, never
+carried: env vars are hints the layer may
+cross-check (`W_CONTEXT_ENV_MISMATCH`), never the
+store. This layer is what mvp.2 builds; the doors
+above are its surface.
+
+Locked (owner, data round): after claiming, an
+edge worker calls only `bp3 e …` — no graph, node,
+run-id, or exports — and bp3 resolves the context
+from the claim (session rung, then desk rung).
+Bare `bp3 e` prints the resolved context, its
+source rung, and legal edges. No rung resolving
+means refuse `E_NO_CONTEXT` (post-rename), never
+a guess at a sibling's context.
+
+## Data (settled red-ink data round, owner)
+
+One canonical record per execution: the **run
+config**, keyed by `run_id`, created at
+`link mint` — before any worker exists. Claim
+completes it; everything else is an index or a
+view folded from run configs.
+
+```text
+<git-common-dir>/bp3/
+  config.json            machine settings ONLY (thresholds, gates)
+  runs/<run_id>.json     the run config (canonical, one per Run)
+  links/<token_hash>     -> run_id     (written at mint; claim finds its run config by key)
+  by-session/<session-id> -> run_id     (derived index, rebuildable)
+  desks/<desk>/context   -> run_id      (derived pointer, fallback rung)
+  run-lifecycle-derivations/            (existing supervisor fold)
+```
+
+Run config shape — facts grouped by who knew
+them when. This replaces the supervisor's
+InitRecord (settled, functions round, owner):
+one birth record per Run, and `record-init`
+retires.
+
+```json
+{
+  "run_id": "2026...-handoff-pi-...-c1",
+  "kind": "edge",                    // node | edge
+  "graph": "G", "node": "N", "edge": "handoff",
+  "state": "claimed",                // minted -> claimed (CAS)
+  "desk": ".bp3/worktrees/...",
+  "creator": {                       // parent side, known at mint
+    "run_id": "...",                 // who minted this Run
+    "depth": 2,
+    "harness": "pi", "model": "...", "thinking": "high",
+    "minted_at": "...", "token_hash": "sha256:..."
+  },
+  "claim": {                         // worker side, known at claim
+    "session_id": "...", "pid": 48151, "cwd": "...",
+=== git show diff ===
+commit 4d00100df1ae03d273af85cb5065f73db0a71d54
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 00:31:25 2026 -0500
+
+    feat(mvp.5): blocked-fail-fast — typed failure blocks once, orphans replaced, bubble carries facts
+
+diff --git a/Makefile b/Makefile
+index a5a36d7..08fd32e 100644
+--- a/Makefile
++++ b/Makefile
+@@ -13,6 +13,7 @@ check: lint
+ 	./test/q.sh
+ 	./test/ready.sh
+ 	./test/diagram.sh
++	./test/blocked.sh
+ 	./test/harness.sh
+ 	./test/config.sh
+ 	./test/link.sh
+@@ -27,7 +28,7 @@ check: lint
+ 	./test/install.sh
+ 
+ lint:
+-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
++	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+ 	node --check skills/traverse/workflows/induct-node.js
+ 	node --check skills/traverse/workflows/node-loop.js
+ 	node --check skills/traverse/workflows/induct-grade.js
+diff --git a/skills/traverse/SKILL.md b/skills/traverse/SKILL.md
+index b59fe1e..f21f844 100644
+--- a/skills/traverse/SKILL.md
++++ b/skills/traverse/SKILL.md
+@@ -105,6 +105,21 @@ above stays the one conductor procedure.
+    starves only the dependents named in `starved`; the
+    rest of the ready set keeps moving.
+ 
++   Fail-fast inside the node run (mvp.5): an edge worker
++   completes its edge, returns a typed failure, or dies.
++   A typed failure makes the node run record the decision
++   point through `block` once — the failure's reason
++   verbatim — and exit; the failed edge is never retried
++   and no worker parks or polls for the human. A worker
++   that dies with no verdict is an orphaned Run: the node
++   is not blocked, and the run mints one fresh link and
++   dispatches one replacement. The run returns exactly
++   one terminal bubble carrying facts only (graph, node,
++   state, reason, last edge, run chain, desk, inbox
++   key); the conductor pages the human off that bubble,
++   and revival after `resume` is a fresh node run that
++   re-reads bp3 — no worker process is ever resumed.
++
+    `ts` is a UTC compact timestamp (for example
+    `20261107T143022Z`) supplied in args because workflow
+    scripts cannot read the clock; `harness` and `model` carry
+diff --git a/src/quest/render.ml b/src/quest/render.ml
+index a038d43..2ec9a73 100644
+--- a/src/quest/render.ml
++++ b/src/quest/render.ml
+@@ -37,6 +37,15 @@ let exp_json _q e s deps (t : timing) =
+                        ("dwell_s", `Assoc (List.map (fun (st, secs) -> (st, `Int secs)) t.t_dwell));
+                        ("cycles", `Int s.cycle)]);
+     ("legal_edges", `List (List.map json_str (legal_edges s.st)));
++    (* The decision point, on the node read itself (mvp.5):
++       a fresh worker resuming after [resume] — or a root
++       worker reviving after its own death — reconstructs
++       why the node stopped from bp3 alone, never from a
++       dead worker's memory. Same field words as the inbox. *)
++    ("blocked", (if s.st = "blocked" then `Assoc [
++       ("reason", json_str s.blocked_reason);
++       ("checkpoint", (match s.blocked_checkpoint with Some c -> json_str c | None -> `Null));
++       ("since", json_str s.blocked_since)] else `Null));
+     ("changes", (match commit_changes s.last_commit with
+        | Some xs -> `List xs | None -> `Null)); (* null = unsure *)
+   ]
+diff --git a/test/blocked.sh b/test/blocked.sh
+new file mode 100755
+index 0000000..ae8fa30
+--- /dev/null
++++ b/test/blocked.sh
+@@ -0,0 +1,84 @@
++#!/usr/bin/env bash
++# mvp.5: blocked-fail-fast at the bp3 state layer — failure
++# is a state transition, never a waiting process. The node
++# read itself carries the decision point (reason,
++# checkpoint, since), a stale edge attempt after a block
++# refuses naming the current state, dirty work is
++# checkpointed only when the tree is dirty at block time,
++# and a human resume revives the node for a fresh worker
++# that binds a new commit from bp3 reads alone.
++set -euo pipefail
++root=$(cd "$(dirname "$0")/.." && pwd)
++work=$(mktemp -d)
++trap 'rm -rf "$work"' EXIT
++mkdir -p "$work/repo/bin" "$work/repo/plans"
++cp "$root/bin/bp3" "$work/repo/bin/"
++cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
++cp "$root"/plans/*.yaml "$work/repo/plans/"
++cd "$work/repo"
++git init -q -b master
++git config user.email t@t.t; git config user.name t
++echo base > a.txt; git add .; git commit -qm base
++
++export BP3_HARNESS=muse-code BP3_MODEL=test-model
++q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
++fail() { echo "FAIL: $*" >&2; exit 1; }
++ledger() { git show "bp3/exp/demo/$1:docs/quests/demo/experiments/$1/ledger.jsonl"; }
++
++q c demo >/dev/null
++
++# --- cap escalation: the decision point rests on the node read ---
++q demo c cap-exp >/dev/null
++echo work > w.txt; git add w.txt; git commit -qm work
++W=$(git rev-parse HEAD)
++q demo u cap-exp handoff --commit "$W" --reason work >/dev/null
++out=$(q demo u cap-exp grade --verdict needs_fix --reason "choose storage shape")
++echo "$out" | jq -e '.ok == true and .state == "blocked" and .human_action_required == true' >/dev/null || fail "cap blocks: $out"
++out=$(q demo r cap-exp)
++echo "$out" | jq -e '.state == "blocked" and .blocked.reason == "choose storage shape" and (.blocked | has("checkpoint")) and (.blocked.since | test("^20")) and (.legal_edges == ["resume", "delete"])' >/dev/null || fail "blocked node read carries decision point: $out"
++out=$(q r demo)
++echo "$out" | jq -e '([.inbox[] | select(.exp == "cap-exp")] | length == 1) and (.inbox[] | select(.exp == "cap-exp") | .reason == "choose storage shape")' >/dev/null || fail "exactly one inbox entry: $out"
++
++# --- stale worker after block: refused with current state, nothing ledgered ---
++before=$(ledger cap-exp | wc -l)
++if out=$(q demo u cap-exp handoff --commit "$W" --reason "stale retry" 2>&1); then fail "stale handoff after block accepted"; fi
++echo "$out" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "blocked" and (.error.facts.legal_edges == ["resume", "delete"]) and (.error.guidance | length > 0)' >/dev/null || fail "stale refusal names current state: $out"
++[ "$(ledger cap-exp | wc -l)" = "$before" ] || fail "stale refusal ledgered"
++
++# --- revival is fresh: human resume, then a new commit binds from reads alone ---
++out=$(BP3_DECIDER=human q demo u cap-exp resume --reason "use localStorage")
++echo "$out" | jq -e '.ok == true and .state == "todo" and .cycle == 2' >/dev/null || fail "resume revives: $out"
++out=$(q demo r cap-exp)
++echo "$out" | jq -e '.state == "todo" and .blocked == null and (.legal_edges | index("handoff") != null)' >/dev/null || fail "revived read is clean todo: $out"
++echo more > w.txt; git add w.txt; git commit -qm more
++W2=$(git rev-parse HEAD)
++out=$(q demo u cap-exp handoff --commit "$W2" --reason "fresh worker")
++echo "$out" | jq -e '.ok == true and .state == "handed_off" and .cycle == 2' >/dev/null || fail "fresh handoff after resume: $out"
++
++# --- checkpoint only when the human needs the diff: clean block has none ---
++q demo c clean-exp >/dev/null
++out=$(q demo u clean-exp block --reason "pick a name")
++echo "$out" | jq -e '.ok == true and .state == "blocked" and .human_action_required == true' >/dev/null || fail "clean block: $out"
++out=$(q demo r clean-exp)
++echo "$out" | jq -e '.blocked.reason == "pick a name" and .blocked.checkpoint == null' >/dev/null || fail "clean block carries no checkpoint: $out"
++if out=$(q demo u clean-exp resume --reason "named" 2>&1); then fail "resume without human accepted"; fi
++echo "$out" | jq -e '.ok == false and .error.code == "E_HUMAN_REQUIRED"' >/dev/null || fail "resume human gate: $out"
++
++# --- dirty block checkpoints the exact work the human must see ---
++q demo c dirty-exp >/dev/null
++echo wip > wip.txt
++out=$(q demo u dirty-exp block --reason "review this diff")
++echo "$out" | jq -e '.ok == true and .state == "blocked"' >/dev/null || fail "dirty block: $out"
++ckpt=$(q demo r dirty-exp | jq -r '.blocked.checkpoint')
++[ -n "$ckpt" ] && [ "$ckpt" != "null" ] || fail "dirty block checkpoint missing"
++[ "$(git cat-file -t "$ckpt")" = "commit" ] || fail "checkpoint is not a commit: $ckpt"
++rm wip.txt
++
++# --- siblings continue: a blocked node starves only its dependents ---
++q c blast >/dev/null
++q blast c bx >/dev/null; q blast c by --depends-on bx >/dev/null; q blast c bw >/dev/null
++q blast u bx block --reason "decide" >/dev/null
++out=$(q r blast)
++echo "$out" | jq -e '.ready == ["bw"] and .starved == [{"blocked": "bx", "starved": ["by"]}]' >/dev/null || fail "siblings continue, dependents starve: $out"
++
++echo "blocked tests: ok"
+diff --git a/test/induct-node.test.mjs b/test/induct-node.test.mjs
+index d99b4b1..3e72446 100644
+--- a/test/induct-node.test.mjs
++++ b/test/induct-node.test.mjs
+@@ -9,7 +9,7 @@ function assert(cond, msg) {
+   if (!cond) { console.error("FAIL: " + msg); failures++; }
+ }
+ 
+-function mockHost({ reads, gradeReason }) {
++function mockHost({ reads, gradeReason, edgeResults }) {
+   let readIdx = 0;
+   const labels = [];
+   const inputs = {};
+@@ -32,12 +32,22 @@ function mockHost({ reads, gradeReason }) {
+         labels.push("bind");
+         return JSON.stringify({ ok: true });
+       }
++      if (input.includes(" block --reason")) {
++        labels.push("block");
++        (inputs.block = inputs.block || []).push(input);
++        return JSON.stringify({ ok: true, state: "blocked" });
++      }
+       if (input.startsWith("Run exactly")) {
+         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
+       }
+       const edge = label.split(" ")[0];
+       labels.push(edge);
+       (inputs[edge] = inputs[edge] || []).push(input);
++      const queued = edgeResults && edgeResults[edge];
++      if (queued && queued.length > 0) {
++        const next = queued.shift();
++        return typeof next === "string" ? next : JSON.stringify(next);
++      }
+       const reply = { ok: true, run_id: "r-" + edge, commit: "abc1234", verdict: { ok: true } };
+       if (edge === "grade" && gradeReason) reply.reason = gradeReason;
+       return JSON.stringify(reply);
+@@ -88,6 +98,56 @@ for (const state of ["blocked", "deleted", "landed"]) {
+   assert(labels.length === 0, "no spawns for " + state + ", got " + labels.join(","));
+ }
+ 
++// --- typed failure fails fast: one block, verbatim reason, exit (mvp.5) ---
++{
++  const blockedRead = { state: "blocked", cycle: 1, commit: "abc1234", legal_edges: ["resume", "delete"], blocked: { reason: "choose storage shape", checkpoint: null, since: "2026-01-01T00:00:00Z" } };
++  const reads = [st("todo"), blockedRead];
++  const failure = { ok: false, run_id: "r-handoff", error: { code: "E_DECISION", facts: {}, guidance: "choose storage shape" }, reason: "choose storage shape" };
++  const { host, labels, inputs } = mockHost({ reads, edgeResults: { handoff: [failure] } });
++  const result = await workflow(host);
++  assert(result.outcome === "blocked", "typed failure blocks, got " + result.outcome);
++  assert(result.reason === "choose storage shape", "bubble reason verbatim, got " + result.reason);
++  assert(result.last_edge === "handoff", "bubble last edge, got " + result.last_edge);
++  assert(result.graph === "toy" && result.inbox_key === "toy/fx", "bubble graph + inbox key");
++  assert(labels.filter((l) => l === "handoff").length === 1, "failed edge never retried, got " + labels.join(","));
++  assert(labels.filter((l) => l === "block").length === 1, "exactly one block call, got " + labels.join(","));
++  assert(inputs.block[0].includes("choose storage shape"), "block reason rides verbatim");
++}
++
++// --- silent death is orphaned: one fresh link, one replacement, no block ---
++{
++  const reads = [st("todo"), st("todo"), st("handed_off"), st("handed_off"), st("approved"), st("landed")];
++  const { host, labels } = mockHost({ reads, edgeResults: { handoff: ["worker died without a word"] } });
++  const result = await workflow(host);
++  assert(result.outcome === "landed", "orphan replacement lands, got " + result.outcome);
++  assert(labels.filter((l) => l === "handoff").length === 2, "one replacement author, got " + labels.join(","));
++  assert(labels.filter((l) => l === "block").length === 0, "orphan never blocks, got " + labels.join(","));
++  assert(result.refusals.some((r) => r.includes("orphaned")), "orphan named in refusals");
++}
++
++// --- typed grade failure blocks before any verify spawns ---
++{
++  const blockedRead = { state: "blocked", cycle: 1, commit: "abc1234", legal_edges: ["resume", "delete"], blocked: { reason: "pick a schema", checkpoint: null, since: "2026-01-01T00:00:00Z" } };
++  const reads = [st("handed_off"), blockedRead];
++  const failure = { ok: false, run_id: "r-grade", reason: "pick a schema" };
++  const { host, labels } = mockHost({ reads, edgeResults: { grade: [failure] } });
++  const result = await workflow(host);
++  assert(result.outcome === "blocked" && result.last_edge === "grade", "grade failure blocks, got " + result.outcome);
++  assert(labels.filter((l) => l === "verify").length === 0, "no verify after failed grade, got " + labels.join(","));
++  assert(labels.filter((l) => l === "block").length === 1, "one block after grade failure");
++}
++
++// --- cycle cap: bp3 already blocked; bubble carries its reason, no re-block ---
++{
++  const blockedRead = { state: "blocked", cycle: 1, commit: "abc1234", legal_edges: ["resume", "delete"], blocked: { reason: "fix the parser", checkpoint: null, since: "2026-01-01T00:00:00Z" } };
++  const reads = [st("handed_off"), blockedRead];
++  const { host, labels } = mockHost({ reads, gradeReason: "fix the parser" });
++  const result = await workflow(host);
++  assert(result.outcome === "blocked", "cap outcome blocked, got " + result.outcome);
++  assert(result.reason === "fix the parser", "cap bubble reason, got " + result.reason);
++  assert(labels.filter((l) => l === "block").length === 0, "cap block is bp3's, not re-called, got " + labels.join(","));
++}
++
+ // --- missing args refuse without spawning anything ---
+ {
+   const host = {
+=== induct-node.js diff ===
+commit 4d00100df1ae03d273af85cb5065f73db0a71d54
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 00:31:25 2026 -0500
+
+    feat(mvp.5): blocked-fail-fast — typed failure blocks once, orphans replaced, bubble carries facts
+
+diff --git a/.agents/workflows/induct-node.js b/.agents/workflows/induct-node.js
+index 3b9335d..a110a9a 100644
+--- a/.agents/workflows/induct-node.js
++++ b/.agents/workflows/induct-node.js
+@@ -16,6 +16,21 @@
+ // claims its node link first, loops spawn_run per edge,
+ // and returns the same one terminal outcome. Edge workers
+ // never mint links and never call a second edge.
++// Fail-fast (mvp.5): failure is a state transition, never a
++// waiting process. An edge worker completes its edge,
++// returns a typed failure, or dies. A typed failure makes
++// this loop record the decision point through the block
++// edge once — with the failure's reason verbatim — and
++// exit; it never retries the failed edge, parks, polls
++// for the human, or pages anyone (paging is the root
++// worker's job, off the blocked bubble). A worker that
++// dies with no parseable verdict is an orphaned Run: the
++// node is not blocked, and the next loop iteration mints
++// one fresh link and dispatches one replacement. The
++// terminal bubble carries facts only — graph, node,
++// state, reason, last edge, claim/run chain, desk, and
++// inbox key — so revival after resume is a fresh run
++// that re-reads bp3; no pid or session is ever resumed.
+ // Args: {quest, exp, ts, harness, model, desk}.
+ 
+ function textOf(result) {
+@@ -105,6 +120,7 @@ export default async function workflow(host) {
+         commit: null,
+         cycle: 0,
+         legal_edges: [],
++        reason: null,
+         raw: textOf(result),
+       };
+     }
+@@ -113,6 +129,13 @@ export default async function workflow(host) {
+       commit: v.commit === undefined ? null : v.commit,
+       cycle: typeof v.cycle === "number" ? v.cycle : 0,
+       legal_edges: Array.isArray(v.legal_edges) ? v.legal_edges : [],
++      // The recorded decision point (mvp.5): present on a
++      // blocked node's own read, so a fresh worker — or a
++      // revived root — reconstructs why it stopped from
++      // bp3 alone.
++      reason: (v.blocked && typeof v.blocked.reason === "string" && v.blocked.reason)
++        ? v.blocked.reason
++        : (typeof v.blocked_reason === "string" && v.blocked_reason ? v.blocked_reason : null),
+       raw: textOf(result),
+     };
+   }
+@@ -237,6 +260,104 @@ export default async function workflow(host) {
+     return true;
+   }
+ 
++  // Fail-fast classification (mvp.5). Three shapes come
++  // back from an edge worker: a verdict was cast (bp3
++  // state moved, or will be seen moved on re-read), a
++  // typed failure (a parseable refusal — the child's own
++  // ok:false, or the bp3 verdict it relayed), or silence
++  // (no parseable verdict at all: the worker died, and
++  // its Run is derived orphaned by the supervisor fold).
++  function classify(v) {
++    if (!v) return { kind: "orphaned" };
++    const inner = (v.verdict && typeof v.verdict === "object") ? v.verdict : null;
++    if (v.ok === false || (inner && inner.ok === false)) {
++      return { kind: "typed", reason: failureReason(v, inner) };
++    }
++    return { kind: "cast" };
++  }
++
++  function failureReason(v, inner) {
++    if (typeof v.reason === "string" && v.reason) return v.reason;
++    const err = (inner && inner.error) || v.error || null;
++    if (err) {
++      if (typeof err.guidance === "string" && err.guidance) return err.guidance;
++      if (typeof err.code === "string" && err.code) return err.code;
++    }
++    return "edge worker returned a typed failure with no reason";
++  }
++
++  // The one terminal bubble (mvp.5): facts only, never a
++  // live handle. The root worker pages the human off a
++  // blocked bubble's reason and inbox key, and revives
++  // the node after resume by minting a fresh node link —
++  // nothing here is resumed in place.
++  function bubble(state, commit, reason, lastEdge) {
++    return {
++      graph: quest,
++      node: exp,
++      outcome: state,
++      commit: commit === undefined ? null : commit,
++      reason: reason || null,
++      last_edge: lastEdge || null,
++      run_ids: runIds,
++      desk: desk || null,
++      inbox_key: quest + "/" + exp,
++      refusals,
++    };
++  }
++
++  // The block edge is this loop's own call (mvp.5), taken
++  // exactly once for a typed failure, after the failed
++  // worker's tape bind above has reaped its Run: every
++  // edge Run this loop spawned is terminal in bp3 before
++  // the node worker exits on blocked. The reason rides
++  // verbatim; dirty work is checkpointed by bp3 only
++  // when the tree is dirty at this moment.
++  async function callBlock(reason) {
++    const safe = String(reason).replace(/(["$`\\])/g, "\\$1");
++    const cmd =
++      envPreset() + "./bin/bp3 q " + quest + " u " + exp +
++      " block --reason \"" + safe + "\"";
++    const result = await host.agent({
++      label: "block " + exp,
++      input:
++        deskNote +
++        "Run exactly `" + cmd + "` from the quest worktree if " +
++        "one is named above, else the repository root, and return " +
++        "only its stdout JSON verdict verbatim as your entire " +
++        "reply, with no prose and no code fences. If the command " +
++        "fails, return its stdout JSON verdict verbatim instead. " +
++        "Do not edit any file.",
++    });
++    return parseVerdict(result);
++  }
++
++  // Record the decision point and exit: one block call,
++  // one re-read, one blocked bubble. A block refused
++  // because the node already rests blocked (a race with
++  // the cycle cap) still exits blocked — the re-read is
++  // the judge, never this loop's memory.
++  async function blockAndExit(reason, lastEdge, commit) {
++    const bv = await callBlock(reason);
++    const after = await readState();
++    if (after.state === "blocked") {
++      return bubble("blocked", after.commit, after.reason || reason, lastEdge);
++    }
++    if (bv && bv.ok === true && typeof bv.state === "string") {
++      return bubble(bv.state, commit, reason, lastEdge);
++    }
++    refusals.push(
++      "block refused after " + lastEdge + " failure: " +
++      (bv ? errorText(JSON.stringify(bv)) : "no verdict returned") +
++      "; re-read shows " + after.state
++    );
++    return {
++      node: exp, outcome: "refused",
++      commit: after.commit === undefined ? null : after.commit,
++      run_ids: runIds, refusals,
++    };
++  }
++
+   function tapePreamble(edge, cycle) {
+     const folder = expDir + "/runs/" + runIdOf(edge, cycle);
+     return (
+@@ -320,8 +441,13 @@ export default async function workflow(host) {
+   // The FSM loop: one edge worker per iteration, re-reading
+   // bp3 after every verdict; this run holds no state of its
+   // own across edges. Terminal means landed, blocked, or
+-  // deleted, and exactly one such outcome returns.
++  // deleted, and exactly one such bubble returns. Fail-fast
++  // (mvp.5): a typed failure blocks at once through this
++  // loop's own block call; an orphaned worker is replaced
++  // by the next iteration's fresh link; neither path ever
++  // waits on a human inside this run.
+   let fix = "";
++  let lastEdge = null;
+   for (let step = 0; step < 12; step++) {
+     const state = await readState();
+     if (state.state === "unknown") {
+@@ -329,21 +455,54 @@ export default async function workflow(host) {
+       return { node: exp, outcome: "refused", commit: null, run_ids: runIds, refusals };
+     }
+     if (state.state === "landed" || state.state === "blocked" || state.state === "deleted") {
+-      return { node: exp, outcome: state.state, commit: state.commit, run_ids: runIds, refusals };
++      return bubble(state.state, state.commit,
++        state.state === "blocked" ? (state.reason || fix) : null, lastEdge);
+     }
+     if (state.state === "todo") {
+-      await spawnEdge("handoff", state, fix);
++      lastEdge = "handoff";
++      const r = await spawnEdge("handoff", state, fix);
+       fix = "";
++      const c = classify(r);
++      if (c.kind === "typed") return blockAndExit(c.reason, "handoff", state.commit);
++      if (c.kind === "orphaned") {
++        refusals.push(
++          "handoff worker orphaned (no verdict); next loop mints a replacement link");
++      }
+     } else if (state.state === "handed_off") {
++      lastEdge = "grade";
+       const g = await spawnEdge("grade", state, "");
++      const gc = classify(g);
++      if (gc.kind === "typed") return blockAndExit(gc.reason, "grade", state.commit);
++      if (gc.kind === "orphaned") {
++        refusals.push(
++          "grade worker orphaned (no verdict); next loop mints a replacement link");
++        continue;
++      }
+       const mid = await readState();
+       if (mid.state === "handed_off") {
+-        await spawnEdge("verify", mid, "");
++        lastEdge = "verify";
++        const vf = await spawnEdge("verify", mid, "");
++        const vc = classify(vf);
++        if (vc.kind === "typed") return blockAndExit(vc.reason, "verify", mid.commit);
++        if (vc.kind === "orphaned") {
++          refusals.push(
++            "verify worker orphaned (no verdict); next loop mints a replacement link");
++        }
+       } else if (g && typeof g.reason === "string" && g.reason) {
++        // needs_fix below the cap rides the next author
++        // cycle verbatim; at the cap the same words are
++        // the recorded blocked reason.
+         fix = g.reason;
+       }
+     } else if (state.state === "approved") {
+-      await spawnEdge("land", state, "");
++      lastEdge = "land";
++      const r = await spawnEdge("land", state, "");
++      const c = classify(r);
++      if (c.kind === "typed") return blockAndExit(c.reason, "land", state.commit);
++      if (c.kind === "orphaned") {
++        refusals.push(
++          "land worker orphaned (no verdict); next loop mints a replacement link");
++      }
+     } else {
+       refusals.push("no phase owns state " + state.state);
+       return { node: exp, outcome: "refused", commit: state.commit, run_ids: runIds, refusals };
+=== ls handoff run ===
+notes.md
+tape.log
+=== _build exists ===
+_build/default/src/quest/main.exe
+=== git common dir ===
+/Users/whycz/m/bp3/.git
+20261115T215646Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T215646Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T215646Z-review-muse-code-muse-wonder-1.0-c1.json
+20261115T215646Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220235Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T220235Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220706Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T220706Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220706Z-check-muse-code-muse-wonder-1.0-c1.json
+20261115T220706Z-check-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220706Z-review-muse-code-muse-wonder-1.0-c1.json
+20261115T220706Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T221254Z-land-muse-code-muse-wonder-1.0-c1.json
+20261115T221254Z-land-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T221412Z-submit-muse-code-muse-wonder-1.0-c1.json
+20261115T221412Z-submit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T222344Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T222344Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T222344Z-check-muse-code-muse-wonder-1.0-c1.json
+20261115T222344Z-check-muse-code-muse-wonder-1.0-c1.jsonl
+=== handoff notes ===
+# Run notes — exp-mvp-5-blocked-fail-fast (handoff, cycle 1)
+
+Lessons from this run:
+
+- Most of the fail-fast state law already lived in bp3
+  (block/resume, cap escalation, inbox, stale-edge
+  refusal). The missing piece was the node worker's
+  loop: it retried a failed edge up to the step cap and
+  never called block. Classify the child's return
+  (verdict cast / typed failure / silent orphan) before
+  deciding; only the typed shape blocks, and it blocks
+  exactly once with the reason verbatim.
+- A blocked bubble is facts, not handles: graph, node,
+  state, reason, last edge, run chain, desk, inbox key.
+  The root pages and revives from those alone.
+- The node read needed its own decision point
+  (`blocked: {reason, checkpoint, since}`); the quest
+  inbox alone forces a fresh worker to know to look at
+  the rollup instead of its own node.
+- Mock-host workflow tests carry the process contract
+  (one block, no retry, one replacement mint); the
+  shell fixture carries the state contract (stale
+  refusal names current state, checkpoint only when
+  dirty, siblings stay ready). Neither substitutes for
+  the other.
+- Pi tree-death process proof (real process table,
+  unreaped grandchild) stays with the Pi drive; this
+  commit lands the Muse terminal-bubble form of the
+  same law.
+=== derivation for current run ===
+ls: /Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261117T053338Z-node-muse-code-muse-wonder-1.0-c1.jsonl: No such file or directory
+cat: /Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261117T053338Z-node-muse-code-muse-wonder-1.0-c1.jsonl: No such file or directory
+=== run blocked.sh ===
+blocked tests: ok
+blocked exit:0
+=== run induct-node.test.mjs ===
+induct-node tests: ok
+induct exit:0
+=== grep Pi/process evidence in commit ===
+5:    feat(mvp.5): blocked-fail-fast — typed failure blocks once, orphans replaced, bubble carries facts
+23:+// dies with no parseable verdict is an orphaned Run: the
+29:+// that re-reads bp3; no pid or session is ever resumed.
+65:+  // its Run is derived orphaned by the supervisor fold).
+67:+    if (!v) return { kind: "orphaned" };
+167:+  // loop's own block call; an orphaned worker is replaced
+190:+      if (c.kind === "orphaned") {
+192:+          "handoff worker orphaned (no verdict); next loop mints a replacement link");
+199:+      if (gc.kind === "orphaned") {
+201:+          "grade worker orphaned (no verdict); next loop mints a replacement link");
+211:+        if (vc.kind === "orphaned") {
+213:+            "verify worker orphaned (no verdict); next loop mints a replacement link");
+227:+      if (c.kind === "orphaned") {
+229:+          "land worker orphaned (no verdict); next loop mints a replacement link");
+269:+   that dies with no verdict is an orphaned Run: the node
+297:+// dies with no parseable verdict is an orphaned Run: the
+303:+// that re-reads bp3; no pid or session is ever resumed.
+339:+  // its Run is derived orphaned by the supervisor fold).
+341:+    if (!v) return { kind: "orphaned" };
+441:+  // loop's own block call; an orphaned worker is replaced
+464:+      if (c.kind === "orphaned") {
+466:+          "handoff worker orphaned (no verdict); next loop mints a replacement link");
+473:+      if (gc.kind === "orphaned") {
+475:+          "grade worker orphaned (no verdict); next loop mints a replacement link");
+485:+        if (vc.kind === "orphaned") {
+487:+            "verify worker orphaned (no verdict); next loop mints a replacement link");
+501:+      if (c.kind === "orphaned") {
+503:+          "land worker orphaned (no verdict); next loop mints a replacement link");
+543:+set -euo pipefail
+593:+out=$(q demo u clean-exp block --reason "pick a name")
+596:+echo "$out" | jq -e '.blocked.reason == "pick a name" and .blocked.checkpoint == null' >/dev/null || fail "clean block carries no checkpoint: $out"
+674:+// --- silent death is orphaned: one fresh link, one replacement, no block ---
+679:+  assert(result.outcome === "landed", "orphan replacement lands, got " + result.outcome);
+681:+  assert(labels.filter((l) => l === "block").length === 0, "orphan never blocks, got " + labels.join(","));
+682:+  assert(result.refusals.some((r) => r.includes("orphaned")), "orphan named in refusals");
+687:+  const blockedRead = { state: "blocked", cycle: 1, commit: "abc1234", legal_edges: ["resume", "delete"], blocked: { reason: "pick a schema", checkpoint: null, since: "2026-01-01T00:00:00Z" } };
+689:+  const failure = { ok: false, run_id: "r-grade", reason: "pick a schema" };
+=== grep tests for Pi ===
+=== ledger state ===
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-5-blocked-fail-fast","state":"handed_off","fin":null,"cycle":1,"commit":"4d00100df1ae03d273af85cb5065f73db0a71d54","deps":[],"timing":{"wall_s":null,"wait_s":37147,"dwell_s":{"todo":37147},"cycles":1},"legal_edges":["grade","verify","block","delete"],"blocked":null,"changes":[{"change":"u","path":".agents/workflows/induct-node.js"},{"change":"u","path":"Makefile"},{"change":"u","path":"skills/traverse/SKILL.md"},{"change":"u","path":"skills/traverse/workflows/induct-node.js"},{"change":"u","path":"src/quest/render.ml"},{"change":"+","path":"test/blocked.sh"},{"change":"u","path":"test/induct-node.test.mjs"}],"run_id":"20261117T053338Z-node-muse-code-muse-wonder-1.0-c1"}
+=== induct test file ===
+// Mock-host test for skills/traverse/workflows/induct-node.js
+// (mvp.3): one run owns one node's FSM loop and returns
+// exactly one terminal outcome (landed, blocked, deleted).
+import workflow from "../skills/traverse/workflows/induct-node.js";
+
+const TS = "20260101T000000Z";
+let failures = 0;
+function assert(cond, msg) {
+  if (!cond) { console.error("FAIL: " + msg); failures++; }
+}
+
+function mockHost({ reads, gradeReason, edgeResults }) {
+  let readIdx = 0;
+  const labels = [];
+  const inputs = {};
+  const host = {
+    args: { quest: "toy", exp: "fx", ts: TS, harness: "muse-code", model: "test-model" },
+    async agent({ label, input }) {
+      if (input.includes("harness link mint")) {
+        labels.push("mint");
+        const e = input.match(/--edge (\S+)/);
+        const edge = e ? e[1] : "node";
+        const runId = TS + "-" + edge + "-muse-code-test-model-c1";
+        return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: runId });
+      }
+      if (input.includes("harness find-tape")) {
+        labels.push("resolve");
+        const m = input.match(/--run-id (\S+)/);
+        return JSON.stringify({ ok: true, run_id: m ? m[1] : "", tape_path: "/tmp/tape.jsonl" });
+      }
+      if (input.includes("harness bind-tape")) {
+        labels.push("bind");
+        return JSON.stringify({ ok: true });
+      }
+      if (input.includes(" block --reason")) {
+        labels.push("block");
+        (inputs.block = inputs.block || []).push(input);
+        return JSON.stringify({ ok: true, state: "blocked" });
+      }
+      if (input.startsWith("Run exactly")) {
+        return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
+      }
+      const edge = label.split(" ")[0];
+      labels.push(edge);
+      (inputs[edge] = inputs[edge] || []).push(input);
+      const queued = edgeResults && edgeResults[edge];
+      if (queued && queued.length > 0) {
+        const next = queued.shift();
+        return typeof next === "string" ? next : JSON.stringify(next);
+      }
+      const reply = { ok: true, run_id: "r-" + edge, commit: "abc1234", verdict: { ok: true } };
+      if (edge === "grade" && gradeReason) reply.reason = gradeReason;
+      return JSON.stringify(reply);
+    },
+    async parallel(calls) {
+      const out = [];
+      for (const c of calls) out.push(await host.agent(c));
+      return out;
+    },
+  };
+  return { host, labels, inputs };
+}
+
+const st = (state, cycle) => ({ state, cycle: cycle || 1, commit: "abc1234", legal_edges: [] });
+
+// --- happy path: todo -> handed_off -> approved -> landed, one outcome ---
+{
+  const reads = [st("todo"), st("handed_off"), st("handed_off"), st("approved"), st("landed")];
+  const { host, labels, inputs } = mockHost({ reads });
+  const result = await workflow(host);
+  assert(result.outcome === "landed" && result.node === "fx", "happy outcome landed, got " + result.outcome);
+  assert(result.commit === "abc1234", "happy commit, got " + result.commit);
+  assert(labels.filter((l) => l === "handoff").length === 1, "one author, got " + labels.join(","));
+  assert(labels.filter((l) => l === "grade").length === 1, "one grade, got " + labels.join(","));
+  assert(labels.filter((l) => l === "verify").length === 1, "one verify, got " + labels.join(","));
+  assert(labels.filter((l) => l === "land").length === 1, "one land, got " + labels.join(","));
+  assert(inputs.grade[0].includes("abc1234"), "grade judges the bound commit");
+  assert(inputs.handoff[0].includes("link claim bp3link_test-handoff"), "author claims first");
+  assert(inputs.land[0].includes("u fx land"), "land child calls the land edge");
+  assert(result.run_ids.length >= 4, "run_ids collected, got " + result.run_ids.join(","));
+}
+
+// --- needs_fix rides the loop: fix carried verbatim to the next author ---
+{
+  const reads = [st("todo"), st("handed_off"), st("todo", 2), st("todo", 2), st("handed_off", 2), st("handed_off", 2), st("approved", 2), st("landed", 2)];
+  const { host, inputs } = mockHost({ reads, gradeReason: "fix the parser" });
+  const result = await workflow(host);
+  assert(result.outcome === "landed", "cycle outcome landed, got " + result.outcome);
+  assert(inputs.handoff.length === 2, "two authors across cycles, got " + inputs.handoff.length);
+  assert(inputs.handoff[1].includes("fix the parser"), "named fix rides verbatim");
+}
+
+// --- terminal states return at once, no edge worker spawns ---
+for (const state of ["blocked", "deleted", "landed"]) {
+  const { host, labels } = mockHost({ reads: [st(state)] });
+  const result = await workflow(host);
+  assert(result.outcome === state, state + " outcome, got " + result.outcome);
+  assert(labels.length === 0, "no spawns for " + state + ", got " + labels.join(","));
+}
+
+// --- typed failure fails fast: one block, verbatim reason, exit (mvp.5) ---
+{
+  const blockedRead = { state: "blocked", cycle: 1, commit: "abc1234", legal_edges: ["resume", "delete"], blocked: { reason: "choose storage shape", checkpoint: null, since: "2026-01-01T00:00:00Z" } };
+  const reads = [st("todo"), blockedRead];
+  const failure = { ok: false, run_id: "r-handoff", error: { code: "E_DECISION", facts: {}, guidance: "choose storage shape" }, reason: "choose storage shape" };
+  const { host, labels, inputs } = mockHost({ reads, edgeResults: { handoff: [failure] } });
+  const result = await workflow(host);
+  assert(result.outcome === "blocked", "typed failure blocks, got " + result.outcome);
+  assert(result.reason === "choose storage shape", "bubble reason verbatim, got " + result.reason);
+  assert(result.last_edge === "handoff", "bubble last edge, got " + result.last_edge);
+  assert(result.graph === "toy" && result.inbox_key === "toy/fx", "bubble graph + inbox key");
+  assert(labels.filter((l) => l === "handoff").length === 1, "failed edge never retried, got " + labels.join(","));
+  assert(labels.filter((l) => l === "block").length === 1, "exactly one block call, got " + labels.join(","));
+  assert(inputs.block[0].includes("choose storage shape"), "block reason rides verbatim");
+}
+
+// --- silent death is orphaned: one fresh link, one replacement, no block ---
+{
+  const reads = [st("todo"), st("todo"), st("handed_off"), st("handed_off"), st("approved"), st("landed")];
+  const { host, labels } = mockHost({ reads, edgeResults: { handoff: ["worker died without a word"] } });
+  const result = await workflow(host);
+  assert(result.outcome === "landed", "orphan replacement lands, got " + result.outcome);
+  assert(labels.filter((l) => l === "handoff").length === 2, "one replacement author, got " + labels.join(","));
+  assert(labels.filter((l) => l === "block").length === 0, "orphan never blocks, got " + labels.join(","));
+  assert(result.refusals.some((r) => r.includes("orphaned")), "orphan named in refusals");
+}
+
+// --- typed grade failure blocks before any verify spawns ---
+{
+  const blockedRead = { state: "blocked", cycle: 1, commit: "abc1234", legal_edges: ["resume", "delete"], blocked: { reason: "pick a schema", checkpoint: null, since: "2026-01-01T00:00:00Z" } };
+  const reads = [st("handed_off"), blockedRead];
+  const failure = { ok: false, run_id: "r-grade", reason: "pick a schema" };
+  const { host, labels } = mockHost({ reads, edgeResults: { grade: [failure] } });
+  const result = await workflow(host);
+  assert(result.outcome === "blocked" && result.last_edge === "grade", "grade failure blocks, got " + result.outcome);
+  assert(labels.filter((l) => l === "verify").length === 0, "no verify after failed grade, got " + labels.join(","));
+  assert(labels.filter((l) => l === "block").length === 1, "one block after grade failure");
+}
+
+// --- cycle cap: bp3 already blocked; bubble carries its reason, no re-block ---
+{
+  const blockedRead = { state: "blocked", cycle: 1, commit: "abc1234", legal_edges: ["resume", "delete"], blocked: { reason: "fix the parser", checkpoint: null, since: "2026-01-01T00:00:00Z" } };
+  const reads = [st("handed_off"), blockedRead];
+  const { host, labels } = mockHost({ reads, gradeReason: "fix the parser" });
+  const result = await workflow(host);
+  assert(result.outcome === "blocked", "cap outcome blocked, got " + result.outcome);
+  assert(result.reason === "fix the parser", "cap bubble reason, got " + result.reason);
+  assert(labels.filter((l) => l === "block").length === 0, "cap block is bp3's, not re-called, got " + labels.join(","));
+}
+
+// --- missing args refuse without spawning anything ---
+{
+  const host = {
+    args: { quest: "toy" },
+    async agent() { throw new Error("must not spawn"); },
+    async parallel() { throw new Error("must not spawn"); },
+  };
+  const result = await workflow(host);
+  assert(result.outcome === "refused", "missing args refuse");
+}
+
+if (failures > 0) process.exit(1);
+console.log("induct-node tests: ok");
+# Audit notes — exp-mvp-5-blocked-fail-fast @ 4d00100
+
+Run: 20261117T053338Z-node-muse-code-muse-wonder-1.0-c1
+Bound commit: 4d00100df1ae03d273af85cb5065f73db0a71d54 (HEAD verified)
+
+## Lessons
+
+- Muse fail-fast is landed: typed failure classifies, blocks once verbatim, orphans replace without blocking, bubble carries facts only; shell fixture carries the bp3 state contract. Both suites pass live.
+- Pi process-tree proof is absent from this commit by the author's own note; the five Pi-specific acceptance cases have no Pi process-table, pid, or session artifact and are graded missing, not deferred — EXPERIMENT.md names no owning exp for them.
+- Conductor/root revival rests on the node read's blocked:{reason,checkpoint,since} field; that is tested at the state layer, distinct from the unproven Pi root-death process case.
+- No rung-5 tape read was needed: every row decided at rungs 2-3.
+
+## Matrix
+
+```json
+[
+  {"case": "edge completes", "rung": 3, "evidence": {"kind": "command", "ref": "node test/induct-node.test.mjs", "quote": "induct-node tests: ok"}, "verdict": "pass"},
+  {"case": "Pi tree bubbles to root", "rung": 3, "evidence": {"kind": "file", "ref": "docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md", "quote": "Pi tree-death process proof (real process table,\n  unreaped grandchild) stays with the Pi drive; this\n  commit lands the Muse terminal-bubble form of the\n  same law."}, "verdict": "missing"},
+  {"case": "whole Pi tree dies", "rung": 3, "evidence": {"kind": "file", "ref": "docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md", "quote": "Pi tree-death process proof (real process table,\n  unreaped grandchild) stays with the Pi drive; this\n  commit lands the Muse terminal-bubble form of the\n  same law."}, "verdict": "missing"},
+  {"case": "Pi revival is a fresh tree", "rung": 3, "evidence": {"kind": "file", "ref": "docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md", "quote": "Pi tree-death process proof (real process table,\n  unreaped grandchild) stays with the Pi drive; this\n  commit lands the Muse terminal-bubble form of the\n  same law."}, "verdict": "missing"},
+  {"case": "unreaped Pi grandchild", "rung": 3, "evidence": {"kind": "file", "ref": "docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md", "quote": "Pi tree-death process proof (real process table,\n  unreaped grandchild) stays with the Pi drive; this\n  commit lands the Muse terminal-bubble form of the\n  same law."}, "verdict": "missing"},
+  {"case": "root Pi session dies", "rung": 3, "evidence": {"kind": "file", "ref": "docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md", "quote": "Pi tree-death process proof (real process table,\n  unreaped grandchild) stays with the Pi drive; this\n  commit lands the Muse terminal-bubble form of the\n  same law."}, "verdict": "missing"},
+  {"case": "edge returns typed failure", "rung": 3, "evidence": {"kind": "command", "ref": "node test/induct-node.test.mjs", "quote": "induct-node tests: ok"}, "verdict": "pass"},
+  {"case": "`needs_fix` below cycle cap", "rung": 3, "evidence": {"kind": "command", "ref": "node test/induct-node.test.mjs", "quote": "induct-node tests: ok"}, "verdict": "pass"},
+  {"case": "cycle cap exceeded", "rung": 3, "evidence": {"kind": "command", "ref": "./test/blocked.sh", "quote": "blocked tests: ok"}, "verdict": "pass"},
+  {"case": "human decision required", "rung": 3, "evidence": {"kind": "command", "ref": "./test/blocked.sh", "quote": "blocked tests: ok"}, "verdict": "pass"},
+  {"case": "human answers", "rung": 3, "evidence": {"kind": "command", "ref": "./test/blocked.sh", "quote": "blocked tests: ok"}, "verdict": "pass"},
+  {"case": "stale worker returns after block", "rung": 3, "evidence": {"kind": "command", "ref": "./test/blocked.sh", "quote": "blocked tests: ok"}, "verdict": "pass"},
+  {"case": "edge worker dies silently", "rung": 3, "evidence": {"kind": "command", "ref": "node test/induct-node.test.mjs", "quote": "induct-node tests: ok"}, "verdict": "pass"},
+  {"case": "sibling nodes are ready", "rung": 3, "evidence": {"kind": "command", "ref": "./test/blocked.sh", "quote": "blocked tests: ok"}, "verdict": "pass"},
+  {"case": "conductor restarts", "rung": 3, "evidence": {"kind": "command", "ref": "./test/blocked.sh", "quote": "blocked tests: ok"}, "verdict": "pass"}
+]
+```
+--- notes written ---
+total 128
+-rw-r--r--@ 1 whycz  staff   4949 Nov 17 00:34 notes.md
+-rw-r--r--@ 1 whycz  staff  55432 Nov 17 00:34 tape.log

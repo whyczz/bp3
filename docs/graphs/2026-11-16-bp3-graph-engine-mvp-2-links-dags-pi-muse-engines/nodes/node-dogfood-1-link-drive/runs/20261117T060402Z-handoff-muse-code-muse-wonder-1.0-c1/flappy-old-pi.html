@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Flappy — old-pi</title>
+<script type="importmap">{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }</script>
+</head><body><div id="hud">Score <b id="score">0</b></div>
+<script type="module">
+import * as THREE from 'three';
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, 0, 10);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const bird = new THREE.Mesh(new THREE.SphereGeometry(0.35, 24, 18),
+  new THREE.MeshStandardMaterial({ color: 0xffd93d }));
+bird.position.set(-2.5, 0, 0); scene.add(bird);
+let vy = 0, started = false, alive = true;
+addEventListener('pointerdown', () => { started = true; vy = 5.2; });
+const clock = new THREE.Clock();
+(function tick() { requestAnimationFrame(tick);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (started && alive) { vy -= 13 * dt; bird.position.y += vy * dt; }
+  renderer.render(scene, camera); })();
+</script></body></html>

@@ -1,0 +1,719 @@
+total 0
+drwxr-xr-x@ 3 whycz  staff  96 Nov 16 16:25 .
+drwxr-xr-x@ 3 whycz  staff  96 Nov 16 16:25 ..
+-rw-r--r--@ 1 whycz  staff   0 Nov 16 16:25 tape.log
+== exp state ==
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-config-1-bp3-config","state":"todo","fin":null,"cycle":1,"commit":null,"legal_edges":["handoff","block","delete"],"changes":null}
+== harness verbs ==
+499:                     let run_id = if rec_.run_id <> "" then rec_.run_id else file_id in
+556:  let run_id = rf.rf_view.rv_id in
+637:let run_json v =
+658:  let runs0 = List.map (fun f -> f.rf_view) folds0 in
+671:    let runs = List.map (fun f -> f.rf_view) folds in
+672:    let run_warns = List.concat_map (fun v -> v.rv_warnings) runs in
+1252:  let run_needles = dedup (
+1310:             let run = (match record with Some rec_ -> rec_.run_id | None ->
+1435:  let run_needles = dedup (
+1492:           let run = (match record with Some rec_ -> rec_.run_id | None ->
+636:(* ---------- verdict helpers ---------- *)
+1720:         (match fl.ri_desk with Some s -> Some ("desk", json_str s) | None -> None);
+2064:(* ---------- help (docstrings beside dispatch) ---------- *)
+2065:let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
+2076:let help_supervisor = "bp3 harness supervisor - passive supervisor loop for one quest:\n\
+2084:let help_init_check = "bp3 harness init-check - probe tape sources per harness:\n\
+2089:let help_find_tape = "bp3 harness find-tape - InitRecord-first tape lookup:\n\
+2097:let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
+2106:let help_desk = "bp3 harness desk - machine-local desks, never ledgered (same Worktree store as the retired bp3 worktree door, which remains its documented alias):\n\
+2115:let help_bind_tape = "bp3 harness bind-tape - bind a finished child's session tape to its Run (the launcher's bind step; the author child writes no InitRecord, binding, or observation):\n\
+2120:let help_record_init = "bp3 harness record-init - write one Run's InitRecord (the launcher's verb; the child never writes its own proof):\n\
+2125:let is_help = function "-h" | "--help" -> true | _ -> false
+2127:let help_backtest = "bp3 harness backtest - replay the fold over stored tapes (findings, not a gate):\n\
+2134:  | "s" | "supervisor" -> "supervisor"
+2135:  | "i" | "init-check" -> "init-check"
+2136:  | "f" | "find-tape" -> "find-tape"
+2137:  | "w" | "watch" -> "watch"
+2138:  | "d" | "desk" -> "desk"
+2139:  | "r" | "record-init" -> "record-init"
+2140:  | "t" | "bind-tape" -> "bind-tape"
+2145:  | [h] when is_help h -> print_string help_harness; 0
+2146:  | verb :: (h :: _) when is_help h ->
+2148:        | "supervisor" -> help_supervisor
+2149:        | "init-check" -> help_init_check
+2150:        | "find-tape" -> help_find_tape
+2151:        | "watch" -> help_watch
+2152:        | "desk" -> help_desk
+2153:        | "record-init" -> help_record_init
+2154:        | "bind-tape" -> help_bind_tape
+2155:        | "backtest" -> help_backtest
+2156:        | _ -> help_harness); 0
+2159:       | "supervisor" ->
+2163:       | "init-check" -> do_init_check rest
+2164:       | "find-tape" -> do_find_tape rest
+2165:       | "watch" -> do_watch rest
+2166:       | "record-init" -> do_record_init rest
+2167:       | "bind-tape" -> do_bind_tape rest
+2169:       | "desk" ->
+    ("identifiable", `Int identifiable);
+    ("traces", `List traces); ("findings", `List findings)]));
+  0
+
+(* ---------- help (docstrings beside dispatch) ---------- *)
+let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
+  bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]   passive loop: tell -> watch -> judge -> finalize\n\
+  bp3 harness init-check [--engine muse-code|pi]   probe tape sources; blindness is W_SUPERVISOR_BLIND, never blocking\n\
+  bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]   InitRecord-first run-id -> tape; --session-id <id> is a reverse lookup\n\
+  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]   blocking watch: sole TERM/KILL owner\n\
+  bp3 harness desk <verb> ...                      machine-local desks: derive, create, inspect, remove, prepare, check, exit, release, list\n\
+  bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>] [--thinking <t>]   launcher writes the InitRecord before the child starts (create-only)\n\
+  bp3 harness bind-tape --run-id <id> --tape-path <p>   launcher binds a finished child's session tape after it returns (pointer-only tape_binding row)\n\
+  bp3 harness backtest [--engine muse-code|pi] [--corpus <dir>]   replay the fold over stored tapes; findings, not a gate\n\
+Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init, t=bind-tape, b=backtest. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
+
+let help_supervisor = "bp3 harness supervisor - passive supervisor loop for one quest:\n\
+  bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]\n\
+  Streams NDJSON lifecycle_change rows on stdout, ends with one JSON verdict {ok, quest, outcome, settled, rollup, runs, inbox, orphans}.\n\
+  Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
+  Durations are bare positive integers; 0, negatives, and suffixed values are usage errors.\n\
+  Mechanism (mvp.4): each changed tick appends one pointer-only observation row to the Run's own <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl (keyed by run-id; session-id is only an InitRecord field) and refreshes its disposable <run-id>.json cache. Since mvp.5 the derivation logs are the sole lifecycle read path; the retired shared maps are never read or written. Writer discipline (followup.1): each row is a single write() on an O_APPEND descriptor and the cache is a uniquely named temp file in the same directory, fsynced and renamed over the old cache, so parallel supervisors never tear a row or the cache; a torn final line is ignored by the fold and reported as W_TORN_TAIL. Tape binding (followup.3, pinned by followup.4): when the InitRecord names no tape, the first pointer-only tape_binding row in the same log names it, one tape to one Run, never rebound; with no tape at all the probe is blind (W_SUPERVISOR_BLIND) and the lifecycle stays init.\n\
+Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
+
+let help_init_check = "bp3 harness init-check - probe tape sources per harness:\n\
+  bp3 harness init-check [--engine muse-code|pi]\n\
+  Emits {ok, checks}; a missing or reshaped tape source adds W_SUPERVISOR_BLIND to warnings and never blocks work.\n\
+Example: bp3 harness init-check --engine muse-code\n"
+
+let help_find_tape = "bp3 harness find-tape - InitRecord-first tape lookup:\n\
+  bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]\n\
+  bp3 harness find-tape --session-id <id>\n\
+  Run-id is the sole primary key; --session-id is a reverse lookup that must resolve to exactly one run-id. Both, neither, or disagreeing identity flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS and names every candidate. A tape named by an InitRecord or a binding row wins over any scan; when a scan finds several referencing tapes, only tapes carrying the Run's own engine-fsm-edge invocation (BP3_RUN_ID bound to its bp3 q ... u <exp> <engine-fsm-edge> call, engine-fsm-edge from the run-id, exp from the InitRecord) can resolve, and among them the earliest session started at-or-after the Run's InitRecord wins; a tie or none is E_AMBIGUOUS.\n\
+  --entry returns the one digest-verified entry (sha256 over its exact line, with byte range), widened by --before-entries/--after-entries (non-negative integers, default 0).\n\
+  Emits {ok, run_id, harness, session_id, wal, pid} or, with --entry, plus {entry, entries}.\n\
+Example: bp3 harness find-tape --run-id 20261115T000000Z-handoff-pi-model-c1\n"
+
+let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
+  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
+  bp3 harness watch --session-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
+  Engine is derived from the Run InitRecord, never stated. Finds the tape like find-tape, then blocks in code: streams NDJSON lifecycle_change rows and ends with one verdict {ok, run_id, harness, session_id, wal, pid, outcome, settled, lifecycle}.\n\
+  Finish evidence is per harness, read off the tape tail: muse-code scans whole entries from the end, skipping task entries, and the first non-task entry decides — a session.end entry closes the tape, and a runtime terminal entry is a child tape's exit entry (child tapes carry no close marker and end with task entries after it); pi never closes, so only its last whole entry counts (a session_closed entry or a final assistant entry that stopped is its clean end). Exit plus finish evidence (or settle plus finish evidence) with no live pid is settled; a live pid is never finished. A torn final tape entry finishes nothing and warns W_TORN_TAIL. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. Finish evidence or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
+  Identity flags follow find-tape: both, neither, or disagreeing flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS. Tape resolution is shared with find-tape, including the own engine-fsm-edge start-order rule for scanned tapes. Durations are bare positive integers; 0, negatives, and suffixed values are E_USAGE.\n\
+  Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
+Example: bp3 harness watch --run-id 20261115T000000Z-handoff-pi-model-c1 --silence-seconds 600\n"
+
+let help_desk = "bp3 harness desk - machine-local desks, never ledgered (same Worktree store as the retired bp3 worktree door, which remains its documented alias):\n\
+  verbs: derive, create, inspect, remove, prepare, check, exit, release, list\n\
+  bp3 harness desk prepare <quest> <exp> --run <run-id> [--commit <sha>] [--path <dir>]\n\
+  bp3 harness desk prepare --quest <quest>   one desk for a whole quest\n\
+  bp3 harness desk check --run <run-id>      recompute dirty/stale live by Run ID\n\
+  bp3 harness desk release --run <run-id> [--force]   a dirty desk refuses without --force\n\
+  bp3 harness desk list [--quest <quest>]\n\
+Example: bp3 harness desk prepare my-quest exp-1 --run R1\n"
+
+let help_bind_tape = "bp3 harness bind-tape - bind a finished child's session tape to its Run (the launcher's bind step; the author child writes no InitRecord, binding, or observation):\n\
+  bp3 harness bind-tape --run-id <id> --tape-path <p>\n\
+  Appends one pointer-only tape_binding row (run-id, tape path, timestamp; never tape content) as a single write to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl, after the child returns and its session tape has closed. The binding is one-to-one and pinned: the fold names the tape from the InitRecord's own tape path, else the first binding, and that pointer is the only one it reads. Re-binding the same tape is a no-op; a second, different tape for the run-id, or a tape already bound to another run-id, is E_EXISTS, never a silent rebind; a missing tape path is never guessed. A run-id with no InitRecord is E_NOT_FOUND; a bad run-id or a missing, duplicate, or =-formed flag is E_USAGE. Emits {ok, run_id, tape_path, path}.\n\
+Example: bp3 harness bind-tape --run-id 20261115T000000Z-handoff-muse-code-model-c1 --tape-path ~/.local/share/muse/sessions/2026/11/15/<session>/session.jsonl\n"
+
+let help_record_init = "bp3 harness record-init - write one Run's InitRecord (the launcher's verb; the child never writes its own proof):\n\
+  bp3 harness record-init --run-id <id> --harness muse-code|pi [--quest <q>] [--exp <e>] [--session-id <s>] [--pid <n>] [--tape-path <p>] [--desk <d>] [--model <m>] [--thinking <t>]\n\
+  Appends the first derivation row (kind init_record) to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl before the child starts, so find-tape/watch/supervisor resolve the Run from birth. Create-only: an existing log for the run-id is E_EXISTS; a bad run-id, engine, or pid is E_USAGE. Emits {ok, run_id, harness, session_id, pid, tape_path, quest, exp, path}.\n\
+Example: bp3 harness record-init --run-id 20261115T000000Z-handoff-muse-code-model-c1 --harness muse-code --quest toy --exp exp-1\n"
+
+let is_help = function "-h" | "--help" -> true | _ -> false
+
+let help_backtest = "bp3 harness backtest - replay the fold over stored tapes (findings, not a gate):\n\
+  bp3 harness backtest [--engine muse-code|pi] [--corpus <dir>]\n\
+  Reads every .jsonl tape under the corpus (default: the engine's tape source), folds mechanical facts per tape (BP3_RUN_ID bindings, bp3 invocations, E_* refusals, commit shas, finish/exit evidence, torn tails; pi tapes also yield session-id, entry counts, and summed usage) and emits one verdict {ok, engine, corpus, tapes_replayed, identifiable, traces, findings}. Each finding names its tape, run-id, evidence lines, and proposed fix target (dispatcher, adapter, contract; muse findings keep bp3 q u / hooks). A parser crash fails the call; findings themselves never gate. Truncated, foreign, and torn tapes are reported in findings, never fatal. Replay is deterministic: same corpus, same verdict.\n\
+Example: bp3 harness backtest --engine pi --corpus ~/.pi/agent/sessions\n"
+
+let normalize_verb = function
+  | "b" | "backtest" -> "backtest"
+  | "s" | "supervisor" -> "supervisor"
+  | "i" | "init-check" -> "init-check"
+  | "f" | "find-tape" -> "find-tape"
+  | "w" | "watch" -> "watch"
+  | "d" | "desk" -> "desk"
+  | "r" | "record-init" -> "record-init"
+  | "t" | "bind-tape" -> "bind-tape"
+  | other -> other
+
+let run = function
+  | [] -> usage "harness needs a verb: supervisor, init-check, find-tape, watch, desk, record-init, bind-tape, or backtest"
+  | [h] when is_help h -> print_string help_harness; 0
+  | verb :: (h :: _) when is_help h ->
+      print_string (match normalize_verb verb with
+        | "supervisor" -> help_supervisor
+        | "init-check" -> help_init_check
+        | "find-tape" -> help_find_tape
+        | "watch" -> help_watch
+        | "desk" -> help_desk
+        | "record-init" -> help_record_init
+        | "bind-tape" -> help_bind_tape
+        | "backtest" -> help_backtest
+        | _ -> help_harness); 0
+  | verb_raw :: rest ->
+      (match normalize_verb verb_raw with
+       | "supervisor" ->
+           (match rest with
+            | quest :: tail -> do_supervisor quest tail
+            | [] -> usage "supervisor needs a quest")
+       | "init-check" -> do_init_check rest
+       | "find-tape" -> do_find_tape rest
+       | "watch" -> do_watch rest
+       | "record-init" -> do_record_init rest
+       | "bind-tape" -> do_bind_tape rest
+       | "backtest" -> do_backtest rest
+       | "desk" ->
+           (match rest with
+            | [] -> usage "desk needs a verb: derive, create, inspect, remove, prepare, check, exit, release, or list"
+            | _ -> Render.print_verdict ~fmt:"json" (Worktree.run rest); 0)
+       | other -> usage ("unknown harness verb: " ^ other))
+===== test/harness.sh head =====
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+h() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness "$@"; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+# --- help: every harness verb documented, exit 0, no state read ---
+out=$(h -h) || fail "harness -h exit"
+echo "$out" | grep -q "supervisor" || fail "harness help lists supervisor: $out"
+echo "$out" | grep -q "init-check" || fail "harness help lists init-check: $out"
+out=$(h supervisor -h) || fail "supervisor -h exit"
+echo "$out" | grep -q "settled=0" || fail "supervisor help exit classes: $out"
+echo "$out" | grep -q "watchdog_killed=1" || fail "supervisor help watchdog class: $out"
+echo "$out" | grep -q "timeout=3" || fail "supervisor help timeout class: $out"
+echo "$out" | grep -q "human_gate=4" || fail "supervisor help gate class: $out"
+out=$(h s -h) || fail "alias s -h exit"
+echo "$out" | grep -q "supervisor" || fail "alias s help: $out"
+out=$(h i -h) || fail "alias i -h exit"
+echo "$out" | grep -q "init-check" || fail "alias i help: $out"
+out=$(h watch -h) || fail "watch -h exit"
+echo "$out" | grep -q "watchdog_killed" || fail "watch help outcomes: $out"
+echo "$out" | grep -q "W_SUPERVISOR_BLIND" || fail "watch help blindness: $out"
+out=$(h w -h) || fail "alias w -h exit"
+echo "$out" | grep -q "watch" || fail "alias w help: $out"
+
+# --- usage: strict argv, bare positive durations, exit 2 ---
+if out=$(h supervisor 2>&1); then fail "supervisor without quest accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "no-quest code: $out"
+if out=$(h supervisor toy --timeout-seconds 0 2>&1); then fail "zero timeout accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "zero timeout code: $out"
+if out=$(h supervisor toy --timeout-seconds -5 2>&1); then fail "negative timeout accepted"; fi
+if out=$(h supervisor toy --timeout-seconds 30m 2>&1); then fail "suffixed timeout accepted"; fi
+if out=$(h supervisor toy --timeout-seconds=30 2>&1); then fail "--flag=value accepted"; fi
+if out=$(h supervisor toy --engine bogus 2>&1); then fail "bogus engine accepted"; fi
+if out=$(h supervisor toy --bogus 1 2>&1); then fail "unknown flag accepted"; fi
+if out=$(h bogus 2>&1); then fail "unknown harness verb accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "unknown verb code: $out"
+if out=$(h supervisor no-such-quest --timeout-seconds 1 2>&1); then fail "missing quest accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "missing quest code: $out"
+
+# --- desk (mvp.6): harness desk door, worktree door is its alias ---
+wt() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 worktree "$@"; }
+normj() { jq -Sc 'walk(if type == "object" then del(.created_ts, .stale_s) else . end)'; }
+out=$(h desk -h) || fail "desk -h exit"
+for v in derive create inspect remove prepare check exit release list; do
+  echo "$out" | grep -q "$v" || fail "desk help lists $v: $out"
+done
+out=$(h d -h) || fail "alias d -h exit"
+echo "$out" | grep -q "harness desk" || fail "alias d help: $out"
+if out=$(h desk 2>&1); then fail "desk without a verb accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "desk no-verb code: $out"
+
+# golden parity: read verbs answer identically through both doors
+[ "$(h desk derive demo exp-a R1 | normj)" = "$(wt derive demo exp-a R1 | normj)" ] || fail "derive parity"
+[ "$(h desk list | normj)" = "$(wt list | normj)" ] || fail "empty list parity"
+[ "$(h d list | normj)" = "$(h desk list | normj)" ] || fail "alias d list parity"
+out=$(h desk prepare demo exp-a --run DA)
+echo "$out" | jq -e '.ok == true and .run_id == "DA" and .path == ".bp3/worktrees/demo/exp-a/DA"' >/dev/null || fail "desk prepare: $out"
+[ "$(h desk check --run DA | normj)" = "$(wt check --run DA | normj)" ] || fail "check parity"
+[ "$(h desk list | normj)" = "$(wt list | normj)" ] || fail "list parity"
+[ "$(h desk inspect .bp3/worktrees/demo/exp-a/DA | normj)" = "$(wt inspect .bp3/worktrees/demo/exp-a/DA | normj)" ] || fail "inspect parity"
+
+# dirty refusal is the same verdict through both doors, record intact
+echo stray >> .bp3/worktrees/demo/exp-a/DA/a.txt
+d1=$(h desk release --run DA 2>&1 | normj) || true
+d2=$(wt release --run DA 2>&1 | normj) || true
+[ "$d1" = "$d2" ] || fail "dirty release parity: $d1 vs $d2"
+===== test/q.sh head =====
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+quest_alias() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 quest "$@"; }
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+# --- create / read verdict shapes, both spellings ---
+out=$(q c demo)
+echo "$out" | jq -e '.ok == true and .quest == "demo" and .state == "proposed"' >/dev/null || fail "quest create shape: $out"
+out=$(q create demo2)
+echo "$out" | jq -e '.ok == true and .state == "proposed"' >/dev/null || fail "quest create alias: $out"
+out=$(quest_alias r demo)
+echo "$out" | jq -e '.ok == true and .quest == "demo" and .state == "proposed" and (.exps | type == "array") and (.inbox | type == "array") and has("rollup")' >/dev/null || fail "quest read shape: $out"
+out=$(q r)
+echo "$out" | jq -e '.ok == true and (.quests | length >= 2)' >/dev/null || fail "quest list: $out"
+
+out=$(q demo c parser-fix)
+echo "$out" | jq -e '.ok == true and .state == "todo" and .cycle == 1' >/dev/null || fail "exp create: $out"
+out=$(q demo create parser-fix2)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "exp create alias: $out"
+out=$(q demo r parser-fix)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "exp read: $out"
+out=$(q demo read parser-fix)
+echo "$out" | jq -e '.ok == true and .state == "todo"' >/dev/null || fail "exp read alias: $out"
+
+# --- strict argv: dup flag, unknown flag, stray positional -> usage before write ---
+before=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+if out=$(q demo u parser-fix handoff --commit abc --reason x --reason y 2>&1); then fail "dup flag accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "dup flag code: $out"
+if out=$(q demo u parser-fix handoff --commit abc --reason x --bogus y 2>&1); then fail "unknown flag accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "unknown flag code: $out"
+if out=$(q demo u parser-fix handoff extra --commit abc --reason x 2>&1); then fail "stray positional accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "stray code: $out"
+after=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+[ "$before" = "$after" ] || fail "strict argv wrote to ledger"
+
+# --- refusal: land from todo, ledger unchanged ---
+if out=$(q demo u parser-fix land --reason "too early" 2>&1); then fail "land from todo accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "todo" and .error.facts.edge == "land" and (.error.facts.legal_edges | index("handoff") != null) and (.error.guidance | length > 0)' >/dev/null || fail "illegal edge facts: $out"
+after=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+[ "$before" = "$after" ] || fail "refusal ledgered"
+
+# --- identity: unset -> unknown + warning; invalid -> fail fast ---
+out=$(env -u BP3_HARNESS -u BP3_MODEL BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q demo c id-exp)
+echo "$out" | jq -e '.ok == true and (.warnings | index("W_IDENTITY_UNKNOWN") != null)' >/dev/null || fail "identity warning: $out"
+git show bp3/exp/demo/id-exp:docs/quests/demo/experiments/id-exp/ledger.jsonl | tail -1 | jq -e '.harness == "unknown" and .model == "unknown" and .bp3_version == "0.2.0"' >/dev/null || fail "identity ledger unknown"
+_build/
+bp3.install
+.bp3/
+dist/
+---
+275:let print_verdict ~fmt v =
+let print_verdict ~fmt v =
+  let v = stamp_run_id v in
+  (* Exp 5: any verdict in a version-ahead repo carries the warning *)
+  let v = match v with
+    | `Assoc fs when not (List.mem_assoc "warnings" fs) ->
+        (match version_ahead () with
+         | Some _ -> `Assoc (fs @ [("warnings", `List [json_str "W_VERSION_AHEAD"])])
+         | None -> v)
+    | _ -> v in
+  match fmt, v with
+  | "tree", `Assoc fields when List.mem_assoc "exps" fields ->
+      render_tree fields
+  | "tree", `Assoc fields when List.mem_assoc "exp" fields ->
+      render_tree_exp fields
+  | "table", `Assoc fields when List.mem_assoc "exps" fields ->
+      render_table_quest fields
+  | "table", `Assoc fields when List.mem_assoc "exp" fields
+      && List.mem_assoc "changes" fields ->
+      render_table_exp fields
+  | "table", `Assoc fields when List.mem_assoc "entries" fields ->
+      render_table_icebox fields
+  | "table", `Assoc fields ->
+      List.iter (fun (k, v) ->
+        match v with
+        | `List xs ->
+            Printf.printf "%s:\n" k;
+            List.iter (fun item ->
+              match item with
+              | `Assoc fs -> Printf.printf "  %s\n" (String.concat " " (List.map (fun (a, b) -> a ^ "=" ^ Yojson.Safe.to_string b) fs))
+              | other -> Printf.printf "  %s\n" (Yojson.Safe.to_string other)) xs
+        | other -> Printf.printf "%s: %s\n" k (match other with `String s -> s | o -> Yojson.Safe.to_string o)
+      ) fields
+  | _, _ -> print_endline (Yojson.Safe.to_string v)
+
+---COMPLETION---
+test/completion.sh:46:git config user.email t@t.t; git config user.name t
+test/completion.sh:87:has "$out" harness; has "$out" worktree
+test/completion.sh:88:out=$(_bp3_candidates harness "")
+test/completion.sh:90:out=$(_bp3_candidates harness desk "")
+test/completion.sh:92:out=$(_bp3_candidates harness d "")
+test/completion.sh:124:out=$(HOME="$work/home" BP3_COMPLETIONS_DIR="$work/dest" "$work/delivery/bin/bp3" init --harness=muse)
+completions/_bp3:103:      printf '%s\n' q quest init skills harness worktree | _bp3_filter "$cur"
+completions/_bp3:106:    elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'harness' ]; then
+completions/_bp3:108:    elif [ "${#a[@]}" -eq 2 ] && [ "${a[1]}" = 'harness' ] && { [ "${a[2]}" = 'desk' ] || [ "${a[2]}" = 'd' ]; }; then
+completions/_bp3:110:    elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'worktree' ]; then
+      for v in "${_bp3_verdict_values[@]}"; do printf '%s\n' "--verdict=$v"; done | _bp3_filter "$cur"
+      return 0 ;;
+    --*|-*)
+      _bp3_words "${_bp3_flags[@]}" | _bp3_filter "$cur"
+      return 0 ;;
+  esac
+
+  local -a a=()
+  local i
+  for ((i = 1; i < n; i++)); do a+=("${words[$i]}"); done
+
+  local has_q=0
+  if [ "${#a[@]}" -gt 0 ] && { [ "${a[1]}" = 'q' ] || [ "${a[1]}" = 'quest' ]; }; then
+    has_q=1
+    local -a rest=()
+    local j
+    for ((j = 2; j <= ${#a[@]}; j++)); do rest+=("${a[$j]}"); done
+    a=()
+    for ((j = 1; j <= ${#rest[@]}; j++)); do a+=("${rest[$j]}"); done
+  fi
+
+  if [ "$has_q" -eq 0 ]; then
+    if [ "${#a[@]}" -eq 0 ]; then
+      printf '%s\n' q quest init skills harness worktree | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'skills' ]; then
+      printf '%s\n' install | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'harness' ]; then
+      printf '%s\n' supervisor init-check find-tape watch desk s i f w d | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 2 ] && [ "${a[1]}" = 'harness' ] && { [ "${a[2]}" = 'desk' ] || [ "${a[2]}" = 'd' ]; }; then
+      printf '%s\n' derive create inspect remove prepare check exit release list | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'worktree' ]; then
+      printf '%s\n' derive create inspect remove prepare check exit release list | _bp3_filter "$cur"
+    fi
+    return 0
+  fi
+
+  _bp3_cmd >/dev/null 2>&1 || return 0
+
+  if [ "${#a[@]}" -eq 0 ]; then
+    _bp3_quests | _bp3_filter "$cur"
+    return 0
+  fi
+
+  if _bp3_is_verb "${a[1]}"; then
+    if [ "${#a[@]}" -eq 1 ]; then
+      case "${a[1]}" in
+        r|read|d|delete) _bp3_quests | _bp3_filter "$cur" ;;
+        *) : ;;
+      esac
+    fi
+    return 0
+  fi
+
+  if [ "${#a[@]}" -eq 1 ]; then
+    _bp3_words "${_bp3_exp_verbs[@]}" | _bp3_filter "$cur"
+    return 0
+  fi
+
+  if [ "${#a[@]}" -eq 2 ]; then
+    case "${a[2]}" in
+      r|read|d|delete|u|update) _bp3_exps "${a[1]}" | _bp3_filter "$cur" ;;
+====BASH====
+      return 0 ;;
+    --verdict=*)
+      local v
+      for v in $_bp3_verdict_values; do printf '%s\n' "--verdict=$v"; done | _bp3_filter "$cur"
+      return 0 ;;
+    --*|-*)
+      _bp3_words "$_bp3_flags" | _bp3_filter "$cur"
+      return 0 ;;
+  esac
+
+  # Completed words before the current one.
+  local -a a=()
+  local i
+  for ((i = 0; i < n - 1; i++)); do a+=("${words[$i]}"); done
+
+  local has_q=0
+  if [ "${#a[@]}" -gt 0 ] && { [ "${a[0]}" = 'q' ] || [ "${a[0]}" = 'quest' ]; }; then
+    has_q=1
+    local -a rest=()
+    local j
+    for ((j = 1; j < ${#a[@]}; j++)); do rest+=("${a[$j]}"); done
+    a=()
+    for ((j = 0; j < ${#rest[@]}; j++)); do a+=("${rest[$j]}"); done
+  fi
+
+  if [ "$has_q" -eq 0 ]; then
+    if [ "${#a[@]}" -eq 0 ]; then
+      printf '%s\n' q quest init skills harness worktree | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'skills' ]; then
+      printf '%s\n' install | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'harness' ]; then
+      printf '%s\n' supervisor init-check find-tape watch desk s i f w d | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'harness' ] && { [ "${a[1]}" = 'desk' ] || [ "${a[1]}" = 'd' ]; }; then
+      printf '%s\n' derive create inspect remove prepare check exit release list | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'worktree' ]; then
+      printf '%s\n' derive create inspect remove prepare check exit release list | _bp3_filter "$cur"
+    fi
+    return 0
+  fi
+
+  _bp3_cmd >/dev/null 2>&1 || return 0
+
+  if [ "${#a[@]}" -eq 0 ]; then
+    _bp3_quests | _bp3_filter "$cur"
+    return 0
+  fi
+
+  if _bp3_is_verb "${a[0]}"; then
+    if [ "${#a[@]}" -eq 1 ]; then
+      case "${a[0]}" in
+        r|read|d|delete) _bp3_quests | _bp3_filter "$cur" ;;
+        *) : ;;
+      esac
+    fi
+    return 0
+  fi
+
+  # a[0] is a quest name.
+  if [ "${#a[@]}" -eq 1 ]; then
+    _bp3_words "$_bp3_exp_verbs" | _bp3_filter "$cur"
+    return 0
+  fi
+
+  if [ "${#a[@]}" -eq 2 ]; then
+    case "${a[1]}" in
+      r|read|d|delete|u|update) _bp3_exps "${a[0]}" | _bp3_filter "$cur" ;;
+      *) : ;;
+    esac
+    return 0
+  fi
+
+  if [ "${#a[@]}" -eq 3 ] && { [ "${a[1]}" = 'u' ] || [ "${a[1]}" = 'update' ]; }; then
+    _bp3_words "$_bp3_edges" | _bp3_filter "$cur"
+    return 0
+  fi
+
+  return 0
+}
+
+_bp3() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  local -a cands=()
+  local line
+  while IFS= read -r line; do
+    [ -n "$line" ] && cands+=("$line")
+  done < <(_bp3_candidates "${COMP_WORDS[@]:1}" 2>/dev/null)
+  COMPREPLY=()
+  if [ "${#cands[@]}" -gt 0 ]; then
+    # Candidates already match the current word; compgen keeps COMPREPLY exact.
+    while IFS= read -r line; do
+      COMPREPLY+=("$line")
+    done < <(compgen -W "${cands[*]}" -- "$cur" 2>/dev/null)
+  fi
+  return 0
+}
+
+complete -F _bp3 bp3 2>/dev/null || true
+====CTEST====
+}
+lacks() {
+  if echo "$1" | grep -qx -- "$2"; then fail "candidates [$1] unexpectedly has $2"; fi
+}
+
+# --- bash traces ---
+# shellcheck disable=SC1091
+source "$root/completions/bp3.bash"
+out=$(_bp3_candidates q "toy-")
+has "$out" toy-drive; lacks "$out" demo
+out=$(_bp3_candidates q "")
+has "$out" toy-drive; has "$out" demo; lacks "$out" r
+out=$(_bp3_candidates q r "")
+has "$out" toy-drive
+out=$(_bp3_candidates q toy-drive r "")
+has "$out" parser-fix; has "$out" skill-probe
+out=$(_bp3_candidates q toy-drive r "parser-")
+has "$out" parser-fix; lacks "$out" skill-probe
+out=$(_bp3_candidates q toy-drive u parser-fix "")
+for edge in handoff grade verify land block resume; do has "$out" "$edge"; done
+out=$(_bp3_candidates q toy-drive r parser-fix "--f")
+has "$out" --format; lacks "$out" --reason
+out=$(_bp3_candidates q toy-drive r parser-fix --format "")
+has "$out" json; has "$out" table; has "$out" tree
+out=$(_bp3_candidates q toy-drive "")
+has "$out" r; has "$out" u
+out=$(_bp3_candidates "")
+has "$out" harness; has "$out" worktree
+out=$(_bp3_candidates harness "")
+has "$out" desk; has "$out" supervisor; has "$out" find-tape
+out=$(_bp3_candidates harness desk "")
+for v in derive create inspect remove prepare check exit release list; do has "$out" "$v"; done
+out=$(_bp3_candidates harness d "")
+has "$out" prepare; has "$out" release
+
+# --- zsh traces (same candidate logic) ---
+if command -v zsh >/dev/null 2>&1; then
+  zcand() { zsh -c 'source "$1"; shift; _bp3_candidates "$@"' _ "$root/completions/_bp3" "$@"; }
+  out=$(zcand q "toy-")
+  has "$out" toy-drive; lacks "$out" demo
+  out=$(zcand q toy-drive r "")
+  has "$out" parser-fix; has "$out" skill-probe
+  out=$(zcand q toy-drive u parser-fix "")
+  for edge in handoff grade verify land block resume; do has "$out" "$edge"; done
+  out=$(zcand q toy-drive r parser-fix "--f")
+  has "$out" --format
+fi
+
+# --- silent failure: unbuilt binary / non-bp3 cwd says nothing ---
+mkdir -p "$work/nowhere"
+cd "$work/nowhere"
+err="$work/err.txt"
+out=$(BP3_COMPLETION_BP3="$work/no-such-bp3" _bp3_candidates q "" 2>"$err")
+[ -z "$out" ] || fail "silent failure produced candidates: $out"
+[ ! -s "$err" ] || fail "silent failure made noise: $(cat "$err")"
+if command -v zsh >/dev/null 2>&1; then
+  out=$(BP3_COMPLETION_BP3="$work/no-such-bp3" zsh -c 'source "$1"; shift; _bp3_candidates "$@"' _ "$root/completions/_bp3" q "" 2>"$err")
+  [ -z "$out" ] || fail "zsh silent failure produced candidates: $out"
+  [ ! -s "$err" ] || fail "zsh silent failure made noise: $(cat "$err")"
+fi
+
+# --- delivery: bp3 init copies _bp3, edits no rc file ---
+mkdir -p "$work/delivery" "$work/dest" "$work/home"
+cp -R "$root/bin" "$root/completions" "$root/skills" "$root/scripts" "$work/delivery/"
+out=$(HOME="$work/home" BP3_COMPLETIONS_DIR="$work/dest" "$work/delivery/bin/bp3" init --harness=muse)
+echo "$out" | grep -q "installed _bp3 -> $work/dest/_bp3" || fail "delivery did not install _bp3: $out"
+cmp "$root/completions/_bp3" "$work/dest/_bp3" || fail "delivered _bp3 differs from source"
+[ ! -e "$work/home/.zshrc" ] || fail "delivery edited .zshrc"
+[ ! -e "$work/home/.bashrc" ] || fail "delivery edited .bashrc"
+
+echo "completion tests: ok"
+BUILD_OK
+bp3 config - view the machine-local bp3 config store (<git-common-dir>/bp3/, never committed):
+bp3 config [--source] [--format json|table]   thresholds plus contexts folded from runs/<run_id>.json
+config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.
+Example: bp3 config --source
+{"ok":true,"config_dir":"/Users/whycz/m/bp3/.git/bp3","thresholds":{"setup_slow_s":180,"depth_cap":3},"contexts":[],"desks":[],"by_session_entries":0,"derivations":255}
+BUILD_OK
+FAIL: worktree config_dir differs: /var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/tmp.fqmgB0OLEm/repo/.git/bp3 vs /private/var/folders/sh/r22bzrss2pv_qh335d1tf04h0000gn/T/tmp.fqmgB0OLEm/repo/.git/bp3
+config tests: ok
+completion tests: ok
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/config.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (121 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 95329 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 95490 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 95862 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 94858 Terminated: 15          sleep 60
+./test/harness.sh: line 514: 97511 Terminated: 15          sleep 60
+./test/harness.sh: line 610: 97734 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (25.010792ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.14375ms)
+✔ spawn path: record-init names the live pid, bind-tape pins the tape, list_runs folds finished (225.678708ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (185.563042ms)
+✔ roles route model/thinking into the child env: override > role > conductor (321.08875ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (122.458583ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1469.200125ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (2949.498209ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (25045.87675ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (223.927791ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.30825ms)
+✔ dispatcher writes nothing itself under run-lifecycle-derivations (115.93975ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 30747.686083
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+MAKE_CHECK_EXIT=0
+ M Makefile
+ M bin/bp3
+ M completions/_bp3
+ M completions/bp3.bash
+ M src/quest/harness.ml
+ M src/quest/main.ml
+ M src/quest/store.ml
+ M src/quest/worktree.ml
+ M test/completion.sh
+?? src/quest/config.ml
+?? test/config.sh
+--- log ---
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+test(mig.2): add traverse conduction smoke drive
+
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/runs/20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/EXPERIMENT.md
+M  Makefile
+M  bin/bp3
+M  completions/_bp3
+M  completions/bp3.bash
+A  src/quest/config.ml
+M  src/quest/harness.ml
+M  src/quest/main.ml
+M  src/quest/store.ml
+M  src/quest/worktree.ml
+M  test/completion.sh
+A  test/config.sh
+[quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines 229a6ba] feat(config.1): add bp3 config store and view door
+ 11 files changed, 448 insertions(+), 6 deletions(-)
+ create mode 100644 src/quest/config.ml
+ create mode 100755 test/config.sh
+229a6bacc7d044c1d35745ca88e3138d024117d1
+TREE_STATE_DONE
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-config-1-bp3-config","state":"handed_off","cycle":1,"commit":"229a6bacc7d044c1d35745ca88e3138d024117d1","legal_edges":["grade","verify","block","delete"],"run_id":"20261116T212402Z-handoff-muse-code-muse-wonder-1.0-c1"}
+HANDOFF_EXIT=0

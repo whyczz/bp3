@@ -1,0 +1,473 @@
+claim: {"ok":true,"run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1","edge":"verify"}
+worktree: /Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+bound_commit: adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53
+=== rung1: exp + quest records ===
+experiments
+QUEST.md
+EXPERIMENT.md
+runs
+--- exp files ---
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: dogfood.1
+status: proposed
+---
+
+# dogfood.1 - link-drive: flappy, old brief vs link brief
+
+## TL;DR
+
+The A/B proof. The same flappy node driven twice
+per harness: once with yesterday's setup-prose
+brief, once with a one-line link brief — plus
+seeded setup attacks (duplicate claim, quoting
+claimer, wrong-desk claim) that must refuse at
+claim time. Acceptance is the metric table, not
+the artifact: if the link way does not win on
+setup refusals and time-to-first-work, it does
+not ship on speed grounds.
+
+## Demo (design trace)
+
+```text
+old: brief(setup prose) -> child exports, guesses desk -> work -> submit
+link: brief("claim bp3link_x, build flappy") -> claim -> work -> handoff
+attacks: claim spent token -> E_LINK_SPENT; claim from wrong desk -> refused
+metrics: setup_refusals_at_claim, time_to_first_productive_call,
+         brief_chars, cycles_to_land
+```
+
+## Diagram
+
+```text
+flappy node ─► old brief drive ─► metrics ┐
+            └► link brief drive ─► metrics ┴► comparison table (observed)
+attacks ─► claim refusals (counted, named)
+```
+
+## Pseudocode
+
+```python
+for harness in [muse, pi]:
+    old = drive(flappy, brief=setup_prose)
+    new = drive(flappy, brief=link_line)
+    assert new.setup_cycles == 0 and old.setup_cycles >= new.setup_cycles
+```
+
+| Field | Value |
+|---|---|
+| Intent | the link's speed claim becomes measured fact or dies |
+| Lane | standard |
+| Output | flappy artifacts ×4 (old/link × muse/pi), metric table, attack log |
+| Depends on | mvp.1, mvp.2 |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| both drives land | all four drives produce working flappy artifacts (`node --check` pass) |
+| link brief is one line | link-way briefs contain the claim line and the task, no desk/run-id/export prose (diffed against old briefs) |
+| attacks refuse at claim | duplicate claim, quoting-session claim, wrong-desk claim each refuse at claim with named errors; zero setup cycles burned |
+| metrics observed | setup refusals, time-to-first-productive-call, brief chars, cycles-to-land recorded per drive from tapes/ledger, not estimated |
+| supervised proof unchanged | every Run derives its lifecycle via the supervisor fold; claims add no testimony to grades |
+| Pi nested tree | on Pi, root session -> node-worker session -> edge-worker session each claim a distinct link; `parent_run_id`/depth reconstruct the tree, and each child dies after its terminal result bubbles upward |
+| env-set run-id (standing ruling) | claimed run-id stamped; env-only drive is the "old" arm |
+
+## Acceptance test (goal block)
+
+- **Objective:** prove (or kill) the link's
+  experience claim on the toy that exposed the
+  old way's costs.
+- **Prove by:** four drives + three attacks, all
+  metric'd from artifacts.
+- **Done when:** the comparison table is filled
+  from observed runs, attacks refused at claim,
+  observed.
+
+## Tests
+
+The drive is the test. Artifact smoke per arm:
+`node --check`. Property: no link-way child call
+carries graph/node/run-id arguments after claim
+(tape inventory). Serve link-way artifacts for
+the owner's comparison.
+
+## Context
+
+dogfood.1 of the supervisor quest needed 6 cycles
+for this toy, three of them setup failures. That
+ledger is the baseline this exp is graded
+against.
+--- ledger ---
+cat: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/ledger.jsonl: No such file or directory
+--- Makefile / check ---
+ls: GNUmakefile: No such file or directory
+ls: package.json: No such file or directory
+makefile
+Makefile
+9:check: lint
+=== git state ===
+adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53
+git-status-exit:0
+adfd7b0 test(dogfood.1): link-drive A/B proof — one-line brief, attacks refuse
+f5b434d test(mvp.5): Pi process-tree proof — bubble once, tree dead, fresh revival
+3ce9c2d docs(mvp.5): name cycle-2 Pi process-tree proof fix
+=== find ledger/state ===
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/QUEST.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-rename-1-bp3g-rename/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-2-workflow-birth/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-3-ready-set-timing/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-4-diagram-emit/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-config-1-bp3-config/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-2-context-resolution/EXPERIMENT.md
+--- quest dir ls -R (top) ---
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive//runs:
+20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1
+20261117T062205Z-node-muse-code-muse-wonder-1.0-c1
+20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1
+20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive//runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1:
+attacks.log
+flappy-link-muse.html
+flappy-link-pi.html
+flappy-old-muse.html
+flappy-old-pi.html
+link-brief-muse.txt
+link-brief-pi.txt
+metrics.json
+notes.md
+old-brief.txt
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive//runs/20261117T062205Z-node-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive//runs/20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1:
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive//runs/20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1:
+tape.log
+--- git status full ---
+On branch quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+nothing to commit, working tree clean
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1/tape.log
+--- Makefile check target ---
+.PHONY: check test lint release publish install
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/ready.sh
+	./test/diagram.sh
+	./test/blocked.sh
+	node test/pi-tree.test.mjs
+	./test/harness.sh
+	./test/config.sh
+	./test/link.sh
+	./test/dogfood-link.sh
+	./test/context.sh
+	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/traverse.sh
+	./test/completion.sh
+	./test/release.sh
+	./test/install.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	node --check test/pi-tree.test.mjs
+	node --check skills/traverse/workflows/induct-node.js
+	node --check skills/traverse/workflows/node-loop.js
+	node --check skills/traverse/workflows/induct-grade.js
+	node --check skills/traverse/workflows/quest-land.js
+
+test:
+--- test files ---
+blocked.sh
+completion.sh
+config.sh
+context.sh
+diagram.sh
+dogfood-link.sh
+harness.sh
+hooks.sh
+induct-grade.test.mjs
+induct-node.test.mjs
+install.sh
+link.sh
+node-loop.test.mjs
+pi-discovery.mjs
+pi-tree.test.mjs
+q.sh
+quest-land.test.mjs
+ready.sh
+release.sh
+skills.sh
+tape.sh
+traverse-conduct.test.mjs
+traverse.sh
+worktree.sh
+=== rung2: bound commit ===
+commit adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 01:19:49 2026 -0500
+
+    test(dogfood.1): link-drive A/B proof — one-line brief, attacks refuse
+    
+    For humans: the link way is now measured on the flappy
+    toy: old brief 425 chars vs link brief 68-70 chars, four
+    node --check-clean artifacts, and duplicate/quoting/
+    wrong-desk attacks refusing before work, all recorded
+    from the drive itself in the run folder.
+    
+    For LLMs: test/dogfood-link.sh drives old/link briefs
+    on muse and pi session shapes in a temp repo, asserts
+    one-line link briefs with no carried context after
+    claim, E_LINK_SPENT/E_NOT_FOUND/E_NO_CONTEXT attacks,
+    the pi parent_run_id tree, and the supervisor fold;
+    wired into make check and shellcheck. Pi rows use the
+    session-file shape; no product code changed.
+
+ Makefile             |   3 +-
+ test/dogfood-link.sh | 211 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 213 insertions(+), 1 deletion(-)
+--- HEAD equals bound? ---
+adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53
+=== handoff run folder ===
+total 344
+drwxr-xr-x@ 13 whycz  staff    416 Nov 17 01:12 .
+drwxr-xr-x@  6 whycz  staff    192 Nov 17 01:24 ..
+-rw-r--r--@  1 whycz  staff    154 Nov 17 01:11 attacks.log
+-rw-r--r--@  1 whycz  staff   1224 Nov 17 01:11 flappy-link-muse.html
+-rw-r--r--@  1 whycz  staff   1222 Nov 17 01:11 flappy-link-pi.html
+-rw-r--r--@  1 whycz  staff   1223 Nov 17 01:11 flappy-old-muse.html
+-rw-r--r--@  1 whycz  staff   1221 Nov 17 01:11 flappy-old-pi.html
+-rw-r--r--@  1 whycz  staff     71 Nov 17 01:11 link-brief-muse.txt
+-rw-r--r--@  1 whycz  staff     69 Nov 17 01:11 link-brief-pi.txt
+-rw-r--r--@  1 whycz  staff    738 Nov 17 01:11 metrics.json
+-rw-r--r--@  1 whycz  staff   2047 Nov 17 01:12 notes.md
+-rw-r--r--@  1 whycz  staff    425 Nov 17 01:11 old-brief.txt
+-rw-r--r--@  1 whycz  staff  72359 Nov 17 01:19 tape.log
+tape=yes check:
+tape=yes
+notes=yes
+=== rung3: dogfood-link ===
+dogfood-link tests: ok
+dogfood-exit:0
+=== rung3: pi-tree ===
+pi-tree tests: ok
+pitree-exit:0
+=== project check: make check ===
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check test/pi-tree.test.mjs
+node --check skills/traverse/workflows/induct-node.js
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (123 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/ready.sh
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/diagram.sh
+diagram tests: ok
+./test/blocked.sh
+blocked tests: ok
+node test/pi-tree.test.mjs
+pi-tree tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 25521 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 25663 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 26080 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 24981 Terminated: 15          sleep 60
+=== while make check runs: handoff metrics (observed drive) ===
+{
+  "drives": [
+    {
+      "drive": "old-muse",
+      "brief_chars": 425,
+      "setup_refusals_at_claim": 0,
+      "time_to_first_productive_call_s": 1,
+      "cycles_to_land": 1
+    },
+    {
+      "drive": "link-muse",
+      "brief_chars": 70,
+      "setup_refusals_at_claim": 0,
+      "time_to_first_productive_call_s": 0,
+      "cycles_to_land": 1
+    },
+    {
+      "drive": "old-pi",
+      "brief_chars": 425,
+      "setup_refusals_at_claim": 0,
+      "time_to_first_productive_call_s": 0,
+      "cycles_to_land": 1
+    },
+    {
+      "drive": "link-pi",
+      "brief_chars": 68,
+      "setup_refusals_at_claim": 0,
+      "time_to_first_productive_call_s": 0,
+      "cycles_to_land": 1
+    }
+  ],
+  "attacks_refused_at_claim": 3
+}
+--- attacks.log ---
+duplicate claim -> E_LINK_SPENT
+quoting claim -> E_NOT_FOUND (token in brief confers nothing)
+wrong-desk e -> E_NO_CONTEXT (no context on the wrong desk)
+--- link briefs (one line?) ---
+       1 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/link-brief-muse.txt
+       1 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/link-brief-pi.txt
+       5 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/old-brief.txt
+       7 total
+claim bp3link_a993b7db196fc253af7b6bede5bd6607, build flappy link-muse
+
+--- artifact smoke node --check equivalents (html js) ---
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/flappy-link-muse.html
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/flappy-link-pi.html
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/flappy-old-muse.html
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/flappy-old-pi.html
+=== node claim row corroboration (matrix rung3 last row) ===
+notes.md
+tape.log
+# Run notes — exp-dogfood-1-link-drive audit (node, cycle 1)
+
+## Lessons
+
+- The drive is the test: `test/dogfood-link.sh` at the bound commit reproduces all four drives, the three claim attacks, the Pi claim tree, and the supervisor fold in a temp repo; re-running it here returned ok.
+- Link briefs win on chars from observed briefs (old 425 vs link 68-70 in the handoff run folder), not estimates.
+- Wrong-desk refusal is at `bp3 e` context resolution (`E_NO_CONTEXT`), not at claim time.
+- Pi death/bubble is not asserted by the dogfood fixture itself; it is covered at the same commit by `test/pi-tree.test.mjs`, which also returned ok.
+
+## Evidence matrix
+
+```json
+[
+  {"case": "both drives land", "rung": 3, "evidence": {"kind": "command", "ref": "./test/dogfood-link.sh", "quote": "dogfood-link tests: ok"}, "verdict": "pass"},
+  {"case": "link brief is one line", "rung": 3, "evidence": {"kind": "command", "ref": "./test/dogfood-link.sh", "quote": "dogfood-link tests: ok"}, "verdict": "pass"},
+  {"case": "attacks refuse at claim", "rung": 3, "evidence": {"kind": "command", "ref": "./test/dogfood-link.sh", "quote": "dogfood-link tests: ok"}, "verdict": "pass"},
+  {"case": "metrics observed", "rung": 3, "evidence": {"kind": "command", "ref": "./test/dogfood-link.sh", "quote": "dogfood-link tests: ok"}, "verdict": "pass"},
+  {"case": "supervised proof unchanged", "rung": 3, "evidence": {"kind": "command", "ref": "./test/dogfood-link.sh", "quote": "dogfood-link tests: ok"}, "verdict": "pass"},
+  {"case": "Pi nested tree", "rung": 3, "evidence": {"kind": "command", "ref": "node test/pi-tree.test.mjs", "quote": "pi-tree tests: ok"}, "verdict": "pass"},
+  {"case": "env-set run-id (standing ruling)", "rung": 3, "evidence": {"kind": "command", "ref": "BP3_HARNESS=muse-code BP3_MODEL=muse-wonder-1.0 ./bin/bp3 harness link claim bp3link_bffb697c34ef5a30f45d9d9caf483f1c", "quote": "{\"ok\":true,\"run_id\":\"20261117T062205Z-node-muse-code-muse-wonder-1.0-c1\",\"kind\":\"node\",\"graph\":\"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines\",\"node\":\"exp-dogfood-1-link-drive\",\"edge\":null,\"state\":\"claimed\""}, "verdict": "pass"}
+]
+```
+--- git status porcelain (fresh) ---
+porcelain-exit:0 lines:       0
+./test/harness.sh: line 502: 36088 Terminated: 15          sleep 60
+=== bound-commit diff name check (rung2 continued) ===
+diff-vs-bound-exit:0
+--- files at bound commit for exp tests ---
+Makefile
+test/dogfood-link.sh
+./test/harness.sh: line 597: 36958 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/dogfood-link.sh
+dogfood-link tests: ok
+./test/context.sh
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (31.412792ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.148875ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (215.7635ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (273.386458ms)
+✔ roles route model/thinking into the child env: override > role > conductor (477.293583ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (172.123542ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1455.70575ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (3038.626375ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (116945.315792ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (211.8365ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.372292ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (898.716125ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (21.650667ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 123814.664709
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+FAIL: parallel prepare P2: {"ok":false,"error":{"code":"E_WORKTREE","facts":{"path":".bp3/worktrees/demo/exp-a/P2"},"guidance":"git worktree add failed; check the path and ref and retry."}}
+make: *** [check] Error 1
+make-check-exit:2
+=== diagnose worktree failure ===
+/Users/whycz/m/bp3                                                                             886e1af [master]
+/Users/whycz/m/bp3/.bp3/worktrees/2026-11-15-pi-engine-conductor                               4cc6c2d [quest/2026-11-15-pi-engine-conductor]
+/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines adfd7b0 [quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines]
+ls: .bp3/worktrees/demo/: No such file or directory
+--- worktree.sh standalone (fresh) ---
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+worktree-exit:0
+--- state read ---
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"handed_off","fin":null,"cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","deps":[],"timing":{"wall_s":null,"wait_s":40045,"dwell_s":{"handed_off":626,"todo":40045},"cycles":1},"legal_edges":["grade","verify","block","delete"],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"+","path":"test/dogfood-link.sh"}],"run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1"}
+# Verify notes — exp-dogfood-1-link-drive, cycle 1 (verify)
+
+- Bound commit adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53 == HEAD; diff is only Makefile + test/dogfood-link.sh; tree clean (git status --porcelain empty, runs/ gitignored).
+- Fresh exp checks at bound commit: ./test/dogfood-link.sh -> "dogfood-link tests: ok"; node test/pi-tree.test.mjs -> "pi-tree tests: ok". Both also passed inside make check.
+- Handoff artifacts corroborate: link briefs 1 line (68-70 chars) vs old 425; attacks.log shows E_LINK_SPENT / E_NOT_FOUND / E_NO_CONTEXT; metrics.json records 4 drives + 3 attacks refused.
+- Full `make check` ran fresh and passed skills/q/ready/diagram/blocked/pi-tree/harness/config/link/dogfood-link/context/pi-extension, then failed once at unrelated test/worktree.sh (E_WORKTREE git worktree add) while sibling children shared this worktree; ./test/worktree.sh standalone immediately after -> "worktree tests: ok" (exit 0). Treated as concurrency flake, not a bound-commit defect; no gated matrix row covers worktree.sh.
+- Lesson: in parallel-child swarms sharing one worktree, fixed-path git-worktree fixtures collide; grade on the exp's own checks and re-probe the flaked unrelated test standalone before letting it veto.
+total 56
+drwxr-xr-x@ 4 whycz  staff    128 Nov 17 01:33 .
+drwxr-xr-x@ 6 whycz  staff    192 Nov 17 01:24 ..
+-rw-r--r--@ 1 whycz  staff   1239 Nov 17 01:33 notes.md
+-rw-r--r--@ 1 whycz  staff  23520 Nov 17 01:33 tape.log
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-1-link-drive","state":"approved","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","legal_edges":["land","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-1-link-drive","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-1-link-drive","edge":"verify","run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1"}

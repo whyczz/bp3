@@ -1,0 +1,376 @@
+run folder created: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212257Z-land-muse-code-muse-wonder-1.0-c2
+total 8
+drwxr-xr-x@  3 whycz  staff   96 Nov 16 16:23 .
+drwxr-xr-x@ 11 whycz  staff  352 Nov 16 16:23 ..
+-rw-r--r--@  1 whycz  staff  187 Nov 16 16:23 tape.log
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+4419672 feat(mig.1): rename FSM verbs to handoff/grade/verify
+886e1af docs(icebox): kill engine fan-out, addressed by graph-engine quest
+1fdb11e docs(icebox): freeze lint, portable dogfood, engine fan-out sketches
+=== HEAD ===
+321b96563128806237b1804d650654a77d61ba4b
+=== branch ===
+quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+=== status ===
+On branch quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+nothing to commit, working tree clean
+=== quest files ===
+experiments
+QUEST.md
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+| tape | tape | the harness session recording (unchanged) |
+
+States rest in the root worker's read. Edges are
+subagents. A child holds nothing across edges;
+context is claimed, never remembered.
+
+Edge names (settled red-ink names round, owner —
+option A; rides rename.1, old ledgers keep old
+words and the rename table maps them):
+
+| Coded today | Settled name | Caller does |
+|---|---|---|
+| `submit` | `handoff` | author binds the finished commit |
+| `review` | `grade` | reviewer grades the exact commit (`ship\|needs_fix`) |
+| `check` | `verify` | machine checks (`pass\|fail`) |
+| `land` | `land` | merge into the graph branch |
+| state `submitted` | state `handed_off` | verb/state rhyme: `handoff` hands off, node rests `handed_off` |
+| `block` | `block` | park for a human decision |
+| `resume` | `resume` | human answer re-enters (`BP3_DECIDER=human`) |
+
+Link mint/claim are verbs, not flags:
+`bp3 harness link mint --kind node|edge …` and
+`bp3 harness link claim <token>`. A node link
+carries no edge name — the node worker executes
+no transition when it claims.
+
+Door letter settled: `bp3 g`, not `bp3 t`.
+Nodes form a DAG (shared deps, diamonds — a tree
+allows one parent), scheduled by BFS ready-set
+waves; the *execution* is a tree of workers.
+Tree survives as a view (`--format tree`) and as
+the worker-tree shape, never as the addressed
+noun.
+
+## Success picture
+
+A root worker dispatches a node with a one-line
+brief: "claim this link, do this edge." The child
+claims, works, calls its own edge, dies. Ready
+nodes in a ready-set build and grade in parallel
+desks; landing is a serial queue. The rollup
+shows every node's wall, wait, and dwell time.
+The grader joins any tape's session-id to run-id
+in one lookup. At the end, everything on live
+surfaces — CLI, skills, workflows, records —
+speaks graph/node/state/edge and answers to
+`bp3 g` and `/bp3g`.
+
+## Scope
+
+| In | Out |
+|---|---|
+| `bp3 harness link` mint/claim, CAS claim store, by-session index, context resolution; run config replaces InitRecord (`creator:{}`/`claim:{}`/`tape_path`), `record-init` retires, lifecycle fold reads the run config | rewriting landed quests' ledger history text |
+| ready-set scheduling, per-node timing derived from ledger + derivations, local thresholds | anything committed for metrics; timing judgments stay in `<git-common-dir>/bp3/` |
+| setup timing measured always; optimize only when setup > 3 min (`W_SETUP_SLOW`) | desk pools (killed 2026-11-16; ad hoc desks, measured) |
+| generated ASCII/mermaid diagram from live rollup | writing into harness session logs (tapes stay harness-written) |
+| rename last: `bp3 g`, `bp3g` skills, graph terms on live surfaces | rewriting landed quests' ledger history text |
+| session-id discovery: muse, pi; graceful floor (pid+cwd+window) | adversarial threat model (links are for confused children, not attackers) |
+
+## Timing gates (in-system, local)
+
+- Per node: `wall` (first handoff → land), `wait`
+  (create → first handoff), `dwell` per state,
+  cycles. Derived from ledger timestamps, shown
+  on read, thresholds local, never committed.
+- Per Run setup: desk create → first bp3 answer;
+  `W_SETUP_SLOW` when > 3 minutes.
+- Scorecards report wall minutes AND tokens per
+  node. Visibility, not caps.
+
+## Context layer (kubectl pattern, settled red-ink round 1)
+
+One door per noun, nested as the canonical address:
+`bp3 g <graph> n <node> e <edge>`. Bare `bp3 e …`
+is the claimed shorthand. A context layer resolves
+which graph/node an unqualified call means, with
+kubectl's precedence — explicit always beats
+ambient:
+
+```text
+1. nested address in the call     bp3 g G n N e handoff
+2. session claim (mvp.1)          by-session index -> claim
+3. desk context (cwd)             desk context file from claim
+4. nothing                        E_NO_CONTEXT (post-rename)
+```
+
+| kubectl | bp3 |
+|---|---|
+| kubeconfig | claim store in `<git-common-dir>/bp3/` (machine-local, never committed) |
+| context | one claim: {graph, node, edge, run-id, session-id, desk} |
+| current-context | per-session, never global: parallel children hold different contexts, keyed by session-id, desk as fallback |
+| `-n` / explicit flags | the nested `g … n … e …` address; always wins, always printed in verdicts |
+
+`bp3 e` with no edge prints the resolved context
+and legal edges. Doors settled (owner, red-ink
+round 2): `bp3 g | bp3 n | bp3 e` — one door per
+noun, nested address canonical. Configuration
+surface: `bp3 config` views the whole store;
+bare `bp3 e` is the quick view — resolved context,
+its source rung, legal edges, and the config
+values in force for that context (thresholds,
+desk), so a child can self-diagnose in one call. Context is resolved, never
+carried: env vars are hints the layer may
+cross-check (`W_CONTEXT_ENV_MISMATCH`), never the
+store. This layer is what mvp.2 builds; the doors
+above are its surface.
+
+Locked (owner, data round): after claiming, an
+edge worker calls only `bp3 e …` — no graph, node,
+run-id, or exports — and bp3 resolves the context
+from the claim (session rung, then desk rung).
+Bare `bp3 e` prints the resolved context, its
+source rung, and legal edges. No rung resolving
+means refuse `E_NO_CONTEXT` (post-rename), never
+a guess at a sibling's context.
+
+## Data (settled red-ink data round, owner)
+
+One canonical record per execution: the **run
+config**, keyed by `run_id`, created at
+`link mint` — before any worker exists. Claim
+completes it; everything else is an index or a
+view folded from run configs.
+
+```text
+<git-common-dir>/bp3/
+  config.json            machine settings ONLY (thresholds, gates)
+  runs/<run_id>.json     the run config (canonical, one per Run)
+  links/<token_hash>     -> run_id     (written at mint; claim finds its run config by key)
+  by-session/<session-id> -> run_id     (derived index, rebuildable)
+  desks/<desk>/context   -> run_id      (derived pointer, fallback rung)
+  run-lifecycle-derivations/            (existing supervisor fold)
+```
+
+Run config shape — facts grouped by who knew
+them when. This replaces the supervisor's
+InitRecord (settled, functions round, owner):
+one birth record per Run, and `record-init`
+retires.
+
+```json
+{
+  "run_id": "2026...-handoff-pi-...-c1",
+  "kind": "edge",                    // node | edge
+  "graph": "G", "node": "N", "edge": "handoff",
+  "state": "claimed",                // minted -> claimed (CAS)
+  "desk": ".bp3/worktrees/...",
+  "creator": {                       // parent side, known at mint
+    "run_id": "...",                 // who minted this Run
+    "depth": 2,
+    "harness": "pi", "model": "...", "thinking": "high",
+    "minted_at": "...", "token_hash": "sha256:..."
+  },
+  "claim": {                         // worker side, known at claim
+    "session_id": "...", "pid": 48151, "cwd": "...",
+=== exp dir ===
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs:
+20261116T194936Z-handoff-muse-code-muse-wonder-1.0-c1
+20261116T195727Z-audit-muse-code-muse-wonder-1.0-c1
+20261116T195727Z-grade-muse-code-muse-wonder-1.0-c1
+20261116T195727Z-verify-muse-code-muse-wonder-1.0-c1
+20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2
+20261116T212019Z-audit-muse-code-muse-wonder-1.0-c2
+20261116T212019Z-grade-muse-code-muse-wonder-1.0-c2
+20261116T212019Z-verify-muse-code-muse-wonder-1.0-c2
+20261116T212257Z-land-muse-code-muse-wonder-1.0-c2
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T194936Z-handoff-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T195727Z-audit-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T195727Z-grade-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T195727Z-verify-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T212019Z-audit-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T212019Z-grade-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T212019Z-verify-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T212257Z-land-muse-code-muse-wonder-1.0-c2:
+tape.log
+=== bp3 read ===
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-2-traverse-rename","state":"approved","fin":null,"cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","legal_edges":["land","block","delete"],"changes":[{"change":"+","path":"test/traverse-conduct.test.mjs"},{"change":"u","path":"test/traverse.sh"}]}
+=== git status porcelain v2 ===
+=== check-ignore runs ===
+/Users/whycz/m/bp3/.git/info/exclude:10:docs/quests/*/experiments/*/runs/	docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212257Z-land-muse-code-muse-wonder-1.0-c2/tape.log
+ignore-exit:0
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: mig.2
+status: proposed
+---
+
+# mig.2 - traverse-rename: conducting skills take graph names
+
+## TL;DR
+
+Early rename of the conducting surface (owner,
+2026-11-16): `/induct` and `/induct-quest` become
+`/traverse` — the root worker traverses the graph;
+the `induct-exp` workflow becomes `node-loop`,
+the node worker's loop (the skeleton mvp.3's
+`induct-node` grows from). One traversal word for
+the root's job, one loop word for the node's.
+
+## Demo (design trace)
+
+```text
+before: /induct -> induct-exp.js (todo) + induct-grade.js + quest-land.js
+after:  /traverse -> node-loop.js owns the node FSM loop
+        (grade/land become phases briefed inside node-loop,
+         folded in by mvp.3's induct-node work)
+old spellings refuse: /induct unknown skill; induct-exp.js absent
+```
+
+## Diagram
+
+```text
+/induct, /induct-quest ──► /traverse        (root worker skill)
+/induct-quest-no-human ──► /traverse-no-human
+induct-exp.js ──────────► node-loop.js      (node worker workflow)
+```
+
+## Pseudocode
+
+```python
+rename_skill("induct", "traverse"); rename_skill("induct-quest", "traverse")
+rename_skill("induct-quest-no-human", "traverse-no-human")
+rename_workflow("induct-exp.js", "node-loop.js")   # behavior unchanged in this node
+install_all_harnesses(); assert old_names_refuse()
+```
+
+| Field | Value |
+|---|---|
+| Intent | the conducting vocabulary matches the graph design from early in the quest |
+| Lane | standard |
+| Output | traverse skill family + node-loop workflow, installed all harnesses; old names gone |
+| Depends on | mig.1 (briefs already speak handoff/grade) |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| traverse conducts | `/traverse` drives one fixture node end to end (handoff -> grade -> land) in a smoke drive |
+| node-loop runs | `node-loop.js` executes the todo-node path identically to the old induct-exp on fixtures (behavior-preserving rename; loop generalization is mvp.3) |
+| old names refuse | `/induct`, `/induct-quest`, `induct-exp` resolve nowhere (skills dirs + workflows dirs, all harnesses) |
+| renders clean | `bp3 skills install --harness=all` regenerates every harness copy; validator green; no hand-edited render |
+| no-human variant | `/traverse-no-human` renamed alongside, same gates |
+
+## Acceptance test (goal block)
+
+- **Objective:** the quest conducts itself with
+  the new names from this node on.
+- **Prove by:** smoke drive under `/traverse`,
+  workflow fixture parity, old-name refusal sweep.
+- **Done when:** one node conducted under the new
+  names, old names resolve nowhere, observed.
+
+## Tests
+
+Known cases: rename sweep (old spellings zero in
+skills/workflows/renders), install assertions per
+harness, workflow fixture parity pre/post rename.
+
+Property-based: omitted — rename is a bijection;
+the sweep + parity cases carry it (stated
+decision).
+
+## Context
+
+Owner call at adoption time: the graph vocabulary
+should not wait until rename.1 for the conducting
+surface the quest itself uses daily. The noun/door
+rename (`bp3 g`, `bp3g`) still waits — traverse
+conducts over `bp3 q` until mvp.2/rename.1 land.
+# Land notes — exp-mig-2-traverse-rename cycle 2
+
+- State verified before land: `approved` at cycle 2, commit
+  321b96563128806237b1804d650654a77d61ba4b matches HEAD on
+  branch quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines.
+- Legal edges from bp3 read: land, block, delete — land is legal.
+- Working tree clean; run folder is git-ignored via runs/ exclude,
+  so tape/notes do not pollute the quest branch.
+- Lesson: land is a pure state edge — no code change in this run;
+  verify HEAD == approved commit and tree clean before calling it.
+--- notes written ---
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-2-traverse-rename","state":"landed","fin":"exp_fin","cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","legal_edges":[],"run_id":"20261116T212257Z-land-muse-code-muse-wonder-1.0-c2"}

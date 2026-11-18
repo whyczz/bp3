@@ -1,0 +1,634 @@
+=== GRADE RUN 20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1 ===
+bound commit fe6efe79513040a1ad8b7a8d7e2d275f961d7415
+--- EXPERIMENT.md ---
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: mvp.4
+status: proposed
+---
+
+# mvp.4 - diagram-emit: the graph draws itself
+
+## TL;DR
+
+From a live rollup, emit the graph diagram in
+ASCII (terminals, tapes, records) and mermaid
+(rendered docs): nodes annotated with state and
+cycle, deps grouped into ready-set waves, blocked nodes
+naming what they starve, landed nodes marked
+`exp_fin`-equivalent in the new vocabulary.
+Generated every time — hand-drawn diagrams rot.
+
+## Demo (design trace)
+
+```text
+bp3 <door> <graph> diagram --format ascii
+  A(landed) ─dep─► C(handed_off c2)
+  B(blocked) ─dep─► D(todo, starved by B)
+
+bp3 <door> <graph> diagram --format mermaid
+  graph LR ... (same facts, mermaid source)
+```
+
+## Diagram
+
+```text
+rollup (ledger fold) ─► layering (mvp.3) ─► ascii emitter
+                                        └─► mermaid emitter
+```
+
+## Pseudocode
+
+```python
+def diagram(graph, fmt):
+    view = rollup(graph)           # states, cycles, starved sets
+    layers = ready-set waves(view.nodes)   # mvp.3
+    return emit_ascii(layers, view) if fmt == "ascii" else emit_mermaid(layers, view)
+```
+
+| Field | Value |
+|---|---|
+| Intent | structure is visible at a glance, always current |
+| Lane | micro |
+| Output | diagram verb with ascii + mermaid formats |
+| Depends on | mvp.3 |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| ascii current | output reflects live states/cycles at call time; rerunning after a node moves changes exactly that node |
+| mermaid equivalent | mermaid source carries the same nodes, deps, states as the ascii of the same moment |
+| ready-set waves + starvation | ready-set layers visible; a blocked node's starved dependents named on both formats |
+| honest labels | generated output states it is generated from live state with the rollup timestamp |
+
+## Acceptance test (goal block)
+
+- **Objective:** anyone can see the graph's
+  shape and status without reading ledgers.
+- **Prove by:** run both formats against the
+  fixture graphs of mvp.3 and one live graph;
+  diff facts between formats.
+- **Done when:** both formats match the rollup
+  facts exactly, observed.
+
+## Tests
+
+Golden fixtures per graph shape; property: every
+node and dep in the rollup appears exactly once
+per format; state annotation equals fold output.
+
+## Context
+
+The design sessions kept redrawing this diagram
+by hand (states at rest, edges as subagents).
+Generated diagrams make the convention
+self-documenting and give blocked gates a picture
+worth paging with.
+--- git log -1 ---
+fe6efe79513040a1ad8b7a8d7e2d275f961d7415 feat(mvp.4): diagram verb — generated ascii/mermaid from live rollup
+--- git show stat ---
+commit fe6efe79513040a1ad8b7a8d7e2d275f961d7415
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 23:37:54 2026 -0500
+
+    feat(mvp.4): diagram verb — generated ascii/mermaid from live rollup
+
+ Makefile             |   3 +-
+ completions/_bp3     |   2 +-
+ completions/bp3.bash |   2 +-
+ src/quest/main.ml    |  56 ++++++++++++++++++++++++++++
+ src/quest/render.ml  | 103 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/quest/store.ml   |   2 +-
+ test/diagram.sh      | 101 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 7 files changed, 265 insertions(+), 4 deletions(-)
+--- git show diff ---
+commit fe6efe79513040a1ad8b7a8d7e2d275f961d7415
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 23:37:54 2026 -0500
+
+    feat(mvp.4): diagram verb — generated ascii/mermaid from live rollup
+
+diff --git a/Makefile b/Makefile
+index af9c2a9..a5a36d7 100644
+--- a/Makefile
++++ b/Makefile
+@@ -12,6 +12,7 @@ check: lint
+ 	$(DUNE_BUILD) src/quest/main.exe
+ 	./test/q.sh
+ 	./test/ready.sh
++	./test/diagram.sh
+ 	./test/harness.sh
+ 	./test/config.sh
+ 	./test/link.sh
+@@ -26,7 +27,7 @@ check: lint
+ 	./test/install.sh
+ 
+ lint:
+-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
++	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/harness.sh test/config.sh test/link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+ 	node --check skills/traverse/workflows/induct-node.js
+ 	node --check skills/traverse/workflows/node-loop.js
+ 	node --check skills/traverse/workflows/induct-grade.js
+diff --git a/completions/_bp3 b/completions/_bp3
+index eb1052b..1563036 100644
+--- a/completions/_bp3
++++ b/completions/_bp3
+@@ -6,7 +6,7 @@
+ _bp3_flags=(--format --reason --commit --verdict --target --type --depends-on)
+ _bp3_edges=(handoff grade verify land block resume)
+ _bp3_quest_verbs=(c r d create read delete)
+-_bp3_exp_verbs=(c r u d create read update delete)
++_bp3_exp_verbs=(c r u d create read update delete dep diagram)
+ _bp3_format_values=(json table tree)
+ _bp3_verdict_values=(ship needs_fix pass fail)
+ 
+diff --git a/completions/bp3.bash b/completions/bp3.bash
+index fa19283..852f599 100755
+--- a/completions/bp3.bash
++++ b/completions/bp3.bash
+@@ -6,7 +6,7 @@
+ _bp3_flags='--format --reason --commit --verdict --target --type --depends-on'
+ _bp3_edges='handoff grade verify land block resume'
+ _bp3_quest_verbs='c r d create read delete'
+-_bp3_exp_verbs='c r u d create read update delete'
++_bp3_exp_verbs='c r u d create read update delete dep diagram'
+ _bp3_format_values='json table tree'
+ _bp3_verdict_values='ship needs_fix pass fail'
+ 
+diff --git a/src/quest/main.ml b/src/quest/main.ml
+index daeaee4..fe74a83 100644
+--- a/src/quest/main.ml
++++ b/src/quest/main.ml
+@@ -403,6 +403,53 @@ let do_update quest exp edge fl id =
+       finish ns line
+   | _ -> usage ("unknown edge: " ^ edge)
+ 
++(* ---------- diagram (mvp.4) ---------- *)
++(* Read-only: renders the quest_view rollup snapshot at
++   call time and writes no ledger line. ascii/mermaid print
++   raw text; json prints the same facts as a verdict. *)
++let parse_diagram_flags args =
++  let rec loop fmt fmt_set = function
++    | [] -> fmt
++    | "--format" :: v :: rest ->
++        if fmt_set then usage "duplicate flag --format";
++        if v <> "ascii" && v <> "mermaid" && v <> "json" then
++          usage "--format must be ascii, mermaid, or json";
++        loop v true rest
++    | ["--format"] -> usage "--format needs a value"
++    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
++        (match String.index_opt f '=' with
++         | Some _ -> usage ("unknown flag form: " ^ f)
++         | None -> usage ("unknown flag: " ^ f))
++    | stray :: _ -> usage ("stray positional: " ^ stray) in
++  loop "ascii" false args
++
++let do_diagram quest tail =
++  check_slug quest;
++  let fmt = parse_diagram_flags tail in
++  let (view, _, _, _) = quest_view quest in
++  let fields = match view with `Assoc fs -> fs | _ -> [] in
++  let generated_at = now_ts () in
++  (match fmt with
++   | "ascii" -> print_string (emit_ascii fields generated_at)
++   | "mermaid" -> print_string (emit_mermaid fields generated_at)
++   | _ ->
++       print_verdict ~fmt:"json" (`Assoc [
++         ("ok", `Bool true); ("quest", json_str quest);
++         ("format", json_str "json");
++         ("generated_at", json_str generated_at);
++         ("rollup", json_str (dstr fields "rollup"));
++         ("exps", `List (dlist fields "exps"));
++         ("deps", `List (List.map (fun (d, n) ->
++            `Assoc [("from", json_str d); ("to", json_str n)])
++            (diagram_deps (diagram_nodes fields))));
++         ("ready_set_waves", `List (dlist fields "ready_set_waves"));
++         ("ready", `List (dlist fields "ready"));
++         ("starved", `List (dlist fields "starved"));
++         ("diagram_ascii", json_str (emit_ascii fields generated_at));
++         ("diagram_mermaid", json_str (emit_mermaid fields generated_at));
++       ]));
++  0
++
+ (* ---------- context door (mvp.2: bp3 e) ---------- *)
+ let no_context amb =
+   match amb with
+@@ -495,6 +542,7 @@ let do_icebox = function
+ let help_q = "bp3 q - quest/exp state. Doors:\n\
+   bp3 q c|r|d ...              quest door (create, read, delete)\n\
+   bp3 q <quest> c|r|u|d ...    exp door for one quest\n\
++  bp3 q <quest> diagram ...    generated graph diagram from the live rollup (mvp.4)\n\
+   bp3 q icebox r [term...]     search frozen icebox entries (read-only)\n\
+   bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)\n\
+   bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias\n\
+@@ -514,6 +562,7 @@ let help_exp_door = "bp3 q <quest> <exp door> - verbs:\n\
+   bp3 q <quest> u <exp> <edge> [flags]                         take an FSM edge (see u -h)\n\
+   bp3 q <quest> d <exp> --reason <why>                         delete an exp\n\
+   bp3 q <quest> dep <exp> --depends-on <a,b> --reason <why>    redeclare an exp's deps (mutable-but-logged)\n\
++  bp3 q <quest> diagram [--format ascii|mermaid|json]          generated diagram from the live rollup (see diagram -h)\n\
+ Long forms: create, read, update, delete. Example: bp3 q my-quest r exp-1\n"
+ 
+ let help_dep = "bp3 q <quest> dep <exp> - redeclare an exp's node deps (mvp.3):\n\
+@@ -521,6 +570,11 @@ let help_dep = "bp3 q <quest> dep <exp> - redeclare an exp's node deps (mvp.3):\
+   Deps name exps in the same quest, are read back from the exp ledger, and a cycle refuses at write time (E_DEP_CYCLE) naming the cycle. The dep line is logged with the exp state and cycle, so a mid-flight edit stays on the record.\n\
+ Example: bp3 q my-quest dep exp-2 --depends-on exp-1 --reason \"needs exp-1 first\"\n"
+ 
++let help_diagram = "bp3 q <quest> diagram - generated graph diagram from the live rollup (mvp.4):\n\
++  bp3 q <quest> diagram [--format ascii|mermaid|json]   emit the diagram (default ascii)\n\
++  Nodes carry state and cycle (landed nodes carry exp_fin), deps are drawn once, todo nodes are grouped into ready-set waves, and a blocked node names the dependents it starves. Output is generated at call time from live state; its header carries the rollup timestamp (generated_at). ascii suits terminals and records, mermaid suits rendered docs, json carries the same facts plus both texts for diffing.\n\
++Example: bp3 q my-quest diagram --format mermaid\n"
++
+ let help_update = "bp3 q <quest> u <exp> <edge> - edges and their flags:\n\
+   edges: handoff grade verify land block resume\n\
+   handoff --commit <sha> --reason <why>    bind a clean commit for grade\n\
+@@ -687,6 +741,8 @@ let run argv =
+            let v = do_quest_delete quest fl id in print_verdict ~fmt:fl.fmt v; 0
+        | "d", [] -> usage "quest delete needs a quest name"
+        | _ -> usage "quest door verbs are c, r, d")
++  | _q :: "diagram" :: (h :: _) when is_help h -> print_string help_diagram; 0
++  | quest :: "diagram" :: tail -> do_diagram quest tail
+   | _q :: "dep" :: (h :: _) when is_help h -> print_string help_dep; 0
+   | quest :: "dep" :: exp :: tail ->
+       let (pos, fl) = split_flags tail in
+diff --git a/src/quest/render.ml b/src/quest/render.ml
+index 67b575b..a038d43 100644
+--- a/src/quest/render.ml
++++ b/src/quest/render.ml
+@@ -324,6 +324,109 @@ let render_table_icebox fields =
+     | _ -> None) entries in
+   render_rows ["slug"; "date"; "status"; "promoted"; "title"] rows
+ 
++(* ---------- diagram emit (mvp.4) ---------- *)
++(* Generated from the live rollup fields at call time: both
++   formats render one quest_view snapshot, so ascii and
++   mermaid of the same moment carry the same facts. Every
++   node is defined once with its state and cycle (landed
++   nodes carry exp_fin), every dep is drawn once, ready-set
++   waves group the todo layers, and a blocked node names
++   the dependents it starves. The header states the output
++   is generated, with the rollup timestamp. *)
++let dget fields k = List.assoc_opt k fields
++let dstr fields k = match dget fields k with Some (`String s) -> s | _ -> "?"
++let dlist fields k = match dget fields k with Some (`List xs) -> xs | _ -> []
++let jstr_of = function `String s -> s | o -> Yojson.Safe.to_string o
++
++type dnode = { d_id : string; d_label : string; d_deps : string list }
++
++let diagram_nodes fields =
++  List.filter_map (fun item ->
++    match item with
++    | `Assoc fs ->
++        let fin = match List.assoc_opt "fin" fs with
++          | Some (`String f) -> ", " ^ f | _ -> "" in
++        let cycle = match List.assoc_opt "cycle" fs with
++          | Some (`Int c) -> string_of_int c | _ -> "?" in
++        Some { d_id = dstr fs "exp";
++               d_label = Printf.sprintf "%s (%s, cycle %s%s)"
++                 (dstr fs "exp") (dstr fs "state") cycle fin;
++               d_deps = List.filter_map
++                 (function `String s -> Some s | _ -> None) (dlist fs "deps") }
++    | _ -> None) (dlist fields "exps")
++
++let diagram_deps nodes =
++  List.concat_map (fun n -> List.map (fun d -> (d, n.d_id)) n.d_deps) nodes
++
++let diagram_waves fields =
++  List.map (fun w -> match w with
++    | `List xs -> List.map jstr_of xs | o -> [jstr_of o]) (dlist fields "ready_set_waves")
++
++let diagram_starved fields =
++  List.filter_map (fun item ->
++    match item with
++    | `Assoc fs ->
++        Some (dstr fs "blocked",
++              List.map jstr_of (dlist fs "starved"))
++    | _ -> None) (dlist fields "starved")
++
++let emit_ascii fields generated_at =
++  let nodes = diagram_nodes fields in
++  let deps = diagram_deps nodes in
++  let waves = diagram_waves fields in
++  let starved = diagram_starved fields in
++  let b = Buffer.create 256 in
++  Printf.bprintf b "quest %s diagram (generated from live state at %s)\n"
++    (dstr fields "quest") generated_at;
++  Printf.bprintf b "rollup: %s\n" (dstr fields "rollup");
++  Buffer.add_string b "nodes:\n";
++  (match nodes with
++   | [] -> Buffer.add_string b "  (none)\n"
++   | _ -> List.iter (fun n -> Printf.bprintf b "  %s\n" n.d_label) nodes);
++  Buffer.add_string b "deps:\n";
++  (match deps with
++   | [] -> Buffer.add_string b "  (none)\n"
++   | _ -> List.iter (fun (d, n) ->
++       Printf.bprintf b "  %s \xe2\x94\x80dep\xe2\x94\x80\xe2\x96\xba %s\n" d n) deps);
++  Buffer.add_string b "waves:\n";
++  (match waves with
++   | [] -> Buffer.add_string b "  (none)\n"
++   | _ -> List.iteri (fun i w ->
++       Printf.bprintf b "  wave %d: %s\n" (i + 1) (String.concat ", " w)) waves);
++  Buffer.add_string b "starved:\n";
++  (match starved with
++   | [] -> Buffer.add_string b "  (none)\n"
++   | _ -> List.iter (fun (blocked, ids) ->
++       Printf.bprintf b "  %s starves: %s\n" blocked (String.concat ", " ids)) starved);
++  Buffer.contents b
++
++let mermaid_id s =
++  String.map (fun c ->
++    if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
++       || (c >= '0' && c <= '9') || c = '_' then c else '_') s
++
++let emit_mermaid fields generated_at =
++  let nodes = diagram_nodes fields in
++  let deps = diagram_deps nodes in
++  let waves = diagram_waves fields in
++  let starved = diagram_starved fields in
++  let b = Buffer.create 256 in
++  Printf.bprintf b "%%%% generated from live state at %s\n" generated_at;
++  Printf.bprintf b "%%%% quest %s rollup: %s\n"
++    (dstr fields "quest") (dstr fields "rollup");
++  Buffer.add_string b "graph LR\n";
++  List.iter (fun n ->
++    Printf.bprintf b "  %s[\"%s\"]\n" (mermaid_id n.d_id) n.d_label) nodes;
++  List.iter (fun (d, n) ->
++    Printf.bprintf b "  %s -->|dep| %s\n" (mermaid_id d) (mermaid_id n)) deps;
++  List.iteri (fun i w ->
++    Printf.bprintf b "  subgraph wave_%d[\"wave %d\"]\n" (i + 1) (i + 1);
++    List.iter (fun id -> Printf.bprintf b "    %s\n" (mermaid_id id)) w;
++    Buffer.add_string b "  end\n") waves;
++  List.iter (fun (blocked, ids) ->
++    Printf.bprintf b "  %%%% %s starves: %s\n" blocked (String.concat ", " ids)) starved;
++  Buffer.contents b
++
+ let print_verdict ~fmt v =
+   let v = stamp_run_id v in
+   (* Warnings merge once, in order: the verdict's own, the
+diff --git a/src/quest/store.ml b/src/quest/store.ml
+index cba7ffe..960b9f7 100644
+--- a/src/quest/store.ml
++++ b/src/quest/store.ml
+@@ -17,7 +17,7 @@ let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
+    verb instead), so creation refuses it; reads stay total. *)
+ let reserved_slugs =
+   [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo"; "config"; "e"; "dep";
+-    "supervisor"; "init-check"; "find-tape"; "watch"; "desk"; "backtest"; "b";
++    "supervisor"; "init-check"; "find-tape"; "watch"; "desk"; "backtest"; "b"; "diagram";
+     "c"; "create"; "r"; "read"; "u"; "update"; "d"; "delete";
+     "s"; "i"; "f"; "w";
+     "derive"; "inspect"; "remove"; "prepare"; "check"; "exit";
+diff --git a/test/diagram.sh b/test/diagram.sh
+new file mode 100755
+index 0000000..c8db728
+--- /dev/null
++++ b/test/diagram.sh
+@@ -0,0 +1,101 @@
++#!/usr/bin/env bash
++# mvp.4: diagram verb — ascii + mermaid generated from the
++# live rollup. Fixture graphs are built through bp3 q itself;
++# both formats must carry the rollup facts of the same moment.
++set -euo pipefail
++root=$(cd "$(dirname "$0")/.." && pwd)
++work=$(mktemp -d)
++trap 'rm -rf "$work"' EXIT
++mkdir -p "$work/repo/bin" "$work/repo/plans"
++cp "$root/bin/bp3" "$work/repo/bin/"
++cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
++cp "$root"/plans/*.yaml "$work/repo/plans/"
++cd "$work/repo"
++git init -q -b master
++git config user.email t@t.t; git config user.name t
++echo base > a.txt; git add .; git commit -qm base
++
++export BP3_HARNESS=muse-code BP3_MODEL=test-model
++q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
++fail() { echo "FAIL: $*" >&2; exit 1; }
++
++commit_on_exp() { # $1 quest $2 exp $3 path $4 content -> new tip
++  local branch="refs/heads/bp3/exp/$1/$2" tip blob tree new_tip idx="$work/idx-$1-$2"
++  tip=$(git rev-parse "$branch"); rm -f "$idx"
++  blob=$(printf '%s' "$4" | git hash-object -w --stdin)
++  GIT_INDEX_FILE="$idx" git read-tree "$tip"
++  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$3"
++  tree=$(GIT_INDEX_FILE="$idx" git write-tree)
++  new_tip=$(printf 'work %s\n' "$2" | git commit-tree "$tree" -p "$tip")
++  git update-ref "$branch" "$new_tip" "$tip"; rm -f "$idx"
++  printf '%s' "$new_tip"
++}
++land_exp() { # $1 quest $2 exp $3 path
++  local c; c=$(commit_on_exp "$1" "$2" "$3" "content-$2")
++  q "$1" u "$2" handoff --commit "$c" --reason work >/dev/null
++  q "$1" u "$2" grade --verdict ship --reason ok >/dev/null
++  q "$1" u "$2" verify --verdict pass --reason ok >/dev/null
++  q "$1" u "$2" land --reason ship >/dev/null
++}
++
++# --- diamond: waves, deps, landed marker, honest labels ---
++q c graph1 >/dev/null
++q graph1 c na >/dev/null; q graph1 c nb >/dev/null
++q graph1 c nc --depends-on na,nb >/dev/null
++land_exp graph1 na fa.txt
++ascii=$(q graph1 diagram --format ascii)
++mermaid=$(q graph1 diagram --format mermaid)
++echo "$ascii" | grep -q "generated from live state at 20" || fail "ascii honest label: $ascii"
++echo "$mermaid" | grep -q "generated from live state at 20" || fail "mermaid honest label: $mermaid"
++echo "$ascii" | grep -qx "  na (landed, cycle 1, exp_fin)" || fail "ascii landed node: $ascii"
++echo "$ascii" | grep -qx "  nb (todo, cycle 1)" || fail "ascii todo node: $ascii"
++echo "$ascii" | grep -qx "  na .* nc" || fail "ascii dep na->nc: $ascii"
++echo "$ascii" | grep -qx "  nb .* nc" || fail "ascii dep nb->nc: $ascii"
++echo "$ascii" | grep -qx "  wave 1: nb" || fail "ascii wave: $ascii"
++echo "$mermaid" | grep -q 'na\["na (landed, cycle 1, exp_fin)"\]' || fail "mermaid landed node: $mermaid"
++echo "$mermaid" | grep -q 'nb -->|dep| nc' || fail "mermaid dep nb->nc: $mermaid"
++echo "$mermaid" | grep -q 'na -->|dep| nc' || fail "mermaid dep na->nc: $mermaid"
++echo "$mermaid" | grep -q 'wave 1' || fail "mermaid wave: $mermaid"
++# every node and dep exactly once per format (definitions)
++for fmt in ascii mermaid; do
++  out=$(q graph1 diagram --format "$fmt")
++  [ "$(echo "$out" | grep -c 'na (landed')" = 1 ] || fail "$fmt na defined once: $out"
++  [ "$(echo "$out" | grep -c 'nc (todo')" = 1 ] || fail "$fmt nc defined once: $out"
++  [ "$(echo "$out" | grep -c 'dep' )" -ge 2 ] || fail "$fmt deps drawn: $out"
++done
++# json carries the same facts plus both texts
++out=$(q graph1 diagram --format json)
++echo "$out" | jq -e '.ok == true and .format == "json" and (.generated_at | test("^20")) and .ready_set_waves == [["nb"],["nc"]] and (.deps | sort_by(.from) == [{"from":"na","to":"nc"},{"from":"nb","to":"nc"}]) and (.diagram_ascii | contains("na (landed, cycle 1, exp_fin)")) and (.diagram_mermaid | contains("graph LR"))' >/dev/null || fail "json facts: $out"
++
++# --- ascii is current: moving one node changes that node ---
++before=$(q graph1 diagram --format ascii)
++q graph1 u nb block --reason "choose storage" >/dev/null
++after=$(q graph1 diagram --format ascii)
++echo "$after" | grep -qx "  nb (blocked, cycle 1)" || fail "ascii current state: $after"
++echo "$after" | grep -qx "  nb starves: nc" || fail "ascii starved: $after"
++m2=$(q graph1 diagram --format mermaid)
++echo "$m2" | grep -q "nb starves: nc" || fail "mermaid starved: $m2"
++echo "$m2" | grep -q 'nb (blocked, cycle 1)' || fail "mermaid blocked node: $m2"
++[ "$(diff <(echo "$before") <(echo "$after") | grep -c '^[<>]')" -ge 2 ] || fail "diagram did not change"
++
++# --- read-only: diagram writes no ledger line ---
++tip_before=$(git rev-parse bp3/exp/graph1/nb)
++q graph1 diagram --format ascii >/dev/null; q graph1 diagram --format mermaid >/dev/null; q graph1 diagram --format json >/dev/null
++[ "$(git rev-parse bp3/exp/graph1/nb)" = "$tip_before" ] || fail "diagram wrote state"
++
++# --- strict argv + help at its door ---
++if out=$(q graph1 diagram --format svg 2>&1); then fail "bad format accepted"; fi
++echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "bad format code: $out"
++if out=$(q graph1 diagram extra 2>&1); then fail "stray positional accepted"; fi
++echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "stray code: $out"
++if out=$(q nope diagram --format ascii 2>&1); then fail "unknown quest accepted"; fi
++echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "unknown quest code: $out"
++out=$(q graph1 diagram -h) || fail "diagram -h exit"
++echo "$out" | grep -q -- "--format ascii|mermaid|json" || fail "diagram help flags: $out"
++echo "$out" | grep -q "generated" || fail "diagram help generated: $out"
++out=$(q graph1 -h) || fail "exp door -h exit"
++echo "$out" | grep -q "diagram" || fail "exp door help diagram: $out"
++out=$(BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q -h) || fail "q -h exit"
++echo "$out" | grep -q "diagram" || fail "q help diagram: $out"
++
++echo "diagram tests: ok"
+--- rung2 git status ---
+status-exit:0
+--- rung2 HEAD ---
+fe6efe79513040a1ad8b7a8d7e2d275f961d7415
+--- build + diagram tests ---
+--- ledger tail ---
+tail: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-4-diagram-emit/ledger.jsonl: No such file or directory
+--- quest state ---
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.126584ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (308.290917ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (251.085375ms)
+✔ roles route model/thinking into the child env: override > role > conductor (462.042625ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (185.639708ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1137.414209ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (3023.747375ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (112970.025125ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (212.82125ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.415167ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (204.051875ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (20.339667ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 118866.060458
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+make-exit:0
+--- rung3 diagram.sh ---
+diagram tests: ok
+diagram-exit:0
+--- rung3 live ascii ---
+quest 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines diagram (generated from live state at 2026-11-17T04:48:58Z)
+rollup: active
+nodes:
+  exp-config-1-bp3-config (landed, cycle 2, exp_fin)
+  exp-dogfood-1-link-drive (todo, cycle 1)
+  exp-dogfood-2-parallel-drive (todo, cycle 1)
+  exp-followup-1-grade-evidence (landed, cycle 2, exp_fin)
+  exp-followup-2-workflow-birth (todo, cycle 1)
+  exp-landing-1-landing-wrapup (todo, cycle 1)
+  exp-mig-1-handoff-verbs (landed, cycle 1, exp_fin)
+  exp-mig-2-traverse-rename (landed, cycle 2, exp_fin)
+  exp-mvp-1-link-claim (landed, cycle 1, exp_fin)
+  exp-mvp-2-context-resolution (landed, cycle 1, exp_fin)
+  exp-mvp-3-ready-set-timing (landed, cycle 2, exp_fin)
+  exp-mvp-4-diagram-emit (handed_off, cycle 1)
+  exp-mvp-5-blocked-fail-fast (todo, cycle 1)
+  exp-rename-1-bp3g-rename (todo, cycle 1)
+deps:
+  (none)
+waves:
+  wave 1: exp-dogfood-1-link-drive, exp-dogfood-2-parallel-drive, exp-followup-2-workflow-birth, exp-landing-1-landing-wrapup, exp-mvp-5-blocked-fail-fast, exp-rename-1-bp3g-rename
+starved:
+  (none)
+ascii-exit:0
+--- rung3 live mermaid ---
+%% generated from live state at 2026-11-17T04:48:58Z
+%% quest 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines rollup: active
+graph LR
+  exp_config_1_bp3_config["exp-config-1-bp3-config (landed, cycle 2, exp_fin)"]
+  exp_dogfood_1_link_drive["exp-dogfood-1-link-drive (todo, cycle 1)"]
+  exp_dogfood_2_parallel_drive["exp-dogfood-2-parallel-drive (todo, cycle 1)"]
+  exp_followup_1_grade_evidence["exp-followup-1-grade-evidence (landed, cycle 2, exp_fin)"]
+  exp_followup_2_workflow_birth["exp-followup-2-workflow-birth (todo, cycle 1)"]
+  exp_landing_1_landing_wrapup["exp-landing-1-landing-wrapup (todo, cycle 1)"]
+  exp_mig_1_handoff_verbs["exp-mig-1-handoff-verbs (landed, cycle 1, exp_fin)"]
+  exp_mig_2_traverse_rename["exp-mig-2-traverse-rename (landed, cycle 2, exp_fin)"]
+  exp_mvp_1_link_claim["exp-mvp-1-link-claim (landed, cycle 1, exp_fin)"]
+  exp_mvp_2_context_resolution["exp-mvp-2-context-resolution (landed, cycle 1, exp_fin)"]
+  exp_mvp_3_ready_set_timing["exp-mvp-3-ready-set-timing (landed, cycle 2, exp_fin)"]
+  exp_mvp_4_diagram_emit["exp-mvp-4-diagram-emit (handed_off, cycle 1)"]
+  exp_mvp_5_blocked_fail_fast["exp-mvp-5-blocked-fail-fast (todo, cycle 1)"]
+  exp_rename_1_bp3g_rename["exp-rename-1-bp3g-rename (todo, cycle 1)"]
+  subgraph wave_1["wave 1"]
+    exp_dogfood_1_link_drive
+    exp_dogfood_2_parallel_drive
+    exp_followup_2_workflow_birth
+    exp_landing_1_landing_wrapup
+    exp_mvp_5_blocked_fail_fast
+    exp_rename_1_bp3g_rename
+  end
+mermaid-exit:0
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-4-diagram-emit","state":"approved","cycle":1,"commit":"fe6efe79513040a1ad8b7a8d7e2d275f961d7415","legal_edges":["land","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-4-diagram-emit","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-mvp-4-diagram-emit","edge":"grade","run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1"}
+grade-exit:0

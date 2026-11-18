@@ -1,0 +1,305 @@
+run_id=20261117T042103Z-land-muse-code-muse-wonder-1.0-c2
+claim ok
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs:
+20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1
+20261117T035432Z-node-muse-code-muse-wonder-1.0-c1
+20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1
+20261117T035551Z-verify-muse-code-muse-wonder-1.0-c1
+20261117T040644Z-handoff-muse-code-muse-wonder-1.0-c2
+20261117T041834Z-node-muse-code-muse-wonder-1.0-c2
+20261117T041924Z-grade-muse-code-muse-wonder-1.0-c2
+20261117T041930Z-verify-muse-code-muse-wonder-1.0-c2
+20261117T042103Z-land-muse-code-muse-wonder-1.0-c2
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs/20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs/20261117T035432Z-node-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs/20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs/20261117T035551Z-verify-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs/20261117T040644Z-handoff-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs/20261117T041834Z-node-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs/20261117T041924Z-grade-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs/20261117T041930Z-verify-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence//runs/20261117T042103Z-land-muse-code-muse-wonder-1.0-c2:
+tape.log
+--- EXPERIMENT.md ---
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: followup.1
+status: proposed
+---
+
+# followup.1 - grade-evidence: missing evidence is not a defect
+
+## TL;DR
+
+Papercut found live (config.1, cycle 1, owner
+notified): the grade workflow's audit child can
+return matrix rows with no typed evidence
+("row carried no typed evidence"). A row without
+evidence cannot pass, so the verdict degrades to
+fix-first — and at `max_cycles: 1` that escalates
+straight to `blocked` and pages the human, for a
+grader paperwork failure on a green product.
+
+Fix the evidence contract in the grade workflow:
+every matrix row must carry typed evidence
+(command/file/ledger) or the audit re-runs its
+own collection. Evidence-missing is a grader
+internal retry; it never reaches the FSM as a
+verdict, never burns an author cycle, and never
+pages the human. Defects and evidence gaps take
+different roads.
+
+## Demo (design trace)
+
+```text
+before: audit row {case: "local only", evidence: none}
+  -> verdict missing -> fix-first at cap -> blocked -> human paged
+  (config tests were green the whole time)
+
+after:  audit row without typed evidence
+  -> audit re-collects (one internal retry, named rows)
+  -> row carries typed evidence -> judged pass/fail on merits
+  -> human paged only for actual decisions
+```
+
+## Diagram
+
+```text
+audit child -> rows -> each row typed evidence?
+                          | no              | yes
+                          v                 v
+                    re-collect (audit)   judge on merits
+                    (never an FSM        (ship / needs_fix /
+                     verdict)             blocked only at cap)
+```
+
+## Pseudocode
+
+```python
+def audit(exp, commit):
+    rows = collect_rows(exp, commit)
+    for row in rows:
+        if not typed(row.evidence):            # command|file|ledger + quote
+            rows = recollect(rows, missing=[row.case])   # audit-internal
+    assert all(typed(r.evidence) for r in rows)  # or explicit audit failure
+    return judge(rows)                           # verdicts only from evidence
+```
+
+| Field | Value |
+|---|---|
+| Intent | a human is paged for decisions, never for grader paperwork |
+| Lane | standard |
+| Output | grade workflow evidence contract + regression tests; audit retry semantics named in the traverse skill surface |
+| Depends on | mig.2 (traverse workflows), config.1 (the live papercut) |
+
+## Amendment (owner-locked 2026-11-17): grade validations
+
+Live again at mvp.3 (owner notified, then owner
+directed the root fix and locked the name):
+the audit child ran `git status --porcelain`,
+the tree was clean, output was empty, and it
+quoted that empty output verbatim (`quote: ""`).
+`typedEvidence` requires a non-empty quote, so
+the row degraded to `missing` and paged the
+human a second time for grader paperwork.
+
+Owner design, locked: **grade validations**.
+Each validation is a plug (Phoenix-plug style):
+deterministic code, ctx in, one typed evidence
+row out, expectation declared in the validation
+itself. Silence can be the expectation.
+
+```text
+grade workflow
+  -> validations pipeline (deterministic, pre-audit)
+       validate_git_clean            git status --porcelain, expect empty
+       validate_clean_commit         git show + porcelain
+       validate_run_folder_present   tape.log + notes.md exist
+       validate_handoff_by_child     ledger handoff line
+       validate_env_run_id_stamped   ledger run_id
+     -> adherence rows minted by code, token for empty
+        stdout is "(empty stdout, exit 0)", machine-minted
+  -> audit child (LLM) builds ONLY acceptance rows
+  -> normalize (unchanged anti-slop) -> review/check verdicts
+```
+
+```python
+def validate_git_clean(ctx) -> Row:
+    out = run("git status --porcelain", cwd=ctx.desk)
+    ok = (out == "")                      # silence IS the pass condition
+    return Row("adherence: no hand-edited state", rung=2,
+               evidence={kind: "command",
+                         ref: "git status --porcelain",
+                         quote: "(empty stdout, exit 0)" if ok else out},
+               verdict="pass" if ok else "fail")
+```
+
+Rules: adherence rows are never hand-quoted by
+an LLM again. Acceptance rows remain the audit
+child's; an untyped acceptance row is still an
+audit-internal re-collect, then an explicit
+audit failure — never an FSM verdict. A second
+papercut in the same run joins scope: review
+and check children cast verdicts in parallel;
+the first negative moves state and the second
+cast eats `E_ILLEGAL_EDGE`. That race must read
+as a named, expected race in the outcome, not
+an unexplained refusal. This node is pulled
+forward ahead of mvp.4 at owner direction:
+mvp.3's re-grade depends on the fixed grader.
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| untyped row produced | the audit re-collects the named rows internally; the FSM sees no verdict until every row carries typed evidence (command/file/ledger + quote) |
+| evidence still uncollectable | the grade returns an explicit audit failure naming the row and the collection error — distinguishable from a product `needs_fix` in outcome, reason, and ledger text |
+| real defect still gates | a fixture with a genuinely failing case grades `needs_fix` (or blocks at cap) exactly as before |
+| regression: config.1 shape | a replay of the config.1 cycle-1 scenario (green product, lazy audit) approves without paging the human |
+| cycle accounting | an audit retry does not increment the exp cycle and writes no author-facing verdict |
+| validations mint adherence rows | all adherence rows (git-clean, clean commit, run folder present, handoff by child, env run-id stamped) are produced by the deterministic validations pipeline before the audit child spawns; the audit brief no longer asks the LLM for adherence rows |
+| regression: mvp.3 empty-stdout trap | a fixture reproducing the mvp.3 row (`git status --porcelain` clean, empty output) grades on merits with quote `"(empty stdout, exit 0)"`; no `missing` downgrade, no `blocked` page |
+| verdict race named | when one verdict child moves state first, the other child's refused cast is reported as an expected verdict race in the outcome/refusals, never as an unexplained failure |
+
+## Cycle 2 fix (owner A, 2026-11-17)
+
+Cycle-1 grade on `5cce4cc`: the validations
+pipeline worked for git-clean (pass, quote
+`"(empty stdout, exit 0)"`), the verdict race
+read as expected, and all acceptance rows
+passed. One validation false-failed:
+`adherence: run folder present` quoted
+"no run folder with tape.log and notes.md"
+while `runs/20261117T033939Z-handoff-.../`
+on disk holds exactly `tape.log` + `notes.md`.
+Named fix, verbatim for cycle 2: make
+`validate_run_folder_present` trustworthy —
+the observation transport must emit canonical
+`<folder> tape=yes|no notes=yes|no` lines
+(one shell one-liner, not free-form prose)
+and/or the validation must parse the transport
+variants tolerantly; add a regression test
+feeding transport variants (canonical lines,
+prose-shaped lines, empty list) and proving
+the existing handoff folder passes. Do not
+weaken the fail case: a folder missing
+`tape.log` or `notes.md` still fails.
+
+## Acceptance test (goal block)
+
+- **Objective:** missing evidence is a grader
+  retry, never a human page.
+- **Prove by:** grade fixtures — (a) audit stub
+  returning one untyped row, (b) genuinely
+  failing case — driven through the public grade
+  workflow; observe outcomes and cycle counts.
+- **Done when:** (a) approves or retries without
+  touching the FSM cycle, (b) still gates,
+  observed.
+
+## Tests
+
+Known cases: untyped-row recollection, explicit
+audit failure shape, real-defect parity, cycle
+count unchanged across audit retries.
+
+Property-based: for any matrix, no verdict is
+emitted while a row lacks typed evidence
+(generator over row/evidence shapes).
+
+## Context
+
+Found live at config.1's first grade: the product
+was green (`test/config.sh` ok), the audit simply
+didn't attach receipts, and `max_cycles: 1` turned
+paperwork into an owner page. Owner ruled during
+the run: notify papercuts and add followups to
+fix them. This is that followup.
+---git status---
+8411e0a fix(followup.1): make run-folder validation trustworthy
+0aa087d docs(followup.1): name cycle-2 fix for run-folder validation false fail
+5cce4cc feat(followup.1): grade validations, audit re-collect, named verdict race
+6e2dd7c docs(followup.1): amend grade-evidence with grade validations design
+105cbea test(mvp.3): quotable no-hand-edited-state guard for cycle-2 grade
+---log---
+8411e0a fix(followup.1): make run-folder validation trustworthy
+0aa087d docs(followup.1): name cycle-2 fix for run-folder validation false fail
+5cce4cc feat(followup.1): grade validations, audit re-collect, named verdict race
+---grade notes c2---
+# Grade notes — exp-followup-1-grade-evidence cycle 2
+
+Verdict: ship (code-reviewer: ship).
+
+- Rung 1: EXPERIMENT.md cycle-2 fix is verbatim and closed; no open design question.
+- Rung 2: HEAD == bound commit 8411e0a; `git status --porcelain` empty; both renders byte-identical.
+- Rung 3: `node test/induct-grade.test.mjs` -> "induct-grade tests: ok" (run, not read). Covers canonical/prose/string/empty/missing-file run-folder variants; missing file still gates `needs_fix`.
+- Review: `folderLines`/`lineHasFile` veto affirmed absence before affirming presence; canonical `=yes/=no` handled exactly. Minor: fallback bare-mention is looser than the "only affirmed presence" comment, but no gated case falsifies it.
+- Lesson: grade evidence must be collected by running the canonical one-liner and the test suite, not by trusting the supplied matrix.
+---verify notes c2---
+# Verify notes — exp-followup-1-grade-evidence c2
+
+- Fresh evidence only: `git status --porcelain` empty (exit 0), HEAD = bound commit 8411e0a, `git show` confirms cycle-2 run-folder fix.
+- `node test/induct-grade.test.mjs` -> `induct-grade tests: ok` (exit 0), covering untyped-row, audit-failure, defect-gating, cycle, validations, mvp.3 empty-stdout, verdict-race, and cycle-2 transport variants.
+- Run-folder listing fresh: handoff c1 and c2 folders both tape=yes notes=yes.
+- Lesson: ledger.jsonl for this exp is not in the worktree tree; handoff corroborated via handed_off state, bound commit, and handoff run folders. Grade decided at rungs 1-3; no whole-tape (rung 5b) read.
+- Verdict: pass.
+---node notes c2---
+# Audit notes — exp-followup-1-grade-evidence @ 8411e0a
+
+Lessons: cycle-2 fix is narrow and trustworthy — canonical one-liner transport plus tolerant `lineHasFile`/`folderLines` parsing passes canonical, prose, and newline-string variants while missing-file folders still fail. Evidence contract holds end-to-end: validations mint adherence rows before the audit, untyped rows re-collect once then explicit `audit_failure` with no verdict cast and no cycle burn, empty stdout quoted as machine token, race named. Both renders synced (diff empty); `git status --porcelain` clean.
+
+Matrix (verbatim JSON):
+
+```json
+[
+  {"case": "untyped row produced", "rung": 3, "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "evidence still uncollectable", "rung": 3, "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "real defect still gates", "rung": 3, "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "regression: config.1 shape", "rung": 3, "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "cycle accounting", "rung": 3, "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "validations mint adherence rows", "rung": 3, "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "regression: mvp.3 empty-stdout trap", "rung": 3, "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs", "quote": "induct-grade tests: ok"}, "verdict": "pass"},
+  {"case": "verdict race named", "rung": 3, "evidence": {"kind": "command", "ref": "node test/induct-grade.test.mjs", "quote": "induct-grade tests: ok"}, "verdict": "pass"}
+]
+```
+# Land notes — exp-followup-1-grade-evidence cycle 2
+
+- Claimed link bp3link_e073973fbc2d48a9b2837a35ba3902d8; run_id 20261117T042103Z-land-muse-code-muse-wonder-1.0-c2 matches expected.
+- Prior cycle-2 evidence inspected: grade ship, verify pass at bound commit 8411e0a; `node test/induct-grade.test.mjs` ok covering untyped-row re-collect, audit failure, defect gating, validations, empty-stdout token, verdict race, and run-folder transport variants.
+- Landing approved state at cycle 2; no product change in this run, only run-folder evidence.
+- Lesson: land after grade+verify agree on same bound commit and clean tree; run folder must contain tape.log + notes.md before the land edge.
+total 40
+-rw-r--r--@ 1 whycz  staff    693 Nov 16 23:21 notes.md
+-rw-r--r--@ 1 whycz  staff  15530 Nov 16 23:21 tape.log
+HEAD=8411e0a
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-followup-1-grade-evidence","state":"landed","fin":"exp_fin","cycle":2,"commit":"8411e0a61f8f0e72ff17caa630ea93345cba3d90","legal_edges":[],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-1-grade-evidence","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-followup-1-grade-evidence","edge":"land","run_id":"20261117T042103Z-land-muse-code-muse-wonder-1.0-c2","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T042103Z-land-muse-code-muse-wonder-1.0-c2"}
+EXIT:0

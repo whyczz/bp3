@@ -1,0 +1,16 @@
+created docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/runs/20261117T084452Z-land-muse-code-muse-wonder-1.0-c2
+drwxr-xr-x@ 3 whycz  staff  96 Nov 17 03:45 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/runs/20261117T084452Z-land-muse-code-muse-wonder-1.0-c2
+7a0dfca3d413f17647d6beb63ad267d25ff881ac
+=== land child run 20261117T084452Z-land-muse-code-muse-wonder-1.0-c2 ===
+harness=muse-code model=muse-wonder-1.0 edge=land exp=exp-dogfood-2-parallel-drive
+wrote notes.md
+# Land run notes
+
+- Claimed one-time link bp3link_195d3c231302a18528d589d37330947a; run_id matches expected 20261117T084452Z-land-muse-code-muse-wonder-1.0-c2.
+- Verified run folder did not exist before creation (no E_RUN_EXISTS collision).
+- Created run folder and tape.log verbatim evidence; all subsequent shell output appended via tee.
+- Landing exp-dogfood-2-parallel-drive from approved at cycle 2 via direct `bp3 q u ... land` with BP3_RUN_ID stamped.
+- Lesson: claim first, check collision, keep tape verbatim only — never parse tape into facts; verdict comes from the land call JSON.
+--- invoking land ---
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-2-parallel-drive","state":"landed","fin":"exp_fin","cycle":2,"commit":"7a0dfca3d413f17647d6beb63ad267d25ff881ac","legal_edges":[],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","edge":"land","run_id":"20261117T084452Z-land-muse-code-muse-wonder-1.0-c2","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T084452Z-land-muse-code-muse-wonder-1.0-c2"}
+land exit=0

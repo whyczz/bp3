@@ -1,6 +1,6 @@
 ---
 name: red-ink
-description: "Present an existing design back to its owner in rounds until they say they are happy: copy the design first (original untouched), walk output first, then system inputs, then internals (data, state, functions, names, concepts); every round is Observe (teach) -> Orient (what matters) -> Decide (one detailed question, the owner's call) -> Act (one settled edit to the copy), closing with an IIUC playback and, at the end, a red chair of the settled design plus a decision record and proposed experiments (critical/major red-chair concerns appended as experiments). Use for Socratic design review of an existing artifact. Not for one-shot adversarial review (red-chair), authoring a new design (design), or interviewing an unclear request (ask, grill)."
+description: "Present an existing design back to its owner in rounds until they say they are happy: copy the design first (original untouched), walk output first, then system inputs, then internals (data, state, functions, names, concepts); every round is Observe (teach) -> Orient (what matters) -> Decide (one detailed question, the owner's call) -> Act (one settled edit to the copy), closing with an IIUC playback and, at the end, a red chair of the settled design plus a decision record and proposed nodes (critical/major red-chair concerns appended as nodes). Use for Socratic design review of an existing artifact. Not for one-shot adversarial review (red-chair), authoring a new design (design), or interviewing an unclear request (ask, grill)."
 ---
 <!-- GENERATED from skills/red-ink/SKILL.md by: bp3 skills install --harness=pi. Edit the source, then re-run. -->
 
@@ -17,7 +17,7 @@ existing artifact
                      |
     owner: "happy / settle"
                      v
-    decision record + proposed experiments
+    decision record + proposed nodes
 ```
 
 ```python
@@ -33,9 +33,9 @@ def red_ink(artifact, expert=None):
         if owner.happy:
             break
     chair = red_chair(copy)              # closing pass on the settled design
-    exps = experiments + [concern_exp(c) for c in chair
+    nodes = nodes + [concern_node(c) for c in chair
                           if c.severity in (critical, major)]
-    return exit_pack(decisions, open_questions, exps, chair)
+    return exit_pack(decisions, open_questions, nodes, chair)
 ```
 
 ## Context
@@ -62,8 +62,8 @@ slices later.
 
 Deferred direction is context, and it already lives somewhere:
 before round one, search the icebox (`docs/icebox/` where the
-repo has one) for entries naming this artifact, its quest or
-exp, or its concepts. Present hits in round one's Observe as
+repo has one) for entries naming this artifact, its graph or
+node, or its concepts. Present hits in round one's Observe as
 "where we want to get to" — frozen sketches with promotion
 triggers, read for direction, never treated as settled design.
 When a round defers something, the deferral lands as an
@@ -140,7 +140,7 @@ Observe -> Orient -> Decide -> Act -> IIUC -> next slice
 | 4 | Deliberately open | deferred questions, each with an owner or an icebox path; plus icebox entries consulted at walk start |
 | 5 | Final IIUC | the settled design in one read |
 | 6 | Red chair of the settled design | the closing adversarial pass (below): findings with severity and evidence, including what the design survived |
-| 7 | Proposed experiments | only when implementation follows; each exp written per Experiments below — including the concern experiments the closing red chair owes (below) |
+| 7 | Proposed nodes | only when implementation follows; each node written per Nodes below — including the concern nodes the closing red chair owes (below) |
 
 ## Red chair at the ends
 
@@ -153,7 +153,7 @@ walk itself is the middle):
   sentences, read-only, no findings list. It seeds round
   one's Orient: if the attack is load-bearing, the walk
   starts at the slice it threatens instead of Output by
-  rote. It produces no experiments; at the start, nothing
+  rote. It produces no nodes; at the start, nothing
   is settled enough to owe proof.
 - **Closing red chair (end, full).** When the owner says
   happy/settle, attack the *settled* design with the
@@ -162,17 +162,17 @@ walk itself is the middle):
   **critical or major** concern ends in exactly one of
   two places: settled by reopening the slice it attacks
   (the walk resumes; settle was premature), or appended
-  as a **concern experiment** in the exit pack — an exp
-  in the Experiments shape whose acceptance proves the
+  as a **concern node** in the exit pack — an node
+  in the Nodes shape whose acceptance proves the
   design, as settled, addresses the concern. Minor
   concerns go to Deliberately open. A critical/major
-  concern with neither a reopened slice nor an exp
+  concern with neither a reopened slice nor an node
   blocks the exit pack: do not present a clean settle
   over it.
 
-## Experiments
+## Nodes
 
-Proposed experiments, and any exp walked during a pass, are
+Proposed nodes, and any node walked during a pass, are
 presented in this shape, in this order:
 
 ```text
@@ -190,49 +190,49 @@ Worked example (miniature — voice and scale, not a template):
 
 ```text
 ## Demo (design trace)
-conductor: mint link for node N, edge submit -> bp3link_7f3a…
+conductor: mint link for node N, edge handoff -> bp3link_7f3a…
 child: claim bp3link_7f3a… -> claimed {run_id, session_id, desk}
-child: build -> bp3 e submit --commit 4fc0cc4 -> {state: submitted}
+child: build -> bp3 e handoff --commit 4fc0cc4 -> {state: handed_off}
 second claim of bp3link_7f3a… -> E_LINK_SPENT {first_claim: …}
 ```
 | ASCII diagram | the flow at a glance: inputs, outputs, where it can stop |
 | Python pseudocode | the mechanism in one readable pass |
 | Tables | intent, lane, output, acceptance that fails today, depends-on; cases and gates |
 | Acceptance test | one goal-shaped block: `objective`, `prove by`, `done when` (the exact observation) |
-| Prose | context, why the exp exists, how we got here, edge cases |
+| Prose | context, why the node exists, how we got here, edge cases |
 | Tests | the test split, both kinds proposed: **known cases** (named examples — boundaries, goldens, exact shapes; fast, legible when red) and **property-based** (law + generator; breadth). Either kind may be omitted only as a stated one-line decision; silence is not a decision |
 
-An exp whose acceptance passes today gets sent back: a check
+An node whose acceptance passes today gets sent back: a check
 that cannot fail is a hope, and hopes do not gate builds. An
-exp whose tests never state both kinds — or a justified
+node whose tests never state both kinds — or a justified
 omission of one — is unfinished the same way. An
-exp with no demo and no runnable goal block is unfinished
+node with no demo and no runnable goal block is unfinished
 spec. The design file itself gets the same treatment at its
 scale: a Demos section up front, traces honestly labeled.
 
-## Quest-level functional tests
+## Graph-level functional tests
 
-When the artifact is a whole quest (or another multi-exp
-design), add a closing functional pass after the per-exp
+When the artifact is a whole graph (or another multi-node
+design), add a closing functional pass after the per-node
 tests. These are not larger unit tests: they drive the
 public interfaces end to end — CLI, workflow, files, git
-artifacts — and prove the exps compose into the quest's
+artifacts — and prove the nodes compose into the graph's
 promise. Put the cases at the end of the working copy,
-after all exp sections. Each case names its starting
+after all node sections. Each case names its starting
 state, the actions taken, the exact observable result,
 and its evidence label.
 
 Cover, where they apply: the happy path across the whole
-quest; one refusal or failure path with state unchanged;
+graph; one refusal or failure path with state unchanged;
 the human gate and recovery from it; crash or restart with
 state reconstructed from the record; and consistency
 across surfaces (JSON verdict, ledger, files, human view).
 
 Separate true end-to-end cases (real harness, real
 processes) from functional fixtures (same public path in a
-fake repo) and label which is which. A quest whose
-functional cases only restate per-exp tests is unfinished.
-A quest proposing only design traces must say so plainly.
+fake repo) and label which is which. A graph whose
+functional cases only restate per-node tests is unfinished.
+A graph proposing only design traces must say so plainly.
 
 ## Rules
 

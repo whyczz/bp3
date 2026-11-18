@@ -1,0 +1,308 @@
+=== grade start ===
+7a0dfca feat(dogfood.2): bubble proof in the parallel drive — Pi and Muse, sibling unaffected
+a400ed5 docs(dogfood.2): name cycle-2 bubble proof fix
+5140695 feat(dogfood.2): parallel-drive proof — two variants, one ready-set
+commit 7a0dfca3d413f17647d6beb63ad267d25ff881ac
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 03:04:53 2026 -0500
+
+    feat(dogfood.2): bubble proof in the parallel drive — Pi and Muse, sibling unaffected
+    
+    For humans: the parallel drive now proves the blocked bubble in both engine forms — a seeded node blocks, its whole worker tree dies, and a fresh tree revives it after the human answer, while its sibling keeps moving and lands.
+    
+    For LLMs: test/dogfood-parallel.sh gains an embedded bubble drive: Pi form spawns real node/edge processes claiming real links (typed E_DECISION failure, one facts-only bubble, process-table death, fresh run-id/pid after resume); Muse form runs the real induct-node workflow in parallel against real bp3 (same blocked bubble, one block, fresh workflow with disjoint run-ids, old host agent count frozen). Sibling unaffected in both forms. make check green.
+
+ test/dogfood-parallel.sh | 210 +++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 210 insertions(+)
+=== diff ===
+commit 7a0dfca3d413f17647d6beb63ad267d25ff881ac
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 03:04:53 2026 -0500
+
+    feat(dogfood.2): bubble proof in the parallel drive — Pi and Muse, sibling unaffected
+    
+    For humans: the parallel drive now proves the blocked bubble in both engine forms — a seeded node blocks, its whole worker tree dies, and a fresh tree revives it after the human answer, while its sibling keeps moving and lands.
+    
+    For LLMs: test/dogfood-parallel.sh gains an embedded bubble drive: Pi form spawns real node/edge processes claiming real links (typed E_DECISION failure, one facts-only bubble, process-table death, fresh run-id/pid after resume); Muse form runs the real induct-node workflow in parallel against real bp3 (same blocked bubble, one block, fresh workflow with disjoint run-ids, old host agent count frozen). Sibling unaffected in both forms. make check green.
+
+diff --git a/test/dogfood-parallel.sh b/test/dogfood-parallel.sh
+index 6cd9e4b..b4210db 100755
+--- a/test/dogfood-parallel.sh
++++ b/test/dogfood-parallel.sh
+@@ -219,4 +219,214 @@ out=$(q r parblk)
+ echo "$out" | jq -e '.ready == ["bw"] and .starved == [{"blocked":"bx","starved":["by"]}]' >/dev/null \
+   || fail "blocked sibling isolation: $out"
+ 
++# --- Pi bubble + Muse parity bubble in the parallel drive (cycle 2) ---
++# One seeded node takes a human-blocking edge in each engine
++# form while its sibling keeps moving in the same ready-set.
++# Pi form: real OS processes (edge worker dies, node worker
++# records blocked and exits, exactly one bubble, no descendant
++# process remains; resume + a fresh Pi tree continues it).
++# Muse form: the real induct-node workflow returns the same
++# terminal blocked bubble and exits; revival is a fresh
++# workflow, never a resume of the old run's agents. Evidence
++# is timestamps and the process table, not state inference.
++cat > "$work/bubble-drive.mjs" <<'BUBBLE_JS'
++import { execFileSync, spawn } from "node:child_process";
++import fs from "node:fs";
++import path from "node:path";
++import { pathToFileURL } from "node:url";
++const repo = process.cwd();
++const root = process.env.BP3_ROOT;
++const work = process.env.BP3_WORK;
++let failures = 0;
++function assert(c, m) { if (!c) { console.error("FAIL: " + m); failures++; } }
++function alive(pid) { try { process.kill(pid, 0); return true; } catch { return false; } }
++async function waitDead(pid, ms = 5000) {
++  const end = Date.now() + ms;
++  while (Date.now() < end) { if (!alive(pid)) return true; await new Promise((r) => setTimeout(r, 50)); }
++  return !alive(pid);
++}
++const env = { ...process.env, BP3_HARNESS: "muse-code", BP3_MODEL: "test-model", BP3_Q_BIN: path.join(repo, "q-bin") };
++function bp3(args, extra = {}) {
++  const out = execFileSync(path.join(repo, "bin", "bp3"), args, { cwd: repo, encoding: "utf8", env: { ...env, ...extra } });
++  return JSON.parse(out.trim().split("\n").pop() ?? "{}");
++}
++function sh(cmd, extra = {}) {
++  const out = execFileSync("bash", ["-c", cmd], { cwd: repo, encoding: "utf8", env: { ...env, ...extra } });
++  return out.trim().split("\n").pop() ?? "";
++}
++const commonDir = execFileSync("git", ["-C", repo, "rev-parse", "--git-common-dir"], { encoding: "utf8" }).trim();
++const runsDir = path.join(path.isAbsolute(commonDir) ? commonDir : path.join(repo, commonDir), "bp3", "runs");
++function commitFor(graph, node) {
++  const branch = "refs/heads/bp3/exp/" + graph + "/" + node;
++  const tip = execFileSync("git", ["rev-parse", branch], { cwd: repo, encoding: "utf8" }).trim();
++  const blob = execFileSync("git", ["hash-object", "-w", "--stdin"], { cwd: repo, encoding: "utf8", input: node + " work\n" }).trim();
++  const idx = path.join(work, "idx-" + graph + "-" + node + "-" + Date.now() + "-" + Math.random().toString(36).slice(2));
++  const genv = { ...env, GIT_INDEX_FILE: idx };
++  execFileSync("git", ["read-tree", tip], { cwd: repo, env: genv });
++  execFileSync("git", ["update-index", "--add", "--cacheinfo", "100644," + blob + "," + node + ".txt"], { cwd: repo, env: genv });
++  const tree = execFileSync("git", ["write-tree"], { cwd: repo, encoding: "utf8", env: genv }).trim();
++  const nt = execFileSync("git", ["commit-tree", tree, "-p", tip], { cwd: repo, encoding: "utf8", input: "work " + node + "\n" }).trim();
++  execFileSync("git", ["update-ref", branch, nt, tip], { cwd: repo, env: genv });
++  try { fs.rmSync(idx); } catch {}
++  return nt;
++}
++// Pi workers: real processes, claim first, then work.
++const nodeWorker = path.join(work, "pi-node-worker.mjs");
++fs.writeFileSync(nodeWorker, [
++  'import { execFileSync, spawn } from "node:child_process";',
++  'import fs from "node:fs";',
++  'const [mode, graph, node, token, bubblePath, scratch] = process.argv.slice(2);',
++  'const bp3 = (a) => JSON.parse(execFileSync("./bin/bp3", a, { encoding: "utf8", env: process.env }).trim().split("\\n").pop());',
++  'bp3(["harness", "link", "claim", token]);',
++  'const myRun = JSON.parse(fs.readFileSync(process.env.BP3_RUN_CFG, "utf8")).run_id;',
++  'const minted = bp3(["harness", "link", "mint", "--kind", "edge", "--graph", graph, "--node", node, "--edge", "handoff", "--harness", "pi", "--model", "test-model", "--cycle", "1", "--desk", process.cwd(), "--parent-run-id", myRun]);',
++  'const resultFile = scratch + ".edge.json";',
++  'const child = spawn(process.execPath, [process.env.EDGE_WORKER, mode, graph, node, minted.token, resultFile], { stdio: "inherit" });',
++  'fs.writeFileSync(scratch + ".edge.pid", String(child.pid));',
++  'const code = await new Promise((r) => child.once("exit", r));',
++  'let er = null; try { er = JSON.parse(fs.readFileSync(resultFile, "utf8")); } catch {}',
++  'const chain = [myRun, minted.run_id];',
++  'if (er && er.ok === false) {',
++  '  bp3(["q", graph, "u", node, "block", "--reason", er.reason]);',
++  '  fs.appendFileSync(bubblePath, JSON.stringify({ graph, node, state: "blocked", reason: er.reason, last_edge: "handoff", run_chain: chain, desk: process.cwd(), inbox_key: graph + "/" + node }) + "\\n");',
++  '  process.exit(0);',
++  '}',
++  'const after = bp3(["q", graph, "r", node]);',
++  'fs.appendFileSync(bubblePath, JSON.stringify({ graph, node, state: after.state, reason: null, last_edge: "handoff", run_chain: chain, desk: process.cwd(), inbox_key: graph + "/" + node }) + "\\n");',
++  'process.exit(0);',
++  "",
++].join("\n"));
++const edgeWorker = path.join(work, "pi-edge-worker.mjs");
++fs.writeFileSync(edgeWorker, [
++  'import { execFileSync } from "node:child_process";',
++  'import fs from "node:fs";',
++  'import path from "node:path";',
++  'const [mode, graph, node, token, resultFile] = process.argv.slice(2);',
++  'const bp3 = (a, e = {}) => JSON.parse(execFileSync("./bin/bp3", a, { encoding: "utf8", env: { ...process.env, ...e } }).trim().split("\\n").pop());',
++  'bp3(["harness", "link", "claim", token]);',
++  'if (mode === "block-fail") {',
++  '  fs.writeFileSync(resultFile, JSON.stringify({ ok: false, kind: "typed_failure", code: "E_DECISION", reason: "choose storage shape" }));',
++  '} else if (mode === "handoff") {',
++  '  const branch = "refs/heads/bp3/exp/" + graph + "/" + node;',
++  '  const tip = execFileSync("git", ["rev-parse", branch], { encoding: "utf8" }).trim();',
++  '  const blob = execFileSync("git", ["hash-object", "-w", "--stdin"], { encoding: "utf8", input: node + " fresh\\n" }).trim();',
++  '  const idx = path.join(process.env.BP3_WORK, "idx-pi-" + node + "-" + Date.now());',
++  '  const ge = { ...process.env, GIT_INDEX_FILE: idx };',
++  '  execFileSync("git", ["read-tree", tip], { env: ge });',
++  '  execFileSync("git", ["update-index", "--add", "--cacheinfo", "100644," + blob + "," + node + ".txt"], { env: ge });',
++  '  const tree = execFileSync("git", ["write-tree"], { encoding: "utf8", env: ge }).trim();',
++  '  const nt = execFileSync("git", ["commit-tree", tree, "-p", tip], { encoding: "utf8", input: "fresh " + node + "\\n" }).trim();',
++  '  execFileSync("git", ["update-ref", branch, nt, tip], { env: ge });',
++  '  bp3(["q", graph, "u", node, "handoff", "--commit", nt, "--reason", "fresh tree work"]);',
++  '  fs.writeFileSync(resultFile, JSON.stringify({ ok: true }));',
++  '}',
++  "",
++].join("\n"));
++function spawnPi(mode, graph, node, bubblePath, scratch) {
++  const minted = bp3(["harness", "link", "mint", "--kind", "node", "--graph", graph, "--node", node, "--harness", "pi", "--model", "test-model", "--cycle", "1", "--desk", repo]);
++  const child = spawn(process.execPath, [nodeWorker, mode, graph, node, minted.token, bubblePath, scratch], {
++    cwd: repo, env: { ...env, BP3_RUN_ID: minted.run_id, BP3_RUN_CFG: path.join(runsDir, minted.run_id + ".json"), EDGE_WORKER: edgeWorker }, stdio: "inherit",
++  });
++  return { child, runId: minted.run_id, pid: child.pid, started: Date.now() };
++}
++const exitOf = (c) => new Promise((r) => c.once("exit", r));
++// Claims write .bp3-context.json at the desk root (the repo
++// here); ignore it so the handoff dirty-tree check stays clean.
++fs.writeFileSync(path.join(repo, ".gitignore"), ".bp3-context.json\n");
++execFileSync("git", ["add", ".gitignore"], { cwd: repo, env });
++execFileSync("git", ["commit", "-qm", "ignore bp3 context"], { cwd: repo, env });
++// --- Pi form in parallel: seeded blocks, sibling lands handed_off ---
++bp3(["q", "c", "bubpi"]); bp3(["q", "bubpi", "c", "seeded-pi"]); bp3(["q", "bubpi", "c", "sib-pi"]);
++const piBubbles = path.join(work, "pi-bubbles.jsonl");
++const piT0 = Date.now();
++const piSeed = spawnPi("block-fail", "bubpi", "seeded-pi", piBubbles, path.join(work, "pi-seed"));
++const piSib = spawnPi("handoff", "bubpi", "sib-pi", piBubbles, path.join(work, "pi-sib"));
++assert((await exitOf(piSeed.child)) === 0, "Pi seeded node worker exits 0 on block");
++assert((await exitOf(piSib.child)) === 0, "Pi sibling node worker exits 0");
++const piT1 = Date.now();
++const piLines = fs.readFileSync(piBubbles, "utf8").trim().split("\n").map((l) => JSON.parse(l));
++const piSeedBubbles = piLines.filter((b) => b.node === "seeded-pi");
++assert(piSeedBubbles.length === 1, "Pi exactly one bubble, got " + piSeedBubbles.length);
++const pb = piSeedBubbles[0];
++assert(pb && pb.state === "blocked" && pb.reason === "choose storage shape" && pb.last_edge === "handoff" && pb.inbox_key === "bubpi/seeded-pi" && Array.isArray(pb.run_chain) && pb.run_chain.length === 2 && !("pid" in pb), "Pi bubble facts only: " + JSON.stringify(pb));
++assert(await waitDead(piSeed.pid), "Pi node worker pid dead after bubble");
++const piEdgePid = Number(fs.readFileSync(path.join(work, "pi-seed.edge.pid"), "utf8"));
++assert(await waitDead(piEdgePid), "Pi edge worker pid dead after bubble (process table)");
++assert(await waitDead(piSib.pid), "Pi sibling tree dead after its bubble");
++assert(bp3(["q", "bubpi", "r", "seeded-pi"]).state === "blocked", "Pi seeded rests blocked");
++assert(bp3(["q", "bubpi", "r", "sib-pi"]).state === "handed_off", "Pi sibling unaffected: handed_off while seeded blocked");
++assert(bp3(["q", "r", "bubpi"]).inbox.filter((i) => i.exp === "seeded-pi").length === 1, "Pi exactly one inbox entry");
++const piResumed = bp3(["q", "bubpi", "u", "seeded-pi", "resume", "--reason", "use localStorage"], { BP3_DECIDER: "human" });
++assert(piResumed.ok === true && piResumed.state === "todo", "Pi resume revives to todo");
++const piFresh = spawnPi("handoff", "bubpi", "seeded-pi", piBubbles, path.join(work, "pi-seed2"));
++assert((await exitOf(piFresh.child)) === 0, "Pi fresh tree exits 0");
++assert(piFresh.runId !== piSeed.runId && piFresh.pid !== piSeed.pid, "Pi revival is a fresh tree: new run-id and pid");
++assert(await waitDead(piFresh.pid), "Pi fresh tree dead after revival bubble");
++assert(bp3(["q", "bubpi", "r", "seeded-pi"]).state === "handed_off", "Pi fresh tree continues node to handed_off");
++assert(bp3(["q", "bubpi", "r", "sib-pi"]).state === "handed_off", "Pi sibling still unaffected after revival");
++// --- Muse form in parallel: real induct-node workflow, same bubble ---
++const workflow = (await import(pathToFileURL(path.join(root, "skills/traverse/workflows/induct-node.js")).href)).default;
++bp3(["q", "c", "bubcl"]); bp3(["q", "bubcl", "c", "seeded-cl"]); bp3(["q", "bubcl", "c", "sib-cl"]);
++function extractCmd(input) { const i = input.indexOf("Run exactly `"); if (i < 0) return ""; const s = i + "Run exactly `".length; const e = input.indexOf("`", s); return e < 0 ? "" : input.slice(s, e); }
++function makeClaudeHost(node, blockMode) {
++  const host = { calls: 0, edgeCalls: {}, blockCalls: 0, args: { quest: "bubcl", exp: node, ts: "20261117T000000Z", harness: "muse-code", model: "test-model", desk: repo },
++    async agent({ label, input }) {
++      host.calls++;
++      const kind = label.split(" ")[0];
++      if (kind === "read" || kind === "mint" || kind === "bind" || kind === "block") {
++        if (kind === "block") host.blockCalls++;
++        if (kind === "bind") {
++          try { return sh(extractCmd(input)); } catch (e) { return JSON.stringify({ ok: false, error: { code: "E_BIND" } }); }
++        }
++        return sh(extractCmd(input));
++      }
++      if (kind === "resolve") {
++        const tp = path.join(work, "claude-tape-" + node + "-" + host.calls + ".jsonl");
++        fs.writeFileSync(tp, "{}\n");
++        const m = input.match(/--run-id (\S+)/);
++        return JSON.stringify({ ok: true, run_id: m ? m[1] : "", tape_path: tp });
++      }
++      const edge = kind;
++      host.edgeCalls[edge] = (host.edgeCalls[edge] || 0) + 1;
++      const tm = input.match(/link claim (bp3link_[A-Za-z0-9_-]+)/);
++      const session = "sess-" + node + "-" + edge + "-" + host.calls;
++      const claimed = bp3(["harness", "link", "claim", tm[1]], { MUSE_SESSION_ID: session });
++      if (blockMode && edge === "handoff") {
++        return JSON.stringify({ ok: false, run_id: claimed.run_id, reason: "choose storage shape", error: { code: "E_DECISION", guidance: "choose storage shape" } });
++      }
++      let commit = "abc1234"; let verdict = { ok: true };
++      if (edge === "handoff") { commit = commitFor("bubcl", node); verdict = bp3(["e", "handoff", "--commit", commit, "--reason", "claude work"], { MUSE_SESSION_ID: session }); }
++      else if (edge === "grade") { verdict = bp3(["e", "grade", "--verdict", "ship", "--reason", "artifact checked"], { MUSE_SESSION_ID: session }); }
++      else if (edge === "verify") { verdict = bp3(["e", "verify", "--verdict", "pass", "--reason", "checks green"], { MUSE_SESSION_ID: session }); }
++      else if (edge === "land") { verdict = bp3(["e", "land", "--reason", "serial land"], { MUSE_SESSION_ID: session }); }
++      return JSON.stringify({ ok: true, run_id: claimed.run_id, commit, verdict });
++    },
++    async parallel(calls) { const out = []; for (const c of calls) out.push(await host.agent(c)); return out; } };
++  return host;
++}
++const clSeedHost = makeClaudeHost("seeded-cl", true);
++const clSibHost = makeClaudeHost("sib-cl", false);
++const [clSeed, clSib] = await Promise.all([workflow(clSeedHost), workflow(clSibHost)]);
++assert(clSeed.outcome === "blocked" && clSeed.reason === "choose storage shape" && clSeed.last_edge === "handoff" && clSeed.graph === "bubcl" && clSeed.inbox_key === "bubcl/seeded-cl", "Muse parity bubble same terminal facts: " + JSON.stringify(clSeed));
++assert(clSib.outcome === "landed", "Muse sibling landed unaffected, got " + clSib.outcome);
++assert((clSeedHost.edgeCalls.handoff || 0) === 1 && clSeedHost.blockCalls === 1, "Muse failed edge never retried, exactly one block");
++assert(bp3(["q", "bubcl", "r", "seeded-cl"]).state === "blocked", "Muse seeded rests blocked");
++assert(bp3(["q", "bubcl", "r", "sib-cl"]).state === "landed", "Muse sibling state landed");
++const clOldCalls = clSeedHost.calls;
++const clResumed = bp3(["q", "bubcl", "u", "seeded-cl", "resume", "--reason", "use localStorage"], { BP3_DECIDER: "human" });
++assert(clResumed.ok === true && clResumed.state === "todo", "Muse resume revives to todo");
++const clFreshHost = makeClaudeHost("seeded-cl", false);
++const clFresh = await workflow(clFreshHost);
++assert(clFresh.outcome === "landed", "Muse fresh workflow lands seeded, got " + clFresh.outcome);
++assert(clSeedHost.calls === clOldCalls, "Muse revival never resumes old workflow agents");
++assert(clFresh.run_ids.every((r) => !clSeed.run_ids.includes(r)), "Muse revival run-ids are fresh, disjoint from blocked run");
++assert(bp3(["q", "bubcl", "r", "sib-cl"]).state === "landed", "Muse sibling still landed after revival");
++if (failures > 0) process.exit(1);
++console.log(JSON.stringify({ pi_bubble: pb.state, pi_fresh_run: piFresh.runId, pi_wall_ms: piT1 - piT0, claude_bubble: clSeed.outcome, claude_fresh: clFresh.outcome, sibling_pi: "handed_off", sibling_claude: clSib.outcome }));
++BUBBLE_JS
++bubble_out=$(BP3_ROOT="$root" BP3_WORK="$work" node "$work/bubble-drive.mjs") || fail "bubble drive: $bubble_out"
++echo "bubble scorecard: $bubble_out"
++echo "$bubble_out" | jq -e '.pi_bubble == "blocked" and .claude_bubble == "blocked" and .claude_fresh == "landed" and .sibling_claude == "landed"' >/dev/null \
++  || fail "bubble scorecard: $bubble_out"
++
+ echo "dogfood-parallel tests: ok"
+=== status ===
+STATUS_EXIT:0
+=== make check ===
+true
+true
+true
+true
+true
+skills tests: ok (123 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/ready.sh
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/diagram.sh
+diagram tests: ok
+./test/blocked.sh
+blocked tests: ok
+node test/pi-tree.test.mjs
+FAIL: watch dispositions grandchild orphaned: {"ok":false,"error":{"code":"E_NOT_FOUND","facts":{"run_id":"20261117T082350Z-handoff-pi-test-model-c1"},"guidance":"No tape references that run; no guess made."}}
+make: *** [check] Error 1
+MAKE_EXIT:2
+=== dogfood-parallel ===
+scorecard: {
+  "ready_wall_ms": 3957,
+  "serial_sum_ms": 6920,
+  "wall_saved_ms": 2963,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 1
+    },
+    "flappy-night": {
+      "wall_s": 3
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+bubble scorecard: {"pi_bubble":"blocked","pi_fresh_run":"20261117T082506Z-node-pi-test-model-c1","pi_wall_ms":2331,"claude_bubble":"blocked","claude_fresh":"landed","sibling_pi":"handed_off","sibling_claude":"landed"}
+dogfood-parallel tests: ok
+DOGFOOD_EXIT:0
+=== pi-tree run 1 ===
+pi-tree tests: ok
+EXIT1:0
+=== pi-tree run 2 ===
+pi-tree tests: ok
+EXIT2:0
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok
+MAKE_EXIT:0
+clean-check done
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-2-parallel-drive","state":"handed_off","cycle":2,"commit":"7a0dfca3d413f17647d6beb63ad267d25ff881ac","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","edge":"grade","run_id":"20261117T082017Z-grade-muse-code-muse-wonder-1.0-c2","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T082017Z-grade-muse-code-muse-wonder-1.0-c2"}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-2-parallel-drive","state":"handed_off","fin":null,"cycle":2,"commit":"7a0dfca3d413f17647d6beb63ad267d25ff881ac","deps":[],"timing":{"wall_s":null,"wait_s":41780,"dwell_s":{"blocked":3495,"handed_off":2330,"todo":42328},"cycles":2},"legal_edges":["grade","verify","block","delete"],"blocked":null,"changes":[{"change":"u","path":"test/dogfood-parallel.sh"}],"run_id":"20261117T082017Z-grade-muse-code-muse-wonder-1.0-c2"}
+tail: docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/ledger.jsonl: No such file or directory
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-2-parallel-drive","state":"handed_off","cycle":2,"commit":"7a0dfca3d413f17647d6beb63ad267d25ff881ac","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","edge":"grade","run_id":"20261117T082017Z-grade-muse-code-muse-wonder-1.0-c2","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T082017Z-grade-muse-code-muse-wonder-1.0-c2"}
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-2-parallel-drive","state":"handed_off","cycle":2,"commit":"7a0dfca3d413f17647d6beb63ad267d25ff881ac","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","edge":"grade","run_id":"20261117T082017Z-grade-muse-code-muse-wonder-1.0-c2","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T082017Z-grade-muse-code-muse-wonder-1.0-c2"}

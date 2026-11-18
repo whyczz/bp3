@@ -113,7 +113,7 @@ Two open mechanics make this more than a survey:
 
 ## Promotion trigger
 
-Thaw when pi-engine-conductor lands (`quest_fin` on
+Thaw when pi-engine-conductor lands (`goal_fin` on
 master) and either (a) a real drive shows a Run that
 wanted sub-delegation and paid for lacking it, or
 (b) scouting/mechanical work in the main pi session

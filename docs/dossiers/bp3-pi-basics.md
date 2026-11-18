@@ -2,7 +2,7 @@
 
 Question this serves: what should a bp3 Pi engine actually be built
 on — vanilla Pi plus which extensions, or the oh-my-pi fork — and
-how is Pi made fast in practice? Reader: the implementer of the Pi executors Quest. Evidence date: 2026-11-08; star counts are
+how is Pi made fast in practice? Reader: the implementer of the Pi executors Graph. Evidence date: 2026-11-08; star counts are
 GitHub-API-verified only where stated, download ranks churn fast.
 
 ## Map
@@ -114,21 +114,21 @@ these were not API-verified in this pass — downloads only.
 
 1. Does fan-out preserve settled/idle honesty and generation
    fencing under the bridge contract? A no kills whichever option
-   fails, cheaply, on the toy fixture. Owner: implementer (Pi executors Quest).
+   fails, cheaply, on the toy fixture. Owner: implementer (Pi executors Graph).
 2. Fork versus compose: is omp's bundled surface worth leaving
    vanilla upstream? Default: compose on vanilla; adopt the fork
-   only if the Pi executors Quest shows extension friction dominating. Owner: human.
+   only if the Pi executors Graph shows extension friction dominating. Owner: human.
 3. Which roles earn distinct models, measured how? Default: scouts
    cheap, author/reviewer strong, disagreement measured before
    routing spend. Owner: implementer.
 4. How much of the download meta is signal versus churn? Default:
    re-check quarterly, never auto-adopt. Owner: whoever runs Pi
-   exps.
+   nodes.
 
 ## What I did not verify
 
 - No bp3 run of any option: settled/idle honesty, fencing, and
-  context savings are unmeasured until the Pi executors Quest spikes.
+  context savings are unmeasured until the Pi executors Graph spikes.
 - Star counts beyond the four ranked repos, all vendor performance
   claims, and one snippet-only dynamic-workflows package.
 - omp fork divergence and merge cadence versus upstream Pi.

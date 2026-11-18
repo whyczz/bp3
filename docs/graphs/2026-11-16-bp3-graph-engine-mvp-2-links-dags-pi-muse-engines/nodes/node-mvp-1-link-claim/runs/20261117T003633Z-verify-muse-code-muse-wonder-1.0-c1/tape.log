@@ -1,0 +1,153 @@
+drwxr-xr-x@ 3 whycz  staff  96 Nov 16 19:36 docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1
+=== git HEAD ===
+09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3
+=== ./test/link.sh ===
+link tests: ok
+link exit:0
+=== node pi test ===
+✔ extension registers exactly four tools and loads fail-open (27.455375ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.118917ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (186.724708ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (242.901042ms)
+✔ roles route model/thinking into the child env: override > role > conductor (617.590375ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (170.019834ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1645.9165ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (2983.175167ms)
+=== depth cap grep ===
+2219:  if depth > thresholds.Config.depth_cap then
+2221:      ("depth_cap", `Int thresholds.Config.depth_cap);
+2655:  Mint writes runs/<run_id>.json (state minted; creator: parent run_id, depth, harness, model, minted_at, token_hash) and links/<token_hash> -> run_id, and returns the one-time token. Depth beyond the machine depth cap (config thresholds.depth_cap, default 3) refuses E_DEPTH. Claim is a compare-and-swap on an O_EXCL claim marker: exactly one winner completes the run config (state claimed; claim: session_id when offered, pid, cwd, claimed_at), writes the by-session index and the desk context; a second claim refuses E_LINK_SPENT naming first_claim (session_id, pid, ts) forever. Session-id discovery: --session-id, else BP3_SESSION_ID, MUSE_SESSION_ID/MUSE_THREAD_ID, PI_SESSION_ID/PI_SESSION_FILE; with none offered the claim still succeeds on pid+cwd. Lookup resolves session-id to run-id, graph, node, edge in one call. Cleanup removes only still-minted run configs of one graph. Run config writes are single-write temp+fsync+rename; a torn run config is never read as valid.\n\
+    | Some d -> d
+    | None -> (match creator_depth dir parent with
+               | Some d -> d | None -> 0) in
+  let thresholds = Config.load_thresholds dir in
+  if depth > thresholds.Config.depth_cap then
+    err "E_DEPTH" (`Assoc [("depth", `Int depth);
+      ("depth_cap", `Int thresholds.Config.depth_cap);
+      ("graph", json_str graph); ("node", json_str node)])
+      "Depth beyond the machine depth cap; the worker tree cannot fan out past it." 1;
+  let harness_v = env_or fl.m_harness "BP3_HARNESS" in
+  let harness_v = if harness_v = "" then "muse-code" else harness_v in
+=== ledger ===
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261116T231553Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261116T231553Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003239Z-node-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003239Z-node-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003626Z-grade-muse-code-muse-wonder-1.0-c1/tape.log
+=== handoff run folder ===
+total 16
+drwxr-xr-x@ 4 whycz  staff   128 Nov 16 18:38 .
+drwxr-xr-x@ 6 whycz  staff   192 Nov 16 19:36 ..
+-rw-r--r--@ 1 whycz  staff  2572 Nov 16 18:38 notes.md
+-rw-r--r--@ 1 whycz  staff  4032 Nov 16 18:48 tape.log
+=== make check dry ===
+.PHONY: check test lint release publish install
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/harness.sh
+	./test/config.sh
+	./test/link.sh
+	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/traverse.sh
+	./test/completion.sh
+	./test/release.sh
+	./test/install.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/harness.sh test/config.sh test/link.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	node --check skills/traverse/workflows/node-loop.js
+	node --check skills/traverse/workflows/induct-grade.js
+	node --check skills/traverse/workflows/quest-land.js
+
+test:
+	./test/skills.sh
+
+# --- release (Exp 5): tag-gated artifact + checksum; publish-once via gh ---
+RELEASE_VERSION := $(shell sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' src/quest/gitx.ml | head -1)
+RELEASE_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+RELEASE_ARCH := $(shell uname -m)
+RELEASE_ARTIFACT := dist/bp3-q-v$(RELEASE_VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
+
+release:
+	@./scripts/release-check >/dev/null
+	$(DUNE_BUILD) src/quest/main.exe
+	mkdir -p dist
+	cp _build/default/src/quest/main.exe $(RELEASE_ARTIFACT)
+	cd dist && shasum -a 256 $$(basename $(RELEASE_ARTIFACT)) > $$(basename $(RELEASE_ARTIFACT)).sha256
+	@echo "released $(RELEASE_ARTIFACT)"
+
+publish: release
+	./scripts/release-publish $(RELEASE_ARTIFACT) $(RELEASE_ARTIFACT).sha256
+
+PREFIX ?= $(HOME)/.local
+install:
+	PREFIX="$(PREFIX)" ./scripts/install-bp3.sh
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (112959.211584ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (229.124584ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.593208ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (195.347875ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (23.139833ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 119353.790083
+node exit:0
+=== find ledger ===
+=== exp files ===
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim//runs:
+20261116T231553Z-handoff-muse-code-muse-wonder-1.0-c1
+20261117T003239Z-node-muse-code-muse-wonder-1.0-c1
+20261117T003626Z-grade-muse-code-muse-wonder-1.0-c1
+20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim//runs/20261116T231553Z-handoff-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim//runs/20261117T003239Z-node-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim//runs/20261117T003626Z-grade-muse-code-muse-wonder-1.0-c1:
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim//runs/20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1:
+tape.log
+=== node-loop adherence ===
+7:// moves through `bp3 q u`, called directly by the author child;
+104:        "call any `bp3 q u` update edge.",
+183:        "Do not edit any file and do not call any `bp3 q u` " +
+220:        "Do not edit any file and do not call any `bp3 q u` " +
+248:        "Do not edit any file and do not call any `bp3 q u` " +
+315:      "Children call `bp3 q u` directly; never only return a " +
+# Verify notes — exp-mvp-1-link-claim c1
+- Claim: run_id 20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1 via bp3link_8bd943029dc1205cb6522d4d336209ac.
+- Fresh evidence: git HEAD 09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3; ./test/link.sh -> link tests: ok (covers mint+claim, one winner/CAS, by-session join, session-id offered vs not, run-config replaces InitRecord, stale cleanup, quoting).
+- Pi: node --test extensions/bp3-pi/test/bp3-pi.test.mjs -> pass 13 fail 0, incl. missing bp3-pi extension refuses E_SETUP before any spawn.
+- Depth cap: src/quest/harness.ml:2219 `if depth > thresholds.Config.depth_cap then`.
+- Adherence: handoff run folder has tape.log+notes.md; node-loop.js:7 moves through bp3 q u called directly by author child.
+- Verdict: pass — all gated rows re-run fresh, none deferred/blocking.
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-1-link-claim","state":"handed_off","cycle":1,"commit":"09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3","legal_edges":["grade","verify","block","delete"],"run_id":"20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1"}

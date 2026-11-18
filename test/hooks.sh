@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Exp 6 fixtures: bp3 q hooks turns Muse hook payloads on
-# stdin into past-tense event lines in the exp ledger. Fail-open
+# Node 6 fixtures: bp3 g hooks turns Muse hook payloads on
+# stdin into past-tense event lines in the node ledger. Fail-open
 # everywhere: exit 0 and no writes for garbage, foreign repos,
 # unbound sessions, and its own reentrant calls.
 set -euo pipefail
@@ -9,29 +9,29 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root/_build/default/src/graph/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
 cd "$work/repo"
 git init -q -b master
 git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
-mkdir -p docs/quests
+mkdir -p docs/graphs
 repo=$(pwd)
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
-q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
-hooks() { printf '%s' "$1" | BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q hooks; }
+q() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
+hooks() { printf '%s' "$1" | BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g hooks; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
-ledger() { git show "bp3/exp/demo/$1:docs/quests/demo/experiments/$1/ledger.jsonl"; }
+ledger() { git show "bp3/node/demo/$1:docs/graphs/demo/nodes/$1/ledger.jsonl"; }
 lines() { ledger "$1" | wc -l | tr -d ' '; }
 
 q c demo >/dev/null
 q demo c parser-fix >/dev/null
-q demo c parallel-exp >/dev/null
+q demo c parallel-node >/dev/null
 
 # --- garbage on stdin: exit 0, writes nothing ---
 before=$(lines parser-fix)
-out=$(printf 'not json at all' | BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q hooks) || fail "garbage exit nonzero"
+out=$(printf 'not json at all' | BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g hooks) || fail "garbage exit nonzero"
 echo "$out" | jq -e '.ok == true and .event_line == null' >/dev/null || fail "garbage verdict: $out"
 [ "$(lines parser-fix)" = "$before" ] || fail "garbage wrote a ledger line"
 
@@ -49,22 +49,22 @@ echo "$out" | jq -e '.event_line == null and .reason == "no binding witnessed fo
 [ "$(lines parser-fix)" = "$before" ] || fail "unbound event wrote a ledger line"
 
 # --- reentrant call (the emitter observing itself): no binding ---
-RUN0=20260101T000000Z-submit-muse-code-test-model-c1
-mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN0"
-reentrant=$(printf '{"hook_event_name":"PreToolUse","session_id":"S-re","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parser-fix ./bin/bp3 q hooks"}}' "$repo" "$RUN0")
+RUN0=20260101T000000Z-handoff-muse-code-test-model-c1
+mkdir -p "docs/graphs/demo/nodes/parser-fix/runs/$RUN0"
+reentrant=$(printf '{"hook_event_name":"PreToolUse","session_id":"S-re","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_GRAPH=demo BP3_NODE=parser-fix ./bin/bp3 g hooks"}}' "$repo" "$RUN0")
 out=$(hooks "$reentrant")
 echo "$out" | jq -e '.event_line == null and .reason == "reentrant"' >/dev/null || fail "reentrant verdict: $out"
 
 # --- preset witnessed but no matching run folder: unbound ---
-gone=$(printf '{"hook_event_name":"PreToolUse","session_id":"S-gone","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=20260101T000000Z-submit-muse-code-test-model-c9 BP3_QUEST=demo BP3_EXP=parser-fix echo hi"}}' "$repo")
+gone=$(printf '{"hook_event_name":"PreToolUse","session_id":"S-gone","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=20260101T000000Z-handoff-muse-code-test-model-c9 BP3_GRAPH=demo BP3_NODE=parser-fix echo hi"}}' "$repo")
 out=$(hooks "$gone")
 echo "$out" | jq -e '.event_line == null' >/dev/null || fail "missing run folder verdict: $out"
 [ "$(lines parser-fix)" = "$before" ] || fail "missing run folder wrote a ledger line"
 
 # --- bound Run: run_started, tallied usage, refused, lint, settle ---
-RUN1=20260101T000000Z-submit-muse-code-test-model-c1
-mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN1"
-bind=$(printf '{"hook_event_name":"PreToolUse","session_id":"S1","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parser-fix BP3_HARNESS=muse-code BP3_MODEL=test-model ./bin/bp3 q demo r parser-fix"}}' "$repo" "$RUN1")
+RUN1=20260101T000000Z-handoff-muse-code-test-model-c1
+mkdir -p "docs/graphs/demo/nodes/parser-fix/runs/$RUN1"
+bind=$(printf '{"hook_event_name":"PreToolUse","session_id":"S1","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_GRAPH=demo BP3_NODE=parser-fix BP3_HARNESS=muse-code BP3_MODEL=test-model ./bin/bp3 g demo r parser-fix"}}' "$repo" "$RUN1")
 out=$(hooks "$bind")
 echo "$out" | jq -e --arg r "$RUN1" '.ok == true and .event_line.event == "run_started" and .event_line.run_id == $r and .event_line.session_id == "S1" and (.event_line | has("ts")) and (.event_line | has("edge") | not) and (.event_line | has("from") | not) and (.event_line | has("to") | not)' >/dev/null || fail "run_started verdict: $out"
 ledger parser-fix | tail -1 | jq -e --arg r "$RUN1" '.event == "run_started" and .run_id == $r and (. | has("edge") | not)' >/dev/null || fail "run_started ledger line"
@@ -72,7 +72,7 @@ out=$(q demo r parser-fix)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "event line changed state: $out"
 
 # first binding wins: a conflicting preset in the same session is ignored
-conflict=$(printf '{"hook_event_name":"PreToolUse","session_id":"S1","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=20260101T000000Z-review-muse-code-test-model-c1 BP3_QUEST=demo BP3_EXP=parallel-exp echo hi"}}' "$repo")
+conflict=$(printf '{"hook_event_name":"PreToolUse","session_id":"S1","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=20260101T000000Z-grade-muse-code-test-model-c1 BP3_GRAPH=demo BP3_NODE=parallel-node echo hi"}}' "$repo")
 out=$(hooks "$conflict")
 echo "$out" | jq -e '.event_line == null and .reason == "already bound"' >/dev/null || fail "first-wins verdict: $out"
 
@@ -85,10 +85,10 @@ usage2=$(printf '{"hook_event_name":"PostLLMCall","session_id":"S1","cwd":"%s","
 hooks "$usage2" >/dev/null
 [ "$(lines parser-fix)" = "$mid" ] || fail "PostLLMCall wrote a ledger line before settle"
 
-# refused bp3 q u observed in PostToolUse: refused line, state unchanged
-refused=$(jq -cn --arg cwd "$repo" --arg run "$RUN1" '{hook_event_name:"PostToolUse", session_id:"S1", cwd:$cwd, tool_input:{command:("BP3_RUN_ID=" + $run + " BP3_QUEST=demo BP3_EXP=parser-fix ./bin/bp3 q demo u parser-fix submit --commit abc --reason work")}, tool_response:"{\"ok\":false,\"error\":{\"code\":\"E_DIRTY_TREE\",\"facts\":{},\"guidance\":\"clean it\"}}"}')
+# refused bp3 g u observed in PostToolUse: refused line, state unchanged
+refused=$(jq -cn --arg cwd "$repo" --arg run "$RUN1" '{hook_event_name:"PostToolUse", session_id:"S1", cwd:$cwd, tool_input:{command:("BP3_RUN_ID=" + $run + " BP3_GRAPH=demo BP3_NODE=parser-fix ./bin/bp3 g demo u parser-fix handoff --commit abc --reason work")}, tool_response:"{\"ok\":false,\"error\":{\"code\":\"E_DIRTY_TREE\",\"facts\":{},\"guidance\":\"clean it\"}}"}')
 out=$(hooks "$refused")
-echo "$out" | jq -e '.event_line.event == "refused" and .event_line.code == "E_DIRTY_TREE" and .event_line.attempted == "submit"' >/dev/null || fail "refused verdict: $out"
+echo "$out" | jq -e '.event_line.event == "refused" and .event_line.code == "E_DIRTY_TREE" and .event_line.attempted == "handoff"' >/dev/null || fail "refused verdict: $out"
 out=$(hooks "$refused")
 echo "$out" | jq -e '.event_line == null' >/dev/null || fail "duplicate refused not deduped: $out"
 [ "$(ledger parser-fix | grep -c '"event":"refused"')" = "1" ] || fail "refused line count"
@@ -123,9 +123,9 @@ age_binding() { # $1 = session_id: backdate last_seen past the stale gate
 }
 
 # --- killed session: next SessionStart sweeps run_unsettled ---
-RUN2=20260101T010000Z-submit-muse-code-test-model-c1
-mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN2"
-bind2=$(printf '{"hook_event_name":"PreToolUse","session_id":"S2","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parser-fix echo work"}}' "$repo" "$RUN2")
+RUN2=20260101T010000Z-handoff-muse-code-test-model-c1
+mkdir -p "docs/graphs/demo/nodes/parser-fix/runs/$RUN2"
+bind2=$(printf '{"hook_event_name":"PreToolUse","session_id":"S2","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_GRAPH=demo BP3_NODE=parser-fix echo work"}}' "$repo" "$RUN2")
 hooks "$bind2" >/dev/null
 age_binding S2
 sweep=$(printf '{"hook_event_name":"SessionStart","session_id":"S3","cwd":"%s"}' "$repo")
@@ -136,30 +136,30 @@ echo "$out" | jq -e '.event_line == null' >/dev/null || fail "second sweep not d
 [ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "1" ] || fail "run_unsettled count"
 
 # --- live parallel Runs: a fresh SessionStart sweeps nothing ---
-RUN5=20260101T030000Z-submit-muse-code-test-model-c1
-RUN6=20260101T030000Z-review-muse-code-test-model-c1
-mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN5" "docs/quests/demo/experiments/parallel-exp/runs/$RUN6"
-bind5=$(printf '{"hook_event_name":"PreToolUse","session_id":"S6","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parser-fix echo live-a"}}' "$repo" "$RUN5")
-bind6=$(printf '{"hook_event_name":"PreToolUse","session_id":"S7","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parallel-exp echo live-b"}}' "$repo" "$RUN6")
+RUN5=20260101T030000Z-handoff-muse-code-test-model-c1
+RUN6=20260101T030000Z-grade-muse-code-test-model-c1
+mkdir -p "docs/graphs/demo/nodes/parser-fix/runs/$RUN5" "docs/graphs/demo/nodes/parallel-node/runs/$RUN6"
+bind5=$(printf '{"hook_event_name":"PreToolUse","session_id":"S6","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_GRAPH=demo BP3_NODE=parser-fix echo live-a"}}' "$repo" "$RUN5")
+bind6=$(printf '{"hook_event_name":"PreToolUse","session_id":"S7","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_GRAPH=demo BP3_NODE=parallel-node echo live-b"}}' "$repo" "$RUN6")
 hooks "$bind5" >/dev/null
 hooks "$bind6" >/dev/null
 live_sweep=$(printf '{"hook_event_name":"SessionStart","session_id":"S8","cwd":"%s"}' "$repo")
 out=$(hooks "$live_sweep")
 echo "$out" | jq -e '.event_line == null' >/dev/null || fail "live parallel sweep verdict: $out"
 [ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "1" ] || fail "live parallel run marked unsettled"
-if ledger parallel-exp | grep -q '"event":"run_unsettled"'; then fail "live parallel-exp run marked unsettled"; fi
+if ledger parallel-node | grep -q '"event":"run_unsettled"'; then fail "live parallel-node run marked unsettled"; fi
 age_binding S6
 out=$(hooks "$live_sweep")
 echo "$out" | jq -e --arg r "$RUN5" '.event_line.event == "run_unsettled" and .event_line.run_id == $r' >/dev/null || fail "stale-only sweep verdict: $out"
 [ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "2" ] || fail "stale-only sweep count"
-if ledger parallel-exp | grep -q '"event":"run_unsettled"'; then fail "fresh parallel-exp run swept with stale sibling"; fi
+if ledger parallel-node | grep -q '"event":"run_unsettled"'; then fail "fresh parallel-node run swept with stale sibling"; fi
 
 # --- parallel Runs: distinct bindings, no cross-talk ---
-RUN3=20260101T020000Z-submit-muse-code-test-model-c1
-RUN4=20260101T020000Z-review-muse-code-test-model-c1
-mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN3" "docs/quests/demo/experiments/parallel-exp/runs/$RUN4"
-bind3=$(printf '{"hook_event_name":"PreToolUse","session_id":"S4","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parser-fix echo a"}}' "$repo" "$RUN3")
-bind4=$(printf '{"hook_event_name":"PreToolUse","session_id":"S5","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_EXP=parallel-exp echo b"}}' "$repo" "$RUN4")
+RUN3=20260101T020000Z-handoff-muse-code-test-model-c1
+RUN4=20260101T020000Z-grade-muse-code-test-model-c1
+mkdir -p "docs/graphs/demo/nodes/parser-fix/runs/$RUN3" "docs/graphs/demo/nodes/parallel-node/runs/$RUN4"
+bind3=$(printf '{"hook_event_name":"PreToolUse","session_id":"S4","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_GRAPH=demo BP3_NODE=parser-fix echo a"}}' "$repo" "$RUN3")
+bind4=$(printf '{"hook_event_name":"PreToolUse","session_id":"S5","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_GRAPH=demo BP3_NODE=parallel-node echo b"}}' "$repo" "$RUN4")
 hooks "$bind3" >/dev/null
 hooks "$bind4" >/dev/null
 u4=$(printf '{"hook_event_name":"PostLLMCall","session_id":"S4","cwd":"%s","usage":{"input_tokens":7,"output_tokens":1,"cached_tokens":0,"reasoning_tokens":0}}' "$repo")
@@ -169,11 +169,11 @@ hooks "$u5" >/dev/null
 end4=$(printf '{"hook_event_name":"SessionEnd","session_id":"S4","cwd":"%s"}' "$repo")
 hooks "$end4" >/dev/null
 ledger parser-fix | grep '"event":"usage_recorded"' | tail -1 | jq -e '.input_tokens == 7' >/dev/null || fail "parallel usage leaked into parser-fix"
-if ledger parallel-exp | grep -q '"event":"usage_recorded"'; then fail "unsettled parallel run gained usage early"; fi
+if ledger parallel-node | grep -q '"event":"usage_recorded"'; then fail "unsettled parallel run gained usage early"; fi
 end5=$(printf '{"hook_event_name":"SubagentStop","session_id":"S5","cwd":"%s"}' "$repo")
 out=$(hooks "$end5")
 echo "$out" | jq -e '.event_line.event == "run_settled"' >/dev/null || fail "SubagentStop settle: $out"
-ledger parallel-exp | grep '"event":"usage_recorded"' | jq -e '.input_tokens == 70' >/dev/null || fail "parallel-exp usage missing"
+ledger parallel-node | grep '"event":"usage_recorded"' | jq -e '.input_tokens == 70' >/dev/null || fail "parallel-node usage missing"
 
 # every event line carries ts + run_id and no edge keys; fold still reads todo
 ledger parser-fix | jq -e 'select(.event != null) | (. | has("ts") and has("run_id") and (has("edge") | not) and (has("from") | not) and (has("to") | not))' >/dev/null || fail "event line shape"

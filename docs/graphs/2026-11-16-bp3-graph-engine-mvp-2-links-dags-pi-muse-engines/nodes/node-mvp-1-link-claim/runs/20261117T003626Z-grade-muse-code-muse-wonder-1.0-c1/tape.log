@@ -1,0 +1,810 @@
+total 0
+drwxr-xr-x@ 2 whycz  staff   64 Nov 16 19:36 .
+drwxr-xr-x@ 6 whycz  staff  192 Nov 16 19:36 ..
+total 8
+drwxr-xr-x@ 3 whycz  staff   96 Nov 16 19:36 .
+drwxr-xr-x@ 6 whycz  staff  192 Nov 16 19:36 ..
+-rw-r--r--@ 1 whycz  staff  103 Nov 16 19:36 tape.log
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: mvp.1
+status: proposed
+---
+
+# mvp.1 - link-claim: one-time link binding session to edge
+
+## TL;DR
+
+The conductor mints a one-time link for one edge
+execution (`bp3 harness link mint`). The child's
+first action claims it (`bp3 harness link claim <token>`).
+The claim is a compare-and-swap in the common-dir
+hard store: exactly one winner; a second claim
+refuses `E_LINK_SPENT` naming the first claimant.
+The claim records caller facts — pid, cwd, desk,
+and the session-id when the harness offers one —
+and writes the by-session index: session-id <>
+run-id, the join the grader and bind-tape need.
+
+## Demo (design trace)
+
+```text
+conductor: bp3 harness link mint --kind edge --graph G --node N --edge handoff
+  -> {token: bp3link_7f3a…, run_id: 2026…-handoff-pi-…-c1}
+brief (one line): "claim bp3link_7f3a…, then build X"
+child: bp3 harness link claim bp3link_7f3a…
+  -> claimed {run_id, session_id, pid, desk}
+child again / quoting child: bp3 harness link claim bp3link_7f3a…
+  -> E_LINK_SPENT {first_claim: {session_id, pid, ts}}
+```
+
+## Diagram
+
+```text
+mint ─► runs/<run_id>.json {kind, graph, node, edge?, parent_run_id,
+         depth, desk, token_hash, state: minted}   (created at mint)
+claim: CAS minted -> claimed on that run config   (one winner)
+         ├─► store/by-session/<session-id> -> run_id
+         └─► desk context file {run_id, graph, node, edge}
+```
+
+## Pseudocode
+
+```python
+def mint(kind, graph, node, edge, desk):  # kind: node|edge
+    run_id = mint_run_id(edge, harness, model, cycle)
+    write(f"runs/{run_id}.json", {kind, graph, node, edge, parent, depth, desk, token_hash, state: minted})
+    return token
+
+def claim(token):
+    facts = observe_caller()  # pid chain, cwd, session-id if offered
+    cas_state(run_id, minted->claimed, facts) or refuse E_LINK_SPENT
+    write_context(desk_of(token), facts.run_id)
+    if facts.session_id: index_session(facts.session_id, facts.run_id)
+```
+
+| Field | Value |
+|---|---|
+| Intent | one claim per edge execution; session-id becomes a primary key |
+| Lane | standard |
+| Output | `bp3 harness link` (mint/claim), claim store + by-session index under `<git-common-dir>/bp3/` |
+| Depends on | none |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| mint + claim | claim returns the minted run-id with caller facts; InitRecord-equivalent row exists in the store before child work |
+| one winner | second claim of the same token (same or different session) refuses `E_LINK_SPENT` and names the first claimant's session/pid/ts |
+| by-session join | given only a session-id from a tape, one lookup returns run-id, graph, node, edge |
+| session-id offered vs not | muse claim records a session-id when the harness exposes one; pi claim records the dispatcher's session file identity; neither harness: claim still succeeds on pid+cwd facts (graceful floor) |
+| Pi engine MVP v2 nesting | a spawned Pi node-worker session is explicitly loaded with `bp3-pi`; its `spawn_run` edge child claims a distinct link. Every claim records `parent_run_id`, depth, graph, node, and edge, so root -> node worker -> edge worker can be reconstructed from bp3 alone |
+| missing Pi extension in child | if a Pi child cannot prove the `bp3-pi` tools are loaded before work, it refuses before doing edge work with a typed setup failure; it never silently becomes an unsupervised worker |
+| run config replaces InitRecord | mint writes `creator:{}` (parent run_id, depth, harness, model, minted_at, token_hash); claim writes `claim:{}` (session_id, pid, cwd); `bind-tape` writes `tape_path` into the run config; the supervisor fold derives lifecycle (`init/active/finished/orphaned`) from this one file + tape + pid, matching the old fold on harness fixtures; `bp3 harness record-init` refuses as retired |
+| claim CAS is real (red-chair) | the CAS is an O_EXCL claim marker, not a file edit: two parallel claims of one token produce exactly one winner and one `E_LINK_SPENT`; run config writes are single-write temp+fsync+rename, and a torn run config is never read as valid |
+| depth cap (red-chair) | mint beyond the depth cap (default 3: root/node/edge, machine-config overridable) refuses `E_DEPTH`; the Pi tree cannot fan out past it |
+| stale mint cleanup | `bp3 harness link cleanup --graph <graph>` removes every still-`minted` run config of that graph and reports them; other graphs' rows and all claimed run configs/derivations are byte-identical before/after; no TTL anywhere |
+| quoting safety | a token appearing in briefs/matrices confers nothing until claimed; spent tokens refuse forever |
+| env-set run-id (owner ruling from mvp.1 of the supervisor quest) | run-id arrives via the claim, not typed env prefixes; bp3 stamps it into verdicts and ledger lines. Grade evidence is that stamped ledger line; hooks witness does not gate |
+
+## Acceptance test (goal block)
+
+- **Objective:** an edge execution is claimable
+  exactly once, and its session is joinable to its
+  run-id forever after.
+- **Prove by:** mint/claim drive on muse and pi
+  shapes (fake + real), double-claim refusal,
+  by-session lookup from a tape's session-id.
+- **Done when:** double claim refuses
+  `E_LINK_SPENT` naming the winner, and the join
+  resolves, observed.
+
+## Tests
+
+Store-level: CAS race (parallel claims, one
+winner), spent permanence, torn-write tolerance
+(followup.1 discipline: single write, rename).
+Harness-level: fake-muse and fake-pi claim
+fixtures; session-id present/absent cases.
+Regression: claims write nothing into harness
+session logs (tape byte-identical apart from the
+child's own tool call).
+
+## Context
+
+Replaces the brief-carried setup ritual and the
+post-hoc tape archaeology of followup.4 in the
+supervisor quest: binding used to be resolved
+after the child died, from quoting-prone text.
+Now it is claimed before work starts, by the
+only session that will do the work. Threat model
+is confused children, not adversaries: tokens in
+briefs are capabilities, single-use and loud.
+=== git log ===
+09b9d8d feat(mvp.1): one-time link claim binding (mint/claim/lookup/cleanup)
+c9a76eb docs(graph-engine): add followup.1 grade-evidence node
+3c47fe5 fix(config.1): attribute mkdir failures, scope thresholds claim
+229a6ba feat(config.1): add bp3 config store and view door
+321b965 test(mig.2): add traverse conduction smoke drive
+=== git show --stat HEAD ===
+commit 09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 18:47:54 2026 -0500
+
+    feat(mvp.1): one-time link claim binding (mint/claim/lookup/cleanup)
+    
+    Run config replaces InitRecord: link mint writes creator facts,
+    claim CAS on an O_EXCL marker completes claim facts and the
+    by-session index, bind-tape writes tape_path into the run config,
+    record-init retires (E_RETIRED), depth cap enforced (E_DEPTH).
+    Pi dispatcher and traverse workflows mint links; children claim
+    first and stamp the claimed run-id.
+
+ Makefile                                  |   3 +-
+ extensions/bp3-pi/README.md               |  36 +-
+ extensions/bp3-pi/index.ts                |   6 +-
+ extensions/bp3-pi/src/contract.ts         |  10 +-
+ extensions/bp3-pi/src/dispatcher.ts       | 164 ++++---
+ extensions/bp3-pi/test/bp3-pi.test.mjs    |  65 +--
+ skills/traverse/workflows/induct-grade.js |  81 +--
+ skills/traverse/workflows/node-loop.js    |  85 ++--
+ skills/traverse/workflows/quest-land.js   |  69 ++-
+ src/quest/config.ml                       |  44 +-
+ src/quest/harness.ml                      | 790 +++++++++++++++++++++++++-----
+ src/quest/main.ml                         |   2 +-
+ test/config.sh                            |   9 +-
+ test/harness.sh                           |  39 +-
+ test/induct-grade.test.mjs                |  32 +-
+ test/link.sh                              | 209 ++++++++
+ test/node-loop.test.mjs                   |  42 +-
+ test/quest-land.test.mjs                  |  30 +-
+ test/traverse-conduct.test.mjs            |   6 +-
+ 19 files changed, 1302 insertions(+), 420 deletions(-)
+=== QUEST ===
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+| tape | tape | the harness session recording (unchanged) |
+
+States rest in the root worker's read. Edges are
+subagents. A child holds nothing across edges;
+context is claimed, never remembered.
+
+Edge names (settled red-ink names round, owner —
+option A; rides rename.1, old ledgers keep old
+words and the rename table maps them):
+
+| Coded today | Settled name | Caller does |
+|---|---|---|
+| `submit` | `handoff` | author binds the finished commit |
+| `review` | `grade` | reviewer grades the exact commit (`ship\|needs_fix`) |
+| `check` | `verify` | machine checks (`pass\|fail`) |
+| `land` | `land` | merge into the graph branch |
+| state `submitted` | state `handed_off` | verb/state rhyme: `handoff` hands off, node rests `handed_off` |
+| `block` | `block` | park for a human decision |
+| `resume` | `resume` | human answer re-enters (`BP3_DECIDER=human`) |
+
+Link mint/claim are verbs, not flags:
+`bp3 harness link mint --kind node|edge …` and
+`bp3 harness link claim <token>`. A node link
+carries no edge name — the node worker executes
+no transition when it claims.
+
+Door letter settled: `bp3 g`, not `bp3 t`.
+Nodes form a DAG (shared deps, diamonds — a tree
+allows one parent), scheduled by BFS ready-set
+waves; the *execution* is a tree of workers.
+Tree survives as a view (`--format tree`) and as
+the worker-tree shape, never as the addressed
+noun.
+
+## Success picture
+
+A root worker dispatches a node with a one-line
+brief: "claim this link, do this edge." The child
+claims, works, calls its own edge, dies. Ready
+nodes in a ready-set build and grade in parallel
+desks; landing is a serial queue. The rollup
+shows every node's wall, wait, and dwell time.
+The grader joins any tape's session-id to run-id
+in one lookup. At the end, everything on live
+surfaces — CLI, skills, workflows, records —
+speaks graph/node/state/edge and answers to
+`bp3 g` and `/bp3g`.
+
+## Scope
+
+| In | Out |
+|---|---|
+| `bp3 harness link` mint/claim, CAS claim store, by-session index, context resolution; run config replaces InitRecord (`creator:{}`/`claim:{}`/`tape_path`), `record-init` retires, lifecycle fold reads the run config | rewriting landed quests' ledger history text |
+| ready-set scheduling, per-node timing derived from ledger + derivations, local thresholds | anything committed for metrics; timing judgments stay in `<git-common-dir>/bp3/` |
+| setup timing measured always; optimize only when setup > 3 min (`W_SETUP_SLOW`) | desk pools (killed 2026-11-16; ad hoc desks, measured) |
+| generated ASCII/mermaid diagram from live rollup | writing into harness session logs (tapes stay harness-written) |
+| rename last: `bp3 g`, `bp3g` skills, graph terms on live surfaces | rewriting landed quests' ledger history text |
+| session-id discovery: muse, pi; graceful floor (pid+cwd+window) | adversarial threat model (links are for confused children, not attackers) |
+
+## Timing gates (in-system, local)
+
+- Per node: `wall` (first handoff → land), `wait`
+  (create → first handoff), `dwell` per state,
+  cycles. Derived from ledger timestamps, shown
+  on read, thresholds local, never committed.
+- Per Run setup: desk create → first bp3 answer;
+  `W_SETUP_SLOW` when > 3 minutes.
+- Scorecards report wall minutes AND tokens per
+  node. Visibility, not caps.
+
+## Context layer (kubectl pattern, settled red-ink round 1)
+
+One door per noun, nested as the canonical address:
+`bp3 g <graph> n <node> e <edge>`. Bare `bp3 e …`
+is the claimed shorthand. A context layer resolves
+=== ledger ===
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261116T231553Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261116T231553Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003239Z-node-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003239Z-node-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003626Z-grade-muse-code-muse-wonder-1.0-c1/tape.log
+=== diff stat names ===
+ .agents/workflows/induct-grade.js         |  81 +--
+ .agents/workflows/node-loop.js            |  85 ++--
+ .agents/workflows/quest-land.js           |  69 ++-
+ Makefile                                  |   3 +-
+ extensions/bp3-pi/README.md               |  36 +-
+ extensions/bp3-pi/index.ts                |   6 +-
+ extensions/bp3-pi/src/contract.ts         |  10 +-
+ extensions/bp3-pi/src/dispatcher.ts       | 164 ++++---
+ extensions/bp3-pi/test/bp3-pi.test.mjs    |  65 +--
+ skills/traverse/workflows/induct-grade.js |  81 +--
+ skills/traverse/workflows/node-loop.js    |  85 ++--
+ skills/traverse/workflows/quest-land.js   |  69 ++-
+ src/quest/config.ml                       |  44 +-
+ src/quest/harness.ml                      | 790 +++++++++++++++++++++++++-----
+ src/quest/main.ml                         |   2 +-
+ test/config.sh                            |   9 +-
+ test/harness.sh                           |  39 +-
+ test/induct-grade.test.mjs                |  32 +-
+ test/link.sh                              | 209 ++++++++
+ test/node-loop.test.mjs                   |  42 +-
+ test/quest-land.test.mjs                  |  30 +-
+ test/traverse-conduct.test.mjs            |   6 +-
+ 22 files changed, 1441 insertions(+), 516 deletions(-)
+=== find ledger ===
+=== exp dir ===
+total 16
+drwxr-xr-x@  4 whycz  staff   128 Nov 16 18:18 .
+drwxr-xr-x@ 15 whycz  staff   480 Nov 16 18:15 ..
+-rw-r--r--@  1 whycz  staff  6023 Nov 16 14:15 EXPERIMENT.md
+drwxr-xr-x@  6 whycz  staff   192 Nov 16 19:36 runs
+=== handoff notes ===
+# exp-mvp-1-link-claim — author notes
+
+## What landed
+
+- `bp3 harness link mint|claim|lookup|cleanup` (alias `l`): mint writes
+  `runs/<run_id>.json` (state minted, `creator:{run_id,depth,harness,model,minted_at,token_hash}`)
+  plus `links/<token_hash> -> run_id` and returns the one-time `bp3link_` token.
+  Claim is a CAS on an O_EXCL `claims/<run_id>.claim` marker (single write + fsync):
+  exactly one winner completes the run config (`state claimed`, `claim:{session_id?,pid,cwd,claimed_at}`
+  via temp+fsync+rename), writes `by-session/<session-id>` and the desk context;
+  every later claim refuses `E_LINK_SPENT` naming `first_claim{session_id,pid,ts}`.
+  Lookup resolves session-id (or run-id) to run-id/graph/node/edge in one call.
+  Cleanup removes only still-`minted` configs of one graph; claimed rows byte-identical.
+- Session discovery: `--session-id`, else `BP3_SESSION_ID`, `MUSE_SESSION_ID`/`MUSE_THREAD_ID`,
+  `PI_SESSION_ID`/`PI_SESSION_FILE` (session file identity); none offered still claims on pid+cwd.
+- Depth: mint refuses `E_DEPTH` when depth exceeds `thresholds.depth_cap` (default 3, config-overridable).
+- Run config replaces InitRecord: `record-init` (and alias `r`) refuses `E_RETIRED`;
+  `bind-tape` writes `tape_path` into the run config when claimed (legacy derivation binding kept
+  for pre-link Runs, still pinned `E_EXISTS`); supervisor/find-tape/watch fold claimed run configs
+  through the same `derive_lifecycle` words (minted=init, finished from tape+dead pid observed).
+- Pi: dispatcher mints before spawn, spawns the child explicitly with `--extension <bp3-pi>`,
+  carries `BP3_LINK_TOKEN` (no typed `BP3_RUN_ID`); missing extension refuses `E_SETUP` pre-spawn;
+  unclaimed children are fallback-claimed with the tape's session identity. `list_runs` relays watch.
+- Traverse workflows (node-loop/induct-grade/quest-land) mint links; children claim first and stamp
+  `BP3_RUN_ID=<claimed run_id>` on their edge call. Induct-grade prompts now build after both mints.
+
+## Lessons
+
+- Prompt construction order is a real bug class: induct-grade built grade/verify briefs before
+  minting their links, so claim notes were empty; mints must precede brief assembly.
+- The claim marker, not the run-config edit, is the CAS: losers read the winner's facts from the
+  marker, so `E_LINK_SPENT` can name the first claimant without trusting a torn config.
+- Depth boundary chosen literally: refuse `depth > depth_cap` (depth == cap allowed); normal
+  root/node/edge mints sit at depths 1–2, so the cap only stops fan-out beyond the tree.
+=== harness.ml depth ===
+20:   the InitRecord has a named writer: record-init, called
+38:   child finishes: record-init names no tape, the
+163:   O_EXCL makes a racing second writer fail, never append. *)
+166:    [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_EXCL; Unix.O_APPEND] 0o644 in
+1014:   the same id to record-init or find-tape and never
+1710:(* ---------- record-init (mvp.8: the InitRecord writer) ---------- *)
+1719:  err "E_RETIRED" (`Assoc [("verb", json_str "record-init")])
+1720:    "record-init is retired: mint a one-time link (bp3 harness link mint) and let the child claim it (bp3 harness link claim); the run config is the InitRecord-equivalent." 1
+2219:  if depth > thresholds.Config.depth_cap then
+2220:    err "E_DEPTH" (`Assoc [("depth", `Int depth);
+2221:      ("depth_cap", `Int thresholds.Config.depth_cap);
+2347:      err "E_LINK_SPENT" (`Assoc [("run_id", json_str run_id);
+2353:      err "E_LINK_SPENT" (`Assoc [("run_id", json_str run_id)])
+2418:        [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_EXCL] 0o644 in
+2569:  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]   mint a one-time link; writes runs/<run_id>.json (state minted, creator facts, token_hash) and links/<token_hash>; refuses E_DEPTH beyond the depth cap\n\
+2570:  bp3 harness link claim <token> [--session-id <s>]   claim once via an O_EXCL claim marker; second claim refuses E_LINK_SPENT naming first_claim; writes claim facts, by-session index, and desk context\n\
+2578:  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]   mint a one-time link; writes runs/<run_id>.json (state minted, creator facts, token_hash) and links/<token_hash>; refuses E_DEPTH beyond the depth cap\n\
+2579:  bp3 harness link claim <token> [--session-id <s>]   claim once via an O_EXCL claim marker; second claim refuses E_LINK_SPENT naming first_claim; writes claim facts, by-session index, and desk context\n\
+2596:  bp3 harness link mint|claim|lookup|cleanup ...   one-time link binding: mint a link, the child claims it once (E_LINK_SPENT, E_DEPTH)\n\
+2597:  bp3 harness record-init ...                      retired (E_RETIRED): use link mint/claim; the run config is the InitRecord-equivalent\n\
+2600:Aliases: s=supervisor, i=init-check, f=find-tape, w=watch, d=desk, r=record-init, t=bind-tape, b=backtest, l=link. Example: bp3 harness supervisor toy --timeout-seconds 1800\n"
+2646:let help_record_init = "bp3 harness record-init - retired (mvp.1):\n\
+2647:  bp3 harness record-init ... refuses E_RETIRED. The run config replaces the InitRecord: mint with bp3 harness link mint, the child claims with bp3 harness link claim, and bind-tape writes tape_path into the run config.\n\
+2655:  Mint writes runs/<run_id>.json (state minted; creator: parent run_id, depth, harness, model, minted_at, token_hash) and links/<token_hash> -> run_id, and returns the one-time token. Depth beyond the machine depth cap (config thresholds.depth_cap, default 3) refuses E_DEPTH. Claim is a compare-and-swap on an O_EXCL claim marker: exactly one winner completes the run config (state claimed; claim: session_id when offered, pid, cwd, claimed_at), writes the by-session index and the desk context; a second claim refuses E_LINK_SPENT naming first_claim (session_id, pid, ts) forever. Session-id discovery: --session-id, else BP3_SESSION_ID, MUSE_SESSION_ID/MUSE_THREAD_ID, PI_SESSION_ID/PI_SESSION_FILE; with none offered the claim still succeeds on pid+cwd. Lookup resolves session-id to run-id, graph, node, edge in one call. Cleanup removes only still-minted run configs of one graph. Run config writes are single-write temp+fsync+rename; a torn run config is never read as valid.\n\
+2672:  | "r" | "record-init" -> "record-init"
+2678:  | [] -> usage "harness needs a verb: supervisor, init-check, find-tape, watch, desk, link, record-init, bind-tape, or backtest"
+2687:        | "record-init" -> help_record_init
+2702:       | "record-init" -> do_record_init rest
+=== test/link.sh head ===
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/repo/bin" "$work/repo/plans"
+cp "$root/bin/bp3" "$work/repo/bin/"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/q-bin"
+cp "$root"/plans/*.yaml "$work/repo/plans/"
+cd "$work/repo"
+git init -q -b master
+git config user.email t@t.t; git config user.name t
+echo base > a.txt; git add .; git commit -qm base
+
+export BP3_HARNESS=muse-code BP3_MODEL=test-model
+q() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 q "$@"; }
+h() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness "$@"; }
+lk() { BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
+store=".git/bp3"
+lku() { env -u MUSE_SESSION_ID -u MUSE_THREAD_ID -u BP3_SESSION_ID -u PI_SESSION_ID -u PI_SESSION_FILE BP3_Q_BIN="$work/repo/q-bin" ./bin/bp3 harness link "$@"; }
+
+# --- help: every link verb documented, exit 0, no store created ---
+out=$(lk -h) || fail "link -h exit"
+for v in mint claim lookup cleanup; do
+  echo "$out" | grep -q "$v" || fail "link help lists $v: $out"
+done
+echo "$out" | grep -q "E_LINK_SPENT" || fail "link help codes spent: $out"
+echo "$out" | grep -q "E_DEPTH" || fail "link help codes depth: $out"
+out=$(h -h) || fail "harness -h exit"
+echo "$out" | grep -q "link" || fail "harness help lists link: $out"
+out=$(h link -h) || fail "harness link -h exit"
+echo "$out" | grep -q "mint" || fail "harness link help: $out"
+out=$(h record-init -h) || fail "record-init -h exit"
+echo "$out" | grep -q "E_RETIRED" || fail "record-init help retired: $out"
+[ ! -e "$store" ] || fail "help created the store"
+
+# --- strict argv ---
+if out=$(lk mint --graph g1 --node n1 2>&1); then fail "mint without kind accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "mint no-kind code: $out"
+if out=$(lk mint --kind node --graph g1 --node n1 --edge handoff 2>&1); then fail "node with edge accepted"; fi
+if out=$(lk mint --kind edge --graph g1 --node n1 2>&1); then fail "edge without edge accepted"; fi
+if out=$(lk mint --kind edge --graph g1 --node n1 --edge bogus 2>&1); then fail "bogus edge accepted"; fi
+if out=$(lk mint --kind=edge --graph g1 --node n1 --edge handoff 2>&1); then fail "--flag=value accepted"; fi
+if out=$(lk mint --kind edge --kind edge --graph g1 --node n1 --edge handoff 2>&1); then fail "duplicate kind accepted"; fi
+if out=$(lk mint --kind edge --graph g1 --node n1 --edge handoff --depth -1 2>&1); then fail "negative depth accepted"; fi
+if out=$(lk claim 2>&1); then fail "claim without token accepted"; fi
+if out=$(lk lookup 2>&1); then fail "lookup without identity accepted"; fi
+if out=$(lk lookup --session-id S1 --run-id R1 2>&1); then fail "lookup with both accepted"; fi
+if out=$(lk cleanup 2>&1); then fail "cleanup without graph accepted"; fi
+if out=$(lk bogus 2>&1); then fail "unknown link verb accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "unknown verb code: $out"
+[ ! -e "$store" ] || fail "usage errors created the store"
+
+# --- mint + claim: run config is the InitRecord-equivalent ---
+out=$(lk mint --kind edge --graph g1 --node n1 --edge handoff --parent-run-id root-1 --depth 2 --desk "$work/repo" --harness muse-code --model test-model)
+echo "$out" | jq -e '.ok == true and .state == "minted" and (.token | startswith("bp3link_"))' >/dev/null || fail "mint verdict: $out"
+TOK=$(echo "$out" | jq -r .token)
+RID=$(echo "$out" | jq -r .run_id)
+[ -f "$store/runs/$RID.json" ] || fail "mint wrote no run config"
+=== harness diff sample ===
+commit 09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3
+Author: whycz <whyczz@gmail.com>
+Date:   Mon Nov 16 18:47:54 2026 -0500
+
+    feat(mvp.1): one-time link claim binding (mint/claim/lookup/cleanup)
+    
+    Run config replaces InitRecord: link mint writes creator facts,
+    claim CAS on an O_EXCL marker completes claim facts and the
+    by-session index, bind-tape writes tape_path into the run config,
+    record-init retires (E_RETIRED), depth cap enforced (E_DEPTH).
+    Pi dispatcher and traverse workflows mint links; children claim
+    first and stamp the claimed run-id.
+
+diff --git a/src/quest/harness.ml b/src/quest/harness.ml
+index d475d12..2f666ee 100644
+--- a/src/quest/harness.ml
++++ b/src/quest/harness.ml
+@@ -471,8 +471,60 @@ let read_cache dir run_id silence_seconds =
+               Some (rec_, lifecycle, warns)
+   with _ -> None
+ 
++(* Lifecycle from one run config (mvp.1): birth from
++   creator, presence from claim pid + tape mtime, proof
++   from tape_path — the same derive_lifecycle words the
++   derivation fold produces. *)
++let fold_run_config ~silence_seconds (rc : Config.run_config) =
++  let rec_ : init_record = {
++    run_id = rc.Config.rc_id;
++    harness = rc.Config.rc_harness;
++    session_id = rc.Config.rc_session;
++    pid = rc.Config.rc_pid;
++    tape_path = rc.Config.rc_tape;
++    quest = (if rc.Config.rc_graph = "" then None else Some rc.Config.rc_graph);
++    exp = (if rc.Config.rc_node = "" then None else Some rc.Config.rc_node);
++    init_ts = (if rc.Config.rc_claimed_at = "" then None else Some rc.Config.rc_claimed_at);
++  } in
++  if rc.Config.rc_state = "minted" then
++    (rec_, no_observation, derive_lifecycle (Some rec_) no_observation, [])
++  else
++    let alive = match rec_.pid with Some p -> Some (pid_alive p) | None -> None in
++    let (tape_seen, fresh, blind) = match rec_.tape_path with
++      | None -> (false, false, true)
++      | Some tp ->
++          (try let st = Unix.stat tp in
++               (true, Unix.time () -. st.Unix.st_mtime
++                       <= float_of_int silence_seconds, false)
++           with _ -> (false, false, true)) in
++    let (fin, exit_e, torn_t) = match rec_.tape_path with
++      | Some tp -> tape_evidence rec_.harness (read_file_or tp "")
++      | None -> (false, false, false) in
++    let obs = { pid_alive = alive; exit_observed = exit_e || alive = Some false;
++                finish_evidence = fin; settle_row = false;
++                tape_seen; fresh } in
++    let warns = (if blind && rc.Config.rc_state = "claimed"
++                 then ["W_SUPERVISOR_BLIND"] else [])
++      @ (if torn_t then ["W_TORN_TAIL"] else []) in
++    (rec_, obs, derive_lifecycle (Some rec_) obs, warns)
++
+ let fold_all ~quest ~silence_seconds =
+-  match derivations_dir () with
++  let linked =
++    match Config.config_dir () with
++    | None -> []
++    | Some cdir ->
++        List.filter_map (fun (rc : Config.run_config) ->
++          if rc.Config.rc_graph <> quest then None
++          else
++            let (rec_, obs, lifecycle, warns) =
++              fold_run_config ~silence_seconds rc in
++            Some {
++              rf_view = { rv_id = rc.Config.rc_id; rv_lifecycle = lifecycle;
++                          rv_harness = rec_.harness; rv_warnings = warns };
++              rf_rec = rec_; rf_obs = Some obs; rf_jsonl = "";
++            }) (Config.list_run_configs cdir) in
++  let linked_ids = List.map (fun f -> f.rf_view.rv_id) linked in
++  let legacy = match derivations_dir () with
+   | None -> []
+   | Some dir ->
+       let names = try Array.to_list (Sys.readdir dir) with _ -> [] in
+@@ -503,7 +555,8 @@ let fold_all ~quest ~silence_seconds =
+                        rf_view = { rv_id = run_id; rv_lifecycle = lifecycle;
+                                    rv_harness = rec_.harness; rv_warnings = warns };
+                        rf_rec = { rec_ with run_id }; rf_obs = Some obs; rf_jsonl = path;
+-                     })) names
++                     })) names in
++  linked @ List.filter (fun f -> not (List.mem f.rf_view.rv_id linked_ids)) legacy
+ 
+ (* ---------- per-Run writer (supervisor-owned) ---------- *)
+ let last_observed_lifecycle path =
+@@ -554,7 +607,8 @@ let probe_observation ~silence_seconds (rec_ : init_record) prior =
+    the same Run append whole rows only (append_row). *)
+ let append_observation dir (rf : run_fold) ~silence_seconds =
+   let run_id = rf.rf_view.rv_id in
+-  if run_id = "" || contains_sub run_id "/" || contains_sub run_id ".." then ()
++  if rf.rf_jsonl = "" then ()
++  else if run_id = "" || contains_sub run_id "/" || contains_sub run_id ".." then ()
+   else
+     try
+       ensure_dir dir;
+@@ -867,6 +921,33 @@ let all_init_records () =
+             { r with tape_path =
+               (match r.tape_path with Some _ as t -> t | None -> !binding) }))
+ 
++(* Run configs are InitRecord-equivalents (mvp.1): a claimed
++   run config resolves exactly like an InitRecord, with
++   graph/node spelling quest/exp until the rename lands. *)
++let run_config_records () =
++  match Config.config_dir () with
++  | None -> []
++  | Some dir ->
++      List.filter_map (fun (rc : Config.run_config) ->
++        if rc.Config.rc_state <> "claimed" then None
++        else Some {
++          run_id = rc.Config.rc_id;
++          harness = rc.Config.rc_harness;
++          session_id = rc.Config.rc_session;
++          pid = rc.Config.rc_pid;
++          tape_path = rc.Config.rc_tape;
++          quest = (if rc.Config.rc_graph = "" then None else Some rc.Config.rc_graph);
++          exp = (if rc.Config.rc_node = "" then None else Some rc.Config.rc_node);
++          init_ts = (if rc.Config.rc_claimed_at = "" then None else Some rc.Config.rc_claimed_at);
++        }) (Config.list_run_configs dir)
++
++let all_records () =
++  let legacy = all_init_records () in
++  let linked = run_config_records () in
++  let linked_ids = List.map (fun (r : init_record) -> r.run_id) linked in
++  linked @ List.filter (fun (r : init_record) ->
++    not (List.mem r.run_id linked_ids)) legacy
++
+ let tape_roots = function
+   | "pi" ->
+       (match Sys.getenv_opt "BP3_PI_TAPE_DIR" with
+@@ -1222,7 +1303,7 @@ let do_find_tape args =
+    | None, None -> usage "find-tape needs --run-id or --session-id"
+    | Some "", _ | _, Some "" -> usage "identity flags need a non-empty value"
+    | _ -> ());
+-  let records = all_init_records () in
++  let records = all_records () in
+   let by_run = match fl.ft_run with
+     | Some r -> List.filter (fun (rec_ : init_record) -> rec_.run_id = r) records
+     | None -> [] in
+@@ -1405,7 +1486,7 @@ let resolve_watch fl =
+    | Some r when contains_sub r "/" || contains_sub r " " ->
+        usage ("invalid run-id: " ^ r)
+    | _ -> ());
+-  let records = all_init_records () in
++  let records = all_records () in
+   let by_run = match fl.wt_run with
+     | Some r -> List.filter (fun (rec_ : init_record) -> rec_.run_id = r) records
+=== ./test/link.sh ===
+link tests: ok
+LINK_EXIT:0
+=== node pi tests ===
+✔ extension registers exactly four tools and loads fail-open (32.537292ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.165667ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (194.218709ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (248.344125ms)
+✔ roles route model/thinking into the child env: override > role > conductor (483.607292ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (174.968ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (1526.392ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (3001.293791ms)
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (112975.98725ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (216.72725ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.301916ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (155.699875ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (21.41125ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 119106.309208
+=== grep checks ===
+2219:  if depth > thresholds.Config.depth_cap then
+extensions/bp3-pi/src/dispatcher.ts:195:      throw new TypedRefusal("E_SETUP", `bp3-pi extension not loaded: ${this.extensionPath}`, { extension: this.extensionPath });
+extensions/bp3-pi/test/bp3-pi.test.mjs:337:test("missing bp3-pi extension refuses E_SETUP before any spawn", async () => {
+extensions/bp3-pi/test/bp3-pi.test.mjs:342:    (e) => e.code === "E_SETUP",
+7:// moves through `bp3 q u`, called directly by the author child;
+104:        "call any `bp3 q u` update edge.",
+133:    // with BP3_RUN_ID=<run_id from the claim verdict>; bp3
+149:      "BP3_RUN_ID=<that run_id>. "
+183:        "Do not edit any file and do not call any `bp3 q u` " +
+220:        "Do not edit any file and do not call any `bp3 q u` " +
+248:        "Do not edit any file and do not call any `bp3 q u` " +
+315:      "Children call `bp3 q u` directly; never only return a " +
+notes.md
+tape.log
+=== git status ===
+ M .agents/workflows/induct-grade.js
+ M .agents/workflows/node-loop.js
+ M .agents/workflows/quest-land.js
+clean-check done
+=== claim CAS code ===
+  if stored_hash <> "" && stored_hash <> ("sha256:" ^ hash_hex) then
+    err "E_NOT_FOUND" (`Assoc [("run_id", json_str run_id)])
+      "Link token does not match its run config." 1;
+  let session_id = observe_session sess_flag in
+  let pid = Unix.getpid () in
+  let cwd = Sys.getcwd () in
+  let claimed_at = now_ts () in
+  let claim_fields = [
+    ("pid", `Int pid); ("cwd", json_str cwd);
+    ("claimed_at", json_str claimed_at);
+  ] @ (match session_id with Some s -> [("session_id", json_str s)] | None -> []) in
+  let marker = Filename.concat (Config.claims_dir dir) (run_id ^ ".claim") in
+  Config.ensure_dir (Config.claims_dir dir);
+  let marker_text = Yojson.Safe.to_string (`Assoc ([
+    ("run_id", json_str run_id)] @ claim_fields)) ^ "\n" in
+  let won =
+    try
+      let fd = Unix.openfile marker
+        [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_EXCL] 0o644 in
+      (try write_one fd marker marker_text; Unix.fsync fd
+       with e -> (try Unix.close fd with _ -> ()); raise e);
+      Unix.close fd; true
+    with Unix.Unix_error (Unix.EEXIST, _, _) -> false in
+  if not won then link_spent dir run_id raw;
+  (* winner: complete the run config in one atomic write *)
+  let graph = Config.jstr raw "graph" "" in
+  let node = Config.jstr raw "node" "" in
+  let kind = Config.jstr raw "kind" "" in
+  let edge = Config.jopt raw "edge" in
+  let desk = Config.jstr raw "desk" "" in
+  (match raw with
+   | `Assoc fs ->
+       let fs2 = List.filter (fun (k, _) ->
+         k <> "state" && k <> "claim") fs in
+       Config.save_run_config_json dir run_id
+         (`Assoc (fs2 @ [("state", json_str "claimed");
+                         ("claim", `Assoc claim_fields)]))
+   | _ -> ());
+  (match session_id with
+   | Some s when Config.valid_index_key s ->
+       Config.write_file_atomic
+         (Filename.concat (Config.by_session_dir dir) s) (run_id ^ "\n")
+   | _ -> ());
+  write_desk_context dir run_id graph node edge desk;
+  let creator = jassoc raw "creator" in
+  let parent = match creator with Some c -> Config.jstr c "run_id" "" | None -> "" in
+  let depth = match creator with Some c -> Config.jint c "depth" 0 | None -> 0 in
+  print_endline (Yojson.Safe.to_string (`Assoc [
+    ("ok", `Bool true); ("run_id", json_str run_id);
+    ("kind", json_str kind); ("graph", json_str graph);
+    ("node", json_str node);
+    ("edge", (match edge with Some e -> json_str e | None -> `Null));
+    ("state", json_str "claimed");
+    ("session_id", (match session_id with Some s -> json_str s | None -> `Null));
+    ("pid", `Int pid); ("cwd", json_str cwd); ("desk", json_str desk);
+    ("parent_run_id", json_str parent); ("depth", `Int depth);
+    ("claimed_at", json_str claimed_at);
+  ]));
+  0
+
+let parse_lookup_args args =
+  let rec loop session run = function
+    | [] -> (session, run)
+    | "--session-id" :: v :: rest ->
+        if session <> None then usage "duplicate flag --session-id";
+        loop (Some v) run rest
+    | "--run-id" :: v :: rest ->
+        if run <> None then usage "duplicate flag --run-id";
+        loop session (Some v) rest
+    | ["--session-id"] | ["--run-id"] -> usage "flag needs a value"
+    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
+        (match String.index_opt f '=' with
+         | Some _ -> usage ("unknown flag form: " ^ f)
+         | None -> usage ("unknown flag: " ^ f))
+    | stray :: _ -> usage ("stray positional: " ^ stray) in
+  loop None None args
+
+let do_link_lookup args =
+  let (sess, run) = parse_lookup_args args in
+  (match sess, run with
+   | None, None -> usage "link lookup needs --session-id or --run-id"
+=== config run_config ===
+6:   mint/claim and bind-tape in mvp.1), links/, claims/, the
+35:let claims_dir dir = Filename.concat dir "claims"
+74:type thresholds = { setup_slow_s : int; depth_cap : int }
+76:let default_thresholds = { setup_slow_s = 180; depth_cap = 3 }
+79:  `Assoc [("setup_slow_s", `Int t.setup_slow_s); ("depth_cap", `Int t.depth_cap)]
+108:        depth_cap = jint scope "depth_cap" default_thresholds.depth_cap }
+122:        [dir; runs_dir dir; links_dir dir; claims_dir dir; by_session_dir dir;
+140:  rc_claimed_at : string;
+151:    let creator = jobj j "creator" in
+152:    let claim = jobj j "claim" in
+167:             rc_session = nested_opt claim "session_id";
+168:             rc_minted_at = nested creator "minted_at";
+169:             rc_claimed_at = nested claim "claimed_at";
+170:             rc_parent = nested creator "run_id";
+171:             rc_depth = (match creator with
+173:             rc_harness = nested creator "harness";
+174:             rc_pid = (match claim with
+178:             rc_tape = jopt j "tape_path" }
+206:(* ---------- raw run configs (link mint/claim writers) ---------- *)
+224:   A claimed run config was last written by link claim; a
+228:    if rc.rc_claimed_at <> "" || rc.rc_session <> None then
+229:      ("link claim", rc.rc_claimed_at)
+262:   claims any more are removed. Returns the entry count. *)
+ .agents/workflows/induct-grade.js | 81 ++++++++++++++++++++++---------------
+ .agents/workflows/node-loop.js    | 85 ++++++++++++++++++++++-----------------
+ .agents/workflows/quest-land.js   | 69 ++++++++++++++++++-------------
+ 3 files changed, 139 insertions(+), 96 deletions(-)
+diff --git a/.agents/workflows/node-loop.js b/.agents/workflows/node-loop.js
+index 9568ace..ef264d7 100644
+--- a/.agents/workflows/node-loop.js
++++ b/.agents/workflows/node-loop.js
+@@ -6,13 +6,12 @@
+ // a different step; this file refuses it untouched. All state
+ // moves through `bp3 q u`, called directly by the author child;
+ // this script never writes state. Its one write is proof, not
+-// state: as the named InitRecord writer (mvp.8) it records the
+-// child's InitRecord via `bp3 harness record-init` before the
+-// child spawns; the child never writes its own proof. As the
+-// named tape binder (followup.3) it then binds the child's
+-// session tape via `bp3 harness bind-tape` after the child
+-// returns; the child writes no InitRecord, binding, or
+-// observation.
++// state: as the link minter (mvp.1) it mints a one-time link via
++// `bp3 harness link mint` before the child spawns; the
++// child's first action claims it, and the claim binds
++// session to run-id. As the named tape binder it then
++// binds the child's session tape via `bp3 harness
++// bind-tape` after the child returns.
+ // Args are supplied by the calling traverse skill as {quest, exp,
+ // ts, harness, model}; ts is a UTC compact timestamp from the
+ // caller, embedded by the child in its run-id because scripts
+@@ -124,45 +123,56 @@ export default async function workflow(host) {
+   }
+ 
+   function runFolder(edge, cycle, harnessNote) {
+-    return (
+-      expDir + "/runs/" + ts + "-" + edge + "-" + harnessNote +
+-      "-c" + String(cycle)
+-    );
++    void harnessNote;
++    return expDir + "/runs/" + runIdOf(edge, cycle);
+   }
+ 
+   function envPreset(edge, cycle) {
+-    // Env-set identity: BP3_RUN_ID carries the same id as this
+-    // stage's run folder. `bp3` reads it from the environment
+-    // and stamps it into verdicts and ledger lines, so no
+# grade notes — exp-mvp-1-link-claim @ 09b9d8d
+
+## Verdict basis (code-reviewer procedure)
+- Claims from commit message + EXPERIMENT.md acceptance read first (rung 1).
+- Rung 2: harness.ml claim is a real O_EXCL CAS on claims/<run_id>.claim (single write+fsync), losers get E_LINK_SPENT naming first_claim; depth guard `if depth > thresholds.Config.depth_cap` at harness.ml:2219; run config (creator/claim/tape_path) replaces InitRecord, record-init refuses E_RETIRED. Comments agree with code.
+- Rung 3 run, not read: `./test/link.sh` -> "link tests: ok"; `node --test extensions/bp3-pi/test/bp3-pi.test.mjs` -> pass 13 incl. "missing bp3-pi extension refuses E_SETUP before any spawn".
+- No critical/major findings. Minor note: worktree shows uncommitted .agents/workflows/* mirrors of the committed skills/traverse/workflows/* change; bound commit itself is clean (HEAD == 09b9d8d) and gated rows pass.
+- Decided at rungs 1-3; no whole-tape (rung 5b) read needed.
+
+## Lessons
+- Judge the bound commit, not worktree mirror dirt.
+- The claim marker, not the config edit, is the CAS — verify O_EXCL in code, not just test names.
+notes.md
+tape.log
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mvp-1-link-claim","state":"approved","cycle":1,"commit":"09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3","legal_edges":["land","block","delete"],"run_id":"20261117T003626Z-grade-muse-code-muse-wonder-1.0-c1"}

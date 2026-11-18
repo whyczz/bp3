@@ -1,0 +1,683 @@
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: rename.1
+status: proposed
+---
+
+# rename.1 - bp3g-rename: every live surface speaks graph
+
+## TL;DR
+
+Last step, full rename (owner-approved
+2026-11-16, superseding the naming skill's
+standing vocabulary — that skill is updated here
+too). CLI: `bp3 g` door for graphs and nodes,
+retiring `bp3 q` and quest/exp wording on live
+surfaces. Skills: the conducting family becomes
+`bp3g` (`/bp3g` conducts a graph; framing and
+no-human variants take bp3g- names) because bare
+"goal" collides across harnesses; G stands for
+goal and graph. Launcher workflows, templates,
+and active docs migrate in the same change.
+Landed quests' ledger text is history and stays
+untouched.
+
+## Demo (design trace)
+
+```text
+before: bp3 q <quest> r exp-… ; /induct the quest
+after:  bp3 g <graph> r <node> ; /bp3g the graph
+grep live surfaces for quest|exp (outside history) -> 0 hits
+```
+
+## Diagram
+
+```text
+CLI door ─┐
+skills ───┼─► one rename commit series ─► installs re-rendered
+workflows ┤    (bp3g family)                 all harnesses
+templates ┘
+landed ledger text: frozen, excluded by path
+```
+
+## Pseudocode
+
+```python
+SURFACES = [cli_strings, skills_src, workflows, templates, active_docs]
+for term in [quest, exp, invoke]:
+    assert grep(term, SURFACES, exclude=landed_history) == 0
+assert bp3_g_roundtrip() and bp3g_skill_conducts_one_node()
+```
+
+| Field | Value |
+|---|---|
+| Intent | one vocabulary everywhere the system is alive |
+| Lane | high-blast-radius |
+| Output | renamed CLI + bp3g skill family + migrated live surfaces; surface-count report |
+| Depends on | dogfood.2 (rename is last) |
+
+## Overall directive
+
+One name, no tower of Babel. After this exp, any
+concept has exactly one live spelling across code,
+CLI, skills, workflows, completions, tests, and
+active docs. The compat mapping for pre-rename
+ledger strings lives in exactly one place (the
+fold), is listed in the rename table, and appears
+nowhere else — no aliases, no silent synonyms, no
+`bp3 q` left working beside `bp3 g`.
+
+## Locations to change (scanned 2026-11-16)
+
+Scoped to FSM identifiers (`submit/review/check`
+as edges, `submitted` as state, quest/exp terms);
+plain-English prose uses of those words are not
+identifiers and stay.
+
+| Area | Locations | Change |
+|---|---|---|
+| FSM core | `src/quest/main.ml` (edge dispatch, `legal_edges`, ledger lines), `src/quest/store.ml` (state table), `src/quest/render.ml` (state display) | verbs `handoff/grade/verify`, state `handed_off`; fold maps old ledger strings once |
+| harness | `src/quest/harness.ml`, `src/quest/hooks.ml`, `src/quest/worktree.ml` | edge/state strings in supervisor + hook payloads |
+| workflows | `skills/induct/workflows/induct-exp.js`, `induct-grade.js`, `quest-land.js` (author/grade briefs spell the `bp3 … submit` calls) | briefs call `handoff/grade/verify`; outcomes read `handed_off` |
+| skills | `skills/using-bp3`, `skills/naming`, `skills/quest`, `skills/induct`, `skills/induct-quest*`, `skills/red-ink`, `skills/red-ink-quest-landing-demo` + all renders | vocabulary sections teach graph terms; renders re-installed, never hand-edited |
+| CLI surface | `completions/bp3.bash`, `completions/_bp3`, help strings in `main.ml` | `bp3 g/n/e` completion + help; `bp3 q` refuses |
+| tests | `test/q.sh`, `test/harness.sh`, `test/hooks.sh`, `test/tape.sh`, `test/worktree.sh`, `test/completion.sh`, `test/induct-exp.test.mjs`, `test/induct-grade.test.mjs`, `test/quest-land.test.mjs` | fixtures drive new verbs; one compat fixture folds a pre-rename ledger |
+| active docs | this quest's live records at rename time; `docs/` non-history pages | graph vocabulary; landed quests' ledgers untouched |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| verbs already migrated | edge verbs + `handed_off` landed in mig.1; this node's grep confirms zero old verb spellings remain on live surfaces and the fold compat mapping still lives in exactly one place |
+| `bp3 g` is the door | graph/node create-read-update-delete round-trips through `bp3 g`; state survives the rename (same refs folded, no state rewrite) |
+| old door gone | `bp3 q` refuses as unknown door on live surfaces (no silent synonym left behind) |
+| bp3g skills conduct | `/bp3g` family installed for all harnesses; one node conducted end to end by the renamed skill in a smoke drive |
+| vocabulary zero | grep for quest/exp/invoke terms over CLI strings, skills, workflows, templates, active docs: zero outside frozen history paths (listed explicitly) |
+| naming skill updated | the naming skill's vocabulary section teaches graph/node/state/edge/dep and bp3g, same change |
+| history frozen | no landed ledger.jsonl or run artifact modified (diff by path allowlist) |
+
+## Acceptance test (goal block)
+
+- **Objective:** after this exp, a newcomer meets
+  only the graph vocabulary on any live surface.
+- **Prove by:** `bp3 g` round-trip, smoke
+  conduction by `/bp3g`, grep surface report,
+  history-path diff.
+- **Done when:** zero old terms live, graph
+  conducts, history untouched, observed.
+
+## Tests
+
+Full `make check` plus: CLI rename fixtures
+(old strings absent), skills render/install
+assertions for every harness, workflow tests
+updated to `bp3 g`. Property: state refs folded
+before and after rename produce identical
+rollups for an existing graph.
+
+## Context
+
+Names harden into paths, ledger fields, and the
+words sessions think in — the supervisor quest's
+own records showed the cost of drift (stale
+rendered workflows vs source). Rename is last so
+the machinery being renamed is final, and total
+so no synonym survives to drift again.
+=== git show stat ===
+commit 4e0f1bd0d90f13a12623012b5628f7c38165577c
+Author: bp3 <bp3@local>
+Date:   Tue Nov 17 04:36:58 2026 -0500
+
+    feat(rename.1): bp3g rename — bp3 g/n doors, bp3g skill family, graph/node vocabulary
+    
+    Retire bp3 q and quest/exp wording on live surfaces: graph/node verdicts, nested bp3 g <graph> n <node> e <edge> address, skills traverse->bp3g (+frame/no-human/landing-demo), src/graph, bp3-g artifact. Frozen refs, storage paths, and landed ledgers untouched; pre-rename ledger keys fold in one place. make check green.
+
+ .agents/skills/add-bp3-skill/SKILL.md              |   4 +-
+ .../quest => .agents/skills/bp3g-frame}/SKILL.md   | 164 +++----
+ .../skills/bp3g-landing-demo}/SKILL.md             |  52 +--
+ .agents/skills/bp3g-no-human/SKILL.md              | 149 ++++++
+ .../traverse => .agents/skills/bp3g}/SKILL.md      | 121 ++---
+ .agents/skills/icebox/SKILL.md                     |  26 +-
+ .agents/skills/naming/SKILL.md                     |  38 +-
+ .agents/skills/red-ink/SKILL.md                    |  52 +--
+ .agents/skills/traverse-no-human/SKILL.md          | 149 ------
+ .agents/skills/using-bp3/SKILL.md                  |  40 +-
+ .../workflows/{induct-grade.js => bp3g-grade.js}   | 170 +++----
+ .../workflows/bp3g-land.js                         |  70 +--
+ .agents/workflows/{induct-node.js => bp3g-node.js} | 104 ++---
+ .agents/workflows/node-loop.js                     |  82 ++--
+ .claude/hooks.json                                 |  18 +-
+ .claude/settings.json                              |  18 +-
+ .claude/skills/add-bp3-skill/SKILL.md              |   4 +-
+ .../quest => .claude/skills/bp3g-frame}/SKILL.md   | 164 +++----
+ .../skills/bp3g-landing-demo}/SKILL.md             |  52 +--
+ .claude/skills/bp3g-no-human/SKILL.md              | 149 ++++++
+ .../traverse => .claude/skills/bp3g}/SKILL.md      | 121 ++---
+ .claude/skills/icebox/SKILL.md                     |  26 +-
+ .claude/skills/naming/SKILL.md                     |  38 +-
+ .claude/skills/red-ink/SKILL.md                    |  52 +--
+ .claude/skills/traverse-no-human/SKILL.md          | 149 ------
+ .claude/skills/using-bp3/SKILL.md                  |  40 +-
+ .muse/hooks.json                                   |  18 +-
+ .pi/settings.json                                  |   9 +-
+ .pi/skills/add-bp3-skill/SKILL.md                  |   4 +-
+ .../quest => .pi/skills/bp3g-frame}/SKILL.md       | 164 +++----
+ .../skills/bp3g-landing-demo}/SKILL.md             |  52 +--
+ .pi/skills/bp3g-no-human/SKILL.md                  | 149 ++++++
+ .../skills/traverse => .pi/skills/bp3g}/SKILL.md   | 121 ++---
+ .pi/skills/icebox/SKILL.md                         |  26 +-
+ .pi/skills/naming/SKILL.md                         |  38 +-
+ .pi/skills/red-ink/SKILL.md                        |  52 +--
+ .pi/skills/traverse-no-human/SKILL.md              | 149 ------
+ .pi/skills/using-bp3/SKILL.md                      |  40 +-
+ AGENTS.md                                          |  56 +--
+ Brewfile                                           |   2 +-
+ CLAUDE.md                                          |  56 +--
+ Makefile                                           |  26 +-
+ bin/bp3                                            |  67 +--
+ completions/_bp3                                   |  51 ++-
+ completions/bp3.bash                               |  53 ++-
+ docs/designs/bp3-control-mvp.md                    | 286 ++++++------
+ docs/designs/bp3-control.md                        | 146 +++---
+ docs/dossiers/bp3-pi-basics.md                     |  10 +-
+ docs/dossiers/muse-workflows-hooks.md              |  20 +-
+ extensions/bp3-pi/README.md                        |   4 +-
+ extensions/bp3-pi/index.ts                         |  16 +-
+ extensions/bp3-pi/roles/author.md                  |   4 +-
+ extensions/bp3-pi/roles/reviewer.md                |   2 +-
+ extensions/bp3-pi/src/contract.ts                  |   8 +-
+ extensions/bp3-pi/src/dispatcher.ts                |  16 +-
+ extensions/bp3-pi/test/bp3-pi.test.mjs             |  38 +-
+ plans/default.yaml                                 |   2 +-
+ plans/direct.yaml                                  |   2 +-
+ readme.md                                          |  22 +-
+ release.conf                                       |   6 +-
+ scripts/bp3-shim                                   |  10 +-
+ scripts/install-bp3.sh                             |  20 +-
+ scripts/osx/link-clt-after-osx-update.sh           |   2 +-
+ scripts/release-check                              |   4 +-
+ skills/add-bp3-skill/SKILL.md                      |   4 +-
+ skills/{quest => bp3g-frame}/SKILL.md              | 162 +++----
+ .../SKILL.md                                       |  50 +--
+ skills/bp3g-no-human/SKILL.md                      | 148 ++++++
+ skills/{traverse => bp3g}/SKILL.md                 | 104 ++---
+ .../workflows/bp3g-grade.js}                       | 170 +++----
+ .../bp3g/workflows/bp3g-land.js                    |  70 +--
+ .../induct-node.js => bp3g/workflows/bp3g-node.js} | 104 ++---
+ skills/{traverse => bp3g}/workflows/node-loop.js   |  82 ++--
+ skills/icebox/SKILL.md                             |  26 +-
+ skills/naming/SKILL.md                             |  38 +-
+ skills/red-ink/SKILL.md                            |  52 +--
+ skills/traverse-no-human/SKILL.md                  | 148 ------
+ skills/using-bp3/SKILL.md                          |  40 +-
+ src/{quest => graph}/config.ml                     |   0
+ src/{quest => graph}/dune                          |   0
+ src/{quest => graph}/gitx.ml                       |   4 +-
+ src/{quest => graph}/harness.ml                    | 118 ++---
+ src/{quest => graph}/hooks.ml                      |  40 +-
+ src/{quest => graph}/main.ml                       | 500 ++++++++++++---------
+ src/{quest => graph}/render.ml                     | 120 ++---
+ src/{quest => graph}/store.ml                      |  99 ++--
+ src/{quest => graph}/worktree.ml                   | 104 ++---
+ test/blocked.sh                                    |  40 +-
+ ...erse-conduct.test.mjs => bp3g-conduct.test.mjs} |  48 +-
+ .../{induct-grade.test.mjs => bp3g-grade.test.mjs} |  46 +-
+ test/{quest-land.test.mjs => bp3g-land.test.mjs}   |  14 +-
+ test/{induct-node.test.mjs => bp3g-node.test.mjs}  |  10 +-
+ test/bp3g.sh                                       |   9 +
+ test/completion.sh                                 |  42 +-
+ test/config.sh                                     |  26 +-
+ test/context.sh                                    |  26 +-
+ test/diagram.sh                                    |  30 +-
+ test/dogfood-link.sh                               |  36 +-
+ test/dogfood-parallel.sh                           |  78 ++--
+ test/{q.sh => g.sh}                                | 386 ++++++++--------
+ test/harness.sh                                    | 182 ++++----
+ test/hooks.sh                                      |  50 +--
+ test/install.sh                                    |  28 +-
+ test/link.sh                                       |  16 +-
+ test/node-loop.test.mjs                            |  26 +-
+ test/pi-tree.test.mjs                              |  38 +-
+ test/ready.sh                                      |  44 +-
+ test/release.sh                                    |   8 +-
+ test/skills.sh                                     | 147 +++---
+ test/tape.sh                                       |  22 +-
+ test/traverse.sh                                   |   9 -
+ test/worktree.sh                                   |  96 ++--
+ 112 files changed, 3835 insertions(+), 3608 deletions(-)
+=== QUEST/graph record ===
+experiments
+QUEST.md
+--- QUEST.md head ---
+---
+status: proposed
+home_repo: bp3
+date: 2026-11-16
+---
+
+# 2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+
+## TL;DR
+
+Three owner-settled changes to the bp3 harness
+ecosystem, in dependency order. (1) Every edge
+execution claims a magic link first: root worker
+mints a one-time link, the child claims it as its
+first action, and the claim atomically binds
+session-id <> run-id in the common-dir hard store;
+bp3 then resolves context from the store and env
+vars are demoted to hints. (2) The graph schedules:
+ready-set scheduling with per-node timing
+measured in-system, wall-clock as a first-class
+scorecard field. (3) Last, the rename: graph/node/
+state/edge/dep vocabulary, `bp3 g` CLI, and the
+conducting skills become the `bp3g` family.
+
+North Star: quality and speed. Tokens may be spent
+on validation; wall time may not be wasted on
+setup friction or serial waiting. Every speed
+claim carries a timer in the system or it is
+marketing.
+
+## Terms (settled 2026-11-16, owner)
+
+| Term | Was | Meaning |
+|---|---|---|
+| graph | quest | the whole work graph; a goal pursued as a graph. CLI door: `bp3 g` (graph create/read/update/delete) |
+| node door | (new) | CLI door per noun: `bp3 n` (node read + edge calls). `bp3 g` = graph, `bp3 n` = node, `bp3 harness` = supervisor machinery — one door per noun (owner, red-ink round 1) |
+| goal (G) | quest, as owner-facing word | G stands for goal and graph; skills are the `bp3g` family (`/bp3g`) because bare "goal" collides across harnesses |
+| node | exp / experiment | one work unit in the graph; root worker dispatches nodes |
+| state | FSM state | where a node rests (todo, handed_off, approved, landed, blocked, deleted) |
+| edge | transition / engine-fsm-edge | one transition of a node's FSM, executed by exactly one subagent Run |
+| dep | depends_on / railway order | a link between nodes; not an edge |
+| ready-set | cohort / layer (retired) | nodes whose deps are landed and state is `todo`; dispatched together as a wave, recomputed per read |
+| root worker | graph worker / conductor (retired) | the session at the tree's root (depth 0, no parent run); schedules ready-sets, owns human gates |
+| link | (new) | one-time claim token binding a session to one edge execution |
+| Run | Run | one subagent execution of one edge (unchanged) |
+| tape | tape | the harness session recording (unchanged) |
+
+States rest in the root worker's read. Edges are
+subagents. A child holds nothing across edges;
+context is claimed, never remembered.
+
+Edge names (settled red-ink names round, owner —
+option A; rides rename.1, old ledgers keep old
+words and the rename table maps them):
+
+| Coded today | Settled name | Caller does |
+|---|---|---|
+| `submit` | `handoff` | author binds the finished commit |
+| `review` | `grade` | reviewer grades the exact commit (`ship\|needs_fix`) |
+| `check` | `verify` | machine checks (`pass\|fail`) |
+| `land` | `land` | merge into the graph branch |
+| state `submitted` | state `handed_off` | verb/state rhyme: `handoff` hands off, node rests `handed_off` |
+| `block` | `block` | park for a human decision |
+| `resume` | `resume` | human answer re-enters (`BP3_DECIDER=human`) |
+
+Link mint/claim are verbs, not flags:
+`bp3 harness link mint --kind node|edge …` and
+`bp3 harness link claim <token>`. A node link
+carries no edge name — the node worker executes
+no transition when it claims.
+
+Door letter settled: `bp3 g`, not `bp3 t`.
+Nodes form a DAG (shared deps, diamonds — a tree
+allows one parent), scheduled by BFS ready-set
+waves; the *execution* is a tree of workers.
+Tree survives as a view (`--format tree`) and as
+the worker-tree shape, never as the addressed
+noun.
+
+## Success picture
+=== runs existing ===
+ls: runs: No such file or directory
+20261117T084553Z-handoff-muse-code-muse-wonder-1.0-c1
+20261117T094051Z-node-muse-code-muse-wonder-1.0-c1
+=== ledger locations ===
+find: .bp3: No such file or directory
+/Users/whycz/m/bp3/.git
+=== fold search ===
+src/graph/main.ml:289:      let ns = { s with st = (if approved_now then "approved" else "handed_off");
+src/graph/main.ml:296:      if s.st <> "handed_off" then illegal s.st edge;
+src/graph/main.ml:326:        let nst = if now_approved then "approved" else "handed_off" in
+src/graph/main.ml:385:      if not (List.mem s.st ["todo"; "handed_off"; "approved"]) then illegal s.st edge;
+src/graph/render.ml:124:  | "handed_off" | "approved" | "blocked" -> "u"
+src/graph/store.ml:172:let fold_state_name = function "submitted" -> "handed_off" | s -> s
+src/graph/store.ml:295:  | "handed_off" -> ["grade"; "verify"; "block"; "delete"]
+=== submitted in src/graph ===
+src/graph/store.ml:172:let fold_state_name = function "submitted" -> "handed_off" | s -> s
+=== old verbs as edge names ===
+src/graph/worktree.ml:523:  | "check" :: rest ->
+src/graph/main.ml:101:             ("legal_edges", `List (List.map json_str (legal_edges state)))])
+src/graph/main.ml:102:    "Pick a legal edge from legal_edges for the current state." 1
+src/graph/main.ml:208:    ("legal_edges", `List (List.map json_str (legal_edges "todo")))]
+src/graph/main.ml:230:         ("legal_edges", `List (List.map json_str (legal_edges s.st)))]
+src/graph/main.ml:265:      ("legal_edges", `List (List.map json_str (legal_edges ns.st)))] in
+src/graph/main.ml:356:          ("legal_edges", `List [])]
+src/graph/main.ml:368:            ("legal_edges", `List (List.map json_str (legal_edges "todo")))]
+src/graph/main.ml:381:            ("legal_edges", `List [])]
+src/graph/main.ml:482:    | Some (_, s, _) -> (json_str s.st, List.map json_str (legal_edges s.st))
+src/graph/main.ml:497:          ("state", state); ("legal_edges", `List legal);
+src/graph/render.ml:39:    ("legal_edges", `List (List.map json_str (legal_edges s.st)));
+src/graph/render.ml:229:  let legal = match g "legal_edges" with
+src/graph/render.ml:309:  let legal = match g "legal_edges" with
+src/graph/hooks.ml:343:                                  [("check", json_str check);
+src/graph/store.ml:23:    "derive"; "inspect"; "remove"; "prepare"; "check"; "exit";
+src/graph/store.ml:169:  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+src/graph/store.ml:292:let legal_edges st =
+=== store.ml fold region ===
+let get_opt j key =
+  try match Yojson.Safe.Util.member key j with `String s -> Some s | _ -> None
+  with _ -> None
+
+(* The one compat mapping (mig.1, rename.1): pre-rename ledger
+   strings fold to the new words here and nowhere else; new ledger
+   lines already carry the new words. Verb/state words arrived in
+   mig.1; the graph/node type keys arrived in rename.1. *)
+let fold_edge = function
+  | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
+  | e -> e
+
+let fold_state_name = function "submitted" -> "handed_off" | s -> s
+
+(* Pre-rename type keys, read only here: a frozen ledger's create
+   line names its plan with the old key; new lines use the new key. *)
+let fold_type_key j new_key old_key default =
+  match get_opt j new_key with
+  | Some v -> v
+  | None -> get_str j old_key default
+
+let fold_ledger text =
+  let s = fresh_state () in
+  let graph_type = ref "default" in
+  let depends_on = ref [] in
+  String.split_on_char '\n' text |> List.iter (fun ln ->
+    let ln = String.trim ln in
+    if ln <> "" then
+      try
+        let j = Yojson.Safe.from_string ln in
+        let edge = fold_edge (get_str j "edge" "") in
+        let to_ = fold_state_name (get_str j "to" "") in
+        let cyc = get_int j "cycle" s.cycle in
+        if edge = "create" || edge = "dep" then begin
+          if edge = "create" then begin
+            s.node_type <- fold_type_key j "node_type" "exp_type"
+              (fold_type_key j "graph_type" "quest_type" "default");
+            graph_type := fold_type_key j "graph_type" "quest_type" !graph_type
+          end;
+          (try match Yojson.Safe.Util.member "depends_on" j with
+             | `List xs -> depends_on := List.map (function `String x -> x | _ -> "") xs
+=== legal_edges ===
+  | Some (tip, text) -> let (s, qt, deps) = fold_ledger text in Some (tip, s, qt, deps, text)
+
+let legal_edges st =
+  match st with
+  | "todo" -> ["handoff"; "block"; "delete"]
+  | "handed_off" -> ["grade"; "verify"; "block"; "delete"]
+  | "approved" -> ["land"; "block"; "delete"]
+  | "blocked" -> ["resume"; "delete"]
+  | _ -> []
+
+let state_yaml q e s =
+  Printf.sprintf "graph: %s\nnode: %s\nstate: %s\ncycle: %d\ncommit: %s\n"
+    q e s.st s.cycle (match s.last_commit with Some c -> c | None -> "none")
+
+let ledger_line ~edge ~from ~to_ ~cycle ~commit ~verdict ~reason ~id
+    ?checkpoint ?extra () =
+  let base = [
+    ("ts", json_str (now_ts ()));
+    ("edge", json_str edge);
+    ("from", json_str from);
+    ("to", json_str to_);
+    ("cycle", `Int cycle);
+    ("commit", (match commit with Some c -> json_str c | None -> `Null));
+    ("verdict", (match verdict with Some v -> json_str v | None -> `Null));
+    ("reason", json_str reason);
+    ("harness", json_str id.harness);
+    ("model", json_str id.model);
+    ("bp3_version", json_str bp3_version);
+  ] in
+  let base = match id.run_id with Some r -> base @ [("run_id", json_str r)] | None -> base in
+  let base = match checkpoint with Some c -> base @ [("checkpoint", json_str c)] | None -> base in
+=== count fold sites ===
+src/graph/store.ml:172:let fold_state_name = function "submitted" -> "handed_off" | s -> s
+src/graph/store.ml:191:        let to_ = fold_state_name (get_str j "to" "") in
+src/graph/store.ml:405:        let to_ = fold_state_name (get_str j "to" "") in
+=== bp3 g help ===
+bp3 g - graph/node state. Doors:
+bp3 g c|r|d ...              graph door (create, read, delete)
+bp3 g <graph> c|r|u|d ...    node door for one graph
+bp3 g <graph> n <node> r     read one node (canonical nested address)
+bp3 g <graph> n <node> e <edge> [flags]   take one node's edge (canonical nested address)
+bp3 g <graph> diagram ...    generated graph diagram from the live rollup (mvp.4)
+bp3 g icebox r [term...]     search frozen icebox entries (read-only)
+bp3 n [r]                    claimed node door: read the claimed run's node (rename.1)
+bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)
+bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias
+bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)
+bp3 g hooks                  harness hook emitter (fail-open)
+Run bp3 g <door> -h for that door's verbs, edges, and flags.
+exit:0
+=== bp3 q ===
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]
+exit:0
+bp3_q_exit=2
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]
+bp3_q_foo_exit=0
+{"ok":false,"error":{"code":"E_USAGE","facts":{"detail":"no command"},"guidance":"Fix the call: no command"}}
+exit=2
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]
+g_help_exit=0
+bp3 g - graph/node state. Doors:
+bp3 g c|r|d ...              graph door (create, read, delete)
+bp3 g <graph> c|r|u|d ...    node door for one graph
+bp3 g <graph> n <node> r     read one node (canonical nested address)
+bp3 g <graph> n <node> e <edge> [flags]   take one node's edge (canonical nested address)
+=== naming skill vocab ===
+---
+name: naming
+description: "Choose concrete, short names in bp3's existing vocabulary for graphs, nodes, skills, plans, engines, and CLI verbs."
+---
+
+# Naming
+
+Use when a human, Controller, or Worker in bp3 must name or
+rename something: a graph slug, node, skill, plan (`graph_type`),
+engine, CLI verb, file, or state. Invoked by name (`/naming`,
+`$naming`). One output: one recommended name, with the vocabulary
+it reuses. A shortlist only when two names genuinely tie.
+
+Use `bp3g-frame` for framing a graph (it delegates naming here),
+`using-bp3` for operating the CLI, and general judgment for
+ordinary code identifiers with no bp3 meaning.
+
+## The vocabulary (reuse before inventing)
+
+- Planning: graph, node, Run. The conducting skill family is
+  `bp3g`: `/bp3g` conducts a graph, `/bp3g-frame` frames one,
+  `/bp3g-no-human` runs unattended (G stands for goal and graph;
+  bare "goal" collides across harnesses).
+- Doors: `bp3 g` (graph), `bp3 n` (claimed node), `bp3 e`
+  (claimed edge); the canonical address nests:
+  `bp3 g <graph> n <node> e <edge>`. One door per noun; the
+  retired `bp3 q` door refuses.
+- Node states (where a node rests): todo, handed_off, approved,
+  landed, blocked, deleted. Graph lifecycle: proposed, active,
+  landed, canceled. Never archived, cancelled, aborted, killed.
+- Edges (one transition, executed by exactly one Run):
+  handoff, grade, verify, land, block, resume. A dep links
+  nodes; a dep is not an edge. Stages: author, grade, fix,
+  ready, landed, blocked, canceled.
+- Dimensions: `graph_type` (the plan: default is implemented;
+  design, mvp, refactor, frontend, backend are proposed), `engine` (who executes: single,
+  master-subagents, panes, workflows).
+- Artifacts: GRAPH.md, state.yaml, ledger.jsonl,
+  tape.log, notes.md, runs/. Storage paths and ledger history
+  keep their frozen spellings; only the fold maps them.
+- Ceremony lanes: micro, standard, high-blast-radius.
+
+## Procedure
+
+1. Name the kind of thing and where it will be read (CLI, file
+   path, graph doc, chat). The same concept may need the kind's
+   local spelling: kebab-case for slugs and files, lowercase
+   words for verbs and stages.
+2. Search the vocabulary above and the repo for the concept's
+   existing word. If a word exists, use it, even imperfectly.
+3. If no word exists, coin the shortest concrete one: a noun for
+   things, a verb for moves. Two syllables beat three; a word a
+   newcomer guesses correctly beats a clever one.
+4. Check the name against its neighbors: it must not collide
+   with, abbreviate, or synonym-shadow an existing term.
+5. Say the name, the word it reuses or why none fit, and stop.
+
+## Rules
+
+- One concept, one word, one spelling, everywhere: files, CLI,
+=== vocabulary grep live surfaces ===
+=== test files list ===
+test/bp3g.sh
+test/completion.sh
+test/g.sh
+test/skills.sh
+=== bp3g skills installed ===
+.agents/skills/bp3g
+.agents/skills/bp3g-frame
+.agents/skills/bp3g-landing-demo
+.agents/skills/bp3g-no-human
+.claude/skills/bp3g
+.claude/skills/bp3g-frame
+.claude/skills/bp3g-landing-demo
+.claude/skills/bp3g-no-human
+.pi/skills/bp3g
+.pi/skills/bp3g-frame
+.pi/skills/bp3g-landing-demo
+.pi/skills/bp3g-no-human
+skills/bp3g
+skills/bp3g-frame
+skills/bp3g-landing-demo
+skills/bp3g-no-human
+#!/bin/sh
+# bp3g workflow contract tests (mock host, no agent calls).
+set -eu
+cd "$(dirname "$0")/.."
+node test/node-loop.test.mjs
+node test/bp3g-node.test.mjs
+node test/bp3g-grade.test.mjs
+node test/bp3g-land.test.mjs
+node test/bp3g-conduct.test.mjs
+node-loop tests: ok
+bp3g-node tests: ok
+bp3g-grade tests: ok
+bp3g-land tests: ok
+bp3g-conduct tests: ok
+bp3g_sh_exit=0
+g tests: ok
+g_sh_exit=0
+/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/completions/bp3.bash: line 186: syntax error near unexpected token `<'
+completion_exit=0
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (128 assertions)
+skills_exit=0
+=== history ledger diff ===
+grep_ledger_exit=0
+=== all changed paths count ===
+     112
+=== derivation log ===
+ls: /Users/whycz/m/bp3/.git/bp3/run-lifecycle-derivations/20261117T094051Z-node-muse-code-muse-wonder-1.0-c1.jsonl: No such file or directory
+     112
+0
+ledger_count=0
+(no ledger paths)
+20261115T215646Z-audit-muse-code-muse-wonder-1.0-c1.json
+20261115T215646Z-audit-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T215646Z-review-muse-code-muse-wonder-1.0-c1.json
+20261115T215646Z-review-muse-code-muse-wonder-1.0-c1.jsonl
+20261115T220235Z-audit-muse-code-muse-wonder-1.0-c1.json
+test/skills.sh:28:awk '/^description:/ {$0="description: Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests."} {print}' "$work/good.md" > "$source"
+test/skills.sh:39:assert test "$(yq --front-matter=extract '.description' "$source")" = 'Add a portable, human-invoked skill to bp3-yap-skills through its gates: clarify, prior art, red chair, and trigger tests.'
+test/skills.sh:60:# bp3g is the one conducting skill; old traverse/induct/quest names render nowhere.
+test/skills.sh:65:  assert test ! -e "$root/$h/skills/quest"
+test/skills.sh:82:assert test ! -e "$root/.agents/workflows/quest-land.js"
+test/skills.sh:142:assert grep -q 'design question' "$repo/skills/bp3g-no-human/SKILL.md"
+test/g.sh:42:if out=$(BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 quest demo r parser-fix 2>&1); then fail "old quest door accepted"; fi
+test/g.sh:44:echo "$out" | jq -e '.ok == true and .graph == "demo" and .node == "parser-fix" and .state == "todo" and (has("quest") | not) and (has("exp") | not)' >/dev/null || fail "nested node read: $out"
+test/g.sh:51:before=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+test/g.sh:58:after=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+test/g.sh:64:after=$(git show bp3/exp/demo/parser-fix:docs/quests/demo/experiments/parser-fix/ledger.jsonl | wc -l)
+test/g.sh:70:git show bp3/exp/demo/id-node:docs/quests/demo/experiments/id-node/ledger.jsonl | tail -1 | jq -e '.harness == "unknown" and .model == "unknown" and .bp3_version == "0.2.0"' >/dev/null || fail "identity ledger unknown"
+test/g.sh:79:git show bp3/exp/runq/rid-node:docs/quests/runq/experiments/rid-node/ledger.jsonl | tail -1 | jq -e '.run_id == "run-42" and .harness == "muse-code"' >/dev/null || fail "run-id ledger set"
+test/g.sh:84:git show bp3/exp/runq/rid-unset:docs/quests/runq/experiments/rid-unset/ledger.jsonl | tail -1 | jq -e 'has("run_id") | not' >/dev/null || fail "run-id ledger unset"
+test/g.sh:89:git show bp3/exp/runq/rid-unknown:docs/quests/runq/experiments/rid-unknown/ledger.jsonl | tail -1 | jq -e '(has("run_id") | not) and .harness == "unknown"' >/dev/null || fail "run-id unset unknown ledger"
+test/g.sh:109:  local br="bp3/exp/demo/$1" path="docs/quests/demo/experiments/$1/ledger.jsonl" tip idx led blob tree nt
+test/g.sh:224:node_ledger() { git show "bp3/exp/demo/$1:docs/quests/demo/experiments/$1/ledger.jsonl"; }
+test/g.sh:365:[ "$(git show bp3/quest/demo:fa.txt)" = "A-content" ] || fail "clean merge lost fa.txt"
+test/g.sh:366:[ "$(git show bp3/quest/demo:fb.txt)" = "B-content" ] || fail "clean merge lost fb.txt"
+test/g.sh:367:git merge-base --is-ancestor "$LAND_A" bp3/quest/demo || fail "land-a reviewed commit not ancestor of graph tip"
+test/g.sh:368:git merge-base --is-ancestor "$LAND_B" bp3/quest/demo || fail "land-b reviewed commit not ancestor of graph tip"
+test/g.sh:403:[ "$(git show bp3/quest/demo:shared.txt)" = "C-side" ] || fail "conflict overwrote graph work file"
+test/g.sh:460:test ! -f docs/quests/demo/experiments/clone-blocked/state.yaml || fail "clone worktree carries state.yaml; branch-tip proof unclear"
+test/g.sh:520:promoted: docs/quests/some-graph/GRAPH.md
+test/g.sh:531:echo "$out" | jq -e '.ok == true and (.entries | length == 3) and .entries[0].slug == "2026-01-01-alpha-idea" and .entries[0].date == "2026-01-01" and .entries[0].status == "frozen" and .entries[0].promoted == null and .entries[0].title == "Alpha idea" and .entries[1].promoted == "docs/quests/some-graph/GRAPH.md" and .entries[2].slug == "2026-01-03-broken" and .entries[2].date == "-" and .entries[2].status == "-" and .entries[2].title == "-"' >/dev/null || fail "icebox list: $out"
+test/g.sh:545:echo "$itbl" | grep -q 'docs/quests/some-graph/GRAPH.md' || fail "icebox table promoted: $itbl"
+test/g.sh:552:  local br="bp3/exp/$1/$2" path="docs/quests/$1/experiments/$2/ledger.jsonl" tip idx led blob tree nt
+---old door grep in main---
+---bp3g smoke---
+---
+name: bp3g
+description: Conduct one bp3 graph from the main session — read state with bp3 g r, dispatch the one step that state calls for, re-read, until the graph is terminal or a human decision is owed.
+---
+
+# Bp3g
+
+Use when a human in a bp3-enabled repo invokes this skill by
+name (`/bp3g <graph>`, `$bp3g <graph>`) or asks to "bp3g",
+"run", or "keep going on" a named graph until it lands or
+blocks. One graph per bp3g. One output: step dispatches
+through `bp3 g`, ending in a bp3g report — what reached
+`node_fin`, what is blocked, and what human decision is owed
+next. Finish lines have report words: `node_fin` names an node
+whose state is `landed` (its `land` edge taken); `graph_fin`
+names graph promotion to master, the only owner-gated finish
+line. The FSM states stay `landed`; `node_fin`/`graph_fin`
+name the finish lines in reports, never new edges.
+
+Use `graph` instead to frame a new graph. Use `using-bp3`
+live-quest-hits:
+skills/bp3g-frame/SKILL.md
+skills/bp3g/workflows/node-loop.js
+skills/bp3g/workflows/bp3g-land.js
+skills/bp3g/workflows/bp3g-node.js
+skills/bp3g/workflows/bp3g-grade.js
+skills/using-bp3/SKILL.md
+skills/red-ink/SKILL.md
+skills/bp3g-landing-demo/SKILL.md
+skills/bp3g-no-human/SKILL.md
+skills/icebox/SKILL.md
+count:
+       0
+skills/bp3g-frame/SKILL.md:3:description: Turn a known intent into a bp3 Graph file at docs/quests/<date>-<slug>.md with nodes, acceptance checks, and human touchpoints.
+skills/bp3g-frame/SKILL.md:14:    +-------> docs/quests/<date>-<slug>.md
+skills/bp3g-frame/SKILL.md:50:before questions because the repo already holds most answers.
+skills/bp3g-frame/SKILL.md:70:| 2 | Research the ground: MVP doc, home repo state, prior Graphs in `docs/quests/` | every claim traces to a file read this session |
+skills/bp3g-frame/SKILL.md:71:| 3 | Ask questions whose answers change the shape: home repo, success picture, lane, first node | the rest become assumptions or open questions in the file |
+skills/bp3g-frame/SKILL.md:73:| 5 | Draft `docs/quests/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) | one Graph per file |
+skills/bp3g-frame/SKILL.md:75:| 6.5 | Diligence gate per node: design settled (no open questions), acceptance fails today, demo defined up front | an node with open design questions is not ready for `bp3g`; settle it with `red-ink` first — Node 4 of the MVP graph shipped unsettled design and the landing review caught it late |
+skills/bp3g-frame/SKILL.md:100:Graph framed from one anyway says so in its Open questions.
+skills/bp3g-frame/SKILL.md:239:## Open questions    (ranked, each with an owner)
+skills/bp3g-frame/SKILL.md:259:Files stay in `docs/quests/` for life — node records point at them.
+skills/using-bp3/SKILL.md:25:   --engine <engine>`. It scaffolds `docs/quests/<name>/`

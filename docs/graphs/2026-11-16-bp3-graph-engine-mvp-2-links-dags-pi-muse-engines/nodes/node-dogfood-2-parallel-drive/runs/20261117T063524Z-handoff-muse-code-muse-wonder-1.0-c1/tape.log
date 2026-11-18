@@ -1,0 +1,751 @@
+{"ok":true,"run_id":"20261117T063524Z-handoff-muse-code-muse-wonder-1.0-c1","kind":"edge","graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","edge":"handoff","state":"claimed","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","pid":57570,"cwd":"/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","parent_run_id":"","depth":0,"claimed_at":"2026-11-17T06:35:41Z"}
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/QUEST.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-rename-1-bp3g-rename/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T004025Z-land-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T004025Z-land-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261116T231553Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261116T231553Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003239Z-node-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003239Z-node-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003626Z-grade-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-1-link-claim/runs/20261117T003626Z-grade-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-landing-1-landing-wrapup/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-2-parallel-drive/runs/20261117T063524Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T054559Z-handoff-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T054559Z-handoff-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T053338Z-node-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T053338Z-node-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T055712Z-grade-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T055712Z-grade-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T055719Z-verify-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T055719Z-verify-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T060015Z-land-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T060015Z-land-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T053455Z-grade-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T053455Z-grade-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T053502Z-verify-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T053502Z-verify-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T055441Z-node-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mvp-5-blocked-fail-fast/runs/20261117T055441Z-node-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-verify-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-verify-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212019Z-verify-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212019Z-verify-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T194936Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T194936Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212019Z-audit-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212019Z-audit-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-grade-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-grade-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-audit-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T195727Z-audit-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212019Z-grade-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212019Z-grade-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212257Z-land-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T212257Z-land-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename/runs/20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T040644Z-handoff-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T040644Z-handoff-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T035432Z-node-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T035432Z-node-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T041930Z-verify-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T041930Z-verify-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T041834Z-node-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T041834Z-node-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T041924Z-grade-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T041924Z-grade-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T035551Z-verify-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T035551Z-verify-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T042103Z-land-muse-code-muse-wonder-1.0-c2/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T042103Z-land-muse-code-muse-wonder-1.0-c2/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-1-grade-evidence/runs/20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-followup-2-workflow-birth/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T062205Z-node-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T062205Z-node-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/metrics.json
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/old-brief.txt
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/link-brief-pi.txt
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/attacks.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/flappy-link-pi.html
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/link-brief-muse.txt
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/flappy-link-muse.html
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/flappy-old-pi.html
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1/flappy-old-muse.html
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T063415Z-land-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-dogfood-1-link-drive/runs/20261117T063415Z-land-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/EXPERIMENT.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-grade-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-grade-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-verify-muse-code-muse-wonder-1.0-c1/tape.log
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-verify-muse-code-muse-wonder-1.0-c1/notes.md
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-1-handoff-verbs/runs/20261116T193614Z-audit-muse-code-muse-wonder-1.0-c1/tape.log
+adfd7b0 test(dogfood.1): link-drive A/B proof — one-line brief, attacks refuse
+f5b434d test(mvp.5): Pi process-tree proof — bubble once, tree dead, fresh revival
+3ce9c2d docs(mvp.5): name cycle-2 Pi process-tree proof fix
+4d00100 feat(mvp.5): blocked-fail-fast — typed failure blocks once, orphans replaced, bubble carries facts
+fe6efe7 feat(mvp.4): diagram verb — generated ascii/mermaid from live rollup
+8411e0a fix(followup.1): make run-folder validation trustworthy
+0aa087d docs(followup.1): name cycle-2 fix for run-folder validation false fail
+5cce4cc feat(followup.1): grade validations, audit re-collect, named verdict race
+6e2dd7c docs(followup.1): amend grade-evidence with grade validations design
+105cbea test(mvp.3): quotable no-hand-edited-state guard for cycle-2 grade
+b765d07 feat(mvp.3): ready-set waves, node deps, derived timing, setup gate, induct-node loop
+b2250e3 chore: sync installed workflow renders with committed sources
+63d49cd feat(mvp.2): context resolution — session/desk rungs, bp3 e door, claimed run-id stamping
+febc3ac docs(graph-engine): add followup.2 workflow-birth node
+09b9d8d feat(mvp.1): one-time link claim binding (mint/claim/lookup/cleanup)
+c9a76eb docs(graph-engine): add followup.1 grade-evidence node
+3c47fe5 fix(config.1): attribute mkdir failures, scope thresholds claim
+229a6ba feat(config.1): add bp3 config store and view door
+321b965 test(mig.2): add traverse conduction smoke drive
+65d55af feat(mig.2): rename conducting skills to traverse, workflow to node-loop
+quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"proposed","exps":[{"exp":"exp-config-1-bp3-config","state":"landed","fin":"exp_fin","cycle":2,"commit":"3c47fe532642369348656be958eb577fc662881d","deps":[],"timing":{"wall_s":6135,"wait_s":8448,"dwell_s":{"approved":67,"blocked":5080,"handed_off":536,"todo":8900},"cycles":2},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"}]},{"exp":"exp-dogfood-1-link-drive","state":"landed","fin":"exp_fin","cycle":1,"commit":"adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53","deps":[],"timing":{"wall_s":882,"wait_s":40045,"dwell_s":{"approved":68,"handed_off":814,"todo":40045},"cycles":1},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"+","path":"test/dogfood-link.sh"}]},{"exp":"exp-dogfood-2-parallel-drive","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null},{"exp":"exp-followup-1-grade-evidence","state":"landed","fin":"exp_fin","cycle":2,"commit":"8411e0a61f8f0e72ff17caa630ea93345cba3d90","deps":[],"timing":{"wall_s":1816,"wait_s":17337,"dwell_s":{"approved":70,"blocked":317,"handed_off":939,"todo":17827},"cycles":2},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":"skills/traverse/workflows/induct-grade.js"},{"change":"u","path":"test/induct-grade.test.mjs"}]},{"exp":"exp-followup-2-workflow-birth","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null},{"exp":"exp-landing-1-landing-wrapup","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null},{"exp":"exp-mig-1-handoff-verbs","state":"landed","fin":"exp_fin","cycle":1,"commit":"44196725860125de048415ff6a4be350a90c033b","deps":[],"timing":{"wall_s":863,"wait_s":1376,"dwell_s":{"approved":68,"handed_off":795,"todo":1376},"cycles":1},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":".agents/skills/induct/SKILL.md"},{"change":"u","path":".agents/skills/naming/SKILL.md"},{"change":"u","path":".agents/skills/quest/SKILL.md"},{"change":"u","path":".agents/skills/red-ink/SKILL.md"},{"change":"u","path":".agents/skills/using-bp3/SKILL.md"},{"change":"u","path":".agents/workflows/induct-exp.js"},{"change":"u","path":".agents/workflows/induct-grade.js"},{"change":"u","path":".claude/skills/induct/SKILL.md"},{"change":"u","path":".claude/skills/naming/SKILL.md"},{"change":"u","path":".claude/skills/quest/SKILL.md"},{"change":"u","path":".claude/skills/red-ink/SKILL.md"},{"change":"u","path":".claude/skills/using-bp3/SKILL.md"},{"change":"u","path":".pi/skills/induct/SKILL.md"},{"change":"u","path":".pi/skills/naming/SKILL.md"},{"change":"u","path":".pi/skills/quest/SKILL.md"},{"change":"u","path":".pi/skills/red-ink/SKILL.md"},{"change":"u","path":".pi/skills/using-bp3/SKILL.md"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/roles/author.md"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"plans/default.yaml"},{"change":"u","path":"plans/direct.yaml"},{"change":"u","path":"skills/induct/SKILL.md"},{"change":"u","path":"skills/induct/workflows/induct-exp.js"},{"change":"u","path":"skills/induct/workflows/induct-grade.js"},{"change":"u","path":"skills/naming/SKILL.md"},{"change":"u","path":"skills/quest/SKILL.md"},{"change":"u","path":"skills/red-ink/SKILL.md"},{"change":"u","path":"skills/using-bp3/SKILL.md"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"u","path":"test/completion.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/hooks.sh"},{"change":"u","path":"test/induct-exp.test.mjs"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"u","path":"test/install.sh"},{"change":"u","path":"test/q.sh"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/tape.sh"},{"change":"u","path":"test/worktree.sh"}]},{"exp":"exp-mig-2-traverse-rename","state":"landed","fin":"exp_fin","cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","deps":[],"timing":{"wall_s":5241,"wait_s":2660,"dwell_s":{"approved":63,"blocked":3928,"handed_off":838,"todo":3072},"cycles":2},"legal_edges":[],"blocked":null,"changes":[{"change":"+","path":"test/traverse-conduct.test.mjs"},{"change":"u","path":"test/traverse.sh"}]},{"exp":"exp-mvp-1-link-claim","state":"landed","fin":"exp_fin","cycle":1,"commit":"09b9d8d01646ca0f2faeb273bbf227aaa9c43fb3","deps":[],"timing":{"wall_s":3167,"wait_s":16553,"dwell_s":{"approved":61,"handed_off":3106,"todo":16553},"cycles":1},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"extensions/bp3-pi/README.md"},{"change":"u","path":"extensions/bp3-pi/index.ts"},{"change":"u","path":"extensions/bp3-pi/src/contract.ts"},{"change":"u","path":"extensions/bp3-pi/src/dispatcher.ts"},{"change":"u","path":"extensions/bp3-pi/test/bp3-pi.test.mjs"},{"change":"u","path":"skills/traverse/workflows/induct-grade.js"},{"change":"u","path":"skills/traverse/workflows/node-loop.js"},{"change":"u","path":"skills/traverse/workflows/quest-land.js"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"test/config.sh"},{"change":"u","path":"test/harness.sh"},{"change":"u","path":"test/induct-grade.test.mjs"},{"change":"+","path":"test/link.sh"},{"change":"u","path":"test/node-loop.test.mjs"},{"change":"u","path":"test/quest-land.test.mjs"},{"change":"u","path":"test/traverse-conduct.test.mjs"}]},{"exp":"exp-mvp-2-context-resolution","state":"landed","fin":"exp_fin","cycle":1,"commit":"63d49cd86c64452f10d64e0fa7c2c6f231e3db37","deps":[],"timing":{"wall_s":1990,"wait_s":21098,"dwell_s":{"approved":1315,"handed_off":675,"todo":21098},"cycles":1},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"bin/bp3"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"src/quest/config.ml"},{"change":"u","path":"src/quest/harness.ml"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"+","path":"test/context.sh"}]},{"exp":"exp-mvp-3-ready-set-timing","state":"landed","fin":"exp_fin","cycle":2,"commit":"105cbea174e8b204413cf2428aea78eec2e344d0","deps":[],"timing":{"wall_s":4941,"wait_s":28377,"dwell_s":{"approved":74,"blocked":252,"handed_off":3665,"todo":29327},"cycles":2},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"test/ready.sh"}]},{"exp":"exp-mvp-4-diagram-emit","state":"landed","fin":"exp_fin","cycle":1,"commit":"fe6efe79513040a1ad8b7a8d7e2d275f961d7415","deps":[],"timing":{"wall_s":744,"wait_s":33940,"dwell_s":{"approved":76,"handed_off":668,"todo":33940},"cycles":1},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"u","path":"completions/_bp3"},{"change":"u","path":"completions/bp3.bash"},{"change":"u","path":"src/quest/main.ml"},{"change":"u","path":"src/quest/render.ml"},{"change":"u","path":"src/quest/store.ml"},{"change":"+","path":"test/diagram.sh"}]},{"exp":"exp-mvp-5-blocked-fail-fast","state":"landed","fin":"exp_fin","cycle":2,"commit":"f5b434d04e91e4160ea8f36522822e90effa1cc0","deps":[],"timing":{"wall_s":1905,"wait_s":37147,"dwell_s":{"approved":221,"blocked":572,"handed_off":695,"todo":37564},"cycles":2},"legal_edges":[],"blocked":null,"changes":[{"change":"u","path":"Makefile"},{"change":"+","path":"test/pi-tree.test.mjs"}]},{"exp":"exp-rename-1-bp3g-rename","state":"todo","fin":null,"cycle":1,"commit":null,"deps":[],"timing":{"wall_s":null,"wait_s":null,"dwell_s":{},"cycles":1},"legal_edges":["handoff","block","delete"],"blocked":null,"changes":null}],"ready_set_waves":[["exp-dogfood-2-parallel-drive","exp-followup-2-workflow-birth","exp-landing-1-landing-wrapup","exp-rename-1-bp3g-rename"]],"ready":["exp-dogfood-2-parallel-drive","exp-followup-2-workflow-birth","exp-landing-1-landing-wrapup","exp-rename-1-bp3g-rename"],"starved":[],"setup":[{"run_id":"20261117T003239Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":null,"setup_wall_s":14},{"run_id":"20261117T003626Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":"grade","setup_wall_s":25},{"run_id":"20261117T003633Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":"verify","setup_wall_s":15},{"run_id":"20261117T004025Z-land-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-1-link-claim","edge":"land","setup_wall_s":10},{"run_id":"20261117T004144Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"handoff","setup_wall_s":124},{"run_id":"20261117T010557Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":null,"setup_wall_s":9},{"run_id":"20261117T010735Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"grade","setup_wall_s":18},{"run_id":"20261117T010741Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"verify","setup_wall_s":14},{"run_id":"20261117T011548Z-land-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-2-context-resolution","edge":"land","setup_wall_s":11},{"run_id":"20261117T013825Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":"handoff","setup_wall_s":34},{"run_id":"20261117T030756Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":null,"setup_wall_s":10},{"run_id":"20261117T031033Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":"grade","setup_wall_s":16},{"run_id":"20261117T031039Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-3-ready-set-timing","edge":"verify","setup_wall_s":12},{"run_id":"20261117T032158Z-handoff-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":"handoff","setup_wall_s":13},{"run_id":"20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-followup-1-grade-evidence","edge":"handoff","setup_wall_s":33},{"run_id":"20261117T035432Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-followup-1-grade-evidence","edge":null,"setup_wall_s":8},{"run_id":"20261117T035544Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-followup-1-grade-evidence","edge":"grade","setup_wall_s":26},{"run_id":"20261117T035551Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-followup-1-grade-evidence","edge":"verify","setup_wall_s":12},{"run_id":"20261117T040644Z-handoff-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":"handoff","setup_wall_s":17},{"run_id":"20261117T041834Z-node-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":null,"setup_wall_s":7},{"run_id":"20261117T041924Z-grade-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":"grade","setup_wall_s":18},{"run_id":"20261117T041930Z-verify-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":"verify","setup_wall_s":14},{"run_id":"20261117T042103Z-land-muse-code-muse-wonder-1.0-c2","node":"exp-followup-1-grade-evidence","edge":"land","setup_wall_s":10},{"run_id":"20261117T042227Z-node-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":null,"setup_wall_s":10},{"run_id":"20261117T042421Z-grade-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":"grade","setup_wall_s":18},{"run_id":"20261117T042426Z-verify-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":"verify","setup_wall_s":14},{"run_id":"20261117T042701Z-land-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-3-ready-set-timing","edge":"land","setup_wall_s":11},{"run_id":"20261117T042817Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":"handoff","setup_wall_s":40},{"run_id":"20261117T044013Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":null,"setup_wall_s":13},{"run_id":"20261117T044115Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":"grade","setup_wall_s":16},{"run_id":"20261117T044120Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":"verify","setup_wall_s":10},{"run_id":"20261117T044950Z-land-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-4-diagram-emit","edge":"land","setup_wall_s":7},{"run_id":"20261117T045107Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-5-blocked-fail-fast","edge":"handoff","setup_wall_s":21},{"run_id":"20261117T053338Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-5-blocked-fail-fast","edge":null,"setup_wall_s":14},{"run_id":"20261117T053455Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-5-blocked-fail-fast","edge":"grade","setup_wall_s":20},{"run_id":"20261117T053502Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-mvp-5-blocked-fail-fast","edge":"verify","setup_wall_s":18},{"run_id":"20261117T054559Z-handoff-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-5-blocked-fail-fast","edge":"handoff","setup_wall_s":11},{"run_id":"20261117T055441Z-node-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-5-blocked-fail-fast","edge":null,"setup_wall_s":5},{"run_id":"20261117T055712Z-grade-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-5-blocked-fail-fast","edge":"grade","setup_wall_s":22},{"run_id":"20261117T055719Z-verify-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-5-blocked-fail-fast","edge":"verify","setup_wall_s":11},{"run_id":"20261117T060015Z-land-muse-code-muse-wonder-1.0-c2","node":"exp-mvp-5-blocked-fail-fast","edge":"land","setup_wall_s":10},{"run_id":"20261117T060402Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-1-link-drive","edge":"handoff","setup_wall_s":24},{"run_id":"20261117T062205Z-node-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-1-link-drive","edge":null,"setup_wall_s":13},{"run_id":"20261117T062400Z-grade-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-1-link-drive","edge":"grade","setup_wall_s":16},{"run_id":"20261117T062405Z-verify-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-1-link-drive","edge":"verify","setup_wall_s":12},{"run_id":"20261117T063415Z-land-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-1-link-drive","edge":"land","setup_wall_s":8},{"run_id":"20261117T063524Z-handoff-muse-code-muse-wonder-1.0-c1","node":"exp-dogfood-2-parallel-drive","edge":"handoff","setup_wall_s":17}],"rollup":"active","fin":null,"inbox":[],"run_id":"20261117T063524Z-handoff-muse-code-muse-wonder-1.0-c1"}
+usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 skills install [...] | bp3 q|quest ... | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]
+  bp3 q -h for quest/exp doors
+.PHONY: check test lint release publish install
+
+# This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
+# cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
+# Use it when present; harmless elsewhere.
+MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
+DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
+
+check: lint
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	./test/skills.sh
+	$(DUNE_BUILD) src/quest/main.exe
+	./test/q.sh
+	./test/ready.sh
+	./test/diagram.sh
+	./test/blocked.sh
+	node test/pi-tree.test.mjs
+	./test/harness.sh
+	./test/config.sh
+	./test/link.sh
+	./test/dogfood-link.sh
+	./test/context.sh
+	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+	./test/worktree.sh
+	./test/tape.sh
+	./test/hooks.sh
+	./test/traverse.sh
+	./test/completion.sh
+	./test/release.sh
+	./test/install.sh
+
+lint:
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	node --check test/pi-tree.test.mjs
+	node --check skills/traverse/workflows/induct-node.js
+	node --check skills/traverse/workflows/node-loop.js
+	node --check skills/traverse/workflows/induct-grade.js
+	node --check skills/traverse/workflows/quest-land.js
+
+test:
+	./test/skills.sh
+
+# --- release (Exp 5): tag-gated artifact + checksum; publish-once via gh ---
+RELEASE_VERSION := $(shell sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' src/quest/gitx.ml | head -1)
+RELEASE_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+RELEASE_ARCH := $(shell uname -m)
+RELEASE_ARTIFACT := dist/bp3-q-v$(RELEASE_VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
+
+release:
+	@./scripts/release-check >/dev/null
+	$(DUNE_BUILD) src/quest/main.exe
+	mkdir -p dist
+	cp _build/default/src/quest/main.exe $(RELEASE_ARTIFACT)
+	cd dist && shasum -a 256 $$(basename $(RELEASE_ARTIFACT)) > $$(basename $(RELEASE_ARTIFACT)).sha256
+	@echo "released $(RELEASE_ARTIFACT)"
+
+publish: release
+	./scripts/release-publish $(RELEASE_ARTIFACT) $(RELEASE_ARTIFACT).sha256
+
+PREFIX ?= $(HOME)/.local
+install:
+	PREFIX="$(PREFIX)" ./scripts/install-bp3.sh
+blocked.sh
+completion.sh
+config.sh
+context.sh
+diagram.sh
+dogfood-link.sh
+harness.sh
+hooks.sh
+induct-grade.test.mjs
+induct-node.test.mjs
+install.sh
+link.sh
+node-loop.test.mjs
+pi-discovery.mjs
+pi-tree.test.mjs
+q.sh
+quest-land.test.mjs
+ready.sh
+release.sh
+skills.sh
+tape.sh
+traverse-conduct.test.mjs
+traverse.sh
+worktree.sh
+commit adfd7b0ff6671735a1260c3c9f4c6bc48a57dc53
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 01:19:49 2026 -0500
+
+    test(dogfood.1): link-drive A/B proof — one-line brief, attacks refuse
+    
+    For humans: the link way is now measured on the flappy
+    toy: old brief 425 chars vs link brief 68-70 chars, four
+    node --check-clean artifacts, and duplicate/quoting/
+    wrong-desk attacks refusing before work, all recorded
+    from the drive itself in the run folder.
+    
+    For LLMs: test/dogfood-link.sh drives old/link briefs
+    on muse and pi session shapes in a temp repo, asserts
+    one-line link briefs with no carried context after
+    claim, E_LINK_SPENT/E_NOT_FOUND/E_NO_CONTEXT attacks,
+    the pi parent_run_id tree, and the supervisor fold;
+    wired into make check and shellcheck. Pi rows use the
+    session-file shape; no product code changed.
+
+ Makefile             |   3 +-
+ test/dogfood-link.sh | 211 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 213 insertions(+), 1 deletion(-)
+commit f5b434d04e91e4160ea8f36522822e90effa1cc0
+Author: whycz <whyczz@gmail.com>
+Date:   Tue Nov 17 00:52:20 2026 -0500
+
+    test(mvp.5): Pi process-tree proof — bubble once, tree dead, fresh revival
+    
+    For humans: the five Pi acceptance rows now have a real
+    root -> node-worker -> edge-worker process-tree drive:
+    one facts-only blocked bubble, process-table death,
+    parent_run_id grandchild disposition, fresh-tree revival.
+    
+    For LLMs: test/pi-tree.test.mjs spawns real OS worker
+    processes claiming real bp3 links against a fixture repo,
+    asserts bubble/run-chain/inbox facts, kill(pid,0) death,
+    watch orphaned disposition, and new-root revival from
+    rollup+inbox. Wired into make check and node --check lint.
+
+ Makefile              |   2 +
+ test/pi-tree.test.mjs | 217 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 219 insertions(+)
+      84 test/blocked.sh
+     132 test/completion.sh
+     147 test/config.sh
+     113 test/context.sh
+     101 test/diagram.sh
+     211 test/dogfood-link.sh
+     709 test/harness.sh
+     183 test/hooks.sh
+      46 test/install.sh
+     209 test/link.sh
+     591 test/q.sh
+     171 test/ready.sh
+      65 test/release.sh
+     168 test/skills.sh
+      69 test/tape.sh
+       9 test/traverse.sh
+     233 test/worktree.sh
+     561 test/induct-grade.test.mjs
+     163 test/induct-node.test.mjs
+     184 test/node-loop.test.mjs
+      55 test/pi-discovery.mjs
+     217 test/pi-tree.test.mjs
+     111 test/quest-land.test.mjs
+     135 test/traverse-conduct.test.mjs
+     408 src/quest/config.ml
+     125 src/quest/gitx.ml
+    2695 src/quest/harness.ml
+     394 src/quest/hooks.ml
+     800 src/quest/main.ml
+     484 src/quest/render.ml
+     522 src/quest/store.ml
+     547 src/quest/worktree.ml
+     202 bin/bp3
+   10844 total
+config.ml
+dune
+gitx.ml
+harness.ml
+hooks.ml
+main.ml
+render.ml
+store.ml
+worktree.ml
+src/quest/gitx.ml:79:let is_ancestor a b = git_ok ["merge-base"; "--is-ancestor"; a; b]
+src/quest/main.ml:358:        let tree_out, code = git_out ["merge-tree"; "--write-tree"; qtip; exp_tip] in
+src/quest/main.ml:367:            ("facts", `Assoc [("land_conflict", `Bool true)]);
+src/quest/main.ml:371:          let cf = tmp_path "merge-commit" in
+src/quest/render.ml:441:  (* Warnings merge once, in order: the verdict's own, the
+src/quest/render.ml:450:        let merged =
+src/quest/render.ml:456:        if merged = [] then v
+src/quest/render.ml:458:                     @ [("warnings", `List (List.map json_str merged))])
+test/q.sh:332:# --- two exps land into one quest branch: clean merge keeps verdicts ---
+test/q.sh:354:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-b clean merge: $out"
+test/q.sh:355:[ "$(git show bp3/quest/demo:fa.txt)" = "A-content" ] || fail "clean merge lost fa.txt"
+test/q.sh:356:[ "$(git show bp3/quest/demo:fb.txt)" = "B-content" ] || fail "clean merge lost fb.txt"
+test/q.sh:357:git merge-base --is-ancestor "$LAND_A" bp3/quest/demo || fail "land-a reviewed commit not ancestor of quest tip"
+test/q.sh:358:git merge-base --is-ancestor "$LAND_B" bp3/quest/demo || fail "land-b reviewed commit not ancestor of quest tip"
+test/q.sh:363:# --- two exps land: conflict demotes only the conflicting exp ---
+test/q.sh:386:echo "$out" | jq -e --argjson cyc "$cycle_before" '.ok == true and .state == "todo" and .cycle == $cyc and .facts.land_conflict == true' >/dev/null || fail "land-d conflict demotion: $out"
+test/q.sh:390:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-c demoted by other conflict: $out"
+test/q.sh:392:echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-a demoted by other conflict: $out"
+test/q.sh:393:[ "$(git show bp3/quest/demo:shared.txt)" = "C-side" ] || fail "conflict overwrote quest work file"
+src/quest/harness.ml:1094:let tokens_of_line line =
+src/quest/harness.ml:1116:      let toks = Array.of_list (tokens_of_line line) in
+src/quest/harness.ml:2071:let mint_token () =
+src/quest/harness.ml:2246:  let token = mint_token () in
+src/quest/harness.ml:2247:  let token_hash = "sha256:" ^ sha256_hex token in
+src/quest/harness.ml:2254:    ("token_hash", json_str token_hash);
+src/quest/harness.ml:2266:  let hash_hex = sha256_hex token in
+src/quest/harness.ml:2270:    ("ok", `Bool true); ("token", json_str token);
+src/quest/harness.ml:2286:  let rec loop token session = function
+src/quest/harness.ml:2287:    | [] -> (token, session)
+src/quest/harness.ml:2290:        loop token (Some v) rest
+src/quest/harness.ml:2297:        if token <> None then usage "link claim takes one token";
+src/quest/harness.ml:2368:  let (token_opt, sess_flag) = parse_claim_args args in
+src/quest/harness.ml:2369:  let token = match token_opt with
+src/quest/harness.ml:2370:    | Some t when t <> "" -> t | _ -> usage "link claim needs a token" in
+src/quest/harness.ml:2372:  let hash_hex = sha256_hex token in
+src/quest/harness.ml:2375:    err "E_NOT_FOUND" (`Assoc [("token_hash", json_str ("sha256:" ^ hash_hex))])
+src/quest/harness.ml:2376:      "Unknown link token; no run config was minted for it." 1;
+src/quest/harness.ml:2384:    | Some c -> Config.jstr c "token_hash" "" | None -> "" in
+src/quest/harness.ml:2387:      "Link token does not match its run config." 1;
+src/quest/harness.ml:2534:              let th = Config.jstr c "token_hash" "" in
+src/quest/harness.ml:2554:  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]   mint a one-time link; writes runs/<run_id>.json (state minted, creator facts, token_hash) and links/<token_hash>; refuses E_DEPTH beyond the depth cap\n\
+src/quest/harness.ml:2555:  bp3 harness link claim <token> [--session-id <s>]   claim once via an O_EXCL claim marker; second claim refuses E_LINK_SPENT naming first_claim; writes claim facts, by-session index, and desk context\n\
+src/quest/harness.ml:2563:  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]   mint a one-time link; writes runs/<run_id>.json (state minted, creator facts, token_hash) and links/<token_hash>; refuses E_DEPTH beyond the depth cap\n\
+src/quest/harness.ml:2564:  bp3 harness link claim <token> [--session-id <s>]   claim once via an O_EXCL claim marker; second claim refuses E_LINK_SPENT naming first_claim; writes claim facts, by-session index, and desk context\n\
+src/quest/harness.ml:2637:  bp3 harness link claim <token> [--session-id <s>]\n\
+src/quest/harness.ml:2640:  Mint writes runs/<run_id>.json (state minted; creator: parent run_id, depth, harness, model, minted_at, token_hash) and links/<token_hash> -> run_id, and returns the one-time token. Depth beyond the machine depth cap (config thresholds.depth_cap, default 3) refuses E_DEPTH. Claim is a compare-and-swap on an O_EXCL claim marker: exactly one winner completes the run config (state claimed; claim: session_id when offered, pid, cwd, claimed_at), writes the by-session index and the desk context; a second claim refuses E_LINK_SPENT naming first_claim (session_id, pid, ts) forever. Session-id discovery: --session-id, else BP3_SESSION_ID, MUSE_SESSION_ID/MUSE_THREAD_ID, PI_SESSION_ID/PI_SESSION_FILE; with none offered the claim still succeeds on pid+cwd. Lookup resolves session-id to run-id, graph, node, edge in one call. Cleanup removes only still-minted run configs of one graph. Run config writes are single-write temp+fsync+rename; a torn run config is never read as valid.\n\
+src/quest/hooks.ml:127:    ("input_tokens", `Int b.in_tok); ("output_tokens", `Int b.out_tok);
+src/quest/hooks.ml:128:    ("cached_tokens", `Int b.cached_tok);
+src/quest/hooks.ml:129:    ("reasoning_tokens", `Int b.reasoning_tok);
+src/quest/hooks.ml:145:    in_tok = member_int j "input_tokens"; out_tok = member_int j "output_tokens";
+src/quest/hooks.ml:146:    cached_tok = member_int j "cached_tokens";
+src/quest/hooks.ml:147:    reasoning_tok = member_int j "reasoning_tokens";
+src/quest/hooks.ml:306:                     b.in_tok <- b.in_tok + member_int usage "input_tokens";
+src/quest/hooks.ml:307:                     b.out_tok <- b.out_tok + member_int usage "output_tokens";
+src/quest/hooks.ml:309:                       (let c = member_int usage "cached_tokens" in
+src/quest/hooks.ml:310:                        if c <> 0 then c else member_int usage "cache_read_tokens");
+src/quest/hooks.ml:311:                     b.reasoning_tok <- b.reasoning_tok + member_int usage "reasoning_tokens";
+src/quest/hooks.ml:359:                         [("input_tokens", `Int b.in_tok);
+src/quest/hooks.ml:360:                          ("output_tokens", `Int b.out_tok);
+src/quest/hooks.ml:361:                          ("cached_tokens", `Int b.cached_tok);
+src/quest/hooks.ml:362:                          ("reasoning_tokens", `Int b.reasoning_tok);
+src/quest/store.ml:16:   addressed again (the token would parse as the door or
+test/ready.sh:127:RID=$(echo "$out" | jq -r .run_id); TOK=$(echo "$out" | jq -r .token)
+src/quest/config.ml:287:   (by-session claim), desk rung second (the desk context a
+src/quest/config.ml:370:      (* the desk context file a claim wrote into this desk
+src/quest/config.ml:374:      let file = Filename.concat cwd ".bp3-context.json" in
+src/quest/harness.ml:2349:let write_desk_context dir run_id graph node edge desk =
+src/quest/harness.ml:2364:         Config.write_file_atomic (Filename.concat desk ".bp3-context.json") payload
+src/quest/harness.ml:2428:  write_desk_context dir run_id graph node edge desk;
+src/quest/harness.ml:2555:  bp3 harness link claim <token> [--session-id <s>]   claim once via an O_EXCL claim marker; second claim refuses E_LINK_SPENT naming first_claim; writes claim facts, by-session index, and desk context\n\
+src/quest/harness.ml:2564:  bp3 harness link claim <token> [--session-id <s>]   claim once via an O_EXCL claim marker; second claim refuses E_LINK_SPENT naming first_claim; writes claim facts, by-session index, and desk context\n\
+src/quest/harness.ml:2640:  Mint writes runs/<run_id>.json (state minted; creator: parent run_id, depth, harness, model, minted_at, token_hash) and links/<token_hash> -> run_id, and returns the one-time token. Depth beyond the machine depth cap (config thresholds.depth_cap, default 3) refuses E_DEPTH. Claim is a compare-and-swap on an O_EXCL claim marker: exactly one winner completes the run config (state claimed; claim: session_id when offered, pid, cwd, claimed_at), writes the by-session index and the desk context; a second claim refuses E_LINK_SPENT naming first_claim (session_id, pid, ts) forever. Session-id discovery: --session-id, else BP3_SESSION_ID, MUSE_SESSION_ID/MUSE_THREAD_ID, PI_SESSION_ID/PI_SESSION_FILE; with none offered the claim still succeeds on pid+cwd. Lookup resolves session-id to run-id, graph, node, edge in one call. Cleanup removes only still-minted run configs of one graph. Run config writes are single-write temp+fsync+rename; a torn run config is never read as valid.\n\
+src/quest/main.ml:466:        "No claimed context resolves for this call (no session claim, no desk context). Claim a link first, or address the call explicitly." 1
+src/quest/main.ml:590:  bp3 e                                    print the resolved context, its source rung (session|desk), state, and legal edges\n\
+src/quest/main.ml:592:  Resolution: session claim first, desk context second, checked against cwd; no rung refuses E_NO_CONTEXT, an ambiguous desk refuses E_NO_CONTEXT naming the live run_ids. Env BP3_RUN_ID is a hint only: a mismatch warns W_CONTEXT_ENV_MISMATCH and the claim wins; an unclaimed explicit edge call warns W_CONTEXT_UNCLAIMED.\n\
+src/quest/gitx.ml:72:let worktree_dirty () =
+src/quest/main.ml:273:      if worktree_dirty () then
+src/quest/main.ml:274:        err "E_DIRTY_TREE" (`Assoc []) "Worktree is dirty; clean it and retry." 1;
+src/quest/main.ml:386:      let checkpoint = if worktree_dirty () then Some (make_checkpoint ()) else None in
+src/quest/worktree.ml:150:    err "E_DIRTY_TREE"
+src/quest/worktree.ml:162:       err "E_DIRTY_TREE"
+_build/default/src/quest/main.exe
+/opt/homebrew/bin/shellcheck
+/opt/homebrew/bin/jq
+/Users/whycz/.local/state/fnm_multishells/1380_1794843465765/bin/node
+/opt/homebrew/bin/python3
+src/quest/main.ml:224:       ignore (append_exp_line quest exp line s));
+src/quest/main.ml:247:       ignore (append_exp_line quest exp line ns));
+src/quest/main.ml:261:    ignore (append_exp_line quest exp line ns);
+src/quest/main.ml:346:      ignore (append_exp_line quest exp line ns);
+src/quest/main.ml:364:          ignore (append_exp_line quest exp line2 ns2);
+src/quest/main.ml:371:          let cf = tmp_path "merge-commit" in
+src/quest/gitx.ml:29:let tmp_path tag =
+src/quest/gitx.ml:43:  let p = tmp_path "data" in
+src/quest/gitx.ml:48:  let outf = tmp_path "out" in
+src/quest/gitx.ml:90:  let idx = tmp_path "index" in
+src/quest/gitx.ml:91:  Unix.putenv "GIT_INDEX_FILE" idx;
+src/quest/gitx.ml:92:  let cleanup () = (try Unix.unlink idx with _ -> ()); Unix.putenv "GIT_INDEX_FILE" "" in
+src/quest/gitx.ml:98:    let blobfile = tmp_path "blobout" in
+src/quest/gitx.ml:106:  let treef = tmp_path "tree" in
+src/quest/gitx.ml:111:  let commitf = tmp_path "commit" in
+FAIL: flappy-night author worker
+551:                     let run_id = if rec_.run_id <> "" then rec_.run_id else file_id in
+609:  let run_id = rf.rf_view.rv_id in
+1760:  let run_id = match fl.bind_run with
+1988:      let run_ids = extract_run_ids text in
+1995:      let run_id = match run_ids with r :: _ -> r | [] -> "" in
+2230:  let run_id = match fl.m_run with
+2377:  let run_id = String.trim (read_file_or link_path "") in
+2554:  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]   mint a one-time link; writes runs/<run_id>.json (state minted, creator facts, token_hash) and links/<token_hash>; refuses E_DEPTH beyond the depth cap\n\
+2563:  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]   mint a one-time link; writes runs/<run_id>.json (state minted, creator facts, token_hash) and links/<token_hash>; refuses E_DEPTH beyond the depth cap\n\
+2640:  Mint writes runs/<run_id>.json (state minted; creator: parent run_id, depth, harness, model, minted_at, token_hash) and links/<token_hash> -> run_id, and returns the one-time token. Depth beyond the machine depth cap (config thresholds.depth_cap, default 3) refuses E_DEPTH. Claim is a compare-and-swap on an O_EXCL claim marker: exactly one winner completes the run config (state claimed; claim: session_id when offered, pid, cwd, claimed_at), writes the by-session index and the desk context; a second claim refuses E_LINK_SPENT naming first_claim (session_id, pid, ts) forever. Session-id discovery: --session-id, else BP3_SESSION_ID, MUSE_SESSION_ID/MUSE_THREAD_ID, PI_SESSION_ID/PI_SESSION_FILE; with none offered the claim still succeeds on pid+cwd. Lookup resolves session-id to run-id, graph, node, edge in one call. Cleanup removes only still-minted run configs of one graph. Run config writes are single-write temp+fsync+rename; a torn run config is never read as valid.\n\
+src/quest/config.ml:4:   configs runs/<run_id>.json (one canonical record per
+src/quest/config.ml:155:    let id = match jopt j "run_id" with
+src/quest/config.ml:170:             rc_parent = nested creator "run_id";
+src/quest/config.ml:199:          ("edge", opt_json rc.rc_edge); ("run_id", json_str rc.rc_id);
+src/quest/config.ml:203:          ("parent_run_id", json_str rc.rc_parent);
+src/quest/config.ml:207:let run_config_path dir run_id =
+src/quest/config.ml:208:  Filename.concat (runs_dir dir) (run_id ^ ".json")
+src/quest/config.ml:210:let load_run_config_json dir run_id =
+src/quest/config.ml:211:  let path = run_config_path dir run_id in
+src/quest/config.ml:219:let save_run_config_json dir run_id j =
+src/quest/config.ml:220:  write_file_atomic (run_config_path dir run_id)
+src/quest/config.ml:245:            ("run_ids", `List (List.map json_str
+src/quest/config.ml:276:  List.iter (fun (s, run_id) ->
+src/quest/config.ml:277:    write_file_atomic (Filename.concat bd s) (run_id ^ "\n")) wanted;
+src/quest/config.ml:331:  | Ambiguous of string list * string (* live run_ids, desk *)
+src/quest/config.ml:379:           match jopt j "run_id" with
+src/quest/harness.ml:2238:          let cand = Printf.sprintf "%s-%s-%s-%s-c%d" (compact_ts ())
+src/quest/harness.ml:2554:  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]   mint a one-time link; writes runs/<run_id>.json (state minted, creator facts, token_hash) and links/<token_hash>; refuses E_DEPTH beyond the depth cap\n\
+src/quest/harness.ml:2563:  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]   mint a one-time link; writes runs/<run_id>.json (state minted, creator facts, token_hash) and links/<token_hash>; refuses E_DEPTH beyond the depth cap\n\
+src/quest/harness.ml:2611:  Engine is derived from the Run InitRecord, never stated. Finds the tape like find-tape, then blocks in code: streams NDJSON lifecycle_change rows and ends with one verdict {ok, run_id, harness, session_id, wal, pid, outcome, settled, lifecycle}.\n\
+src/quest/harness.ml:2628:  For a link-claimed Run, writes tape_path into runs/<run_id>.json in one atomic write; the binding is pinned: re-binding the same tape is a no-op, a different tape is E_EXISTS. For a legacy Run with only an InitRecord, appends one pointer-only tape_binding row to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl. A run-id with neither is E_NOT_FOUND; a bad run-id or a missing, duplicate, or =-formed flag is E_USAGE. Emits {ok, run_id, tape_path, path}.\n\
+src/quest/harness.ml:2647:  Reads every .jsonl tape under the corpus (default: the engine's tape source), folds mechanical facts per tape (BP3_RUN_ID bindings, bp3 invocations, E_* refusals, commit shas, finish/exit evidence, torn tails; pi tapes also yield session-id, entry counts, and summed usage) and emits one verdict {ok, engine, corpus, tapes_replayed, identifiable, traces, findings}. Each finding names its tape, run-id, evidence lines, and proposed fix target (dispatcher, adapter, contract; muse findings keep bp3 q u / hooks). A parser crash fails the call; findings themselves never gate. Truncated, foreign, and torn tapes are reported in findings, never fatal. Replay is deterministic: same corpus, same verdict.\n\
+src/quest/hooks.ml:58:let parse_edge_cycle run_id =
+src/quest/hooks.ml:263:                            let (_edge, cycle) = parse_edge_cycle run_id in
+src/quest/hooks.ml:384:                     let (_edge, cycle) = parse_edge_cycle b.run_id in
+src/quest/worktree.ml:469:let parse_run_flag args =
+src/quest/worktree.ml:524:      let (run_id, _) = parse_run_flag rest in
+src/quest/worktree.ml:529:      let (run_id, force) = parse_run_flag rest in
+skills/traverse/workflows/induct-grade.js:458:      "-c" + String(cycle);
+skills/traverse/workflows/induct-node.js:148:      "-c" + String(cycle);
+skills/traverse/workflows/node-loop.js:156:      "-c" + String(cycle);
+skills/traverse/workflows/quest-land.js:148:      "-c" + String(cycle);
+test/harness.sh:267:echo "$out" | tail -1 | jq -e '.ok == true and .outcome == "settled" and .settled == true and .lifecycle == "finished" and .run_id == "R-watch-clean"' >/dev/null || fail "watch clean verdict: $out"
+test/hooks.sh:53:mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN0"
+test/hooks.sh:62:[ "$(lines parser-fix)" = "$before" ] || fail "missing run folder wrote a ledger line"
+test/hooks.sh:66:mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN1"
+test/hooks.sh:70:ledger parser-fix | tail -1 | jq -e --arg r "$RUN1" '.event == "run_started" and .run_id == $r and (. | has("edge") | not)' >/dev/null || fail "run_started ledger line"
+test/hooks.sh:112:[ "$(ledger parser-fix | grep -c '"event":"run_settled"')" = "1" ] || fail "run_settled count"
+test/hooks.sh:127:mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN2"
+test/hooks.sh:136:[ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "1" ] || fail "run_unsettled count"
+test/hooks.sh:141:mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN5" "docs/quests/demo/experiments/parallel-exp/runs/$RUN6"
+test/hooks.sh:149:[ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "1" ] || fail "live parallel run marked unsettled"
+test/hooks.sh:154:[ "$(ledger parser-fix | grep -c '"event":"run_unsettled"')" = "2" ] || fail "stale-only sweep count"
+test/hooks.sh:160:mkdir -p "docs/quests/demo/experiments/parser-fix/runs/$RUN3" "docs/quests/demo/experiments/parallel-exp/runs/$RUN4"
+test/hooks.sh:179:ledger parser-fix | jq -e 'select(.event != null) | (. | has("ts") and has("run_id") and (has("edge") | not) and (has("from") | not) and (has("to") | not))' >/dev/null || fail "event line shape"
+test/tape.sh:24:runs_dir="docs/quests/demo/experiments/parser-fix/runs"
+test/pi-tree.test.mjs:67:  return JSON.parse(fs.readFileSync(path.join(runsDir, runId + ".json"), "utf8"));
+2071:let mint_token () =
+2085:let compact_ts () =
+2091:let slug_keep s =
+2238:          let cand = Printf.sprintf "%s-%s-%s-%s-c%d" (compact_ts ())
+2239:            edge_label (slug_keep harness_v) (slug_keep model_v) fl.m_cycle in
+2246:  let token = mint_token () in
+skills/traverse/workflows/node-loop.js:9:// state: as the link minter (mvp.1) it mints a one-time link via
+skills/traverse/workflows/node-loop.js:10:// `bp3 harness link mint` before the child spawns; the
+skills/traverse/workflows/node-loop.js:159:  // The link minter (mvp.1): this launcher, before the child
+skills/traverse/workflows/node-loop.js:168:      envPreset(edge, cycle) + "./bin/bp3 harness link mint" +
+skills/traverse/workflows/node-loop.js:189:        "link mint refused before the " + edge + " child: " +
+skills/traverse/workflows/quest-land.js:9:// link minter (mvp.1) it mints the child's one-time link
+skills/traverse/workflows/quest-land.js:10:// via `bp3 harness link mint` before the child spawns; the
+skills/traverse/workflows/quest-land.js:151:  // The link minter (mvp.1): this launcher, before
+skills/traverse/workflows/quest-land.js:157:      envPreset(edge, cycle) + "./bin/bp3 harness link mint" +
+skills/traverse/workflows/quest-land.js:178:        "link mint refused before the " + edge + " child: " +
+skills/traverse/workflows/induct-grade.js:23:// edit the work. As the link minter (mvp.1) this launcher
+skills/traverse/workflows/induct-grade.js:461:  // The link minter (mvp.1): this launcher, before
+skills/traverse/workflows/induct-grade.js:467:      envPreset(edge, cycle) + "./bin/bp3 harness link mint" +
+skills/traverse/workflows/induct-grade.js:488:        "link mint refused before the " + edge + " child: " +
+skills/traverse/workflows/induct-node.js:167:  // The link minter (mvp.1): this loop, before each edge
+skills/traverse/workflows/induct-node.js:173:      envPreset() + "./bin/bp3 harness link mint" +
+skills/traverse/workflows/induct-node.js:194:        "link mint refused before the " + edge + " child: " +
+extensions/bp3-pi/test/bp3-pi.test.mjs:160:  // worktree, so link mint reaches the worktree's bp3.
+extensions/bp3-pi/README.md:18:  at link mint (`<ts>-<edge>-pi-<model>-c<cycle>`).
+extensions/bp3-pi/README.md:28:  (`bp3 harness link mint`, plus effective model/thinking)
+extensions/bp3-pi/index.ts:7:// link mint and never parsed here.
+extensions/bp3-pi/index.ts:58:    description: "Spawn one supervised pi child: link mint before spawn, the child claims first, bind-tape after exit. Example: spawn_run({quest, exp, edge:\"handoff\", prompt})",
+extensions/bp3-pi/src/contract.ts:5:// link mint and opaque to every other consumer.
+extensions/bp3-pi/src/dispatcher.ts:3:// `bp3 harness link mint` (the run config is the
+extensions/bp3-pi/src/dispatcher.ts:208:      throw new TypedRefusal("E_LINK_MINT", `link mint refused for ${req.quest}/${req.exp}`, { verdict: minted });
+src/quest/main.ml:608:  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. The depth cap is enforced at link mint (mvp.1, E_DEPTH); W_SETUP_SLOW fires on the quest rollup when a claimed Run's setup_wall_s exceeds setup_slow_s (mvp.3, local only). First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
+src/quest/config.ml:15:   land (depth cap at link mint in mvp.1, W_SETUP_SLOW in
+src/quest/config.ml:206:(* ---------- raw run configs (link mint/claim writers) ---------- *)
+src/quest/config.ml:225:   minted one only by link mint. *)
+src/quest/config.ml:230:    else if rc.rc_minted_at <> "" then ("link mint", rc.rc_minted_at)
+src/quest/harness.ml:1720:    "record-init is retired: mint a one-time link (bp3 harness link mint) and let the child claim it (bp3 harness link claim); the run config is the InitRecord-equivalent." 1
+src/quest/harness.ml:2196:    | None -> usage "link mint needs --kind node|edge" in
+src/quest/harness.ml:2198:    | Some g when g <> "" -> g | _ -> usage "link mint needs --graph <graph>" in
+src/quest/harness.ml:2200:    | Some n when n <> "" -> n | _ -> usage "link mint needs --node <node>" in
+src/quest/harness.ml:2204:    | "edge", _ -> usage "link mint --kind edge needs --edge <edge>"
+src/quest/harness.ml:2205:    | _, Some _ -> usage "link mint --kind node takes no --edge"
+src/quest/harness.ml:2554:  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]   mint a one-time link; writes runs/<run_id>.json (state minted, creator facts, token_hash) and links/<token_hash>; refuses E_DEPTH beyond the depth cap\n\
+src/quest/harness.ml:2558:Example: bp3 harness link mint --kind edge --graph G --node N --edge handoff\n"; 0
+src/quest/harness.ml:2563:  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]   mint a one-time link; writes runs/<run_id>.json (state minted, creator facts, token_hash) and links/<token_hash>; refuses E_DEPTH beyond the depth cap\n\
+src/quest/harness.ml:2567:Example: bp3 harness link mint --kind edge --graph G --node N --edge handoff\n"; 0
+src/quest/harness.ml:2581:  bp3 harness link mint|claim|lookup|cleanup ...   one-time link binding: mint a link, the child claims it once (E_LINK_SPENT, E_DEPTH)\n\
+src/quest/harness.ml:2582:  bp3 harness record-init ...                      retired (E_RETIRED): use link mint/claim; the run config is the InitRecord-equivalent\n\
+src/quest/harness.ml:2632:  bp3 harness record-init ... refuses E_RETIRED. The run config replaces the InitRecord: mint with bp3 harness link mint, the child claims with bp3 harness link claim, and bind-tape writes tape_path into the run config.\n\
+src/quest/harness.ml:2633:Example: bp3 harness link mint --kind edge --graph G --node N --edge handoff\n"
+src/quest/harness.ml:2636:  bp3 harness link mint --kind node|edge --graph <g> --node <n> [--edge <e>] [--parent-run-id <id>] [--depth <n>] [--desk <d>] [--harness <h>] [--model <m>] [--thinking <t>] [--cycle <n>] [--run-id <id>]\n\
+    return ts + "-" + edge + "-" + harness + "-" + model +
+      "-c" + String(cycle);
+  }
+
+  // The link minter (mvp.1): this launcher, before the child
+  // spawns. A refused mint means the child never starts. The
+  // mint names no tape: the child's session tape does not
+  // exist yet, so the launcher binds it after the child
+  // returns (bindTape below). The run folder's tape.log stays
+  // the child's own transcript, never finish evidence.
+  async function mintLink(edge, cycle) {
+    const fsm = ["handoff", "grade", "verify", "land", "block", "resume"].includes(edge);
+    const cmd =
+      envPreset(edge, cycle) + "./bin/bp3 harness link mint" +
+      (fsm ? " --kind edge --edge " + edge : " --kind node") +
+      " --graph " + quest + " --node " + exp +
+      " --harness " + harness + " --model " + model +
+      " --cycle " + String(cycle) +
+      (desk ? " --desk " + desk : "");
+    const result = await host.agent({
+      label: "mint " + exp,
+      input:
+        deskNote +
+        "Run exactly `" + cmd + "` from the quest worktree if " +
+        "one is named above, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file and do not call any `bp3 q u` " +
+        "update edge.",
+    });
+    const v = parseVerdict(result);
+    if (!v || v.ok !== true || typeof v.token !== "string" || typeof v.run_id !== "string") {
+      refusals.push(
+        "link mint refused before the " + edge + " child: " +
+        errorText(result)
+      );
+      return false;
+    }
+    links[edge] = { token: v.token, run_id: v.run_id };
+    runIds.push(v.run_id);
+test/harness.sh:605:F4RUN="20260101T000000Z-handoff-pi-test-model-c1"
+test/harness.sh:617:F4NONE="20260101T000000Z-handoff-pi-test-model-c2"
+test/harness.sh:627:F4TWO="20260101T000000Z-handoff-pi-test-model-c3"
+test/harness.sh:637:F4EARLY="20260101T000000Z-handoff-pi-test-model-c4"
+test/harness.sh:645:F4OLD="20260101T000000Z-handoff-pi-test-model-c5"
+test/hooks.sh:52:RUN0=20260101T000000Z-handoff-muse-code-test-model-c1
+test/hooks.sh:59:gone=$(printf '{"hook_event_name":"PreToolUse","session_id":"S-gone","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=20260101T000000Z-handoff-muse-code-test-model-c9 BP3_QUEST=demo BP3_EXP=parser-fix echo hi"}}' "$repo")
+test/hooks.sh:65:RUN1=20260101T000000Z-handoff-muse-code-test-model-c1
+test/hooks.sh:75:conflict=$(printf '{"hook_event_name":"PreToolUse","session_id":"S1","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=20260101T000000Z-grade-muse-code-test-model-c1 BP3_QUEST=demo BP3_EXP=parallel-exp echo hi"}}' "$repo")
+test/hooks.sh:126:RUN2=20260101T010000Z-handoff-muse-code-test-model-c1
+test/hooks.sh:139:RUN5=20260101T030000Z-handoff-muse-code-test-model-c1
+test/hooks.sh:140:RUN6=20260101T030000Z-grade-muse-code-test-model-c1
+test/hooks.sh:158:RUN3=20260101T020000Z-handoff-muse-code-test-model-c1
+test/hooks.sh:159:RUN4=20260101T020000Z-grade-muse-code-test-model-c1
+test/worktree.sh:29:    for r in R1 run-2 20261114t221957z-handoff-x-c1; do
+test/induct-grade.test.mjs:51:  run_folders: ["20260101T000000Z-handoff-muse-code-test-model-c1 tape=yes notes=yes"],
+test/induct-grade.test.mjs:81:        const runId = TS + "-" + edge + "-muse-code-test-model-c1";
+test/induct-grade.test.mjs:134:  assert(inits.join(",") === [TS + "-audit-muse-code-test-model-c1", TS + "-grade-muse-code-test-model-c1", TS + "-verify-muse-code-test-model-c1"].join(","),
+test/induct-grade.test.mjs:139:    assert(input.includes("runs/" + TS + "-" + edge + "-muse-code-test-model-c1"),
+test/induct-grade.test.mjs:166:  assert(result.run_ids.join(",") === [TS + "-audit-muse-code-test-model-c1", "r-audit", TS + "-grade-muse-code-test-model-c1", TS + "-verify-muse-code-test-model-c1", "r-grade", "r-verify"].join(","),
+test/induct-grade.test.mjs:517:  const HANDOFF = "20261117T033939Z-handoff-muse-code-muse-wonder-1.0-c1";
+test/induct-grade.test.mjs:547:    const { result } = await runFolderCase(HANDOFF + " tape=yes notes=yes\n20260101T000000Z-verify-muse-code-test-model-c1 tape=yes notes=no");
+test/induct-node.test.mjs:23:        const runId = TS + "-" + edge + "-muse-code-test-model-c1";
+test/node-loop.test.mjs:35:        const runId = TS + "-" + edge + "-muse-code-test-model-c1";
+test/node-loop.test.mjs:86:  assert(inits.join(",") === TS + "-handoff-muse-code-test-model-c1",
+test/node-loop.test.mjs:94:  assert(inputs.resolve.includes("harness find-tape --run-id " + TS + "-handoff-muse-code-test-model-c1"),
+test/node-loop.test.mjs:96:  assert(inputs.bind.includes("harness bind-tape --run-id " + TS + "-handoff-muse-code-test-model-c1"),
+test/node-loop.test.mjs:107:  assert(input.includes("runs/" + TS + "-handoff-muse-code-test-model-c1"),
+test/node-loop.test.mjs:114:  assert(result.run_ids.join(",") === TS + "-handoff-muse-code-test-model-c1,r-author", "run_ids collect mint and author, got " + result.run_ids.join(","));
+test/quest-land.test.mjs:26:        const runId = TS + "-" + edge + "-muse-code-test-model-c1";
+test/quest-land.test.mjs:59:  assert(inits.join(",") === TS + "-land-muse-code-test-model-c1",
+test/quest-land.test.mjs:64:  assert(input.includes("runs/" + TS + "-land-muse-code-test-model-c1"),
+test/quest-land.test.mjs:71:  assert(result.run_ids.join(",") === TS + "-land-muse-code-test-model-c1,r-land", "run_ids collect mint and land child, got " + result.run_ids.join(","));
+test/traverse-conduct.test.mjs:41:          run_folders: ["20260101T000000Z-handoff-muse-code-test-model-c1 tape=yes notes=yes"],
+test/traverse-conduct.test.mjs:71:        return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: "20260101T000000Z-" + edge + "-muse-code-test-model-c1", harness: "muse-code" });
+extensions/bp3-pi/test/bp3-pi.test.mjs:105:    [{ run_id: "20260101T000000Z-handoff-pi-m-c1" }, "run_id"],
+extensions/bp3-pi/test/bp3-pi.test.mjs:123:  assert.match(result.run_id, /-handoff-pi-fake-model-c1$/);
+extensions/bp3-pi/test/bp3-pi.test.mjs:247:  const runId = "20260101T000000Z-handoff-pi-fake-model-c1";
+extensions/bp3-pi/test/bp3-pi.test.mjs:268:  const runId = "20260101T000001Z-handoff-pi-fake-model-c1";
+extensions/bp3-pi/test/bp3-pi.test.mjs:307:  const runId = "20260101T000002Z-handoff-pi-fake-model-c1";
+src/quest/harness.ml:150:let write_one fd path s =
+src/quest/harness.ml:822:let sha256_hex s =
+src/quest/gitx.ml:34:let read_file_or path default =
+-r-xr-xr-x@ 1 whycz  staff  2737160 Nov 17 01:38 _build/default/src/quest/main.exe
+pi-tree tests: ok
+scorecard: {
+  "ready_wall_ms": 3955,
+  "serial_sum_ms": 6890,
+  "wall_saved_ms": 2935,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 2
+    },
+    "flappy-night": {
+      "wall_s": 2
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+dogfood-parallel tests: ok
+test/harness.sh:574:echo "$out" | jq -e '.error.code == "E_EXISTS"' >/dev/null || fail "bind-tape second tape code: $out"
+test/harness.sh:576:echo "$out" | jq -e '.error.code == "E_EXISTS"' >/dev/null || fail "bind-tape bound tape code: $out"
+test/harness.sh:600:echo "$out" | grep -q "E_EXISTS" || fail "bind-tape help E_EXISTS: $out"
+test/install.sh:44:echo "$out" | grep -q "E_EXISTS" || fail "init-repo refusal: $out"
+test/link.sh:170:echo "$out" | jq -e '.error.code == "E_EXISTS"' >/dev/null || fail "rebind code: $out"
+test/worktree.sh:56:echo "$out" | jq -e '.ok == false and .error.code == "E_EXISTS"' >/dev/null || fail "existing path code: $out"
+src/quest/harness.ml:1715:   derivation log for the run-id is E_EXISTS, never an
+src/quest/harness.ml:1733:   another Run — refuses E_EXISTS, never a silent rebind.
+src/quest/harness.ml:1777:                 err "E_EXISTS" (`Assoc [("run_id", json_str run_id);
+src/quest/harness.ml:1833:            err "E_EXISTS" (`Assoc [("run_id", json_str run_id);
+src/quest/harness.ml:1856:                 err "E_EXISTS" (`Assoc [("run_id", json_str run_id);
+src/quest/harness.ml:2267:           err "E_EXISTS" (`Assoc [("run_id", json_str r)])
+src/quest/harness.ml:2276:              err "E_EXISTS" (`Assoc [("run_id", json_str cand)])
+src/quest/harness.ml:2642:  For a link-claimed Run, writes tape_path into runs/<run_id>.json in one atomic write; the binding is pinned: re-binding the same tape is a no-op, a different tape is E_EXISTS. For a legacy Run with only an InitRecord, appends one pointer-only tape_binding row to <git-common-dir>/bp3/run-lifecycle-derivations/<run-id>.jsonl. A run-id with neither is E_NOT_FOUND; a bad run-id or a missing, duplicate, or =-formed flag is E_USAGE. Emits {ok, run_id, tape_path, path}.\n\
+src/quest/main.ml:110:    err "E_EXISTS" (`Assoc [("quest", json_str quest)]) "Quest already exists." 1;
+src/quest/main.ml:192:    err "E_EXISTS" (`Assoc [("quest", json_str quest); ("exp", json_str exp)]) "Exp already exists." 1;
+src/quest/main.ml:698:            err "E_EXISTS" (`Assoc [("plan", json_str rel)])
+src/quest/worktree.ml:119:    err "E_EXISTS" (`Assoc [("path", json_str path)])
+shellcheck bin/bp3 scripts/check-skills test/skills.sh test/q.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/hooks.sh test/traverse.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+node --check test/pi-tree.test.mjs
+node --check skills/traverse/workflows/induct-node.js
+node --check skills/traverse/workflows/node-loop.js
+node --check skills/traverse/workflows/induct-grade.js
+node --check skills/traverse/workflows/quest-land.js
+./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+skills check: ok (40 files)
+./test/skills.sh
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (123 assertions)
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk dune build --root=. src/quest/main.exe
+./test/q.sh
+q tests: ok
+./test/ready.sh
+timing read clean: tip unchanged, worktree entries: 0
+tracked ledger/state files on fixture tip: 0
+ready tests: ok
+./test/diagram.sh
+diagram tests: ok
+./test/blocked.sh
+blocked tests: ok
+node test/pi-tree.test.mjs
+pi-tree tests: ok
+./test/harness.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+./test/harness.sh: line 277: 65075 Terminated: 15          sleep 30
+./test/harness.sh: line 292: 65200 Killed: 9               fixtures/watch/stubborn.sh
+./test/harness.sh: line 314: 65582 Terminated: 15          sleep 30
+./test/harness.sh: line 409: 64563 Terminated: 15          sleep 60
+./test/harness.sh: line 501: 67359 Terminated: 15          sleep 60
+./test/harness.sh: line 597: 67600 Terminated: 15          sleep 60
+harness.sh: all checks passed
+./test/config.sh
+config tests: ok
+./test/link.sh
+link tests: ok
+./test/dogfood-link.sh
+dogfood-link tests: ok
+./test/dogfood-parallel.sh
+scorecard: {
+  "ready_wall_ms": 3948,
+  "serial_sum_ms": 7165,
+  "wall_saved_ms": 3217,
+  "nodes": {
+    "flappy-day": {
+      "wall_s": 1
+    },
+    "flappy-night": {
+      "wall_s": 3
+    }
+  },
+  "tokens": null,
+  "tokens_note": "bp3 rollup reports no per-node token field; tokens are not invented"
+}
+dogfood-parallel tests: ok
+./test/context.sh
+ M Makefile
+ M src/quest/harness.ml
+?? test/dogfood-parallel.sh
+ Makefile             |  3 ++-
+ src/quest/harness.ml | 50 ++++++++++++++++++++++++++++++++------------------
+ 2 files changed, 34 insertions(+), 19 deletions(-)
+[quest/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines 5140695] feat(dogfood.2): parallel-drive proof — two variants, one ready-set
+ 3 files changed, 256 insertions(+), 19 deletions(-)
+ create mode 100755 test/dogfood-parallel.sh
+51406951173971043235443104c703e78a9eda2c
+context tests: ok
+node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+✔ extension registers exactly four tools and loads fail-open (31.4075ms)
+✔ hostile inputs are refused E_REFUSED_INPUT naming the key (0.17525ms)
+✔ spawn path: link claim binds the session, bind-tape pins the tape, list_runs folds finished (300.98675ms)
+fatal: not a git repository (or any of the parent directories): .git
+✔ worktree root: dispatcher serves the worktree it was spawned in, state stays shared (394.651459ms)
+✔ roles route model/thinking into the child env: override > role > conductor (575.721541ms)
+✔ await_runs relays watch verbatim: settled on a finished Run (392.104458ms)
+✔ await_runs: hung child is killed by watch alone and lands orphaned, never finished (2085.635458ms)
+✔ await_runs: closed-not-exited suspends the silence kill; the timeout still applies (3000.595666ms)
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-dogfood-2-parallel-drive","state":"handed_off","cycle":1,"commit":"51406951173971043235443104c703e78a9eda2c","legal_edges":["grade","verify","block","delete"],"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","source":"session","source_rung":"session","context":{"graph":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","node":"exp-dogfood-2-parallel-drive","edge":"handoff","run_id":"20261117T063524Z-handoff-muse-code-muse-wonder-1.0-c1","session_id":"01a1cbc0-ae53-75b3-8e53-0aae0b18151d","desk":".bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","state":"claimed","kind":"edge","parent_run_id":"","depth":0,"source":"session","source_rung":"session"},"run_id":"20261117T063524Z-handoff-muse-code-muse-wonder-1.0-c1"}
+✔ fake-pi failure kinds: crash refuses the bind; malformed and self-settled tapes never finish (116932.388208ms)
+✔ release_desk: dirty desk refused and preserved; clean desk released (220.444375ms)
+✔ dispatcher never signals a pid: watch is the sole killer (0.368958ms)
+✔ dispatcher writes nothing itself: the run config is bp3-written (274.598334ms)
+✔ missing bp3-pi extension refuses E_SETUP before any spawn (22.613375ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 124303.384542
+./test/worktree.sh
+shell-init: error retrieving current directory: getcwd: cannot access parent directories: No such file or directory
+worktree tests: ok
+./test/tape.sh
+tape tests: ok
+./test/hooks.sh
+hooks tests: ok
+./test/traverse.sh
+node-loop tests: ok
+induct-node tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+./test/completion.sh
+completion tests: ok
+./test/release.sh
+release tests: ok
+./test/install.sh
+install tests: ok

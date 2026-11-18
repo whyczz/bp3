@@ -1,0 +1,276 @@
+run folder created
+/Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines
+321b96563128806237b1804d650654a77d61ba4b
+status-end
+add-bp3-skill
+add-yap-skill
+icebox
+naming
+quest
+red-ink
+red-ink-quest-landing-demo
+traverse
+traverse-no-human
+using-bp3
+=== exp dir ===
+EXPERIMENT.md
+runs
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs:
+20261116T194936Z-handoff-muse-code-muse-wonder-1.0-c1
+20261116T195727Z-audit-muse-code-muse-wonder-1.0-c1
+20261116T195727Z-grade-muse-code-muse-wonder-1.0-c1
+20261116T195727Z-verify-muse-code-muse-wonder-1.0-c1
+20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2
+20261116T212019Z-audit-muse-code-muse-wonder-1.0-c2
+20261116T212019Z-grade-muse-code-muse-wonder-1.0-c2
+20261116T212019Z-verify-muse-code-muse-wonder-1.0-c2
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T194936Z-handoff-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T195727Z-audit-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T195727Z-grade-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T195727Z-verify-muse-code-muse-wonder-1.0-c1:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T211221Z-handoff-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T212019Z-audit-muse-code-muse-wonder-1.0-c2:
+notes.md
+tape.log
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T212019Z-grade-muse-code-muse-wonder-1.0-c2:
+
+docs/quests/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/experiments/exp-mig-2-traverse-rename//runs/20261116T212019Z-verify-muse-code-muse-wonder-1.0-c2:
+tape.log
+=== traverse.sh ===
+node-loop tests: ok
+induct-grade tests: ok
+quest-land tests: ok
+traverse-conduct tests: ok
+traverse exit:0
+=== old names ===
+ls: skills/induct*: No such file or directory
+ls-induct exit:1
+=== skills.sh ===
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+true
+skills tests: ok (121 assertions)
+skills exit:0
+=== EXPERIMENT ===
+---
+date: 2026-11-16
+quest: ../QUEST.md
+exp: mig.2
+status: proposed
+---
+
+# mig.2 - traverse-rename: conducting skills take graph names
+
+## TL;DR
+
+Early rename of the conducting surface (owner,
+2026-11-16): `/induct` and `/induct-quest` become
+`/traverse` — the root worker traverses the graph;
+the `induct-exp` workflow becomes `node-loop`,
+the node worker's loop (the skeleton mvp.3's
+`induct-node` grows from). One traversal word for
+the root's job, one loop word for the node's.
+
+## Demo (design trace)
+
+```text
+before: /induct -> induct-exp.js (todo) + induct-grade.js + quest-land.js
+after:  /traverse -> node-loop.js owns the node FSM loop
+        (grade/land become phases briefed inside node-loop,
+         folded in by mvp.3's induct-node work)
+old spellings refuse: /induct unknown skill; induct-exp.js absent
+```
+
+## Diagram
+
+```text
+/induct, /induct-quest ──► /traverse        (root worker skill)
+/induct-quest-no-human ──► /traverse-no-human
+induct-exp.js ──────────► node-loop.js      (node worker workflow)
+```
+
+## Pseudocode
+
+```python
+rename_skill("induct", "traverse"); rename_skill("induct-quest", "traverse")
+rename_skill("induct-quest-no-human", "traverse-no-human")
+rename_workflow("induct-exp.js", "node-loop.js")   # behavior unchanged in this node
+install_all_harnesses(); assert old_names_refuse()
+```
+
+| Field | Value |
+|---|---|
+| Intent | the conducting vocabulary matches the graph design from early in the quest |
+| Lane | standard |
+| Output | traverse skill family + node-loop workflow, installed all harnesses; old names gone |
+| Depends on | mig.1 (briefs already speak handoff/grade) |
+
+## Acceptance
+
+| Case | Expected |
+|---|---|
+| traverse conducts | `/traverse` drives one fixture node end to end (handoff -> grade -> land) in a smoke drive |
+| node-loop runs | `node-loop.js` executes the todo-node path identically to the old induct-exp on fixtures (behavior-preserving rename; loop generalization is mvp.3) |
+| old names refuse | `/induct`, `/induct-quest`, `induct-exp` resolve nowhere (skills dirs + workflows dirs, all harnesses) |
+| renders clean | `bp3 skills install --harness=all` regenerates every harness copy; validator green; no hand-edited render |
+| no-human variant | `/traverse-no-human` renamed alongside, same gates |
+
+## Acceptance test (goal block)
+
+- **Objective:** the quest conducts itself with
+  the new names from this node on.
+- **Prove by:** smoke drive under `/traverse`,
+  workflow fixture parity, old-name refusal sweep.
+- **Done when:** one node conducted under the new
+  names, old names resolve nowhere, observed.
+
+## Tests
+
+Known cases: rename sweep (old spellings zero in
+skills/workflows/renders), install assertions per
+harness, workflow fixture parity pre/post rename.
+
+Property-based: omitted — rename is a bijection;
+the sweep + parity cases carry it (stated
+decision).
+
+## Context
+
+Owner call at adoption time: the graph vocabulary
+should not wait until rename.1 for the conducting
+surface the quest itself uses daily. The noun/door
+rename (`bp3 g`, `bp3g`) still waits — traverse
+conducts over `bp3 q` until mvp.2/rename.1 land.
+=== bp3 q read ===
+{"ok":false,"error":{"code":"E_NOT_FOUND","facts":{"quest":"exp-mig-2-traverse-rename"},"guidance":"quest not found: exp-mig-2-traverse-rename"}}
+=== no-human ===
+---
+name: traverse-no-human
+description: Run several bp3 quests with no human present using the traverse conductor — fleet preflight, park blocked work in the inbox, and end with the check-in report; never attests, never pages, never promotes.
+---
+
+# Traverse, no human
+
+Use when a human in a bp3-enabled repo invokes this skill
+by name (`/traverse-no-human <quest>...`,
+`$traverse-no-human`) or asks to run quests unattended,
+overnight, or in a queue with no human present. Several
+quests may be named; a Run budget may be stated. One
+output: the check-in report (step 5). For one quest with a
+human present, use `traverse` instead.
+
+`/traverse-no-human <quest>...` means `/traverse <quest>` per
+quest, in queue order, under the no-human rails below. Follow
+the canonical `traverse` skill (`skills/traverse/SKILL.md`)
+procedure and rules as written there — read state with
+`bp3 q r`, dispatch the one step that state calls for,
+name: traverse-no-human
+=== renders clean ===
+skills check: ok (10 files)
+installed add-bp3-skill -> .pi/skills/add-bp3-skill/SKILL.md (pi)
+installed add-bp3-skill -> .claude/skills/add-bp3-skill/SKILL.md (claude)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (codex)
+installed add-bp3-skill -> .agents/skills/add-bp3-skill/SKILL.md (muse)
+installed add-yap-skill -> .pi/skills/add-yap-skill/SKILL.md (pi)
+installed add-yap-skill -> .claude/skills/add-yap-skill/SKILL.md (claude)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (codex)
+installed add-yap-skill -> .agents/skills/add-yap-skill/SKILL.md (muse)
+installed icebox -> .pi/skills/icebox/SKILL.md (pi)
+installed icebox -> .claude/skills/icebox/SKILL.md (claude)
+installed icebox -> .agents/skills/icebox/SKILL.md (codex)
+installed icebox -> .agents/skills/icebox/SKILL.md (muse)
+installed naming -> .pi/skills/naming/SKILL.md (pi)
+installed naming -> .claude/skills/naming/SKILL.md (claude)
+installed naming -> .agents/skills/naming/SKILL.md (codex)
+installed naming -> .agents/skills/naming/SKILL.md (muse)
+installed quest -> .pi/skills/quest/SKILL.md (pi)
+installed quest -> .claude/skills/quest/SKILL.md (claude)
+installed quest -> .agents/skills/quest/SKILL.md (codex)
+installed quest -> .agents/skills/quest/SKILL.md (muse)
+installed red-ink-quest-landing-demo -> .pi/skills/red-ink-quest-landing-demo/SKILL.md (pi)
+installed red-ink-quest-landing-demo -> .claude/skills/red-ink-quest-landing-demo/SKILL.md (claude)
+installed red-ink-quest-landing-demo -> .agents/skills/red-ink-quest-landing-demo/SKILL.md (codex)
+installed red-ink-quest-landing-demo -> .agents/skills/red-ink-quest-landing-demo/SKILL.md (muse)
+installed red-ink -> .pi/skills/red-ink/SKILL.md (pi)
+installed red-ink -> .claude/skills/red-ink/SKILL.md (claude)
+installed red-ink -> .agents/skills/red-ink/SKILL.md (codex)
+installed red-ink -> .agents/skills/red-ink/SKILL.md (muse)
+installed traverse-no-human -> .pi/skills/traverse-no-human/SKILL.md (pi)
+installed traverse-no-human -> .claude/skills/traverse-no-human/SKILL.md (claude)
+installed traverse-no-human -> .agents/skills/traverse-no-human/SKILL.md (codex)
+installed traverse-no-human -> .agents/skills/traverse-no-human/SKILL.md (muse)
+installed traverse -> .pi/skills/traverse/SKILL.md (pi)
+installed traverse -> .claude/skills/traverse/SKILL.md (claude)
+installed traverse -> .agents/skills/traverse/SKILL.md (codex)
+installed traverse -> .agents/skills/traverse/SKILL.md (muse)
+installed using-bp3 -> .pi/skills/using-bp3/SKILL.md (pi)
+installed using-bp3 -> .claude/skills/using-bp3/SKILL.md (claude)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (codex)
+installed using-bp3 -> .agents/skills/using-bp3/SKILL.md (muse)
+installed node-loop -> .agents/workflows/node-loop.js
+installed induct-grade -> .agents/workflows/induct-grade.js
+installed quest-land -> .agents/workflows/quest-land.js
+installed hooks -> .claude/hooks.json
+installed hooks -> .claude/settings.json
+installed hooks -> .muse/hooks.json
+installed _bp3 -> /opt/homebrew/share/zsh/site-functions/_bp3
+completion: source /Users/whycz/m/bp3/.bp3/worktrees/2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines/completions/bp3.bash (bash)
+install exit:0
+status-end
+321b96563128806237b1804d650654a77d61ba4b
+=== handoff run files ===
+notes.md
+tape.log
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-2-traverse-rename","state":"handed_off","fin":null,"cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","legal_edges":["grade","verify","block","delete"],"changes":[{"change":"+","path":"test/traverse-conduct.test.mjs"},{"change":"u","path":"test/traverse.sh"}]}
+---
+bp3 q - quest/exp state. Doors:
+bp3 q c|r|d ...              quest door (create, read, delete)
+bp3 q <quest> c|r|u|d ...    exp door for one quest
+bp3 q icebox r [term...]     search frozen icebox entries (read-only)
+bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias
+bp3 q hooks                  harness hook emitter (fail-open)
+Run bp3 q <door> -h for that door's verbs, edges, and flags.
+ test/traverse-conduct.test.mjs | 125 +++++++++++++++++++++++++++++++++++++++++
+ test/traverse.sh               |   1 +
+ 2 files changed, 126 insertions(+)
+# Verify notes — exp-mig-2-traverse-rename c2
+
+- Fresh evidence only (verify stance): re-ran ./test/traverse.sh, ./test/skills.sh, and ./bin/bp3 skills install --harness=all at bound commit 321b965; did not trust claimed green.
+- traverse.sh printed node-loop tests: ok and traverse-conduct tests: ok; skills.sh 121 assertions ok; ls skills/induct* refused as expected.
+- skills/traverse-no-human/SKILL.md carries name: traverse-no-human; install regenerated traverse for all harnesses and left git status clean.
+- State read via bp3 q <quest> r <exp> confirms handed_off, cycle 2, same commit, legal verify edge.
+- Lesson: bp3 q read <exp> alone fails (quest door); correct form is bp3 q <quest> r <exp>.
+total 32
+-rw-r--r--@ 1 whycz  staff    708 Nov 16 16:22 notes.md
+-rw-r--r--@ 1 whycz  staff  12014 Nov 16 16:22 tape.log
+status-end
+{"ok":true,"quest":"2026-11-16-bp3-graph-engine-mvp-2-links-dags-pi-muse-engines","exp":"exp-mig-2-traverse-rename","state":"handed_off","cycle":2,"commit":"321b96563128806237b1804d650654a77d61ba4b","legal_edges":["grade","verify","block","delete"],"run_id":"20261116T212019Z-verify-muse-code-muse-wonder-1.0-c2"}

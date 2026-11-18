@@ -1,4 +1,4 @@
-# bp3-control sketch: exploratory Quests, coordinated exps
+# bp3-control sketch: exploratory Graphs, coordinated nodes
 
 Status: **historical sketch, superseded by the [MVP](bp3-control-mvp.md).**
 
@@ -13,38 +13,38 @@ an evolving Board, Worker coordination, review, and controlled integration.
 Start with one CLI and separate internal modules, not separate Controller,
 Worker-reporting, and launcher binaries.
 
-The Quest is clay; each launched exp is a recorded snapshot of what we are
-trying next. The planning model is **Quest -> outcome-defined exps**, not
-Quest -> Milestone -> Task -> execution attempt. Worker runs are execution
-records inside an exp, not another planning level.
+The Graph is clay; each launched node is a recorded snapshot of what we are
+trying next. The planning model is **Graph -> outcome-defined nodes**, not
+Graph -> Milestone -> Task -> execution attempt. Worker runs are execution
+records inside an node, not another planning level.
 
 ## ELI5
 
-Tell the Controller what you want. It helps choose useful experiments, starts
+Tell the Controller what you want. It helps choose useful nodes, starts
 those that can run together, and brings back things you can inspect or run.
-Keep what works, learn from what does not, and add more experiments as needed.
-When you accept the demonstrated result, complete the Quest. If a prototype
-is worth making robust, write a new hardening Quest using the completed one.
+Keep what works, learn from what does not, and add more nodes as needed.
+When you accept the demonstrated result, complete the Graph. If a prototype
+is worth making robust, write a new hardening Graph using the completed one.
 
 ## Context
 
 ### Problem and desired working style
 
-The user primarily delegates at Quest level. Some requests begin detailed
+The user primarily delegates at Graph level. Some requests begin detailed
 because the user knows the domain; others start with a reference image or a
 rough idea. Exploratory work should support tinkering, not require an entire
-plan before the first useful experiment.
+plan before the first useful node.
 
-An exp is large enough to produce an outcome worth reviewing. The Controller
+An node is large enough to produce an outcome worth reviewing. The Controller
 figures out prerequisites, fans out independent work, retains coordination
-state, and evaluates Worker results. A Quest may gain follow-up exps as new
+state, and evaluates Worker results. A Graph may gain follow-up nodes as new
 information appears. Its exact shape need not be fixed upfront.
 
 Specification effort should consider familiarity and expected longevity, but
 also the consequence and reversibility of mistakes. Throwaway work is not
 necessarily harmless. Exploration should ideally be sandboxed.
 
-The model-routing hypothesis is that a well-specified exp can be executed by
+The model-routing hypothesis is that a well-specified node can be executed by
 a cheaper model, with stronger models used for specification and review.
 This is a hypothesis, not an established capability claim about any model.
 Measure total specification, execution, review, and rework cost.
@@ -58,13 +58,13 @@ The predecessor documents are in the sibling bp3-docs project:
   Board in SQLite, disposable Controller session, operations boundary,
   independent verification, approval before publishing, and recovery.
 - Original master design, `bp3-docs/docs/design.md`:
-  Quest -> Milestone -> Task -> exp hierarchy, pi/Zellij on a Mac mini,
+  Graph -> Milestone -> Task -> node hierarchy, pi/Zellij on a Mac mini,
   separate Worker extraction, and fail-before-start checks.
 
 At the time of writing, this sketch superseded those proposals for this
-component where they conflicted: Quest -> exp, one CLI initially, explicit exp
-prerequisites, acceptance appropriate to exploration, `exp launch`, `exp land`,
-and `quest complete`. The [MVP](bp3-control-mvp.md) now governs this component.
+component where they conflicted: Graph -> node, one CLI initially, explicit node
+prerequisites, acceptance appropriate to exploration, `node launch`, `node land`,
+and `graph complete`. The [MVP](bp3-control-mvp.md) now governs this component.
 The predecessor files were not updated by this sketch.
 These are provenance paths in the original local workspace, not files shipped
 in this repository; bp3-docs has no configured public remote at writing time.
@@ -81,13 +81,13 @@ This design is self-contained and does not require those files to be usable.
 - No first-class Milestone or Task entity, mandatory prototype-to-production
   lifecycle, general distributed workflow platform, or immediate launcher
   extraction.
-- Hardening is a new Quest, based on a prior completed Quest.
+- Hardening is a new Graph, based on a prior completed Graph.
 
 ## Design
 
 You converse with a Controller running control skills. Skills exercise
 judgment; operations enforce transitions; the Board remembers coordination;
-Workers execute. The exp dependency graph grows as the Quest develops.
+Workers execute. The node dependency graph grows as the Graph develops.
 
 ```text
 You <-> Controller session running control skills
@@ -105,29 +105,29 @@ You <-> Controller session running control skills
          +------ Workers
           reporting operations
 
-Quest: evolving demo-able outcome
+Graph: evolving demo-able outcome
   |
-  +-- exp A --+
-  +-- exp B --+--> exp D
-  +-- exp C
+  +-- node A --+
+  +-- node B --+--> node D
+  +-- node C
 
-exp: versioned brief -> execution -> evidence -> review -> disposition
+node: versioned brief -> execution -> evidence -> review -> disposition
 ```
 
 ### Data models
 
 These are logical entities, not a finalized SQL schema.
 
-#### Quest: evolving intent
+#### Graph: evolving intent
 
 ```text
-Quest
+Graph
   id
   intent and why
   current success picture
   constraints and budget
   state
-  based_on: prior Quest/result references
+  based_on: prior Graph/result references
   accepted demo and completion record
 ```
 
@@ -136,14 +136,14 @@ not be a visual UI. Completion records what the user accepted and the known
 limitations; it does not retroactively claim production readiness.
 
 `based_on` supplies provenance and context, not an automatic scheduling
-edge. A hardening Quest references the previous result without reopening
-that Quest or inheriting every exp.
+edge. A hardening Graph references the previous result without reopening
+that Graph or inheriting every node.
 
-#### exp: bounded outcome
+#### node: bounded outcome
 
 ```text
-exp
-  id, quest_id
+node
+  id, graph_id
   brief revision
   intended contribution, scope, non-goals, acceptance basis
   prerequisites
@@ -154,16 +154,16 @@ exp
   state
 ```
 
-An exp can deliver implementation, design, comparison, or a negative finding.
+An node can deliver implementation, design, comparison, or a negative finding.
 An accepted finding that an approach fails is not a landed implementation.
 
 The brief can begin lightweight. It must identify enough purpose, constraints,
 and evidence expectations to authorize useful execution. Changes are explicit
 revisions, not silent replacement of instructions already given to a Worker.
 
-- Missing the agreed brief: rework within the same exp.
-- Wrong or incomplete brief: explicitly amend the exp.
-- Separate useful outcome discovered: propose a follow-up exp.
+- Missing the agreed brief: rework within the same node.
+- Wrong or incomplete brief: explicitly amend the node.
+- Separate useful outcome discovered: propose a follow-up node.
 - Failed approach with useful evidence: retain the findings and close the
   attempt honestly.
 
@@ -174,7 +174,7 @@ without turning every implementation step into Board state.
 
 ```text
 Execution
-  id, exp_id, brief_revision
+  id, node_id, brief_revision
   resolved input commits/artifacts and upstream result revisions
   harness and model
   workspace, branch, terminal/process endpoint
@@ -185,8 +185,8 @@ Execution
 ```
 
 Replacing a Worker or bringing in a stronger reviewer does not create a new
-planning exp. Execution records preserve which inputs produced which output.
-Model selection belongs to execution/review sessions, not exp identity.
+planning node. Execution records preserve which inputs produced which output.
+Model selection belongs to execution/review sessions, not node identity.
 
 Preserve distinct observations for tab existence, process liveness, and
 heartbeat freshness. A stored running state alone is not evidence of health.
@@ -196,10 +196,10 @@ heartbeat freshness. A stored running state alone is not evidence of health.
 Initially support:
 
 1. A repository and exact commit prerequisite.
-2. A prerequisite exp's accepted result, resolved to an exact result revision
+2. A prerequisite node's accepted result, resolved to an exact result revision
    when the downstream execution is launched.
 
-The exp graph must reject cycles, self-dependencies, and missing references.
+The node graph must reject cycles, self-dependencies, and missing references.
 An upstream status alone is insufficient: record the actual consumed output.
 
 If a selected upstream result changes, affected downstream results become
@@ -235,25 +235,25 @@ before implementation of land.
 ### Functions
 
 Command spelling below is proposed. The public naming decisions are
-`exp launch`, `exp land`, and `quest complete`.
+`node launch`, `node land`, and `graph complete`.
 
-#### Quest definition and exploration
+#### Graph definition and exploration
 
 The Controller turns user intent into a current success picture and proposed
-exps. It asks only questions that block safe, useful progress. Exploration can
+nodes. It asks only questions that block safe, useful progress. Exploration can
 produce findings or designs without a software test that fails beforehand.
 
 The Controller identifies common assumptions before fan-out. Complementary
-exps need shared contracts; competing exps need a comparison basis. Being
+nodes need shared contracts; competing nodes need a comparison basis. Being
 individually runnable does not guarantee that their outputs will compose.
 
-#### `exp launch`: reserve and start
+#### `node launch`: reserve and start
 
-Input: exp identity and execution configuration.
+Input: node identity and execution configuration.
 Output: a recorded execution and its launch endpoint, or an explicit failure.
 
 1. Validate prerequisites, brief revision, and capacity.
-2. Atomically reserve the exp against competing launches.
+2. Atomically reserve the node against competing launches.
 3. Record the resolved input snapshot.
 4. Prepare the workspace, composing required committed inputs.
 5. Launch the Worker and record the endpoint and outcome.
@@ -271,7 +271,7 @@ It does not choose work, grade results, or authorize publishing.
 #### Worker reporting and candidate submission
 
 Workers report heartbeat and blockers through operations, not raw SQL or
-pane text. An illustrative `exp ready` submits output references, check
+pane text. An illustrative `node ready` submits output references, check
 results, repeatable demo instructions, and known limitations.
 
 The Worker submits a candidate, not an acceptance decision. Failed required
@@ -292,9 +292,9 @@ intent with the user rather than letting a stronger model invent it.
 Reviewing exploratory findings does not authorize implementing them.
 Accepting code does not inherently authorize release or deployment.
 
-#### `exp land`
+#### `node land`
 
-Integrate a verified, approved code result into the designated Quest branch.
+Integrate a verified, approved code result into the designated Graph branch.
 Serialize integration. Refuse missing, stale, or revision-mismatched approval.
 Check the actual integrated result: individually passing branches can fail
 when combined. Publishing requires recorded human authorization.
@@ -303,18 +303,18 @@ For non-code outputs, record acceptance of the selected artifact or findings;
 do not manufacture a merge to call exploration landed. The exact non-code
 acceptance command remains open.
 
-#### `quest complete`
+#### `graph complete`
 
 Record the user's acceptance of the demonstrated outcome and known
-limitations. Remaining exps need explicit dispositions; not every attempted
-exp needs to succeed. Completion must not leave work silently running.
+limitations. Remaining nodes need explicit dispositions; not every attempted
+node needs to succeed. Completion must not leave work silently running.
 
-A subsequent hardening Quest gets its own intent, requirements, exps, checks,
+A subsequent hardening Graph gets its own intent, requirements, nodes, checks,
 and completion evidence, referencing the completed exploratory result.
 
 #### Context recovery and waiting
 
-A replacement Controller loads current Quests, exp graph, execution snapshots,
+A replacement Controller loads current Graphs, node graph, execution snapshots,
 blockers, open decisions, reviews, and artifact references through operations.
 Full conversation history is fetched only as needed.
 
@@ -364,20 +364,20 @@ untrusted Workers cannot bypass the protocol.
 
 - **Keep Milestone and Task:** rejected for now because they expose planning
   bureaucracy below the outcome the user delegates. Revisit only when real
-  coordination needs cannot be represented by exps plus execution records.
-- **Freeze the whole Quest upfront:** rejected because discovery changes the
+  coordination needs cannot be represented by nodes plus execution records.
+- **Freeze the whole Graph upfront:** rejected because discovery changes the
   work. Version launch inputs instead of pretending intent never evolves.
 - **Separate Worker/launcher CLI immediately:** deferred. Extract when remote
   deployment, independent consumers, packaging, or a real privilege boundary
   supplies a concrete reason.
-- **Every exp check must fail before launch:** rejected as a universal rule.
+- **Every node check must fail before launch:** rejected as a universal rule.
   Use fail-before/pass-after checks where they express an implementation
   outcome; research requires inspectable evidence and explicit questions.
 - **Adopt Invoker wholesale:** not proposed. Borrow dependency validation,
   immutable input lineage, and invalidation principles without assuming its
   whole workflow platform is needed.
 - **Automatically rerun stale descendants:** rejected initially to avoid
-  hidden spend and overwriting useful experiments.
+  hidden spend and overwriting useful nodes.
 
 ### Invoker evidence
 
@@ -406,7 +406,7 @@ failures or passing claims.
 |---|---|
 | Dependency fan-out/fan-in | A and B run in parallel; C cannot launch until its accepted inputs exist and are resolved. |
 | Graph validation | Missing references, self-dependencies, and cycles are rejected without partial mutation. |
-| One active launch | Two launch requests for the same exp produce one active execution and one explicit rejection. |
+| One active launch | Two launch requests for the same node produce one active execution and one explicit rejection. |
 | Partial-launch recovery | Interrupt preparation/launch; recovery reconciles existing resources without duplicate Workers. |
 | Disposable Controller | Restart while Workers progress; replacement discovers results and briefs accurately. |
 | Input lineage | Execution records identify exact brief and input revisions. |
@@ -414,8 +414,8 @@ failures or passing claims.
 | Evidence-backed review | Independently run the committed smoke/demo command and record the exact reviewed output. |
 | Approval binding | Change output after approval; land refuses the old authorization. |
 | Combined-result check | Incompatible individually passing results cannot silently become accepted integration. |
-| Quest completion | Accepted demo and limitations are recorded; remaining work has explicit dispositions. |
-| Hardening provenance | New Quest references the completed exploratory result without modifying the old completion. |
+| Graph completion | Accepted demo and limitations are recorded; remaining work has explicit dispositions. |
+| Hardening provenance | New Graph references the completed exploratory result without modifying the old completion. |
 | Restore | Restore consistent Board backup plus referenced artifacts; context and demo remain reproducible. |
 
 ## Proposed milestones
@@ -431,9 +431,9 @@ These are Markdown delivery proposals, not Board entities or created work.
    smoke demo, independently review it, land only the authorized revision,
    and reject both stale approval and incompatible combined output — depends
    on: 1 and resolution of approval/sandbox questions below.
-3. **Safe evolution and Quest completion** — check: amend inputs and expose
+3. **Safe evolution and Graph completion** — check: amend inputs and expose
    stale descendants without automatic reruns; add a follow-up; complete the
-   exploratory Quest; create a separate hardening Quest from its recorded
+   exploratory Graph; create a separate hardening Graph from its recorded
    result; restore the resulting state and artifacts — depends on: 2.
 
 ## Open questions
@@ -443,7 +443,7 @@ These are Markdown delivery proposals, not Board entities or created work.
    bypassing operations or forging approval? This changes deployment and
    potentially whether a privileged service is necessary.
 2. **Exact integration authorization** — owner: user + implementer. Define
-   human approval scope, Quest-branch versus external publication, and how
+   human approval scope, Graph-branch versus external publication, and how
    approval binds to the checked integration commit. Preserve the existing
    no-unsigned-publishing rule until this is resolved.
 3. **Non-code acceptance command and lifecycle** — owner: user + designer.
@@ -456,24 +456,24 @@ These are Markdown delivery proposals, not Board entities or created work.
    user input. Define capacity/budget controls and whether prerequisite
    edits apply only to future executions or explicitly supersede active ones.
 6. **Model-routing economics** — owner: user + evaluator. Which representative
-   exps establish total cost and quality for cheaper execution plus stronger
+   nodes establish total cost and quality for cheaper execution plus stronger
    review, including rework?
 
 ## Red chair record
 
 ### User input
 
-Strongest attack: flexible, clay-like Quests could leave Workers executing
+Strongest attack: flexible, clay-like Graphs could leave Workers executing
 instructions whose meaning changes underneath them. Change: separate evolving
-Quest intent from versioned exp briefs and immutable execution input snapshots.
-Hardening is explicitly a new Quest. Unanswered: precise mutation behavior for
+Graph intent from versioned node briefs and immutable execution input snapshots.
+Hardening is explicitly a new Graph. Unanswered: precise mutation behavior for
 active executions remains open question 5.
 
 ### Problem space
 
 Strongest attack: the original hierarchy and fail-before-start rule impose
-implementation bureaucracy on discovery. Change: collapse planning to Quest
-and exp; make acceptance evidence appropriate to the outcome. Negative
+implementation bureaucracy on discovery. Change: collapse planning to Graph
+and node; make acceptance evidence appropriate to the outcome. Negative
 findings and designs can be useful results. “Throwaway” does not waive safety.
 Unanswered: sandbox enforcement remains open question 1.
 
