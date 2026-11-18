@@ -154,3 +154,6 @@ grade → author → grade with zero owner contact.
 
 - 2026-11-18 · cycle 2 · correction (this run, after handoff)
   note: "The RESOLVED entry above claimed make check exit 0 at the handoff commit before the gate finished; at that commit make check fails at test/completion.sh (flags --verify-verdict/--mechanical, parsed since 4ab3228, missing from completions/_bp3 and completions/bp3.bash — pre-existing, masked while dogfood-parallel failed earlier in the gate). The follow-up commit on this branch adds both flags to both completion lists; test/completion.sh and full make check pass there. The handoff-bound commit does not contain the follow-up."
+
+- 2026-11-18 · cycle 3 · from grade of 31b7c74 (needs_fix, mechanical) · RESOLVED (this handoff)
+  resolution: "Named mechanical fix applied: --verify-verdict and --mechanical added to the _bp3_flags lists in completions/_bp3 and completions/bp3.bash, matching src/graph/main.ml parse_flags (flags ride the followup.5 combined cast since 4ab3228). The flag lines landed in follow-up 0ee41e2 and ride this handoff commit by ancestry; verified at the fix commit: ./test/completion.sh -> completion tests: ok and make check exit 0 (all gate steps ok, including dogfood-parallel, bp3g, completion, release, install). Pending cycle-2 audit/grade/verify run notes committed as deliberate evidence; tapes stay gitignored."
