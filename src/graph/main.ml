@@ -9,7 +9,7 @@ open Render
 type flags = {
   reason : string option; commit : string option; verdict : string option;
   target : string option; typ : string option; depends_on : string option;
-  fmt : string;
+  fmt : string; verify_verdict : string option; mechanical : bool;
 }
 
 let parse_flags args =
@@ -22,8 +22,13 @@ let parse_flags args =
     | "--type" :: v :: rest -> add acc "type" v rest
     | "--depends-on" :: v :: rest -> add acc "depends-on" v rest
     | "--format" :: v :: rest -> add acc "format" v rest
+    | "--verify-verdict" :: v :: rest -> add acc "verify-verdict" v rest
+    | "--mechanical" :: rest ->
+        if acc.mechanical then usage "duplicate flag --mechanical"
+        else loop { acc with mechanical = true } rest
     | "--reason" :: [] | "--commit" :: [] | "--verdict" :: [] | "--target" :: []
-    | "--type" :: [] | "--depends-on" :: [] | "--format" :: [] ->
+    | "--type" :: [] | "--depends-on" :: [] | "--format" :: []
+    | "--verify-verdict" :: [] ->
         usage "flag needs a value"
     | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
         (match String.index_opt f '=' with
@@ -35,6 +40,7 @@ let parse_flags args =
       | "reason" -> acc.reason <> None | "commit" -> acc.commit <> None
       | "verdict" -> acc.verdict <> None | "target" -> acc.target <> None
       | "type" -> acc.typ <> None | "depends-on" -> acc.depends_on <> None
+      | "verify-verdict" -> acc.verify_verdict <> None
       | "format" -> acc.fmt <> "json" || List.mem "--format" [] | _ -> false in
     (* duplicate detection for format needs explicit tracking; handled below *)
     ignore has;
@@ -45,6 +51,7 @@ let parse_flags args =
     | "target" -> if acc.target <> None then usage "duplicate flag --target" else loop { acc with target = Some v } rest
     | "type" -> if acc.typ <> None then usage "duplicate flag --type" else loop { acc with typ = Some v } rest
     | "depends-on" -> if acc.depends_on <> None then usage "duplicate flag --depends-on" else loop { acc with depends_on = Some v } rest
+    | "verify-verdict" -> if acc.verify_verdict <> None then usage "duplicate flag --verify-verdict" else loop { acc with verify_verdict = Some v } rest
     | "format" ->
         if v <> "json" && v <> "table" && v <> "tree" then usage "--format must be json, table, or tree";
         loop { acc with fmt = v } rest
@@ -55,7 +62,8 @@ let parse_flags args =
     | [] -> n | "--format" :: _ :: r -> count (n + 1) r | _ :: r -> count n r in
   if count 0 args > 1 then usage "duplicate flag --format";
   loop { reason = None; commit = None; verdict = None; target = None;
-         typ = None; depends_on = None; fmt = "json" } args
+         typ = None; depends_on = None; fmt = "json";
+         verify_verdict = None; mechanical = false } args
 
 let split_flags args =
   (* separate positionals (before first --flag) from flags; any positional
@@ -305,28 +313,45 @@ let do_update graph node edge fl id =
              err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str c); ("bound", json_str bound)])
                "Verdict must bind the exact current commit; re-read and retry." 1
        | None -> ());
-      let positive = (v = "ship" || v = "pass") in
+      (match (edge, fl.verify_verdict) with
+       | ("verify", Some _) -> usage "--verify-verdict is only valid on the grade edge"
+       | (_, Some vv) when vv <> "pass" && vv <> "fail" ->
+           usage "--verify-verdict must be pass or fail"
+       | _ -> ());
+      let verify_negative =
+        match fl.verify_verdict with Some "fail" -> true | _ -> false in
+      let positive = (v = "ship" || v = "pass") && not verify_negative in
+      let cast_extra =
+        (match fl.verify_verdict with Some vv -> [("verify_verdict", json_str vv)] | None -> []) @
+        (if fl.mechanical then [("fix_class", json_str "mechanical")] else []) in
       if not positive then begin
+        (* Pure-grade (followup.5): a named mechanical fix never
+           blocks; the cycle cap counts disagreement cycles only,
+           so a mechanical needs_fix always returns to todo. *)
         let (nst, ncyc) =
-          if s.cycle >= knobs.max_cycles then ("blocked", s.cycle) else ("todo", s.cycle + 1) in
+          if fl.mechanical then ("todo", s.cycle + 1)
+          else if s.cycle >= knobs.max_cycles then ("blocked", s.cycle)
+          else ("todo", s.cycle + 1) in
         let ns = { s with st = nst; cycle = ncyc; grade_ok = false; verify_ok = false } in
         if nst = "blocked" then begin ns.blocked_reason <- reason; ns.blocked_since <- now_ts () end;
         let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:ncyc
-          ~commit:s.last_commit ~verdict:(Some v) ~reason ~id () in
+          ~commit:s.last_commit ~verdict:(Some v) ~reason ~id ~extra:cast_extra () in
         let base = finish ns line in
         if nst = "blocked" then
           (match base with `Assoc fs -> `Assoc (fs @ [("human_action_required", `Bool true)]) | o -> o)
         else base
       end else begin
         let ns = { s with grade_ok = (if edge = "grade" then true else s.grade_ok);
-                          verify_ok = (if edge = "verify" then true else s.verify_ok) } in
+                          verify_ok = (if edge = "verify" then true
+                                       else if fl.verify_verdict = Some "pass" then true
+                                       else s.verify_ok) } in
         let now_approved =
           ((not knobs.grade_required) || ns.grade_ok) &&
           ((not knobs.verify_required) || ns.verify_ok) in
         let nst = if now_approved then "approved" else "handed_off" in
         let ns = { ns with st = nst } in
         let line = ledger_line ~edge ~from:s.st ~to_:nst ~cycle:s.cycle
-          ~commit:s.last_commit ~verdict:(Some v) ~reason ~id () in
+          ~commit:s.last_commit ~verdict:(Some v) ~reason ~id ~extra:cast_extra () in
         finish ns line
       end
   | "land" ->
@@ -600,8 +625,8 @@ Example: bp3 g my-graph diagram --format mermaid\n"
 let help_update = "bp3 g <graph> u <node> <edge> - edges and their flags:\n\
   edges: handoff grade verify land block resume\n\
   handoff --commit <sha> --reason <why>    bind a clean commit for grade\n\
-  grade  --verdict ship|needs_fix --reason <why>\n\
-  verify --verdict pass|fail --reason <why>\n\
+  grade  --verdict ship|needs_fix [--verify-verdict pass|fail] [--mechanical] --reason <why>   one combined cast (pure-grade); --mechanical never blocks\n\
+  verify --verdict pass|fail [--mechanical] --reason <why>\n\
   land   --reason <why>                    land an approved node\n\
   block  --reason <why>                    park for a human decision\n\
   resume --reason <why>                    human only: unblock\n\
@@ -754,7 +779,7 @@ let rec run argv =
              let (view, _, _, _) = graph_view q in view) (list_graphs ()) in
            print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true); ("graphs", `List qs)]); 0
        | "r", [graph] ->
-           let (pos, fl) = ( [graph], { reason=None; commit=None; verdict=None; target=None; typ=None; depends_on=None; fmt="json" } ) in
+           let (pos, fl) = ( [graph], { reason=None; commit=None; verdict=None; target=None; typ=None; depends_on=None; fmt="json"; verify_verdict=None; mechanical=false } ) in
            ignore pos;
            (* re-parse: graph may be followed by --format in original rest; handled below *)
            ignore fl;

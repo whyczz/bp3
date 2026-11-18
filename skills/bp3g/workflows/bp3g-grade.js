@@ -1,35 +1,51 @@
 // bp3g-grade: judge one handed_off node on its bound commit.
 // Installed to .agents/workflows/bp3g-grade.js by
-// `bp3 skills install`. The grade climbs the evidence ladder
-// (mvp.7): records, diff, tests run, style, then tape via
-// derivation pointers (find-tape --entry); the whole tape is
-// escalation only, blocked/confused/lying and named.
-// Grade validations (followup.1): before the audit child
-// spawns, a deterministic validations pipeline mints every
-// adherence row in code (one plug per row, ctx in, one typed
-// evidence row out; silence can be the expectation and empty
-// stdout is quoted with the machine-minted token below, never
+// `bp3 skills install`. Pure-grade (followup.5): the grader
+// computes, the looper applies. `grade(commit, node_record)`
+// is a pure function returning a Verdict as data; audit,
+// grade, and verify children write nothing and make zero
+// `bp3 g u` calls. This workflow (the looper) applies the
+// verdict with exactly one combined cast
+// (`grade --verdict ... --verify-verdict ...`), opens the
+// fix-ledger entry, and names the author dispatch; the
+// author records RESOLVED in its fix commit and the next
+// grade verifies it. Named pushbacks refuse before any
+// cast: superseded commit (re-grade), empty fix (escalate),
+// blocked read (owner gate). A named mechanical fix (exact
+// file/line/text, no judgment call) always casts needs_fix
+// (`--mechanical`) at any cycle count and never pages the
+// owner; the cycle cap counts disagreement cycles only (the
+// same row failing again after its named fix was applied).
+// Audit reuse (warden #9): the audit reads the validations
+// log and the author Run's notes first and re-runs only
+// acceptance rows lacking typed evidence there; reused
+// evidence is quoted with its source, never as a fresh run.
+// The grade climbs the evidence ladder (mvp.7): records,
+// diff, tests run, style, then tape via derivation pointers
+// (find-tape --entry); the whole tape is escalation only,
+// blocked/confused/lying and named. Grade validations
+// (followup.1): before the audit child spawns, a
+// deterministic validations pipeline mints every adherence
+// row in code (one plug per row, ctx in, one typed evidence
+// row out; silence can be the expectation and empty stdout
+// is quoted with the machine-minted token below, never
 // hand-quoted by an LLM). The audit child then builds only
 // acceptance rows. A row without typed evidence is an
-// audit-internal re-collect (one retry, named rows), never an
-// FSM verdict: it burns no author cycle and pages no human.
-// Evidence still uncollectable returns outcome
+// audit-internal re-collect (one retry, named rows), never
+// an FSM verdict: it burns no author cycle and pages no
+// human. Evidence still uncollectable returns outcome
 // `audit_failure`, naming the row and the collection error,
-// with no grade/verify cast. Grade and verify children then
-// run in parallel on the exact bound commit and call their
-// verdict edges directly; a cast refused with E_ILLEGAL_EDGE
-// after its sibling moved state is a named expected verdict
-// race, not an unexplained refusal. Grade children never
-// edit the work. As the link minter (mvp.1) this launcher
-// mints each child's one-time link via `bp3 harness link
-// mint` before that child spawns; no child writes its own
-// proof. Returns {outcome, matrix, run_ids, refusals};
-// replay on the same commit is safe: the audit is read-only
-// and re-cast verdicts bind the same commit.
+// with no cast. Replay on the same commit is safe: pure
+// children leave no partial writes, so a killed grade is
+// simply re-dispatched. As the link minter (mvp.1) this
+// launcher mints each child's one-time link via
+// `bp3 harness link mint` before that child spawns; no
+// child writes its own proof. Returns {outcome, matrix,
+// verdict, ledger, casts, run_ids, refusals}.
 // Args are supplied by the calling bp3g skill as
-// {graph, node, ts, harness, model, commit}; ts is a UTC compact
-// timestamp from the caller, embedded by children in every
-// run-id because scripts cannot read the clock.
+// {graph, node, ts, harness, model, commit}; ts is a UTC
+// compact timestamp from the caller, embedded by children
+// in every run-id because scripts cannot read the clock.
 
 function textOf(result) {
   if (typeof result === "string") return result;
@@ -319,7 +335,9 @@ function normalizeRow(row, i) {
     // An unnamed whole-tape read never carries a grade.
     verdict = "missing";
   }
-  return { case: name, evidence: evidence, verdict: verdict, rung: rung };
+  const reused = row && typeof row.reused_from === "string" && row.reused_from
+    ? row.reused_from : null;
+  return { case: name, evidence: evidence, verdict: verdict, rung: rung, reused_from: reused };
 }
 
 function normalizeMatrix(raw) {
@@ -338,6 +356,135 @@ function normalizeMatrix(raw) {
     ];
   }
   return raw.map(normalizeRow);
+}
+
+// ---------- pure grade (followup.5) ----------
+// grade(commit, record) -> Verdict: no writes, replayable.
+// The record is the evidence matrix plus the two pure child
+// replies; prior_failed_rows names rows a previous cycle
+// already dispatched a fix for (the fix-ledger OPEN rows).
+
+function failedRowsOf(matrix) {
+  return matrix
+    .filter(function (r) { return r.verdict !== "pass" && r.verdict !== "deferred"; })
+    .map(function (r) { return r.case; });
+}
+
+const MECHANICAL_FILE = /[\w./-]+\.[a-z]{1,6}(:\d+)?\b/;
+const OWNER_WORDS = /\b(scope|delete|redesign|rename the|choose|decide)\b/i;
+
+// A named mechanical fix names the exact file/line/text
+// change and asks for no scope or judgment call. Anything
+// naming an owner-only call is owner class; a fix whose row
+// already rode one fix cycle is a disagreement.
+function classifyFix(fix, failedRows, priorFailedRows) {
+  const text = typeof fix === "string" ? fix : "";
+  if (!text.trim()) return "owner";
+  const prior = Array.isArray(priorFailedRows) ? priorFailedRows : [];
+  if (failedRows.some(function (c) { return prior.indexOf(c) >= 0; })) {
+    return "disagreement";
+  }
+  if (OWNER_WORDS.test(text)) return "owner";
+  if (MECHANICAL_FILE.test(text)) return "mechanical";
+  return "standard";
+}
+
+function childVerdict(result, positive, negative) {
+  const v = parseVerdict(result);
+  if (!v) return negative;
+  const raw = typeof v.verdict === "string" ? v.verdict
+    : typeof v.outcome === "string" ? v.outcome : null;
+  if (raw === positive || raw === negative) return raw;
+  if (v.ok === false) return negative;
+  // Legacy cast-shaped replies ({verdict:{ok:true}}) read as
+  // the positive verdict; pure replies name theirs.
+  return positive;
+}
+
+function childFix(result) {
+  const v = parseVerdict(result);
+  if (!v) return "";
+  if (typeof v.fix === "string" && v.fix) return v.fix;
+  if (typeof v.reason === "string" && v.reason) return v.reason;
+  return "";
+}
+
+function gradePure(commit, matrix, gradeResult, verifyResult, priorFailedRows) {
+  const gradeVerdict = childVerdict(gradeResult, "ship", "needs_fix");
+  const verifyVerdict = childVerdict(verifyResult, "pass", "fail");
+  const failed = failedRowsOf(matrix);
+  const positive =
+    failed.length === 0 && gradeVerdict === "ship" && verifyVerdict === "pass";
+  let fix = childFix(gradeResult) || childFix(verifyResult);
+  // Failed rows name their own fix; an explicit needs_fix
+  // with neither child fix text nor a failed row stays
+  // empty and hits the empty-fix pushback in applyDecision.
+  if (!positive && !fix && failed.length > 0) {
+    fix = failed.map(function (c) { return "fix acceptance row: " + c; }).join("; ");
+  }
+  const explicit = (function () {
+    const v = parseVerdict(gradeResult);
+    return v && typeof v.fix_class === "string" ? v.fix_class : "";
+  })();
+  const fixClass = positive ? "none"
+    : ["mechanical", "disagreement", "owner", "standard"].indexOf(explicit) >= 0
+      ? explicit
+      : classifyFix(fix, failed, priorFailedRows);
+  return {
+    commit: commit,
+    outcome: positive ? "ship" : "needs_fix",
+    grade_verdict: gradeVerdict,
+    verify_verdict: verifyVerdict,
+    fix: positive ? "" : fix,
+    fix_class: fixClass,
+    failed_rows: failed,
+  };
+}
+
+// Looper pushbacks (followup.5): named refusals decided
+// before any cast. Returns {action: cast|refuse|escalate}.
+function applyDecision(verdict, read, maxCycles) {
+  if (String(verdict.commit) !== String(read.commit)) {
+    return {
+      action: "refuse", outcome: "refused",
+      name: "superseded - re-grade",
+      detail: "verdict commit " + verdict.commit +
+        " is not the current commit " + read.commit +
+        "; no cast attempted",
+    };
+  }
+  if (read.state === "blocked") {
+    return {
+      action: "escalate", outcome: "escalated",
+      name: "owner gate",
+      detail: "cast attempted over a blocked read; state untouched",
+    };
+  }
+  if (verdict.outcome === "needs_fix" && !String(verdict.fix || "").trim()) {
+    return {
+      action: "escalate", outcome: "escalated",
+      name: "empty fix",
+      detail: "needs_fix verdict carried no fix text; no author dispatched",
+    };
+  }
+  if (verdict.fix_class === "owner") {
+    return {
+      action: "escalate", outcome: "escalated",
+      name: "owner gate",
+      detail: "fix needs an owner-only call: " + verdict.fix,
+    };
+  }
+  return { action: "cast", outcome: null, name: "", detail: "" };
+}
+
+// Audit reuse (warden #9): typed pass evidence the author
+// already produced for this commit, quoted with its source.
+function priorEvidenceRows(obs) {
+  const raw = obs && Array.isArray(obs.prior_evidence) ? obs.prior_evidence : [];
+  return raw.filter(function (r) {
+    return r && typedEvidence(r.evidence) && r.verdict === "pass" &&
+      typeof r.case === "string" && typeof r.source === "string" && r.source !== "";
+  });
 }
 
 function outcomeFor(state, matrix) {
@@ -366,6 +513,9 @@ export default async function workflow(host) {
   const model = rawArgs.model || "unknown";
   const desk = rawArgs.desk ? String(rawArgs.desk) : "";
   const commit = rawArgs.commit ? String(rawArgs.commit) : "";
+  const maxCycles = typeof rawArgs.max_cycles === "number" ? rawArgs.max_cycles : 1;
+  const priorFailedRows = Array.isArray(rawArgs.prior_failed_rows)
+    ? rawArgs.prior_failed_rows.map(String) : [];
   const deskNote = desk ? ("Your working directory is the graph worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
   const envPrefix =
     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
@@ -562,6 +712,12 @@ export default async function workflow(host) {
       "Then return only a JSON object {log_path, git_clean: {stdout, " +
       "exit}, git_show: {stdout, exit}, run_folders, handoff_line} " +
       "built from these bounded commands, where log_path is the path " +
+      "Also return prior_evidence: typed pass rows the author " +
+      "already produced for this commit, read from that " +
+      "validations log and the handoff run folder's notes.md; " +
+      "each row is {case, verdict: pass, evidence: {kind, ref, " +
+      "quote}, source} where source names the log path or run " +
+      "folder it came from (empty array when there is none). " +
       "the first command printed (never summarize, never edit any " +
       "file, and do not call any `bp3 g u` update edge): " +
       "(1) `git status --porcelain | head -20` for git_clean; " +
@@ -598,6 +754,16 @@ export default async function workflow(host) {
     commit: commit,
     obs: validationsVerdict,
   });
+  const priorRows = priorEvidenceRows(validationsVerdict);
+  const reuseNote = priorRows.length === 0
+    ? "No prior typed evidence exists for this commit: execute " +
+      "every acceptance-named test yourself. "
+    : "Prior typed evidence for this commit (reuse, never as a " +
+      "fresh run): " + JSON.stringify(priorRows) + ". For a case " +
+      "with prior pass evidence above, do not re-execute its " +
+      "suite; emit its row with reused_from naming that source " +
+      "and evidence quoting the source (log path / run folder). " +
+      "Re-run only acceptance rows lacking typed evidence there. ";
 
   if (!(await mintLink("audit", before.cycle))) {
     return { node: node, outcome: "refused", matrix: [], run_ids: runIds, refusals: refusals };
@@ -620,7 +786,7 @@ export default async function workflow(host) {
       "in the validations log `" +
       (validationsVerdict.log_path || "the log_path the transport returned") +
       "` (machine-local, under the git common dir); read it when a " +
-      "row needs more than the bounded heads. " + LADDER_TEXT +
+      "row needs more than the bounded heads. " + reuseNote + LADDER_TEXT +
       "Every row " +
       "is {case, rung: 1|2|3|4|5a|5b, evidence: {kind: file|command|ledger|grep, ref, " +
       "quote}, verdict: pass|fail|missing|deferred}: name the rung " +
@@ -743,13 +909,13 @@ export default async function workflow(host) {
     "Rows with verdict deferred are not gated by this node (each " +
     "names the node that owns it) and never block: ignore them. " +
     "Any gated row with verdict fail or missing means the work " +
-    "is not correct: cast the negative verdict. " + LADDER_TEXT +
-    "A rung 5a fail row blocks citing its pointer: cast the " +
+    "is not correct: return the negative verdict. " + LADDER_TEXT +
+    "A rung 5a fail row blocks citing its pointer: return the " +
     "negative verdict. A rung 5b row is evidence only when it " +
     "names its escalation (blocked, confused, or lying); an " +
     "unnamed whole-tape read, or a clean grade whose matrix " +
     "shows a whole-log read it did not need, is not correct: " +
-    "cast the negative verdict. ";
+    "return the negative verdict. ";
   if (!(await mintLink("grade", before.cycle)) ||
       !(await mintLink("verify", before.cycle))) {
     return { node: node, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
@@ -763,33 +929,28 @@ export default async function workflow(host) {
     "own Acceptance cases in its NODE.md (read it first): " +
     "every gated case needs observed evidence (a case deferred " +
     "to a named successor node is not gated here), and any open " +
-    "design question in the node means it was not done properly. Judge " +
-    "only; do not edit the work. Then call the state " +
-    "edge directly yourself, binding the exact commit: " +
-    "`" + envPreset("grade", before.cycle) + "./bin/bp3 g " + graph + " u " + node +
-    " grade --verdict ship --commit " + commit +
-    " --reason \"<short reason>\"` when the work is correct, " +
-    "or the same call with `--verdict needs_fix` when it is " +
-    "not. Children call `bp3 g u` directly; never only return " +
-    "a verdict for the parent to relay. Reply with only a " +
-    "JSON object {ok, run_id, commit, verdict} where verdict " +
-    "is the JSON printed by the grade call.";
+    "design question in the node means it was not done properly. " +
+    "Pure grade (followup.5): judge only; do not edit the work " +
+    "and do not call any `bp3 g u` update edge. Return your " +
+    "verdict as data for the looper to apply, binding the exact " +
+    "commit: reply with only a JSON object {ok, run_id, commit, " +
+    "verdict, fix, fix_class, failed_rows} where verdict is " +
+    "ship when the work is correct or needs_fix when it is not, " +
+    "fix names the exact fix verbatim for needs_fix (empty for " +
+    "ship), fix_class is mechanical|disagreement|owner|standard, " +
+    "and failed_rows lists the failing acceptance cases.";
   const verifyPrompt = deskNote +
     "You are the verify child for node `" + node + "` of graph `" +
     graph + "`, currently in state `" + before.state + "` at cycle " +
     String(before.cycle) + ", bound to commit `" + commit + "`. " +
     verifyLoad + tapePreamble("verify", before.cycle) + gate +
     " Run the node's checks against the bound commit and judge " +
-    "only; do not edit the work. Then call the state edge " +
-    "directly yourself, binding the exact commit: " +
-    "`" + envPreset("verify", before.cycle) + "./bin/bp3 g " + graph + " u " + node +
-    " verify --verdict pass --commit " + commit +
-    " --reason \"<short reason>\"` when every check passes, " +
-    "or the same call with `--verdict fail` when any check " +
-    "fails. Children call `bp3 g u` directly; never only " +
-    "return a verdict for the parent to relay. Reply with " +
-    "only a JSON object {ok, run_id, commit, verdict} where " +
-    "verdict is the JSON printed by the verify call.";
+    "only; do not edit the work and do not call any `bp3 g u` " +
+    "update edge. Pure grade (followup.5): return your verdict " +
+    "as data for the looper to apply, binding the exact commit: " +
+    "reply with only a JSON object {ok, run_id, commit, verdict, " +
+    "fix, failed_rows} where verdict is pass when every check " +
+    "passes or fail when any check fails.";
   const stageResults = await host.parallel([
     { label: "grade " + node, input: gradePrompt },
     { label: "verify " + node, input: verifyPrompt },
@@ -800,38 +961,58 @@ export default async function workflow(host) {
       runIds.push(v.run_id);
     }
   }
-
+  // Pure verdict, then the looper applies it (followup.5):
+  // re-read fresh, push back by name before any cast, else
+  // exactly one combined cast plus the fix-ledger OPEN entry.
+  const verdict = gradePure(commit, matrix, stageResults[0], stageResults[1], priorFailedRows);
+  const fresh = await readState();
+  if (fresh.state === "unknown") {
+    refusals.push("re-read before apply failed: " + (fresh.raw || "no verdict"));
+    return { node: node, outcome: "refused", matrix: matrix, verdict: verdict, ledger: [], casts: 0, run_ids: runIds, refusals: refusals };
+  }
+  const decision = applyDecision(verdict, fresh, maxCycles);
+  if (decision.action !== "cast") {
+    refusals.push(decision.name + ": " + decision.detail);
+    return { node: node, outcome: decision.outcome, matrix: matrix, verdict: verdict, ledger: [], casts: 0, run_ids: runIds, refusals: refusals };
+  }
+  const castVerdict = verdict.outcome === "ship" ? "ship" : "needs_fix";
+  const reasonText = verdict.outcome === "ship"
+    ? "grade ship; verify " + verdict.verify_verdict
+    : verdict.fix;
+  const safeReason = String(reasonText).replace(/(["$`\\])/g, "\\$1");
+  const applyCmd =
+    envPreset("grade", before.cycle) + "./bin/bp3 g " + graph + " u " + node +
+    " grade --verdict " + castVerdict + " --commit " + commit +
+    " --verify-verdict " + verdict.verify_verdict +
+    (verdict.fix_class === "mechanical" ? " --mechanical" : "") +
+    " --reason \"" + safeReason + "\"";
+  const applied = await host.agent({
+    label: "apply " + node,
+    input:
+      deskNote +
+      "Run exactly `" + applyCmd + "` from the graph worktree if " +
+      "one is named above, else the repository root, and return " +
+      "only its stdout JSON verdict verbatim as your entire " +
+      "reply, with no prose and no code fences. If the command " +
+      "fails, return its stdout JSON verdict verbatim instead. " +
+      "Do not edit any file.",
+  });
+  const appliedVerdict = parseVerdict(applied);
+  if (!appliedVerdict || appliedVerdict.ok !== true) {
+    refusals.push("looper cast refused: " + errorText(applied));
+  }
+  const ledger = verdict.outcome === "needs_fix"
+    ? [{ state: "OPEN", fix: verdict.fix, commit: commit, cycle: fresh.cycle }]
+    : [];
   const after = await readState();
   if (after.state === "unknown") {
     refusals.push("re-read after grade failed: " + (after.raw || "no verdict"));
-    for (let i = 0; i < stageResults.length; i++) {
-      refusals.push(errorText(stageResults[i]));
-    }
-    return { node: node, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
+    return { node: node, outcome: "refused", matrix: matrix, verdict: verdict, ledger: ledger, casts: 1, run_ids: runIds, refusals: refusals };
   }
-  const outcome = outcomeFor(after.state, matrix);
-  // Verdict race (followup.1): grade and verify cast in
-  // parallel; the first cast can move state so the second
-  // cast's edge is no longer legal. When the re-read shows
-  // state moved, that E_ILLEGAL_EDGE is an expected verdict
-  // race and is named as such, never an unexplained refusal.
-  const stageEdges = ["grade", "verify"];
-  let raced = false;
-  for (let i = 0; i < stageResults.length; i++) {
-    if (textOf(stageResults[i]).indexOf("E_ILLEGAL_EDGE") >= 0 && after.state !== "handed_off") {
-      raced = true;
-      refusals.push(
-        "expected verdict race: " + stageEdges[i] + " cast refused with " +
-        "E_ILLEGAL_EDGE after the parallel verdict moved state to " +
-        after.state + "; the refused cast is expected and does not " +
-        "change the outcome"
-      );
-    }
+  let outcome = outcomeFor(after.state, matrix);
+  if (outcome === "refused") outcome = verdict.outcome === "ship" ? "approved" : "needs_fix";
+  if (after.state === "blocked" && verdict.fix_class === "disagreement") {
+    outcome = "blocked";
   }
-  if (outcome === "refused" && !raced) {
-    for (let i = 0; i < stageResults.length; i++) {
-      refusals.push(errorText(stageResults[i]));
-    }
-  }
-  return { node: node, outcome: outcome, matrix: matrix, run_ids: runIds, refusals: refusals };
+    return { node: node, outcome: outcome, matrix: matrix, verdict: verdict, ledger: ledger, casts: 1, run_ids: runIds, refusals: refusals };
 }

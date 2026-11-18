@@ -172,6 +172,29 @@ echo "$out" | jq -e '.ok == true and .state == "blocked" and .human_action_requi
 out=$(q r demo)
 echo "$out" | jq -e '(.inbox | length == 1) and .inbox[0].graph == "demo" and .inbox[0].node == "parser-fix2" and .inbox[0].reason == "broken" and (.inbox[0] | has("checkpoint")) and (.inbox[0] | has("cycle")) and (.inbox[0] | has("since"))' >/dev/null || fail "blocked inbox: $out"
 
+# --- pure-grade (followup.5): one combined cast approves; mechanical never blocks ---
+out=$(q demo c pure-node)
+echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "pure create: $out"
+out=$(q demo u pure-node handoff --commit "$B" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "pure handoff: $out"
+out=$(q demo u pure-node grade --verdict ship --verify-verdict pass --commit "$B" --reason "grade ship; verify pass")
+echo "$out" | jq -e '.ok == true and .state == "approved" and .cycle == 1' >/dev/null || fail "combined cast approves once: $out"
+git show bp3/node/demo/pure-node:docs/graphs/demo/nodes/pure-node/ledger.jsonl | jq -se '([.[] | select(.edge == "grade")] | length == 1) and ([.[] | select(.edge == "grade")][0] | .verify_verdict == "pass")' >/dev/null || fail "combined cast is one ledger line"
+out=$(q demo c mech-node)
+out=$(q demo u mech-node handoff --commit "$B" --reason "work")
+out=$(q demo u mech-node grade --verdict needs_fix --mechanical --reason "skills/bp3g/SKILL.md:12 stale term")
+echo "$out" | jq -e '.ok == true and .state == "todo" and .cycle == 2' >/dev/null || fail "mechanical needs_fix returns todo at cap, never blocked: $out"
+git show bp3/node/demo/mech-node:docs/graphs/demo/nodes/mech-node/ledger.jsonl | tail -1 | jq -e '.to == "todo" and .fix_class == "mechanical"' >/dev/null || fail "mechanical ledger line"
+out=$(q r demo)
+echo "$out" | jq -e '(.inbox | map(select(.node == "mech-node")) | length == 0)' >/dev/null || fail "mechanical writes no blocked line: $out"
+out=$(q demo u mech-node handoff --commit "$B" --reason "work again")
+out=$(q demo u mech-node grade --verdict needs_fix --reason "same row still failing")
+echo "$out" | jq -e '.ok == true and .state == "blocked" and .human_action_required == true' >/dev/null || fail "disagreement blocks at cap: $out"
+out=$(q demo c misuse-node)
+out=$(q demo u misuse-node handoff --commit "$B" --reason "work")
+if out=$(q demo u misuse-node verify --verdict pass --verify-verdict pass --reason "bad combo" 2>&1); then fail "verify-verdict on verify accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "verify-verdict misuse code: $out"
+
 # table format contains same facts
 tbl=$(q r demo --format table)
 echo "$tbl" | grep -q "demo" || fail "table missing graph"

@@ -31,6 +31,16 @@
 // state, reason, last edge, claim/run chain, desk, and
 // inbox key — so revival after resume is a fresh run
 // that re-reads bp3; no pid or session is ever resumed.
+// Pure-grade (followup.5): grade/verify workers return
+// verdicts as data and cast nothing; this loop (the looper)
+// applies the combined verdict with exactly one cast
+// (`grade --verdict ... --verify-verdict ...`), opens the
+// fix-ledger entry, and dispatches the author with the fix
+// verbatim. Named pushbacks (superseded, empty fix, blocked)
+// escalate by name before any cast; a named mechanical fix
+// casts `--mechanical` and never blocks, and the cycle cap
+// counts disagreement cycles only. The author records the
+// ledger entry RESOLVED in its fix commit.
 // Args: {graph, node, ts, harness, model, desk, context}.
 // The conductor's context (a cycle's named fix, carried
 // verbatim) rides the first author cycle; a grade's own
@@ -306,6 +316,7 @@ export default async function workflow(host) {
       reason: reason || null,
       last_edge: lastEdge || null,
       run_ids: runIds,
+      ledger: fixLedger,
       desk: desk || null,
       inbox_key: graph + "/" + node,
       refusals,
@@ -403,7 +414,9 @@ export default async function workflow(host) {
         deskNote + "You are the author child for node `" + node + "` of graph `" +
         graph + "`, currently in state `todo` at cycle " +
         String(state.cycle) + ". " + authorLoad + tapePreamble(edge, state.cycle) +
-        (fix ? " The grader named this fix; carry it verbatim: " + fix : "") +
+        (fix ? " The grader named this fix; carry it verbatim: " + fix +
+          " Record this fix-ledger entry as RESOLVED in your run " +
+          "folder's notes.md as part of your fix commit." : "") +
         " Do the node's work in the repository, then commit the " +
         "work as a clean git commit and note its full sha. Then " +
         "call the state edge directly yourself: " +
@@ -420,12 +433,12 @@ export default async function workflow(host) {
         graph + "`, currently in state `handed_off` at cycle " +
         String(state.cycle) + ". " + tapePreamble(edge, state.cycle) +
         " Judge the exact bound commit " + String(state.commit) +
-        "; never edit the work. Then call the state edge directly yourself: " +
-        "`" + envPreset() + "./bin/bp3 g " + graph + " u " + node + " " + edge +
-        " --verdict " + verdicts + " --reason \"<short reason>\"`. " +
-        "Reply with only a JSON object {ok, run_id, commit, verdict, reason} " +
-        "where verdict is the JSON printed by the " + edge + " call and " +
-        "reason carries any named fix verbatim.";
+        "; never edit the work and do not call any `bp3 g u` update edge. " +
+        "Pure grade (followup.5): return your verdict as data for the " +
+        "looper to apply. Reply with only a JSON object {ok, run_id, " +
+        "commit, verdict, fix, fix_class, failed_rows} where verdict is " +
+        verdicts + ", fix carries any named fix verbatim, and reason " +
+        "is accepted as the fix for older replies.";
     } else {
       input =
         deskNote + "You are the land child for node `" + node + "` of graph `" +
@@ -442,6 +455,48 @@ export default async function workflow(host) {
     if (v && typeof v.run_id === "string" && v.run_id) runIds.push(v.run_id);
     await bindTape(edge, state.cycle);
     return v;
+  }
+
+  // The looper's one cast (followup.5): grade and verify
+  // replies are data; this loop combines them and casts once.
+  function pureVerdict(v, positive, negative) {
+    if (!v) return negative;
+    const raw = typeof v.verdict === "string" ? v.verdict
+      : typeof v.outcome === "string" ? v.outcome : null;
+    if (raw === positive || raw === negative) return raw;
+    if (v.ok === false) return negative;
+    return positive;
+  }
+  function pureFix(v) {
+    if (!v) return "";
+    if (typeof v.fix === "string" && v.fix) return v.fix;
+    if (typeof v.reason === "string" && v.reason) return v.reason;
+    return "";
+  }
+  const fixLedger = [];
+  async function callApply(combined, state) {
+    const castVerdict = combined.outcome === "ship" ? "ship" : "needs_fix";
+    const reasonText = combined.outcome === "ship"
+      ? "grade ship; verify " + combined.verify_verdict : combined.fix;
+    const safe = String(reasonText).replace(/(["$`\\])/g, "\\$1");
+    const cmd =
+      envPreset() + "./bin/bp3 g " + graph + " u " + node +
+      " grade --verdict " + castVerdict + " --commit " + String(state.commit) +
+      " --verify-verdict " + combined.verify_verdict +
+      (combined.fix_class === "mechanical" ? " --mechanical" : "") +
+      " --reason \"" + safe + "\"";
+    const result = await host.agent({
+      label: "apply " + node,
+      input:
+        deskNote +
+        "Run exactly `" + cmd + "` from the graph worktree if " +
+        "one is named above, else the repository root, and return " +
+        "only its stdout JSON verdict verbatim as your entire " +
+        "reply, with no prose and no code fences. If the command " +
+        "fails, return its stdout JSON verdict verbatim instead. " +
+        "Do not edit any file.",
+    });
+    return parseVerdict(result);
   }
 
   // The FSM loop: one edge worker per iteration, re-reading
@@ -484,21 +539,38 @@ export default async function workflow(host) {
           "grade worker orphaned (no verdict); next loop mints a replacement link");
         continue;
       }
-      const mid = await readState();
-      if (mid.state === "handed_off") {
-        lastEdge = "verify";
-        const vf = await spawnEdge("verify", mid, "");
-        const vc = classify(vf);
-        if (vc.kind === "typed") return blockAndExit(vc.reason, "verify", mid.commit);
-        if (vc.kind === "orphaned") {
-          refusals.push(
-            "verify worker orphaned (no verdict); next loop mints a replacement link");
-        }
-      } else if (g && typeof g.reason === "string" && g.reason) {
-        // needs_fix below the cap rides the next author
-        // cycle verbatim; at the cap the same words are
-        // the recorded blocked reason.
-        fix = g.reason;
+      lastEdge = "verify";
+      const vf = await spawnEdge("verify", state, "");
+      const vc = classify(vf);
+      if (vc.kind === "typed") return blockAndExit(vc.reason, "verify", state.commit);
+      if (vc.kind === "orphaned") {
+        refusals.push(
+          "verify worker orphaned (no verdict); next loop mints a replacement link");
+        continue;
+      }
+      // Pure verdicts in; one looper cast out (followup.5).
+      const combined = {
+        outcome:
+          pureVerdict(g, "ship", "needs_fix") === "ship" &&
+          pureVerdict(vf, "pass", "fail") === "pass" ? "ship" : "needs_fix",
+        verify_verdict: pureVerdict(vf, "pass", "fail"),
+        fix: pureFix(g) || pureFix(vf),
+        fix_class: g && typeof g.fix_class === "string" ? g.fix_class : "standard",
+      };
+      if (combined.outcome === "needs_fix" && !combined.fix.trim()) {
+        return blockAndExit(
+          "empty fix: needs_fix verdict carried no fix text; no author dispatched",
+          "grade", state.commit);
+      }
+      if (combined.outcome === "needs_fix") {
+        fixLedger.push({ state: "OPEN", fix: combined.fix, commit: state.commit, cycle: state.cycle });
+        fix = combined.fix;
+      }
+      lastEdge = "grade";
+      const applied = await callApply(combined, state);
+      if (!applied || applied.ok !== true) {
+        refusals.push("looper cast refused: " +
+          (applied ? errorText(JSON.stringify(applied)) : "no verdict returned"));
       }
     } else if (state.state === "approved") {
       lastEdge = "land";

@@ -222,6 +222,10 @@ let fold_ledger text =
         if edge = "handoff" then begin s.grade_ok <- false; s.verify_ok <- false end;
         if edge = "grade" && get_str j "verdict" "" = "ship" then s.grade_ok <- true;
         if edge = "verify" && get_str j "verdict" "" = "pass" then s.verify_ok <- true;
+        if edge = "grade" && get_str j "verify_verdict" "" = "pass" then s.verify_ok <- true;
+        if edge = "grade" && get_str j "verify_verdict" "" = "fail" then begin
+          s.grade_ok <- false; s.verify_ok <- false
+        end;
         if (edge = "grade" && get_str j "verdict" "" = "needs_fix") ||
            (edge = "verify" && get_str j "verdict" "" = "fail") then begin
           s.grade_ok <- false; s.verify_ok <- false

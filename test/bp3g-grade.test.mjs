@@ -14,8 +14,13 @@
 // quoted as the machine token), an untyped acceptance row is
 // re-collected inside the audit (named rows, no cycle burn),
 // evidence still uncollectable is an explicit audit_failure
-// with no verdict cast, and a refused parallel cast after
-// state moved is a named expected verdict race.
+// with no verdict cast. Followup.5 (pure-grade): audit, grade,
+// and verify children return verdicts as data (zero `bp3 g u`
+// calls); the looper applies exactly one combined cast, with
+// named pushbacks (superseded, empty fix, blocked), a fix
+// ledger OPEN entry, audit reuse of prior typed evidence,
+// and a named mechanical fix that never blocks while the
+// cycle cap counts disagreement cycles only.
 import workflow from "../skills/bp3g/workflows/bp3g-grade.js";
 
 const TS = "20260101T000000Z";
@@ -85,6 +90,11 @@ function mockHost({ reads, auditRows, auditSeq, validationsObs, stageReplies, in
         }
         return JSON.stringify({ ok: true, token: "bp3link_test-" + edge, run_id: runId, harness: "muse-code" });
       }
+      if (label.startsWith("apply")) {
+        inputs.apply = input;
+        order.push("apply");
+        return JSON.stringify({ ok: true, state: "approved" });
+      }
       if (label.startsWith("read ") || input.startsWith("Run exactly")) {
         inputs.reads.push(input);
         return JSON.stringify(reads[Math.min(readIdx++, reads.length - 1)]);
@@ -131,7 +141,10 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   assert(result.outcome === "approved", "all-pass grade approves, got " + result.outcome);
   assert(Array.isArray(result.matrix) && result.matrix.length === 7, "matrix has 5 adherence + 2 acceptance rows, got " + result.matrix.length);
   assert(result.matrix.every((r) => r.verdict === "pass"), "all rows pass");
-  assert(order.join(",") === "validations,init,audit,init,init,grade,verify", "validations precede the audit, writer precedes each grade child, got " + order.join(","));
+  assert(order.join(",") === "validations,init,audit,init,init,grade,verify,apply", "validations precede the audit, writer precedes each pure child, looper applies last, got " + order.join(","));
+  assert(result.casts === 1, "exactly one verdict cast per grade, got " + result.casts);
+  assert(result.verdict && result.verdict.outcome === "ship", "pure verdict is ship data");
+  assert(Array.isArray(result.ledger) && result.ledger.length === 0, "ship opens no fix ledger entry");
   assert(inits.join(",") === [TS + "-audit-muse-code-test-model-c1", TS + "-grade-muse-code-test-model-c1", TS + "-verify-muse-code-test-model-c1"].join(","),
     "mints name every grade run-id, got " + inits.join(","));
   for (const edge of ["audit", "grade", "verify"]) {
@@ -170,10 +183,20 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
     assert(rowNamed(result, name) && rowNamed(result, name).verdict === "pass",
       "validations minted " + name);
   }
-  assert(inputs.grade.includes("grade --verdict ship --commit " + COMMIT),
-    "grade binds the exact commit");
-  assert(inputs.verify.includes("verify --verdict pass --commit " + COMMIT),
-    "verify binds the exact commit");
+  for (const edge of ["grade", "verify"]) {
+    assert(inputs[edge].includes("do not call any `bp3 g u` update edge"),
+      edge + " child is pure (zero bp3 g u calls)");
+    assert(inputs[edge].includes("return your verdict as data") ||
+           inputs[edge].includes("Return your verdict as data"),
+      edge + " child returns its verdict as data");
+    assert(!inputs[edge].includes("u fx " + edge + " --verdict"),
+      edge + " brief carries no cast command");
+    assert(inputs[edge].includes(COMMIT), edge + " judges the exact bound commit");
+  }
+  assert(inputs.apply.includes("grade --verdict ship --commit " + COMMIT + " --verify-verdict pass"),
+    "looper's one cast binds the exact commit with the combined verdict");
+  assert((inputs.apply.match(/bp3 g /g) || []).length === 1,
+    "looper apply runs exactly one bp3 command");
   assert(result.run_ids.join(",") === [TS + "-audit-muse-code-test-model-c1", "r-audit", TS + "-grade-muse-code-test-model-c1", TS + "-verify-muse-code-test-model-c1", "r-grade", "r-verify"].join(","),
     "run_ids collect mints and every grade child, got " + result.run_ids.join(","));
 }
@@ -463,8 +486,8 @@ function rungRow(name, rung, verdict, quote) {
   assert(result.outcome === "approved", "re-collected grade approves, got " + result.outcome);
   assert(inputs.recollect && inputs.recollect.includes("acceptance: a"), "re-collect names the untyped row");
   assert(inits.length === 3, "audit retry mints no new link, got " + inits.join(","));
-  assert(order.join(",") === "validations,init,audit,recollect,init,init,grade,verify",
-    "one audit-internal retry, then verdicts, got " + order.join(","));
+  assert(order.join(",") === "validations,init,audit,recollect,init,init,grade,verify,apply",
+    "one audit-internal retry, then pure verdicts and one cast, got " + order.join(","));
   assert(result.matrix.every((r) => r.evidence && typeof r.evidence.quote === "string" && r.evidence.quote !== ""),
     "every judged row carries typed evidence");
 }
@@ -507,18 +530,145 @@ function rungRow(name, rung, verdict, quote) {
   assert(result.outcome === "needs_fix", "real adherence defect still gates, got " + result.outcome);
 }
 
-// --- verdict race: sibling moved state, refused cast named ---
+// --- pure-grade (followup.5): single cast, no verdict race ---
 {
-  const raced = JSON.stringify({ ok: false, error: { code: "E_ILLEGAL_EDGE", facts: { state: "approved" } } });
-  const { host } = mockHost({
-    reads: [handedOff, approved],
+  const { host, inputs } = mockHost({
+    reads: [handedOff, handedOff, approved],
     auditRows: [passRow("acceptance: a")],
-    stageReplies: { grade: raced },
   });
   const result = await workflow(host);
-  assert(result.outcome === "approved", "raced grade still approves on re-read, got " + result.outcome);
-  assert(result.refusals.some((r) => r.includes("expected verdict race") && r.includes("grade") && r.includes("E_ILLEGAL_EDGE")),
-    "refused cast reported as an expected verdict race");
+  assert(result.outcome === "approved", "pure grade approves on re-read, got " + result.outcome);
+  assert(result.casts === 1, "one cast only, got " + result.casts);
+  assert(!result.refusals.some((r) => r.includes("expected verdict race") || r.includes("E_ILLEGAL_EDGE")),
+    "verdict-race refusal no longer occurs");
+  assert(!inputs.grade.includes("bp3 g " + "toy u") && !inputs.verify.includes("bp3 g " + "toy u"),
+    "grade/verify tapes carry no cast (tape grep evidence)");
+}
+
+// --- safe replay: killed grade re-dispatched, no partial writes ---
+{
+  const rows = [passRow("acceptance: a")];
+  const first = mockHost({ reads: [handedOff, handedOff, approved], auditRows: rows });
+  const r1 = await workflow(first.host);
+  const replay = mockHost({ reads: [handedOff, handedOff, approved], auditRows: rows });
+  const r2 = await workflow(replay.host);
+  assert(r1.casts === 1 && r2.casts === 1, "each dispatch casts once, replay adds no partial writes");
+  assert(JSON.stringify(r2.matrix) === JSON.stringify(r1.matrix), "replay returns the same matrix");
+  assert(r2.outcome === "approved", "replay approves, got " + r2.outcome);
+}
+
+// --- pushback: superseded commit refused by name, no cast ---
+{
+  const other = { state: "handed_off", cycle: 1, commit: "def5678", legal_edges: ["grade", "verify"] };
+  const { host, order } = mockHost({
+    reads: [handedOff, other],
+    auditRows: [passRow("acceptance: a")],
+  });
+  const result = await workflow(host);
+  assert(result.outcome === "refused", "superseded verdict refused, got " + result.outcome);
+  assert(result.casts === 0 && !order.includes("apply"), "no cast attempted for superseded verdict");
+  assert(result.refusals.some((r) => r.includes("superseded - re-grade")),
+    "superseded pushback named, got " + result.refusals.join(" | "));
+}
+
+// --- pushback: empty fix escalates, no author dispatched ---
+{
+  const { host, order } = mockHost({
+    reads: [handedOff, handedOff],
+    auditRows: [passRow("acceptance: a")],
+    stageReplies: { grade: JSON.stringify({ ok: true, run_id: "r-grade", commit: COMMIT, verdict: "needs_fix", fix: "" }) },
+  });
+  const result = await workflow(host);
+  assert(result.outcome === "escalated", "empty fix escalates, got " + result.outcome);
+  assert(result.casts === 0 && !order.includes("apply"), "empty fix casts nothing");
+  assert(result.refusals.some((r) => r.includes("empty fix")), "empty-fix pushback named");
+}
+
+// --- pushback: blocked read escalates to the owner gate ---
+{
+  const blocked = { state: "blocked", cycle: 1, commit: COMMIT, legal_edges: ["resume", "delete"] };
+  const { host, order } = mockHost({
+    reads: [handedOff, blocked],
+    auditRows: [passRow("acceptance: a")],
+  });
+  const result = await workflow(host);
+  assert(result.outcome === "escalated", "blocked read escalates, got " + result.outcome);
+  assert(result.casts === 0 && !order.includes("apply"), "blocked cast untouched");
+  assert(result.refusals.some((r) => r.includes("owner gate")), "blocked pushback named owner gate");
+}
+
+// --- fix ledger: needs_fix opens one verbatim entry ---
+{
+  const fail = passRow("acceptance: a");
+  fail.verdict = "fail";
+  const { host } = mockHost({
+    reads: [handedOff, handedOff, { state: "todo", cycle: 2, commit: COMMIT, legal_edges: ["handoff"] }],
+    auditRows: [fail],
+    stageReplies: { grade: JSON.stringify({ ok: true, run_id: "r-grade", commit: COMMIT, verdict: "needs_fix", fix: "repair acceptance: a in test/g.sh" }) },
+  });
+  const result = await workflow(host);
+  assert(result.outcome === "needs_fix", "ledger cycle needs_fix, got " + result.outcome);
+  assert(result.ledger.length === 1 && result.ledger[0].state === "OPEN" &&
+    result.ledger[0].fix === "repair acceptance: a in test/g.sh" && result.ledger[0].commit === COMMIT,
+    "OPEN entry carries the fix verbatim + commit, got " + JSON.stringify(result.ledger));
+}
+
+// --- mechanical never blocks at/over the cap (followup.5) ---
+{
+  const fail = passRow("acceptance: a");
+  fail.verdict = "fail";
+  const atCap = { state: "handed_off", cycle: 5, commit: COMMIT, legal_edges: ["grade", "verify"] };
+  const { host, inputs } = mockHost({
+    reads: [atCap, atCap, { state: "todo", cycle: 6, commit: COMMIT, legal_edges: ["handoff"] }],
+    auditRows: [fail],
+    stageReplies: { grade: JSON.stringify({ ok: true, run_id: "r-grade", commit: COMMIT, verdict: "needs_fix", fix: "skills/bp3g/SKILL.md:12 replace GOAL.md with GRAPH.md", fix_class: "mechanical" }) },
+  });
+  const result = await workflow(host);
+  assert(result.outcome === "needs_fix", "mechanical at cap stays needs_fix, got " + result.outcome);
+  assert(inputs.apply.includes("--mechanical"), "mechanical cast carries --mechanical");
+  assert(result.casts === 1, "mechanical casts once");
+}
+
+// --- disagreement counts toward the cap and blocks there ---
+{
+  const fail = passRow("acceptance: a");
+  fail.verdict = "fail";
+  const { host, inputs } = mockHost({
+    reads: [handedOff, handedOff, { state: "blocked", cycle: 1, commit: COMMIT, legal_edges: ["resume", "delete"] }],
+    auditRows: [fail],
+    extraArgs: { prior_failed_rows: ["acceptance: a"], max_cycles: 1 },
+    stageReplies: { grade: JSON.stringify({ ok: true, run_id: "r-grade", commit: COMMIT, verdict: "needs_fix", fix: "skills/bp3g/SKILL.md:12 replace GOAL.md with GRAPH.md" }) },
+  });
+  const result = await workflow(host);
+  assert(result.verdict.fix_class === "disagreement", "repeat row classed disagreement, got " + result.verdict.fix_class);
+  assert(!inputs.apply.includes("--mechanical"), "disagreement cast is not mechanical");
+  assert(result.outcome === "blocked", "disagreement blocks at cap, got " + result.outcome);
+}
+
+// --- audit reuse (warden #9): prior evidence not re-executed ---
+{
+  const prior = [{
+    case: "acceptance: a", verdict: "pass",
+    evidence: { kind: "command", ref: "test/g.sh", quote: "g tests: ok" },
+    source: ".git/bp3/20260101T000000Z-fx-validations.log",
+  }];
+  const reused = passRow("acceptance: a");
+  reused.reused_from = ".git/bp3/20260101T000000Z-fx-validations.log";
+  const { host, inputs } = mockHost({
+    reads: [handedOff, handedOff, approved],
+    auditRows: [reused],
+    validationsObs: { ...GOOD_OBS, prior_evidence: prior },
+  });
+  const result = await workflow(host);
+  assert(inputs.audit.includes("do not re-execute"), "audit told not to re-execute reused suite");
+  assert(inputs.audit.includes(".git/bp3/20260101T000000Z-fx-validations.log"),
+    "reuse quotes its source (log path)");
+  assert(rowNamed(result, "acceptance: a").reused_from === ".git/bp3/20260101T000000Z-fx-validations.log",
+    "reused row keeps its source, never a fresh run");
+  const fresh = mockHost({ reads: [handedOff, handedOff, approved], auditRows: [passRow("acceptance: a")] });
+  await workflow(fresh.host);
+  assert(fresh.inputs.audit.includes("execute every acceptance-named test yourself"),
+    "no prior evidence: audit executes as today");
 }
 
 // --- run-folder transport variants (followup.1 cycle 2): the

@@ -32,6 +32,11 @@ function mockHost({ reads, gradeReason, edgeResults, extraArgs }) {
         labels.push("bind");
         return JSON.stringify({ ok: true });
       }
+      if (label.startsWith("apply")) {
+        labels.push("apply");
+        (inputs.apply = inputs.apply || []).push(input);
+        return JSON.stringify({ ok: true, state: "approved" });
+      }
       if (input.includes(" block --reason")) {
         labels.push("block");
         (inputs.block = inputs.block || []).push(input);
@@ -50,7 +55,11 @@ function mockHost({ reads, gradeReason, edgeResults, extraArgs }) {
         return typeof next === "string" ? next : JSON.stringify(next);
       }
       const reply = { ok: true, run_id: "r-" + edge, commit: "abc1234", verdict: { ok: true } };
-      if (edge === "grade" && gradeReason) reply.reason = gradeReason;
+      if (edge === "grade" && gradeReason) {
+        reply.verdict = "needs_fix";
+        reply.fix = gradeReason;
+        reply.reason = gradeReason;
+      }
       return JSON.stringify(reply);
     },
     async parallel(calls) {
@@ -66,10 +75,13 @@ const st = (state, cycle) => ({ state, cycle: cycle || 1, commit: "abc1234", leg
 
 // --- happy path: todo -> handed_off -> approved -> landed, one outcome ---
 {
-  const reads = [st("todo"), st("handed_off"), st("handed_off"), st("approved"), st("landed")];
+  const reads = [st("todo"), st("handed_off"), st("approved"), st("landed")];
   const { host, labels, inputs } = mockHost({ reads });
   const result = await workflow(host);
   assert(result.outcome === "landed" && result.node === "fx", "happy outcome landed, got " + result.outcome);
+  assert(labels.filter((l) => l === "apply").length === 1, "looper casts once, got " + labels.join(","));
+  assert(inputs.grade[0].includes("do not call any `bp3 g u`"), "grade child is pure");
+  assert(inputs.verify[0].includes("do not call any `bp3 g u`"), "verify child is pure");
   assert(result.commit === "abc1234", "happy commit, got " + result.commit);
   assert(labels.filter((l) => l === "handoff").length === 1, "one author, got " + labels.join(","));
   assert(labels.filter((l) => l === "grade").length === 1, "one grade, got " + labels.join(","));
@@ -83,7 +95,7 @@ const st = (state, cycle) => ({ state, cycle: cycle || 1, commit: "abc1234", leg
 
 // --- needs_fix rides the loop: fix carried verbatim to the next author ---
 {
-  const reads = [st("todo"), st("handed_off"), st("todo", 2), st("todo", 2), st("handed_off", 2), st("handed_off", 2), st("approved", 2), st("landed", 2)];
+  const reads = [st("todo"), st("handed_off"), st("todo", 2), st("handed_off", 2), st("approved", 2), st("landed", 2)];
   const { host, inputs } = mockHost({ reads, gradeReason: "fix the parser" });
   const result = await workflow(host);
   assert(result.outcome === "landed", "cycle outcome landed, got " + result.outcome);
@@ -117,7 +129,7 @@ for (const state of ["blocked", "deleted", "landed"]) {
 
 // --- silent death is orphaned: one fresh link, one replacement, no block ---
 {
-  const reads = [st("todo"), st("todo"), st("handed_off"), st("handed_off"), st("approved"), st("landed")];
+  const reads = [st("todo"), st("todo"), st("handed_off"), st("approved"), st("landed")];
   const { host, labels } = mockHost({ reads, edgeResults: { handoff: ["worker died without a word"] } });
   const result = await workflow(host);
   assert(result.outcome === "landed", "orphan replacement lands, got " + result.outcome);
@@ -151,7 +163,7 @@ for (const state of ["blocked", "deleted", "landed"]) {
 
 // --- workflow-birth: the read carries the desk; context rides ---
 {
-  const reads = [st("todo"), st("handed_off"), st("handed_off"), st("approved"), st("landed")];
+  const reads = [st("todo"), st("handed_off"), st("approved"), st("landed")];
   const { host, inputs } = mockHost({
     reads,
     extraArgs: { desk: ".bp3/worktrees/toy-desk", context: "rename the widget verb, keep tests green" },

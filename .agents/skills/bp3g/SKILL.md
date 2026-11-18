@@ -154,11 +154,38 @@ above stays the one conductor procedure.
    still uncollectable returns outcome `audit_failure`,
    naming the row and the collection error — quote it as
    grader paperwork, never as a product `needs_fix`, and
-   simply re-dispatch the grade. When grade and verify
-   cast in parallel and the second cast is refused with
-   `E_ILLEGAL_EDGE` after the first moved state, the
-   outcome names it an expected verdict race; re-read and
-   judge from the fresh state.
+   simply re-dispatch the grade.
+
+   Pure grade (followup.5): grade is a pure function
+   `grade(commit, node_record) -> Verdict`; audit, grade,
+   and verify children return verdicts as data and make
+   zero `bp3 g u` calls. The looper (`bp3g-grade` itself,
+   or the `bp3g-node` loop) applies the verdict with
+   exactly one combined cast
+   (`grade --verdict ... --verify-verdict ...`), opens
+   the fix-ledger entry (OPEN, fix verbatim + commit),
+   and dispatches the author; the author records RESOLVED
+   in its fix commit and the next grade verifies it, and
+   the grader never edits the record. There is no verdict
+   race: only the looper holds the pen. Named pushbacks
+   refuse before any cast — superseded commit
+   (`superseded - re-grade`), empty fix (escalate, no
+   author dispatched), blocked read (owner gate, state
+   untouched). Replay is safe: a killed grade leaves no
+   partial writes and is simply re-dispatched on the same
+   commit. Audit reuse (warden #9): the audit reads the
+   validations log (`.git/bp3/<ts>-<node>-validations.log`)
+   and the author Run's notes first and re-runs only
+   acceptance rows lacking typed evidence there; reused
+   evidence is quoted with its source (log path / run
+   folder), never as a fresh run. A named mechanical fix
+   (exact file/line/text, no scope or judgment call)
+   always casts `needs_fix` (`--mechanical`) at any cycle
+   count and never pages the owner; only owner-only calls
+   (scope change, `delete`, ambiguity, empty fix) and
+   disagreement at the cap (the same row failing again
+   after its named fix was applied) block — the cycle cap
+   counts disagreement cycles only.
 
    Cycle autonomy: when a grade returns `needs_fix` (or a
    verify returns `fail`) and the re-read shows the node back
