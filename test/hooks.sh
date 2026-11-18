@@ -35,6 +35,12 @@ out=$(printf 'not json at all' | BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g hooks)
 echo "$out" | jq -e '.ok == true and .event_line == null' >/dev/null || fail "garbage verdict: $out"
 [ "$(lines parser-fix)" = "$before" ] || fail "garbage wrote a ledger line"
 
+# --- g binary missing: hooks exit 0 (never block); other doors still exit 2 ---
+nobin() { BP3_G_BIN="$work/none" PATH=/usr/bin:/bin ./bin/bp3 g "$@"; }
+printf '{"hook_event_name":"PreToolUse"}' | nobin hooks 2>/dev/null || fail "missing binary: hooks exit nonzero"
+set +e; nobin r </dev/null 2>/dev/null; code=$?; set -e
+[ "$code" = 2 ] || fail "missing binary: g r exit $code, want 2"
+
 # --- hook fires outside a bp3 repo: exit 0, writes nothing ---
 mkdir -p "$work/foreign"
 foreign=$(printf '{"hook_event_name":"SessionStart","session_id":"SX","cwd":"%s"}' "$work/foreign")

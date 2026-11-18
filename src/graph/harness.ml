@@ -122,11 +122,6 @@ let exit_of_outcome = function
 let tape_settle text = contains_sub text "run_settled"
 
 (* ---------- derivation store (mvp.4: supervisor-written) ---------- *)
-let git_common_dir () =
-  let out, code = git_out ["rev-parse"; "--git-common-dir"] in
-  if code <> 0 || out = "" then None
-  else Some (if Filename.is_relative out then Filename.concat root out else out)
-
 let derivations_dir () =
   match git_common_dir () with
   | None -> None

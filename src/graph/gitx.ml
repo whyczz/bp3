@@ -89,38 +89,61 @@ let git args = "git" :: "-C" :: root :: args
 let git_out ?env ?input args = run_capture ?env ?input (git args)
 let git_ok args = run_status (git args) = 0
 
+(* The common dir cannot move under a running call (the binary
+   never runs git init); ask once, not on every store lookup. *)
+let git_common_dir =
+  let dir = lazy (
+    let out, code = git_out ["rev-parse"; "--git-common-dir"] in
+    if code <> 0 || out = "" then None
+    else Some (if Filename.is_relative out then Filename.concat root out else out)) in
+  fun () -> Lazy.force dir
+
 (* One process serves one call, and a call re-reads the same
    refs many times (every fold, the version scan, the view).
    Cache tip/show results per process; any ref move through
    commit_files invalidates, so a call never reads its own
    writes stale. *)
-let cache_epoch = ref 0
-let tip_cache : (string, string option) Hashtbl.t = Hashtbl.create 64
-let show_cache : (string, string option) Hashtbl.t = Hashtbl.create 64
-let invalidate_ref_caches () =
-  incr cache_epoch;
-  Hashtbl.clear tip_cache; Hashtbl.clear show_cache
-
 (* Ledger reads go through one long-lived cat-file --batch
    process instead of a git subprocess per read; a call reads
    every ledger at least twice (folds plus the version scan).
    Any failure disables the batch and reads fall back to
    one git show / rev-parse per read, unchanged. *)
 exception Batch_down
-let batch : (in_channel * out_channel) option ref = ref None
+let batch : (in_channel * out_channel * in_channel) option ref = ref None
 let batch_broken = ref false
+
+(* A write restarts the batch: git caches some object lookups
+   for its lifetime, so the batch must not outlive our writes. *)
+let batch_close () =
+  match !batch with
+  | Some io -> batch := None; (try ignore (Unix.close_process_full io) with _ -> ())
+  | None -> ()
+
+let cache_epoch = ref 0
+let tip_cache : (string, string option) Hashtbl.t = Hashtbl.create 64
+let show_cache : (string, string option) Hashtbl.t = Hashtbl.create 64
+let invalidate_ref_caches () =
+  incr cache_epoch;
+  Hashtbl.clear tip_cache; Hashtbl.clear show_cache;
+  batch_close ()
+
 let batch_query spec =
-  let (ic, oc) = match !batch with
+  (* One line is one request; a newline would desync replies. *)
+  if String.contains spec '\n' then raise Batch_down;
+  let (ic, oc, _) = match !batch with
     | Some io -> io
-    | None when !batch_broken ->
+    | None when !batch_broken -> raise Batch_down
+    | None ->
         (try
            let io = Unix.open_process_args_full "git"
              [|"git"; "-C"; root; "cat-file"; "--batch"|] (Unix.environment ()) in
-           let (i, o, _) = io in batch := Some (i, o); (i, o)
-         with _ -> batch_broken := true; raise Batch_down)
-    | None -> raise Batch_down in
+           batch := Some io; io
+         with _ -> batch_broken := true; raise Batch_down) in
   try
-    output_string oc (spec ^ "\n"); flush oc;
+    (* A dead batch must fail the write (EPIPE), not kill us. *)
+    let prev = Sys.signal Sys.sigpipe Sys.Signal_ignore in
+    Fun.protect ~finally:(fun () -> Sys.set_signal Sys.sigpipe prev)
+      (fun () -> output_string oc (spec ^ "\n"); flush oc);
     let header = input_line ic in
     match String.split_on_char ' ' header with
     | [_; "missing"] -> None

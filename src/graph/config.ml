@@ -18,17 +18,13 @@ open Gitx
 
 (* ---------- layout ---------- *)
 let config_dir () =
-  let out, code = git_out ["rev-parse"; "--git-common-dir"] in
-  if code <> 0 || String.trim out = "" then None
-  else
-    let common = String.trim out in
-    let abs =
-      if Filename.is_relative common then Filename.concat root common
-      else common in
-    (* one spelling per store: /var and /private/var are the
-       same tree on this host, and worktrees must agree *)
-    let canon = try Unix.realpath abs with _ -> abs in
-    Some (Filename.concat canon "bp3")
+  match git_common_dir () with
+  | None -> None
+  | Some abs ->
+      (* one spelling per store: /var and /private/var are the
+         same tree on this host, and worktrees must agree *)
+      let canon = try Unix.realpath abs with _ -> abs in
+      Some (Filename.concat canon "bp3")
 
 let runs_dir dir = Filename.concat dir "runs"
 let links_dir dir = Filename.concat dir "links"

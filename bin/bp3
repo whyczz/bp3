@@ -297,6 +297,11 @@ run_g() {
   elif command -v bp3-g >/dev/null 2>&1; then
     # Installed tool (host mode): the binary roots at the caller's repo.
     BP3_ROOT="$(target_root)" exec bp3-g "$door" "$@"
+  elif [[ $door == g && ${1:-} == hooks ]]; then
+    # Hooks fail open (hooks.ml): exit 2 would block every tool,
+    # including the build that fixes this. Drain the payload.
+    [[ -t 0 ]] || cat >/dev/null
+    echo 'bp3 g hooks: no g binary, event not recorded; dune build src/graph/main.exe' >&2; exit 0
   else
     echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2
   fi
