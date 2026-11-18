@@ -1,4 +1,4 @@
-.PHONY: check test lint release publish install
+.PHONY: check check-fast check-changed test lint release publish install
 
 # This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
 # cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
@@ -41,6 +41,15 @@ lint:
 
 test:
 	./test/skills.sh
+
+# --- check tiers (node-followup-6-check-tiers): per-cycle fast and
+# change-scoped verification. Full `check` above is unchanged and
+# stays the grade/land gate. Suite table: scripts/check-changed.sh.
+check-fast:
+	./scripts/check-changed.sh --fast
+
+check-changed:
+	./scripts/check-changed.sh
 
 # --- release (Node 5): tag-gated artifact + checksum; publish-once via gh ---
 RELEASE_VERSION := $(shell sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' src/graph/gitx.ml | head -1)

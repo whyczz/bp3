@@ -19,7 +19,7 @@ idea. Use `red-ink` while a design is still being decided.
 
 ## The diligence gate (runs first, always)
 
-Landing is a claim: every node did what its `EXPERIMENT.md`
+Landing is a claim: every node did what its `NODE.md`
 promised. Before any playback, check each node:
 
 | Check | Pass evidence |

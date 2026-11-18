@@ -203,6 +203,14 @@ above stays the one conductor procedure.
    reached (the node in `blocked` at the cap), the conductor
    stops looping and escalates to the owner through the
    blocked gate instead of dispatching another cycle.
+
+   Check tiers (followup.6): an author cycle verifies with
+   `make check-changed` (only the suites its diff touches)
+   or `make check-fast` when unsure — never the full suite
+   per cycle. Full `make check` runs only when the node's
+   acceptance names it, or at handoff when the conductor
+   asks; grade and land gates keep the full `make check`,
+   unchanged.
 4. Blocked gate (the only page): present the inbox in the
    main session (node, reason, checkpoint, cycle), capture
    the human's decision in their words, attest it

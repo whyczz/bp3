@@ -79,9 +79,9 @@ graph up it. Names below reuse the node's words: `fleet`,
    declare the merge order before the queue starts. A
    graph is not queued — and is reported with the failed
    check named — when any of these fails:
-   - every node's EXPERIMENT.md carries Acceptance rows
+   - every node's NODE.md carries Acceptance rows
      (an node missing Acceptance rows fails this check);
-   - no EXPERIMENT.md in the graph carries an open
+   - no NODE.md in the graph carries an open
      design question;
    - `make check` is green (`make check` red fails
      this check);
