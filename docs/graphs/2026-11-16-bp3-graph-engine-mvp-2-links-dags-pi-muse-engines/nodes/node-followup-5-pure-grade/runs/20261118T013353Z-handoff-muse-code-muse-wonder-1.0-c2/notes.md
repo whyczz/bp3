@@ -33,3 +33,17 @@ Bound commit graded: 4ab3228527b6f0175bfca3b8f4a78184f01debe5 (needs_fix)
   stays gitignored residue. Committing the outstanding cycle-1
   (this node) and cycle-4 (followup.3) run notes kept the tree
   clean without deleting evidence.
+
+## Correction (same run, after handoff)
+
+- The RESOLVED note above claimed make check exit 0 at the handoff
+  commit; that was premature — the full gate had not finished.
+  At 31b7c74, make check actually fails at test/completion.sh:
+  flags --verify-verdict and --mechanical (parser, from 4ab3228)
+  are missing from completions/_bp3 and completions/bp3.bash.
+  Pre-existing in 4ab3228; masked earlier because
+  dogfood-parallel failed sooner in the same gate.
+- A follow-up commit on this branch (on top of the handoff
+  commit) adds both flags to both completion lists;
+  test/completion.sh ok and full make check exit 0 there.
+  The handoff-bound commit 31b7c74 does not contain it.
