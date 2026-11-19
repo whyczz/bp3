@@ -4,17 +4,21 @@
 # rows at once. Each suite runs under `env -i` plus a named
 # allowlist (a suite that needs anything else fails on its own,
 # loudly; the runner never passes it), with its own HOME and
-# TMPDIR and its own process group, inside a wall-clock budget:
-# only a real overrun (millisecond clock) kills the whole group
-# and fails the suite by name. Rows with serial=1 never overlap
-# each other (they touch the real repo tree). The runner stays in
-# the caller's process group, so Ctrl-C reaches it; it then kills
-# every suite group, and an EXIT trap does the same on any abort.
+# TMPDIR and its own process group, inside a wall-clock budget.
+# Budgets are hang guards (red-ink R2'): only a real overrun
+# (millisecond clock) kills the whole group and fails the suite by
+# name; slowness is reported by --report, never failed. Rows with
+# serial=1 never overlap each other (they touch the real repo
+# tree). The runner stays in the caller's process group, so Ctrl-C
+# reaches it. INT, TERM, HUP and QUIT kill every suite group and
+# remove the temp dir; further signals are ignored while it reaps,
+# and an EXIT trap does the same on any other abort.
 #
 # Table: one row per suite, tab-separated, '#' starts a comment,
 # '-' marks an empty field:
 #   name  tier(fixture|slow)  cmd  budget_s  serial(0|1)  why  paths
 # A slow row must carry a why. Budgets are hand-set integers.
+# A relative --table is read from the caller's directory.
 #
 # Usage:
 #   scripts/run-suites [--tier fixture,slow] [--only a,b] [--table f]
@@ -25,6 +29,7 @@
 # 2 on a usage or table error.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
+caller_pwd=$PWD
 cd "$root"
 
 usage() { echo "run-suites: $*" >&2; exit 2; }
@@ -33,7 +38,8 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --tier) [ $# -ge 2 ] || usage "--tier needs a value"; tiers=$2; shift 2 ;;
     --only) [ $# -ge 2 ] || usage "--only needs a value"; only=$2; only_set=1; shift 2 ;;
-    --table) [ $# -ge 2 ] || usage "--table needs a value"; table=$2; shift 2 ;;
+    --table) [ $# -ge 2 ] || usage "--table needs a value"
+      case "$2" in /*) table=$2 ;; *) table="$caller_pwd/$2" ;; esac; shift 2 ;;
     --jobs) [ $# -ge 2 ] || usage "--jobs needs a value"; jobs=$2; shift 2 ;;
     --list) list=1; shift ;;
     --report) report=1; shift ;;
@@ -113,22 +119,43 @@ kill_group() { # pid: the suite's group; the pid itself if setpgrp has not run y
   sleep 0.3
   kill -KILL -- "-$1" 2>/dev/null || kill -KILL "$1" 2>/dev/null || true
 }
-# shellcheck disable=SC2329  # invoked by on_signal and the EXIT trap
-reap_running() {
-  for i in "${sel[@]}"; do
-    if [ "${state[$i]}" = running ]; then kill_group "${pids[$i]}"; state[i]=killed; fi
-  done
+# shellcheck disable=SC2329  # invoked by on_signal and on_exit
+# Every suite group the runner may own: rows marked running, plus
+# every background job (covers a suite forked just before its row
+# was marked). TERM all at once, one pause, then KILL all; waiting
+# here (stderr silenced by callers) keeps bash's job notices quiet.
+reap_all() {
+  local p ps
+  ps=$( { for i in "${sel[@]}"; do [ "${state[$i]}" = running ] && echo "${pids[$i]}"; done; jobs -p; } | sort -u)
+  [ -n "$ps" ] || return 0
+  for p in $ps; do kill -TERM -- "-$p" 2>/dev/null || kill -TERM "$p" 2>/dev/null || true; done
+  sleep 0.3
+  for p in $ps; do kill -KILL -- "-$p" 2>/dev/null || kill -KILL "$p" 2>/dev/null || true; done
+  for p in $ps; do wait "$p" 2>/dev/null || true; done
+  return 0
 }
+completed=0   # set once the run (or the signal path) has cleaned up itself
 # shellcheck disable=SC2329  # invoked by the traps below
-on_signal() {
-  trap - INT TERM
-  reap_running
+on_signal() { # exit code
+  trap '' INT TERM HUP QUIT   # a second Ctrl-C must not cut the reap short
+  reap_all 2>/dev/null
   rm -rf "$tmpbase"
+  completed=1
   echo "run-suites: interrupted" >&2
-  exit 130
+  exit "$1"
 }
-trap on_signal INT TERM
-trap reap_running EXIT   # any abort (set -e included) still reaps every suite group
+# shellcheck disable=SC2329  # invoked by the EXIT trap
+on_exit() {
+  [ "$completed" = 1 ] && return 0
+  trap '' INT TERM HUP QUIT
+  reap_all 2>/dev/null
+  rm -rf "$tmpbase"
+}
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+trap 'on_signal 129' HUP
+trap 'on_signal 131' QUIT
+trap on_exit EXIT   # any other abort (set -e included) still reaps and cleans up
 
 launch() { # index now_ms
   local i=$1 dir="$tmpbase/${names[$1]}"
@@ -213,6 +240,7 @@ done
 for i in "${sel[@]}"; do
   [ "${rcs[$i]}" = 0 ] && rm -rf "${tmpbase:?}/${names[$i]}"
 done
+completed=1   # failed suites keep their logs under $tmpbase
 if [ ${#failed[@]} -eq 0 ]; then
   rmdir "$tmpbase" 2>/dev/null || true
   printf 'run-suites: ok %d/%d  wall %ss  (serial sum %ss)\n' "${#sel[@]}" "${#sel[@]}" "$(secs "$wall")" "$(secs "$sum")"

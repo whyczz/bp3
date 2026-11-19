@@ -98,7 +98,7 @@ print_lines(results); exit(0 if all(r.ok for r in results) else 1)
 | name | short id used in output and by `check-changed.sh` |
 | tier | `fixture` or `slow`; slow iff the suite proves what no fake can: a real process tree, signals, real wall-clock waits, or concurrent writers (the unit tier runs through dune and node, not here) |
 | cmd | the command line, run from the repo root |
-| budget_s | hand-set integer seconds, about 2x measured, rounded up; `run-suites --report` prints actual vs budget |
+| budget_s | hang guard (red-ink R2'): hand-set integer seconds, max(60, 6x the suite's time under the runner on a quiet machine), rounded up to 30s; `run-suites --report` prints actual vs budget, and slowness is never failed |
 | serial | `1` if the suite touches the real repo tree |
 | why | one line, required on slow rows: what the suite proves that no fake can |
 | paths | globs that select the suite for a changed file; `check-changed.sh` reads them |
