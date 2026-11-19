@@ -25,6 +25,7 @@ while [ $# -gt 0 ]; do
     --list) list_only=1 ;;
     --table) shift; [ $# -gt 0 ] || { echo "check-changed: --table needs a value" >&2; exit 2; }; table=$1 ;;
     -h|--help) grep '^#' "$0" | head -20; exit 0 ;;
+    -*) echo "check-changed: unknown flag: $1" >&2; exit 2 ;;
     *) paths+=("$1") ;;
   esac
   shift

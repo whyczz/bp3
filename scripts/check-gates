@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# check-gates (test-pyramid tier.2): the gates' wiring, checked from
+# lint, which both gates run first, so a broken gate fails in itself
+# rather than silently proving less. Read with `make -n`:
+#   check       runs lint, dune test and the unit tier
+#   check-full  runs lint, dune test and every tier (all of check)
+#   check-fast and test are check
+# and no suite's script is named in the Makefile or check-changed.sh:
+# test/suites.tsv is the only list. test/check-tiers.sh (fixture tier)
+# plants each break and checks that lint still runs this script.
+#   scripts/check-gates [--makefile f]
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+mk="$root/Makefile"
+[ "${1:-}" = --makefile ] && { mk=$2; }
+fail() { echo "check-gates: FAIL: $*" >&2; exit 1; }
+plan() { make -s -C "$root" -f "$mk" -n "$1" 2>/dev/null || fail "make -n $1 failed"; }
+check=$(plan check); full=$(plan check-full)
+for need in 'shellcheck ' 'dune test' './scripts/run-suites --tier unit'; do
+  grep -qF -- "$need" <<< "$check" || fail "make check does not run: $need"
+done
+for need in 'shellcheck ' 'dune test'; do
+  grep -qF -- "$need" <<< "$full" || fail "make check-full does not run: $need"
+done
+grep -qx './scripts/run-suites' <<< "$full" || fail "make check-full does not run every tier (./scripts/run-suites)"
+[ "$(plan check-fast)" = "$check" ] || fail "make check-fast is not make check"
+[ "$(plan test)" = "$check" ] || fail "make test is not make check"
+# a suite's script, however it is spelled, never appears outside the table
+while IFS=$'\t' read -r name _tier cmd _; do
+  case "$name" in ''|'#'*) continue ;; esac
+  for word in $cmd; do
+    w=${word#./}
+    [ -f "$root/$w" ] || continue
+    if grep -qF -- "$w" "$mk" "$root/scripts/check-changed.sh"; then fail "suite $name's script $w is named outside test/suites.tsv"; fi
+    break
+  done
+done < "$root/test/suites.tsv"
+echo "check-gates: ok"

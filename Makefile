@@ -1,4 +1,4 @@
-.PHONY: check check-full check-fast check-changed test lint release publish install
+.PHONY: check check-full check-fast check-changed test lint ocaml release publish install
 
 # This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
 # cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
@@ -10,26 +10,27 @@ DUNE_TEST = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune test$(if $(findstring /.bp
 # Gates (test-pyramid tier.2). Every suite lives in test/suites.tsv,
 # tagged unit, fixture or slow; the gates pick tiers, never suites.
 #   check       the inner loop: lint, dune test, the unit tier (seconds)
-#   check-full  the grade/land gate: check plus the fixture and slow tiers
-check: lint
-	$(DUNE_BUILD) src/quest/main.exe src/quest/run_suites.exe
-	$(DUNE_TEST)
+#   check-full  the grade/land gate: lint, dune test, every tier
+# check-full runs every tier itself, not through check, and lint's
+# check-gates verifies both recipes, so neither gate can silently shrink.
+check: lint ocaml
 	./scripts/run-suites --tier unit
 
-check-full: check
-	./scripts/run-suites --tier fixture,slow
+check-full: lint ocaml
+	./scripts/run-suites
 
-# shellcheck targets are derived (every suite's script, every shell
-# script in the repo), never listed: scripts/shell-files
+# both binaries, then the OCaml unit tests
+ocaml:
+	$(DUNE_BUILD) src/quest/main.exe src/quest/run_suites.exe
+	$(DUNE_TEST)
+
+# lint's targets are derived, never listed: scripts/shell-files names
+# every shell script (shellcheck) and every JS file (node --check)
 lint:
+	./scripts/check-gates
 	shellcheck $$(./scripts/shell-files)
-	node --check test/pi-tree.test.mjs
-	node --check test/fake-bp3/bp3
-	node --check scripts/record-transcripts
-	node --check skills/induct/workflows/induct-node.js
-	node --check skills/induct/workflows/node-loop.js
-	node --check skills/induct/workflows/induct-grade.js
-	node --check skills/induct/workflows/induct-land.js
+	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
+	for f in $$(./scripts/shell-files --node); do node --check "$$f" || exit 1; done
 
 # aliases kept for muscle memory: both are the inner loop
 check-fast: check

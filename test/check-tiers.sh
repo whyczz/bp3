@@ -1,8 +1,8 @@
 #!/bin/bash
 # check-tiers fixtures (test-pyramid tier.2): the table-driven selector,
 # the gates' tiers, one list of suites, derived lint targets, and the
-# retired-term sweep's timing and fossil exemptions. Unit tier: runs in
-# make check.
+# retired-term sweep's timing and fossil exemptions. Fixture tier: runs in
+# make check-full (lint's check-gates guards the gates in both).
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
 sel="$repo/scripts/check-changed.sh"
@@ -46,27 +46,52 @@ while IFS= read -r u; do units+=("$u"); done < <(awk -F'\t' '$2 == "unit" { prin
 "$sel" --list docs/quests/some-quest/QUEST.md | expect_list real-docs "${units[@]}"
 "$sel" --list test/pi-tree.test.mjs | grep -qx pi-tree || fail "test/pi-tree.test.mjs did not select pi-tree"
 checks=$((checks + 1))
-# 4. Gates pick tiers, never suites: check runs the unit tier,
-# check-full adds fixture and slow, check-fast is check.
-mk() { make -C "$repo" -n "$1" 2>/dev/null; }
-mk check | grep -q 'run-suites --tier unit$' || fail "make check does not run the unit tier"
-mk check-full | grep -q 'run-suites --tier fixture,slow$' || fail "make check-full does not add fixture and slow"
-[ "$(mk check-fast)" = "$(mk check)" ] || fail "make check-fast is not make check"
-checks=$((checks + 3))
-# 5. Suite names live in one list: no row's command appears in the
-# Makefile or the selector, and lint covers every suite's script.
-while IFS="$T" read -r name _tier cmd _; do
-  case "$name" in ''|'#'*) continue ;; esac
-  if grep -qF -- "$cmd" "$repo/Makefile" "$sel"; then fail "suite $name is listed outside test/suites.tsv: $cmd"; fi
-done < "$repo/test/suites.tsv"
-checks=$((checks + 1))
+# 4. The gates' wiring is checked from lint (scripts/check-gates), which
+# both gates run first; lint must keep running it, and each planted
+# break must fail it by name.
+make -C "$repo" -s -n lint | grep -qx './scripts/check-gates' || fail "make lint does not run scripts/check-gates"
+"$repo/scripts/check-gates" > /dev/null || fail "check-gates fails on the real Makefile"
+checks=$((checks + 2))
+gates_break() { # name sed-script expected-message
+  sed "$2" "$repo/Makefile" > "$work/Makefile.$1"
+  cmp -s "$repo/Makefile" "$work/Makefile.$1" && fail "gates-$1: the planted break changed nothing"
+  if "$repo/scripts/check-gates" --makefile "$work/Makefile.$1" > "$work/gates-$1.out" 2>&1; then fail "gates-$1: a broken Makefile passed check-gates"; fi
+  grep -qF -- "$3" "$work/gates-$1.out" || fail "gates-$1: wrong reason: $(cat "$work/gates-$1.out")"
+  checks=$((checks + 1))
+}
+gates_break no-unit '/run-suites --tier unit$/d' 'make check does not run: ./scripts/run-suites --tier unit'
+gates_break full-no-tiers 's|^\t\./scripts/run-suites$|\t./scripts/run-suites --tier slow|' 'make check-full does not run every tier'
+gates_break full-no-lint 's/^check-full: lint ocaml$/check-full: ocaml/' 'make check-full does not run: shellcheck'
+gates_break full-no-dune 's/^check-full: lint ocaml$/check-full: lint/' 'make check-full does not run: dune test'
+gates_break fast-differs 's/^check-fast: check$/check-fast: lint/' 'make check-fast is not make check'
+gates_break suite-in-makefile 's|^\t\./scripts/run-suites --tier unit$|&\n\tbash test/g.sh|' "suite g's script test/g.sh is named outside test/suites.tsv"
+# 5. Lint's targets are derived and cover every suite's script.
 "$repo/scripts/shell-files" > "$work/shell.txt"
 while IFS= read -r f; do
   grep -qx "$f" "$work/shell.txt" || fail "lint misses suite script $f"
 done < <(awk -F'\t' '$1 !~ /^#/ && $1 != "" { n = split($3, w, " "); for (i = 1; i <= n; i++) if (w[i] ~ /\.sh$/) print w[i] }' "$repo/test/suites.tsv" | sed 's|^\./||' | sort -u)
 # shellcheck disable=SC2016  # the Makefile's literal $$
-grep -q 'shellcheck \$\$(./scripts/shell-files)' "$repo/Makefile" || fail "make lint does not derive its targets"
+grep -q 'shellcheck \$\$(./scripts/shell-files)' "$repo/Makefile" || fail "make lint does not derive its shellcheck targets"
 checks=$((checks + 2))
+# 5b. check-changed's run half, end to end, with make and run-suites
+# stubbed: the sweep, then make check, then run-suites on exactly the
+# matching rows; a path no row claims runs make check alone.
+mkdir -p "$work/cc/scripts" "$work/cc/test"
+cp "$sel" "$sweep" "$work/cc/scripts/"
+cp "$work/planted.tsv" "$work/cc/test/suites.tsv"
+printf 'check:\n\t@echo STUB make check\n' > "$work/cc/Makefile"
+printf '#!/bin/sh\necho "STUB run-suites $*"\n' > "$work/cc/scripts/run-suites"
+chmod +x "$work/cc/scripts/run-suites"
+(cd "$work/cc" && git init -q && git add -A)
+(cd "$work/cc" && ./scripts/check-changed.sh src/x.ml test/b.sh) > "$work/cc-run.out" 2>&1 || fail "check-changed run failed: $(cat "$work/cc-run.out")"
+grep -E '^(retired-term sweep|STUB)' "$work/cc-run.out" > "$work/cc-steps.txt"
+cc_root=$(cd "$work/cc" && pwd)   # as the script spells its own root
+expect_list cc-run "retired-term sweep: ok" "STUB make check" "STUB run-suites --table $cc_root/test/suites.tsv --only a,b" < "$work/cc-steps.txt"
+(cd "$work/cc" && ./scripts/check-changed.sh docs/other.md) > "$work/cc-docs.out" 2>&1 || fail "check-changed docs run failed"
+grep -q 'STUB make check' "$work/cc-docs.out" || fail "a docs-only change skipped make check"
+grep -q 'STUB run-suites' "$work/cc-docs.out" && fail "a docs-only change ran suites beyond the unit tier" || checks=$((checks + 1))
+if "$sel" --lsit src/x.ml > /dev/null 2>&1; then fail "check-changed took an unknown flag as a path"; fi
+checks=$((checks + 1))
 # 6. Planted stale term in a skills file fails the sweep in
 # under 5s naming file:line, before any suite runs.
 mkdir -p "$work/planted/scripts" "$work/planted/skills/demo"

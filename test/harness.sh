@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# harness suite, all pieces in order (test-pyramid tier.1 split).
-# run-suites runs each piece as its own suite, in parallel;
-# this file keeps the single-command run for make check.
+# harness suite, every piece (test-pyramid tier.1 split): the rows of
+# test/suites.tsv named harness-*, run in parallel through run-suites.
+# A convenience entry point only; the table is the one list of pieces.
 set -euo pipefail
-dir=$(cd "$(dirname "$0")/harness" && pwd)
-for piece in cli fold watch supervisor race evidence backtest; do
-  bash "$dir/$piece.sh"
-done
-echo "harness.sh: all checks passed"
+root=$(cd "$(dirname "$0")/.." && pwd)
+only=$("$root/scripts/run-suites" --list | grep '^harness-' | paste -sd, -)
+[ -n "$only" ] || { echo "harness.sh: no harness-* rows in test/suites.tsv" >&2; exit 1; }
+exec "$root/scripts/run-suites" --only "$only"

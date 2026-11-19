@@ -2,12 +2,12 @@
 # Read by scripts/run-suites, scripts/check-changed.sh (paths) and
 # scripts/shell-files (lint). Tab-separated; '-' marks an empty field.
 # Columns: name  tier  cmd  budget_s  serial  why  paths
-#   tier      unit | fixture | slow. unit runs in `make check` (no real
-#             process tree, seconds); fixture and slow join it in `make
-#             check-full`, the grade/land gate. A suite is slow iff it
-#             proves what no fake can: a real process tree, signals, real
-#             wall-clock waits, or concurrent writers (red-ink R7); slow
-#             rows carry a why.
+#   tier      unit | fixture | slow (QUEST.md Terms). unit: JS tests with
+#             no real bp3 launch, milliseconds per test; it runs in `make
+#             check`. fixture and slow join it in `make check-full`, the
+#             grade/land gate. A suite is slow iff it proves what no fake
+#             can: a real process tree, signals, real wall-clock waits, or
+#             concurrent writers (red-ink R7); slow rows carry a why.
 #   budget_s  a hang guard, hand-set (red-ink R2', owner 2026-11-19): max(60,
 #             6x the suite's time under run-suites on a quiet machine),
 #             rounded up to the next 30s. It catches hangs, not slowness:
@@ -15,8 +15,7 @@
 #             Slowness is read from `run-suites --report`, never failed.
 #   serial    1 when the suite writes the real repo tree; serial rows never overlap.
 #   paths     globs that select the suite for a changed file (red-ink R3').
-# The unit tier (dune test, JS unit tests) is not listed here.
-check-skills	unit	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills	60	1	-	skills/*,.pi/skills/*,.agents/skills/*,.claude/skills/*,scripts/check-skills
+# The OCaml unit tests run through `dune test` (make check), not as a row.
 skills	fixture	./test/skills.sh	60	1	-	skills/*,.pi/skills/*,.agents/skills/*,.claude/skills/*,bin/bp3,test/skills.sh
 g	fixture	./test/g.sh	150	0	-	src/*,bin/bp3,test/g.sh
 ready	fixture	./test/ready.sh	60	0	-	src/*,bin/bp3,test/ready.sh
@@ -47,5 +46,5 @@ induct	fixture	./test/induct.sh	60	0	-	skills/induct/*,test/induct.sh,test/induc
 completion	fixture	./test/completion.sh	60	0	-	src/*,bin/bp3,completions/*,test/completion.sh
 release	fixture	./test/release.sh	60	0	-	scripts/release-*,Makefile,src/quest/gitx.ml,test/release.sh
 install	fixture	./test/install.sh	60	0	-	scripts/install-bp3.sh,scripts/bp3-shim,test/install.sh
-check-tiers	unit	./test/check-tiers.sh	60	0	-	scripts/check-changed.sh,scripts/check-retired-terms.sh,test/check-tiers.sh
-run-suites	fixture	./test/run-suites.sh	150	0	-	scripts/run-suites,test/run-suites.sh,test/run-suites/*,test/suites.tsv
+check-tiers	fixture	./test/check-tiers.sh	60	0	-	scripts/check-changed.sh,scripts/check-retired-terms.sh,test/check-tiers.sh
+run-suites	fixture	./test/run-suites.sh	150	0	-	scripts/run-suites,src/quest/run_suites.ml,src/quest/suites.ml,test/run-suites.sh,test/run-suites/*,test/suites.tsv
