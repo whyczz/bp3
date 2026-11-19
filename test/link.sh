@@ -207,4 +207,13 @@ echo "$out" | jq -e --arg r "$RIDCAP" '.ok == true and (.removed | index($r) != 
 out=$(lk cleanup --quest g1) || fail "cleanup rerun exit: $out"
 echo "$out" | jq -e '.removed == [] and .count == 0' >/dev/null || fail "cleanup rerun: $out"
 
+# --- seam.1: identical mints in one burst never collide and never sleep ---
+q c burst >/dev/null; q burst c n1 >/dev/null
+burst_start=$(date +%s)
+for _ in $(seq 50); do lk mint --kind edge --quest burst --node n1 --edge handoff | jq -r .run_id; done > "$work/burst.ids"
+burst_secs=$(( $(date +%s) - burst_start ))
+[ "$(sort -u "$work/burst.ids" | wc -l | tr -d ' ')" = 50 ] || fail "50 identical mints gave duplicate run-ids: $(sort "$work/burst.ids" | uniq -d)"
+[ "$burst_secs" -lt 20 ] || fail "50 identical mints took ${burst_secs}s (a 1s collision sleep would take about 50s)"
+grep -q -E '^[0-9]{8}T[0-9]{6}\.[0-9]{3}[0-9a-f]{4}Z-handoff-muse-code-test-model-c1$' "$work/burst.ids" || fail "minted run-id shape: $(head -1 "$work/burst.ids")"
+
 echo "link tests: ok"

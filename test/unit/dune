@@ -2,7 +2,7 @@
 ; no wall clock. Test names start with their kind: case_, law_, char_.
 ; gen.ml is shared by every test; samples/ holds frozen real ledgers.
 (tests
- (names test_smoke test_clock test_store test_layout)
+ (names test_smoke test_clock test_store test_layout test_mint)
  (deps
   (glob_files samples/*.jsonl))
  (libraries bp3_quest ounit2 qcheck-core qcheck-ounit yojson))

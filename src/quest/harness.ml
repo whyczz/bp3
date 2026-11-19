@@ -2137,6 +2137,35 @@ let mint_token () =
       String.sub (sha256_hex seed ^ sha256_hex (seed ^ "!")) 0 16 in
   "bp3link_" ^ link_hex_of_bytes raw
 
+(* Run-id first field (seam.1, red-ink R3): UTC to the millisecond
+   plus 4 hex of randomness in one dash-free token, so ids sort by
+   time, parse_edge_cycle still reads the edge (field 2) and the
+   cycle (last field), and mints in the same second do not collide. *)
+let mint_ts_of now rand_hex =
+  let t = Unix.gmtime now in
+  let ms = min 999 (max 0 (truncate (Float.round ((now -. Float.of_int (truncate now)) *. 1000.)))) in
+  Printf.sprintf "%04d%02d%02dT%02d%02d%02d.%03d%sZ"
+    (t.Unix.tm_year + 1900) (t.Unix.tm_mon + 1) t.Unix.tm_mday
+    t.Unix.tm_hour t.Unix.tm_min t.Unix.tm_sec ms rand_hex
+
+(* 4 hex digits from /dev/urandom; Random (self-seeded) if unreadable. *)
+let random_hex4 () =
+  try
+    let fd = Unix.openfile "/dev/urandom" [Unix.O_RDONLY] 0 in
+    let b = Bytes.make 2 '\x00' in
+    let n = Unix.read fd b 0 2 in
+    Unix.close fd;
+    if n = 2 then link_hex_of_bytes (Bytes.to_string b) else raise Exit
+  with _ -> Random.self_init (); Printf.sprintf "%04x" (Random.int 65536)
+
+(* Draw a fresh candidate until [claim] takes one; at most [tries]
+   draws and never a sleep. None when every draw collided. *)
+let mint_unique ~tries ~candidate ~claim =
+  let rec go k =
+    let c = candidate () in
+    if claim c then Some c else if k <= 1 then None else go (k - 1) in
+  go tries
+
 let compact_ts () =
   let t = Unix.gmtime (Clock.time ()) in
   Printf.sprintf "%04d%02d%02dT%02d%02d%02dZ"
@@ -2327,16 +2356,19 @@ let do_link_mint args =
            err "E_EXISTS" (`Assoc [("run_id", json_str r)])
              "A run config already exists for that run-id." 1)
     | _ ->
-        let rec gen tries =
-          let cand = Printf.sprintf "%s-%s-%s-%s-c%d" (compact_ts ())
+        let last = ref "" in
+        let candidate () =
+          Printf.sprintf "%s-%s-%s-%s-c%d" (mint_ts_of (Clock.now ()) (random_hex4 ()))
             edge_label (slug_keep harness_v) (slug_keep model_v) fl.m_cycle in
-          try write_minted cand; cand
-          with Unix.Unix_error (Unix.EEXIST, _, _) ->
-            if tries <= 0 then
-              err "E_EXISTS" (`Assoc [("run_id", json_str cand)])
-                "Minted run-id collided; retry." 1
-            else begin ignore (Unix.select [] [] [] 1.0); gen (tries - 1) end in
-        gen 5 in
+        let claim c =
+          last := c;
+          try write_minted c; true
+          with Unix.Unix_error (Unix.EEXIST, _, _) -> false in
+        (match mint_unique ~tries:8 ~candidate ~claim with
+         | Some r -> r
+         | None ->
+             err "E_EXISTS" (`Assoc [("run_id", json_str !last)])
+               "Minted run-id collided; retry." 1) in
   let hash_hex = sha256_hex token in
   Config.write_file_atomic
     (Filename.concat (Config.links_dir dir) hash_hex) (run_id ^ "\n");
