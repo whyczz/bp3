@@ -4,9 +4,10 @@
    on read, never written. *)
 
 (* ---------- repo tree ---------- *)
-let quests_root = "docs/graphs"
-let legacy_quests_roots = []
-let quest_file = "GRAPH.md"
+let engine_src = "src/quest"
+let quests_root = "docs/quests"
+let legacy_quests_roots = ["docs/graphs"]
+let quest_file = "QUEST.md"
 let nodes_dir = "nodes"
 let ledger_file = "ledger.jsonl"
 let state_file = "state.yaml"
@@ -19,11 +20,11 @@ let context_file = ".bp3-context.json"
 (* Storage branches live under refs/heads/bp3/<kind>/; work
    branches are <kind>/<quest> beside the integration branch. *)
 let ref_root = "refs/heads/bp3/"
-let quest_ref_kind = "graph"
-let legacy_quest_ref_kinds = ["goal"; "quest"]
+let quest_ref_kind = "quest"
+let legacy_quest_ref_kinds = ["graph"; "goal"]
 let node_ref_kind = "node"
 let legacy_node_ref_kinds = ["exp"]
-let work_branch_kind = "graph"
+let work_branch_kind = "quest"
 
 (* ---------- derived ---------- *)
 let quest_dir_in root q = root ^ "/" ^ q

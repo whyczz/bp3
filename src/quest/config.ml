@@ -126,7 +126,7 @@ let ensure_config () =
 type run_config = {
   rc_id : string;
   rc_kind : string;
-  rc_graph : string;
+  rc_quest : string;
   rc_node : string;
   rc_edge : string option;
   rc_state : string;
@@ -156,7 +156,7 @@ let run_config_of_file path =
     else
       Some { rc_id = id;
              rc_kind = jstr j "kind" "";
-             rc_graph = jstr j "graph" "";
+             rc_quest = jstr j "quest" (jstr j "graph" "");
              rc_node = jstr j "node" "";
              rc_edge = jopt j "edge";
              rc_state = jstr j "state" "";
@@ -193,7 +193,7 @@ let list_run_configs dir =
 let opt_json = function Some s -> json_str s | None -> `Null
 
 let context_json rc =
-  `Assoc [("graph", json_str rc.rc_graph); ("node", json_str rc.rc_node);
+  `Assoc [("quest", json_str rc.rc_quest); ("node", json_str rc.rc_node);
           ("edge", opt_json rc.rc_edge); ("run_id", json_str rc.rc_id);
           ("session_id", opt_json rc.rc_session);
           ("desk", json_str rc.rc_desk); ("state", json_str rc.rc_state);

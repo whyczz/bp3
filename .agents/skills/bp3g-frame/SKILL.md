@@ -1,10 +1,10 @@
 ---
 name: bp3g-frame
-description: Turn a known intent into a bp3 Graph file at docs/graphs/<date>-<slug>.md with nodes, acceptance checks, and human touchpoints.
+description: Turn a known intent into a bp3 Quest file at docs/quests/<date>-<slug>.md with nodes, acceptance checks, and human touchpoints.
 ---
 <!-- GENERATED from skills/bp3g-frame/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
 
-# Graph
+# Quest
 
 ```text
 known intent
@@ -12,7 +12,7 @@ known intent
     v
  sync -> research -> names -> nodes -> red chair
     |                                   |
-    +-------> docs/graphs/<date>-<slug>.md
+    +-------> docs/quests/<date>-<slug>.md
                         |
                  human approves
                         |
@@ -20,20 +20,20 @@ known intent
 ```
 
 ```python
-def graph(intent):
+def quest(intent):
     assert known(intent)                 # fuzzy goal -> ask()
     play_back(intent)                    # iiuc, when two reads exist
-    ground = research(mvp_doc, repo, prior_graphs)
+    ground = research(mvp_doc, repo, prior_quests)
     names = define_terms(intent)         # spellings synced with code/data
     nodes = break_down(intent, acceptance="fails today")
     attack(goal, scope, node_order)       # red chair, recorded
     attack(source)                       # the icebox/prompt itself
     for c in concerns if c.severity in (critical, major):
         settle(c) or append_followup_node(c)   # proof owed, not prose
-    return write_graph_file(names, nodes)  # governs after human approval
+    return write_quest_file(names, nodes)  # governs after human approval
 ```
 
-One output: a Graph file a build can run against.
+One output: a Quest file a build can run against.
 
 ## Context
 
@@ -42,12 +42,12 @@ we got here. Diagrams, pseudocode, and tables carry what we do.
 
 Work here used to live in the coordinator's head: helpers started
 blank, re-learned the job, and the plan evaporated between
-sessions. A Graph file moves that intent into the repo, where
+sessions. A Quest file moves that intent into the repo, where
 every later session reads the same map.
 
 How we get there shapes the procedure below. Sync comes first
 because a dictated intent usually has two honest reads, and
-speccing the wrong one costs a whole Graph. Research comes
+speccing the wrong one costs a whole Quest. Research comes
 before questions because the repo already holds most answers.
 Names come before nodes because names harden into paths, CLI
 addresses, and ledger fields. Acceptance must fail today
@@ -57,50 +57,50 @@ because a gate that starts green certifies nothing.
 
 | Case | Fire |
 |---|---|
-| “frame this as a graph”, `/graph` | this skill |
+| “frame this as a quest”, `/quest` | this skill |
 | goal or success test still fuzzy | `ask` first |
-| component design, no Graph shape | `design` |
-| idea shelved for a future graph | `icebox` |
-| advancing existing graph state | `using-bp3` |
+| component design, no Quest shape | `design` |
+| idea shelved for a future quest | `icebox` |
+| advancing existing quest state | `using-bp3` |
 
 ## Procedure
 
 | # | Step | Gate before moving on |
 |---|---|---|
 | 1 | Sync: play the intent back (iiuc) when it can be read two ways | human confirms the read |
-| 2 | Research the ground: MVP doc, home repo state, prior Graphs in `docs/graphs/` | every claim traces to a file read this session |
+| 2 | Research the ground: MVP doc, home repo state, prior Quests in `docs/quests/` | every claim traces to a file read this session |
 | 3 | Ask questions whose answers change the shape: home repo, success picture, lane, first node | the rest become assumptions or open questions in the file |
 | 4 | Names first, under a Concepts/Terms header, with `naming` | every term defined in one line before any node spends it |
-| 5 | Draft `docs/graphs/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) | one Graph per file |
+| 5 | Draft `docs/quests/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) | one Quest per file |
 | 6 | Break into nodes with failing-today acceptance | a check that cannot fail gets rewritten |
-| 6.5 | Diligence gate per node: design settled (no open questions), acceptance fails today, demo defined up front | an node with open design questions is not ready for `bp3g`; settle it with `red-ink` first — Node 4 of the MVP graph shipped unsettled design and the landing review caught it late |
-| 6.6 | Skill changes ride as their own node | if the Graph's changes touch any skill (bp3 `skills/`, yap skills, installed copies), name a skill-change node with its own acceptance (skill tests, render/install assertions); never edit a skill inline during framing, and never fold a skill change into a code node — skills are how children behave, so they get the same gate as code |
+| 6.5 | Diligence gate per node: design settled (no open questions), acceptance fails today, demo defined up front | an node with open design questions is not ready for `bp3g`; settle it with `red-ink` first — Node 4 of the MVP quest shipped unsettled design and the landing review caught it late |
+| 6.6 | Skill changes ride as their own node | if the Quest's changes touch any skill (bp3 `skills/`, yap skills, installed copies), name a skill-change node with its own acceptance (skill tests, render/install assertions); never edit a skill inline during framing, and never fold a skill change into a code node — skills are how children behave, so they get the same gate as code |
 | 7 | Red-chair passes on goal, scope, node order | strongest attack + what it changed, recorded |
 | 7.5 | Red-chair the source itself: the icebox entry or the owner's prompt (its assumptions, wrong problem, boring alternative), before approving the draft built on it | every **critical or major** concern ends in exactly one of two places: settled by a recorded change to the design it attacked, or appended as a **follow-up node** (next numbers on the railway, labeled `(follow-up)`) whose acceptance proves the design addressed it. A critical/major concern left as prose in Risks, or with neither settlement nor node, blocks approval |
 | 8 | Stage fat nodes as substeps inside their milestone (`mvp.1.1`, `mvp.1.2`, ...) | each substep passes on its own |
 
-Keep node detail inside the Graph file: intent, order, dependencies,
-acceptance. Deep runbooks live in linked node records; the Graph
+Keep node detail inside the Quest file: intent, order, dependencies,
+acceptance. Deep runbooks live in linked node records; the Quest
 file stays the plan of record.
 
 ## Promotion from the icebox
 
-A Graph that starts from a `docs/icebox/` entry promotes it.
+A Quest that starts from a `docs/icebox/` entry promotes it.
 Promotion means exactly this, no more. The `ICEBOX.md` copy
-rule applies whenever a Graph is written from an entry, not
+rule applies whenever a Quest is written from an entry, not
 only at formal promotion:
 
 | Step | Rule |
 |---|---|
 | Trigger check | the entry's stated promotion trigger has observably fired; the owner names the entry |
 | Transcription, not adoption | the entry is research input to step 2, nothing more. This skill's whole procedure still runs: sync, research, names, nodes, red chair. Every assumption the entry made is re-decided here; entry text is never copied in as settled design |
-| Link both ways | the Graph file names the entry in its Context; the entry gains one field (below) |
-| Context copy | at promotion, copy the entry **verbatim** to `ICEBOX.md` in the Graph folder (a straight-up copy, never transcribed into prose): the frozen context travels with the Graph even after the original is deleted. The Graph file links `ICEBOX.md` wherever it would have linked the entry |
-| Marking | when the owner approves the framed Graph (it now governs build), set the entry's `promoted:` to the Graph path, take the `ICEBOX.md` copy, then **delete the entry** (owner rule, 2026-11-15). The Graph file is the living record; git history is the fossil of the day the idea was shelved |
-| Thaw that dies | if the framed Graph is canceled before landing, restore the entry from git history with `promoted:` still set: it records that the thaw happened and where it went |
+| Link both ways | the Quest file names the entry in its Context; the entry gains one field (below) |
+| Context copy | at promotion, copy the entry **verbatim** to `ICEBOX.md` in the Quest folder (a straight-up copy, never transcribed into prose): the frozen context travels with the Quest even after the original is deleted. The Quest file links `ICEBOX.md` wherever it would have linked the entry |
+| Marking | when the owner approves the framed Quest (it now governs build), set the entry's `promoted:` to the Quest path, take the `ICEBOX.md` copy, then **delete the entry** (owner rule, 2026-11-15). The Quest file is the living record; git history is the fossil of the day the idea was shelved |
+| Thaw that dies | if the framed Quest is canceled before landing, restore the entry from git history with `promoted:` still set: it records that the thaw happened and where it went |
 
 An entry without a fired trigger is not promotable; a
-Graph framed from one anyway says so in its Open questions.
+Quest framed from one anyway says so in its Open questions.
 
 ## Names sync with code and data
 
@@ -113,33 +113,33 @@ words later sessions think in.
 | state / variant | exact spelling from the FSM or type |
 | ledger field | exact key the binary writes |
 | file / branch | exact path or ref the tools derive |
-| coined fresh | the Graph's spelling; implementation adopts it |
+| coined fresh | the Quest's spelling; implementation adopts it |
 
 | Case | Move |
 |---|---|
-| code or data already has a name | Graph adopts that spelling |
-| Graph coins a name | code, schemas, tests, skills take the Graph spelling |
+| code or data already has a name | Quest adopts that spelling |
+| Quest coins a name | code, schemas, tests, skills take the Quest spelling |
 | rename after nodes reference it | treat it as a migration; price it before agreeing |
 
 ## Nodes
 
-The Graph file keeps the railway: one TL;DR row per node, with a
+The Quest file keeps the railway: one TL;DR row per node, with a
 relative link to its record.
 
 Node names are grouped by milestone. The display name is
 `<milestone>.<number> - <slug>` (for example,
 `mvp.1 - supervisor-cli`, `backtest.1 - muse`,
-`dogfood.1 - muse-toy-graph`). Because bp3 slugs cannot
+`dogfood.1 - muse-toy-quest`). Because bp3 slugs cannot
 contain dots, the folder and bp3 node ID use the dotless
 spelling `node-<milestone>-<number>-<slug>`, and the record
 frontmatter carries `node: <milestone>.<number>`. Numbering
 restarts inside each milestone; never use a bare global
-`Node N` for a new graph. Dependencies name display names,
+`Node N` for a new quest. Dependencies name display names,
 not bare numbers.
 
 Full Output, Acceptance, and Substeps live in
 `nodes/node-<milestone>-<number>-<slug>/NODE.md`
-inside the graph folder — the same folder that later holds
+inside the quest folder — the same folder that later holds
 the node's generated ledger, state, and runs.
 
 Every node record is written in this shape, in this order:
@@ -161,10 +161,10 @@ code  = what we're gonna do
 | Prose | context, why this node exists, how we got here, edge cases and what they do |
 
 An node with no demo and no runnable goal block is unfinished
-spec, however good its prose reads. The Graph file itself
+spec, however good its prose reads. The Quest file itself
 follows the same law at its scale: Terms, then Inputs, then
 Outputs, then a Demo section — one worked trace of the whole
-graph, honestly labeled — then the railway. A Graph file with
+quest, honestly labeled — then the railway. A Quest file with
 Inputs/Outputs but no Demo is unfinished the same way: the
 reader must see the machine run before reading its parts.
 
@@ -185,28 +185,28 @@ home_repo: <repo>
 date: <YYYY-MM-DD>
 ---
 
-# <Graph name>
+# <Quest name>
 
 TL;DR
-<what will be true when this Graph lands; the one decision made>
+<what will be true when this Quest lands; the one decision made>
 
 ELI5
-<the whole Graph in plain words>
+<the whole Quest in plain words>
 
 ## Terms
 <every name and term, one line each; spellings match the code
 and data structures they name, exactly>
 
 ## Inputs
-<what the graph takes in: calls, flags, env, config, files —
+<what the quest takes in: calls, flags, env, config, files —
 one row each, with source and precedence where they compete>
 
 ## Outputs
-<what the graph emits: verdicts, artifacts, files, error
+<what the quest emits: verdicts, artifacts, files, error
 codes, exits — one row each>
 
 ## Demo
-<one worked trace of the whole graph running end to end,
+<one worked trace of the whole quest running end to end,
 right after Inputs/Outputs; labeled observed or design trace>
 
 Worked example (miniature — voice and scale, not a template):
@@ -245,7 +245,7 @@ per the Nodes section above)
 cohort layers — the railway in one picture, at the end>
 ```
 
-The Graph file ends with the Node diagram: after reading
+The Quest file ends with the Node diagram: after reading
 every node's prose, the reader gets the whole railway —
 nodes, dependencies, cohorts — in one ASCII picture.
 
@@ -259,7 +259,7 @@ nodes, dependencies, cohorts — in one ASCII picture.
 | `canceled` | stopped, terminal | disposition: why, each node's fate, frozen evidence |
 
 Transitions: `proposed -> active -> landed`; `proposed | active -> canceled`.
-Files stay in `docs/graphs/` for life — node records point at them.
+Files stay in `docs/quests/` for life — node records point at them.
 
 At `landed`, run `red-ink-bp3g-landing-demo` and record its Landing IIUC
 (decision record, demo traces, verification, open items) under
@@ -267,8 +267,8 @@ Success picture.
 
 | Boundary | Rule |
 |---|---|
-| Graph status vs node status | nodes keep `proposed \| active \| complete`; `auto_landed` stays node-level |
-| file sync | update at Graph gates; runtime truth lives in bp3 once implementation exists |
+| Quest status vs node status | nodes keep `proposed \| active \| complete`; `auto_landed` stays node-level |
+| file sync | update at Quest gates; runtime truth lives in bp3 once implementation exists |
 
 ## Traps
 
@@ -277,6 +277,6 @@ Success picture.
 | acceptance reads like a hope | rewrite until it can fail today |
 | red-chair concern parked as a Risks paragraph | Risks is not a parking lot: a critical/major concern is settled in the design or appended as a follow-up node (step 7.5); prose is neither |
 | file claims a result never observed | mark it proposed / unmet |
-| new planning vocabulary creeps in | Graph, node, Run carry the load; send the rest back |
-| accepted Graph needs a goal change mid-build | explicit edit, human-approved |
+| new planning vocabulary creeps in | Quest, node, Run carry the load; send the rest back |
+| accepted Quest needs a goal change mid-build | explicit edit, human-approved |
 | framing session "just quickly fixes" a skill | stop; it becomes a skill-change node (step 6.6). The only direct-now path is the owner explicitly invoking `/add-yap-skill` or `/add-bp3-skill` — that invocation *is* the order; without it, no inline skill edits |

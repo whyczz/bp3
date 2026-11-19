@@ -5,7 +5,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/src/graph/main.exe" "$work/repo/g-bin"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/g-bin"
 cd "$work/repo"
 git init -q -b master
 git config user.email t@t.t; git config user.name t
@@ -15,7 +15,7 @@ SHA=$(git rev-parse HEAD)
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
 # Since mvp.6 this door is the documented alias of bp3 harness desk;
 # this file is its full regression suite (desk parity lives in harness.sh).
-wt() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 worktree "$@"; }
+wt() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 worktree "$@"; }
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
@@ -24,7 +24,7 @@ out=$(wt derive demo node-a R1)
 echo "$out" | jq -e '.ok == true and .path == ".bp3/worktrees/demo/node-a/R1"' >/dev/null || fail "derive exact: $out"
 
 # derive is pure and total over generated slugs, and never escapes the root
-for q in demo graph-2 a; do
+for q in demo quest-2 a; do
   for e in node-a node-9 z; do
     for r in R1 run-2 20261114t221957z-handoff-x-c1; do
       p=$(wt derive "$q" "$e" "$r" | jq -r '.path')
@@ -136,7 +136,7 @@ if out=$(wt check 2>&1); then fail "check without a Run ID accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "check no-run code: $out"
 
 # exit and release refuse a dirty worktree; record stays intact
-if out=$(cd "$pa_path" && BP3_G_BIN="$work/repo/g-bin" "$work/repo/bin/bp3" worktree exit 2>&1); then fail "dirty exit accepted"; fi
+if out=$(cd "$pa_path" && BP3_Q_BIN="$work/repo/g-bin" "$work/repo/bin/bp3" worktree exit 2>&1); then fail "dirty exit accepted"; fi
 echo "$out" | jq -e '.error.code == "E_DIRTY_TREE"' >/dev/null || fail "dirty exit code: $out"
 [ -d "$pa_path" ] || fail "dirty exit deleted the worktree"
 if out=$(wt release --run RA 2>&1); then fail "dirty release accepted"; fi
@@ -154,7 +154,7 @@ out=$(wt prepare demo node-a --run RA)
 echo "$out" | jq -e '.ok == true and (.existing // false) == false' >/dev/null || fail "re-prepare after release (tombstone?): $out"
 
 # exit from inside a clean worktree releases it and prints the conductor path
-out=$(cd "$pa_path" && BP3_G_BIN="$work/repo/g-bin" "$work/repo/bin/bp3" worktree exit)
+out=$(cd "$pa_path" && BP3_Q_BIN="$work/repo/g-bin" "$work/repo/bin/bp3" worktree exit)
 conductor=$(cd "$work/repo" && pwd -P)
 echo "$out" | jq -e --arg c "$conductor" '.ok == true and .released == true and .conductor_path == $c' >/dev/null || fail "clean exit: $out"
 [ ! -e "$pa_path" ] || fail "clean exit left the worktree"
@@ -196,7 +196,7 @@ for i in 1 2 3 4 5; do
   [ ! -e ".bp3/desks/P$i.json" ] || fail "parallel release P$i left a desk file"
 done
 
-# list shows every record plus orphans flagged; --graph filters
+# list shows every record plus orphans flagged; --quest filters
 out=$(wt prepare demo node-a --run RL)
 echo "$out" | jq -e '.ok == true' >/dev/null || fail "prepare RL: $out"
 porph=$(wt derive demo node-a ORPH | jq -r '.path')
@@ -204,8 +204,8 @@ wt create "$porph" --commit "$SHA" >/dev/null
 out=$(wt list)
 echo "$out" | jq -e '[.worktrees[] | select(.run_id == "RL" and (.orphan == false))] | length == 1' >/dev/null || fail "list record RL: $out"
 echo "$out" | jq -e '[.worktrees[] | select(.run_id == "ORPH" and .orphan == true)] | length == 1' >/dev/null || fail "list orphan ORPH: $out"
-out=$(wt list --graph nope)
-echo "$out" | jq -e '.worktrees == []' >/dev/null || fail "list graph filter: $out"
+out=$(wt list --quest nope)
+echo "$out" | jq -e '.worktrees == []' >/dev/null || fail "list quest filter: $out"
 out=$(wt release --run RL)
 echo "$out" | jq -e '.ok == true' >/dev/null || fail "release RL: $out"
 out=$(wt remove "$porph")
@@ -217,17 +217,17 @@ echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "release u
 
 echo "worktree tests: ok"
 
-# --- graph-level desk (Node 8): prepare/release --graph ---
-out=$(wt prepare --graph demoq)
-echo "$out" | jq -e '.ok == true and .graph == "demoq" and .node == "(graph)" and .path == ".bp3/worktrees/demoq" and .ref == "graph/demoq"' >/dev/null || fail "graph prepare: $out"
-[ -d .bp3/worktrees/demoq ] || fail "graph desk missing on disk"
-out=$(wt prepare --graph demoq)
-echo "$out" | jq -e '.ok == true and .existing == true' >/dev/null || fail "graph prepare idempotent: $out"
+# --- quest-level desk (Node 8): prepare/release --quest ---
+out=$(wt prepare --quest demoq)
+echo "$out" | jq -e '.ok == true and .quest == "demoq" and .node == "(quest)" and .path == ".bp3/worktrees/demoq" and .ref == "quest/demoq"' >/dev/null || fail "quest prepare: $out"
+[ -d .bp3/worktrees/demoq ] || fail "quest desk missing on disk"
+out=$(wt prepare --quest demoq)
+echo "$out" | jq -e '.ok == true and .existing == true' >/dev/null || fail "quest prepare idempotent: $out"
 out=$(wt list)
-echo "$out" | jq -e '.worktrees | map(.graph) | index("demoq") != null' >/dev/null || fail "graph desk in list: $out"
+echo "$out" | jq -e '.worktrees | map(.quest) | index("demoq") != null' >/dev/null || fail "quest desk in list: $out"
 echo stray > .bp3/worktrees/demoq/stray.txt
-if out=$(wt release --graph demoq 2>&1); then fail "dirty graph release accepted"; fi
+if out=$(wt release --quest demoq 2>&1); then fail "dirty quest release accepted"; fi
 rm .bp3/worktrees/demoq/stray.txt
-out=$(wt release --graph demoq)
-echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "graph release: $out"
-[ ! -d .bp3/worktrees/demoq ] || fail "graph desk not removed"
+out=$(wt release --quest demoq)
+echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "quest release: $out"
+[ ! -d .bp3/worktrees/demoq ] || fail "quest desk not removed"

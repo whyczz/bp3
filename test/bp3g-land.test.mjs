@@ -16,7 +16,7 @@ function mockHost({ reads, initFails, extraArgs }) {
   const inputs = { reads: [] };
   const inits = [];
   const host = {
-    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
+    args: Object.assign({ quest: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
     async agent({ label, input }) {
       if (input.includes("harness link mint")) {
         labels.push("init");
@@ -107,7 +107,7 @@ for (const state of ["todo", "handed_off", "landed", "blocked"]) {
   assert(result.outcome === "landed", "desk land lands, got " + result.outcome);
   assert(inputs.reads.length === 2, "two reads captured, got " + inputs.reads.length);
   for (const read of inputs.reads) {
-    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
+    assert(read.includes("quest worktree `.bp3/worktrees/toy-desk`"),
       "read prompt names the desk worktree");
     assert(!read.includes("named below"), "read prompt never points below for the desk");
   }
@@ -116,7 +116,7 @@ for (const state of ["todo", "handed_off", "landed", "blocked"]) {
 // --- missing args refuse without spawning anything ---
 {
   const host = {
-    args: { graph: "toy" },
+    args: { quest: "toy" },
     async agent() { throw new Error("must not spawn"); },
     async parallel() { throw new Error("must not spawn"); },
   };

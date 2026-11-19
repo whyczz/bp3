@@ -50,9 +50,9 @@ let node_json _q e s deps (t : timing) =
        | Some xs -> `List xs | None -> `Null)); (* null = unsure *)
   ]
 
-let node_verdict graph e s deps t =
-  match node_json graph e s deps t with
-  | `Assoc fs -> `Assoc (("ok", `Bool true) :: ("graph", json_str graph) :: fs)
+let node_verdict quest e s deps t =
+  match node_json quest e s deps t with
+  | `Assoc fs -> `Assoc (("ok", `Bool true) :: ("quest", json_str quest) :: fs)
   | other -> other
 
 (* Setup per dispatched Run (mvp.3): desk-side mint to the
@@ -64,7 +64,7 @@ let setup_json q =
   | Some dir ->
       let thresholds = Config.load_thresholds dir in
       let entries = List.filter_map (fun (rc : Config.run_config) ->
-        if rc.Config.rc_graph <> q then None
+        if rc.Config.rc_quest <> q then None
         else match ts_epoch rc.Config.rc_minted_at, ts_epoch rc.Config.rc_claimed_at with
           | Some m, Some c ->
               Some (`Assoc [("run_id", json_str rc.Config.rc_id);
@@ -75,9 +75,9 @@ let setup_json q =
       (List.map fst entries,
        List.exists (fun (_, secs) -> secs > thresholds.Config.setup_slow_s) entries)
 
-let graph_view q =
-  match fold_graph q with
-  | None -> not_found "graph" q
+let quest_view q =
+  match fold_quest q with
+  | None -> not_found "quest" q
   | Some (_, qs, _qt, _deps, _) ->
       let nodes = list_nodes q in
       let node_infos = List.map (fun e ->
@@ -94,7 +94,7 @@ let graph_view q =
       let (setup, setup_slow) = setup_json q in
       let inbox = List.filter_map (fun (e, s) ->
         if s.st = "blocked" then Some (`Assoc [
-          ("graph", json_str q); ("node", json_str e);
+          ("quest", json_str q); ("node", json_str e);
           ("reason", json_str s.blocked_reason);
           ("checkpoint", (match s.blocked_checkpoint with Some c -> json_str c | None -> `Null));
           ("cycle", `Int s.cycle); ("since", json_str s.blocked_since);
@@ -104,11 +104,11 @@ let graph_view q =
         else if node_states <> [] && List.for_all (fun (_, s) -> s.st = "landed" || s.st = "deleted") node_states then "landed"
         else if List.exists (fun (_, s) -> s.st = "blocked") node_states then "blocked"
         else "active" in
-      (* Report word for the graph finish line: rollup stays [landed];
+      (* Report word for the quest finish line: rollup stays [landed];
          [goal_fin] names promotion of that rollup to master. *)
       let fin = if rollup = "landed" then `String "goal_fin" else `Null in
       (`Assoc ([
-        ("graph", json_str q); ("state", json_str qs.st);
+        ("quest", json_str q); ("state", json_str qs.st);
         ("nodes", `List (List.map (fun (e, s, deps, t) -> node_json q e s deps t) node_infos));
         ("ready_set_waves", `List (List.map (fun w -> `List (List.map json_str w)) waves));
         ("ready", `List (List.map json_str ready));
@@ -130,7 +130,7 @@ let short_commit = function
   | Some c -> c
   | None -> "-"
 
-(* tree(1)-style rendering: graph is the root, nodes are branches,
+(* tree(1)-style rendering: quest is the root, nodes are branches,
    and each node's proposed files expand per directory, like the
    tree command walks a filesystem. *)
 type pnode = { pname : string; pchange : string option; pkids : pnode list ref }
@@ -174,7 +174,7 @@ let file_leaves_open prefix = function
 let render_tree fields =
   let get k = List.assoc_opt k fields in
   let str k = match get k with Some (`String s) -> s | _ -> "?" in
-  Printf.printf "%s [%s] rollup: %s%s%s\n" (str "graph") (str "state") (str "rollup")
+  Printf.printf "%s [%s] rollup: %s%s%s\n" (str "quest") (str "state") (str "rollup")
     (match get "fin" with Some (`String f) -> " (" ^ f ^ ")" | _ -> "")
     (match get "ready" with
      | Some (`List (_ :: _ as xs)) ->
@@ -231,7 +231,7 @@ let render_tree_node fields =
         String.concat ", " (List.map (function `String x -> x | o -> Yojson.Safe.to_string o) xs)
     | _ -> "" in
   Printf.printf "%s\n└── %s %s - %s%s, cycle %d, commit %s\n"
-    (s "graph") (tree_marker state) (s "node") state
+    (s "quest") (tree_marker state) (s "node") state
     (match g "fin" with Some (`String f) -> " (" ^ f ^ ")" | _ -> "") cycle
     (short_commit commit);
   file_leaves_open "    " (g "changes");
@@ -283,10 +283,10 @@ let cell_commit fs =
 let cell_changes fs =
   change_counts (match List.assoc_opt "changes" fs with Some v -> v | None -> `Null)
 
-let render_table_graph fields =
+let render_table_quest fields =
   let get k = List.assoc_opt k fields in
   let str k = match get k with Some (`String s) -> s | _ -> "?" in
-  Printf.printf "graph %s [%s] rollup: %s%s\n" (str "graph") (str "state") (str "rollup")
+  Printf.printf "quest %s [%s] rollup: %s%s\n" (str "quest") (str "state") (str "rollup")
     (match get "ready" with
      | Some (`List (_ :: _ as xs)) ->
          " ready: " ^ String.concat ", "
@@ -311,7 +311,7 @@ let render_table_node fields =
         String.concat ", " (List.map (function `String x -> x | o -> Yojson.Safe.to_string o) xs)
     | _ -> "" in
   Printf.printf "%s / %s — %s, cycle %d, commit %s, legal: %s\n"
-    (s "graph") (s "node") (s "state") cycle (short_commit commit)
+    (s "quest") (s "node") (s "state") cycle (short_commit commit)
     (if legal = "" then "none" else legal);
   (match g "changes" with
    | Some (`List xs) ->
@@ -335,7 +335,7 @@ let render_table_icebox fields =
 
 (* ---------- diagram emit (mvp.4) ---------- *)
 (* Generated from the live rollup fields at call time: both
-   formats render one graph_view snapshot, so ascii and
+   formats render one quest_view snapshot, so ascii and
    mermaid of the same moment carry the same facts. Every
    node is defined once with its state and cycle (landed
    nodes carry node_fin), every dep is drawn once, ready-set
@@ -385,8 +385,8 @@ let emit_ascii fields generated_at =
   let waves = diagram_waves fields in
   let starved = diagram_starved fields in
   let b = Buffer.create 256 in
-  Printf.bprintf b "graph %s diagram (generated from live state at %s)\n"
-    (dstr fields "graph") generated_at;
+  Printf.bprintf b "quest %s diagram (generated from live state at %s)\n"
+    (dstr fields "quest") generated_at;
   Printf.bprintf b "rollup: %s\n" (dstr fields "rollup");
   Buffer.add_string b "nodes:\n";
   (match nodes with
@@ -421,8 +421,8 @@ let emit_mermaid fields generated_at =
   let starved = diagram_starved fields in
   let b = Buffer.create 256 in
   Printf.bprintf b "%%%% generated from live state at %s\n" generated_at;
-  Printf.bprintf b "%%%% graph %s rollup: %s\n"
-    (dstr fields "graph") (dstr fields "rollup");
+  Printf.bprintf b "%%%% quest %s rollup: %s\n"
+    (dstr fields "quest") (dstr fields "rollup");
   Buffer.add_string b "graph LR\n";
   List.iter (fun n ->
     Printf.bprintf b "  %s[\"%s\"]\n" (mermaid_id n.d_id) n.d_label) nodes;
@@ -463,7 +463,7 @@ let print_verdict ~fmt v =
   | "tree", `Assoc fields when List.mem_assoc "node" fields ->
       render_tree_node fields
   | "table", `Assoc fields when List.mem_assoc "nodes" fields ->
-      render_table_graph fields
+      render_table_quest fields
   | "table", `Assoc fields when List.mem_assoc "node" fields
       && List.mem_assoc "changes" fields ->
       render_table_node fields

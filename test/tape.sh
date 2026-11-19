@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Node 4 fixtures: tape capture is verbatim evidence, never parsed
-# into facts. The ledger gains lines only through `bp3 g u`.
+# into facts. The ledger gains lines only through `bp3 q u`.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/src/graph/main.exe" "$work/repo/g-bin"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
 cd "$work/repo"
 git init -q -b master
@@ -15,13 +15,13 @@ git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
-q() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
+q() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 q c demo >/dev/null
 q demo c parser-fix >/dev/null
-node_ledger() { git show "bp3/node/demo/parser-fix:docs/graphs/demo/nodes/parser-fix/ledger.jsonl"; }
-runs_dir="docs/graphs/demo/nodes/parser-fix/runs"
+node_ledger() { git show "bp3/node/demo/parser-fix:docs/quests/demo/nodes/parser-fix/ledger.jsonl"; }
+runs_dir="docs/quests/demo/nodes/parser-fix/runs"
 
 # (a) executor killed mid-output: tape keeps partial content.
 mkdir -p "$runs_dir/killed-run"
@@ -48,7 +48,7 @@ grep -q 'hooks-off output' "$runs_dir/hooks-off-run/tape.log" || fail "hooks-off
 after=$(node_ledger)
 [ "$before" = "$after" ] || fail "tape-only run changed the ledger"
 
-# (c) edges through bp3 g u: no tape-only string reaches the ledger.
+# (c) edges through bp3 q u: no tape-only string reaches the ledger.
 marker="tape-only-marker-9f27c1"
 mkdir -p "$runs_dir/handoff-run"
 printf 'session start %s\n' "$marker" | tee "$runs_dir/handoff-run/tape.log" >/dev/null

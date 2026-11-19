@@ -1,19 +1,19 @@
 ---
 name: bp3g-landing-demo
-description: Produce the Landing IIUC for a bp3 Graph being promoted — diligence gate first (every node checked against its own acceptance; unsettled or improperly-done nodes route to red-ink, not landing), then decision record, settled picture, demo traces, files touched, verification, and deliberately-open items.
+description: Produce the Landing IIUC for a bp3 Quest being promoted — diligence gate first (every node checked against its own acceptance; unsettled or improperly-done nodes route to red-ink, not landing), then decision record, settled picture, demo traces, files touched, verification, and deliberately-open items.
 ---
 
-# Red-Ink Graph Landing Demo
+# Red-Ink Quest Landing Demo
 
 Use when a human or Controller in bp3 invokes this skill by
-name (`/red-ink-bp3g-landing-demo`), when a Graph reaches
-Graph-to-master promotion, or when asked “walk me through
-what this graph became / what got done / give me the demos.”
+name (`/red-ink-bp3g-landing-demo`), when a Quest reaches
+Quest-to-master promotion, or when asked “walk me through
+what this quest became / what got done / give me the demos.”
 One output: a Landing IIUC, presented in chat and, on human
-approval, recorded at the Graph's landing.
+approval, recorded at the Quest's landing.
 
-Use `graph` instead to frame a new Graph. Use `using-bp3`
-to operate graph state. Use `icebox` to freeze a deferred
+Use `quest` instead to frame a new Quest. Use `using-bp3`
+to operate quest state. Use `icebox` to freeze a deferred
 idea. Use `red-ink` while a design is still being decided.
 
 ## The diligence gate (runs first, always)
@@ -37,19 +37,19 @@ the demo.
 
 ## Inputs
 
-Read, in this order: the Graph file (and any working copy
-the session settled, e.g. `GRAPH.red-ink.md`), its
+Read, in this order: the Quest file (and any working copy
+the session settled, e.g. `QUEST.red-ink.md`), its
 Terms/Concepts, nodes and acceptance checks, the decision
 history the owner settled, `git log`/`git diff --stat` for
 the change, bp3 verdicts where a binary exists, and icebox
-entries or deferrals the graph spawned.
+entries or deferrals the quest spawned.
 
 ## Procedure
 
 1. Run the diligence gate. Report its table before anything
    else; a failed node ends the run here (see above).
 2. State the verdict: what is now true that was not true
-   before this Graph, in the Graph's own success-picture
+   before this Quest, in the Quest's own success-picture
    words.
 3. Give the settled picture in one diagram or short map:
    the parts, their owners, and the one flow that matters.
@@ -74,13 +74,13 @@ entries or deferrals the graph spawned.
    never quietly dropped.
 9. Close with the checkpoint question the owner answers:
    promote, or another pass. On promotion, offer to record
-   the Landing IIUC under the Graph's Success picture.
+   the Landing IIUC under the Quest's Success picture.
 
 ## Rules
 
 - The demo is evidence, not marketing: numbers come from
   runs and ledgers, never from prose about runs.
-- Terms in the Landing IIUC are the Graph's settled Terms,
+- Terms in the Landing IIUC are the Quest's settled Terms,
   spelled exactly as the code and data structures spell
   them.
 - Instructions only: this skill writes nothing unless the

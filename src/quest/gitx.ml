@@ -1,5 +1,5 @@
-(* gitx — process/git plumbing for bp3 g. No graph knowledge. *)
-(* bp3 g — graph/node FSM CLI. Only writer of graph state. *)
+(* gitx — process/git plumbing for bp3 g. No quest knowledge. *)
+(* bp3 q — quest/node FSM CLI. Only writer of quest state. *)
 let bp3_version = "0.2.0"
 
 exception Verdict of (int * Yojson.Safe.t)
@@ -193,11 +193,11 @@ let is_ancestor a b = git_ok ["merge-base"; "--is-ancestor"; a; b]
    its tool script are both tracked here); host = bp3 is a tool
    in a repo that carries neither. Flags lie; derivation cannot. *)
 let repo_mode () =
-  if git_ok ["ls-files"; "--error-unmatch"; "--"; "src/graph"; "bin/bp3"]
+  if git_ok ["ls-files"; "--error-unmatch"; "--"; Layout.engine_src; "bin/bp3"]
   then "self" else "host"
 
 let mode_flag_usage =
-  "mode is derived from the repo (tracked src/graph + bin/bp3), \
+  "mode is derived from the repo (tracked src/quest + bin/bp3), \
    never passed as a flag: --mode"
 
 let now_ts () =

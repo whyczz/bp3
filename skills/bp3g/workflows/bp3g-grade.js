@@ -4,7 +4,7 @@
 // computes, the looper applies. `grade(commit, node_record)`
 // is a pure function returning a Verdict as data; audit,
 // grade, and verify children write nothing and make zero
-// `bp3 g u` calls. This workflow (the looper) applies the
+// `bp3 q u` calls. This workflow (the looper) applies the
 // verdict with exactly one combined cast
 // (`grade --verdict ... --verify-verdict ...`), opens the
 // fix-ledger entry, and names the author dispatch; the
@@ -43,7 +43,7 @@
 // child writes its own proof. Returns {outcome, matrix,
 // verdict, ledger, casts, run_ids, refusals}.
 // Args are supplied by the calling bp3g skill as
-// {graph, node, ts, harness, model, commit}; ts is a UTC
+// {quest, node, ts, harness, model, commit}; ts is a UTC
 // compact timestamp from the caller, embedded by children
 // in every run-id because scripts cannot read the clock.
 
@@ -259,7 +259,7 @@ function deferralNamesOwner(text) {
   return /defer/i.test(text) && /\bnode[\s-]*\d+\b/i.test(text);
 }
 
-// The evidence ladder (GRAPH.md contract, mvp.7), in order;
+// The evidence ladder (QUEST.md contract, mvp.7), in order;
 // each rung only when the ones above leave the verdict
 // undecided. Rung 5 splits: 5a resolves derivation pointers
 // one entry at a time, 5b reads the whole tape and is
@@ -268,7 +268,7 @@ const LADDER_RUNGS = ["1", "2", "3", "4", "5a", "5b"];
 const LADDER_TEXT =
   "Climb the evidence ladder in order, each rung only when " +
   "the ones above leave the verdict undecided: rung 1 the " +
-  "graph and node records (what was asked); rung 2 committed " +
+  "quest and node records (what was asked); rung 2 committed " +
   "code and git diff at the exact commit; rung 3 demos and " +
   "tests, run — not read about; rung 4 style " +
   "(code-writer/code-reviewer discipline); rung 5a tape via " +
@@ -506,7 +506,7 @@ export default async function workflow(host) {
   const rawArgs = typeof host.args === "string"
     ? JSON.parse(host.args)
     : (host.args || {});
-  const graph = rawArgs.graph;
+  const quest = rawArgs.quest;
   const node = rawArgs.node;
   const ts = rawArgs.ts;
   const harness = rawArgs.harness || "muse-code";
@@ -516,7 +516,7 @@ export default async function workflow(host) {
   const maxCycles = typeof rawArgs.max_cycles === "number" ? rawArgs.max_cycles : 1;
   const priorFailedRows = Array.isArray(rawArgs.prior_failed_rows)
     ? rawArgs.prior_failed_rows.map(String) : [];
-  const deskNote = desk ? ("Your working directory is the graph worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
+  const deskNote = desk ? ("Your working directory is the quest worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
   // Mode-aware reads (dogfood.3): a desk exists only in self mode,
   // so desk presence derives the read path - self reads via the
   // desk script, host reads call bp3 on PATH. Never a flag.
@@ -535,30 +535,30 @@ export default async function workflow(host) {
     "own check command, never on claimed green. ";
   const refusals = [];
   const runIds = [];
-  if (!graph || !node || !ts || !commit) {
+  if (!quest || !node || !ts || !commit) {
     return {
       node: node || null,
       outcome: "refused",
       matrix: [],
       run_ids: runIds,
-      refusals: ["missing graph, node, ts, or commit in workflow args"],
+      refusals: ["missing quest, node, ts, or commit in workflow args"],
     };
   }
 
   const nodeDir =
-    "docs/graphs/" + graph + "/nodes/" + node;
+    "docs/quests/" + quest + "/nodes/" + node;
 
   async function readState() {
     const result = await host.agent({
       label: "read " + node,
       input:
         deskNote +
-        "Run exactly `" + envPrefix + bp3Bin + " g " + graph + " r " + node +
-        "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
+        "Run exactly `" + envPrefix + bp3Bin + " q " + quest + " r " + node +
+        "` from the quest worktree if one is named above, else the repository root, and return only its stdout JSON " +
         "verdict verbatim as your entire reply, with no prose and no " +
         "code fences. If the command fails, return its stdout JSON " +
         "verdict verbatim instead. Do not edit any file and do not " +
-        "call any `bp3 g u` update edge.",
+        "call any `bp3 q u` update edge.",
     });
     const v = parseVerdict(result);
     if (!v || typeof v.state !== "string") {
@@ -590,7 +590,7 @@ export default async function workflow(host) {
     // with BP3_RUN_ID=<run_id from the claim verdict>; bp3
     // stamps it into verdicts and ledger lines.
     void edge; void cycle;
-    return "BP3_GRAPH=" + graph + " BP3_NODE=" + node + " " + envPrefix;
+    return "BP3_QUEST=" + quest + " BP3_NODE=" + node + " " + envPrefix;
   }
 
   const links = {};
@@ -621,7 +621,7 @@ export default async function workflow(host) {
     const cmd =
       envPreset(edge, cycle) + bp3Bin + " harness link mint" +
       (fsm ? " --kind edge --edge " + edge : " --kind node") +
-      " --graph " + graph + " --node " + node +
+      " --quest " + quest + " --node " + node +
       " --harness " + harness + " --model " + model +
       " --cycle " + String(cycle) +
       (desk ? " --desk " + desk : "");
@@ -629,12 +629,12 @@ export default async function workflow(host) {
       label: "mint " + node,
       input:
         deskNote +
-        "Run exactly `" + cmd + "` from the graph worktree if " +
+        "Run exactly `" + cmd + "` from the quest worktree if " +
         "one is named above, else the repository root, and return " +
         "only its stdout JSON verdict verbatim as your entire " +
         "reply, with no prose and no code fences. If the command " +
         "fails, return its stdout JSON verdict verbatim instead. " +
-        "Do not edit any file and do not call any `bp3 g u` " +
+        "Do not edit any file and do not call any `bp3 q u` " +
         "update edge.",
     });
     const v = parseVerdict(result);
@@ -655,7 +655,7 @@ export default async function workflow(host) {
     return (
       "Your run folder is `" + folder + "` under `" + nodeDir +
       "/runs/`. " + claimNote(edge) +
-      "`BP3_GRAPH`, `BP3_NODE`, `BP3_HARNESS`, and `BP3_MODEL` " +
+      "`BP3_QUEST`, `BP3_NODE`, `BP3_HARNESS`, and `BP3_MODEL` " +
       "arrive via environment; your run-id arrives via the " +
       "claim above and `bp3` stamps it into its verdicts and " +
       "ledger lines. First check whether that concrete run " +
@@ -702,16 +702,16 @@ export default async function workflow(host) {
     label: "validations " + node,
     input:
       deskNote + "You are the grade validations transport for node `" + node +
-      "` of graph `" + graph + "`, bound to commit `" + commit + "`. " +
+      "` of quest `" + quest + "`, bound to commit `" + commit + "`. " +
       "Your contract: shell moves the bytes, you move a pointer. First " +
-      "run this one command from the graph worktree so the full verbatim " +
+      "run this one command from the quest worktree so the full verbatim " +
       "outputs land in the validations log without passing through your " +
       "reply: `mkdir -p \"$(git rev-parse --git-common-dir)/bp3\" && " +
       "LOG=\"$(git rev-parse --git-common-dir)/bp3/" + ts + "-" + node +
       "-validations.log\" && { echo '=== git_clean ==='; " +
       "git status --porcelain; echo '=== git_show ==='; " +
       "git show --stat " + commit + "; echo '=== handoff_line ==='; " +
-      "git show bp3/node/" + graph + "/" + node + ":" + nodeDir +
+      "git show bp3/node/" + quest + "/" + node + ":" + nodeDir +
       "/ledger.jsonl | tail -1; } > \"$LOG\" 2>&1; echo \"$LOG\"`. " +
       "Then return only a JSON object {log_path, git_clean: {stdout, " +
       "exit}, git_show: {stdout, exit}, run_folders, handoff_line} " +
@@ -723,11 +723,11 @@ export default async function workflow(host) {
       "quote}, source} where source names the log path or run " +
       "folder it came from (empty array when there is none). " +
       "the first command printed (never summarize, never edit any " +
-      "file, and do not call any `bp3 g u` update edge): " +
+      "file, and do not call any `bp3 q u` update edge): " +
       "(1) `git status --porcelain | head -20` for git_clean; " +
       "(2) `git show --stat " + commit + " | head -3` for git_show; " +
       "(3) for run_folders, run exactly this one shell one-liner " +
-      "verbatim from the graph worktree and return its stdout lines " +
+      "verbatim from the quest worktree and return its stdout lines " +
       "unchanged as the run_folders array (one line per folder, " +
       "`<folder> tape=yes|no notes=yes|no`; never reformat its lines " +
       "into prose): `for d in " + nodeDir + "/runs/*/; do " +
@@ -736,7 +736,7 @@ export default async function workflow(host) {
       "if [ -f \"$d/notes.md\" ]; then u=yes; else u=no; fi; " +
       "echo \"$n tape=$t notes=$u\"; done`; (4) for " +
       "handoff_line, the verbatim last handoff line of `" + nodeDir +
-      "/ledger.jsonl` on the node branch (`git show bp3/node/" + graph +
+      "/ledger.jsonl` on the node branch (`git show bp3/node/" + quest +
       "/" + node + ":" + nodeDir + "/ledger.jsonl`), or an empty string " +
       "when there is none. Quote an empty stdout as an empty string; " +
       "the validations pipeline mints its token in code.",
@@ -777,8 +777,8 @@ export default async function workflow(host) {
   const audit = await host.agent({
     label: "audit " + node,
     input:
-      deskNote + "You are the audit child for node `" + node + "` of graph `" +
-      graph + "`, bound to commit `" + commit + "`. " +
+      deskNote + "You are the audit child for node `" + node + "` of quest `" +
+      quest + "`, bound to commit `" + commit + "`. " +
       tapePreamble("audit", before.cycle) +
       " Read the node's NODE.md first. Build the evidence " +
       "matrix: one row per Acceptance case (acceptance rows only). " +
@@ -820,7 +820,7 @@ export default async function workflow(host) {
       "registry witness does not gate this row; outside a named " +
       "rung 5b escalation, never read the whole tape or " +
       "parse tape.log into facts. Judge only; do " +
-      "not edit any file and do not call any `bp3 g u` update edge. " +
+      "not edit any file and do not call any `bp3 q u` update edge. " +
       "Write the matrix verbatim as JSON in your run folder's " +
       "notes.md, with your brief authored lessons. Reply with only " +
       "a JSON object {ok, run_id, matrix} where matrix is the row " +
@@ -852,8 +852,8 @@ export default async function workflow(host) {
     const recollect = await host.agent({
       label: "audit " + node,
       input:
-        deskNote + "Re-collect typed evidence for node `" + node + "` of graph `" +
-        graph + "`, bound to commit `" + commit + "`. " +
+        deskNote + "Re-collect typed evidence for node `" + node + "` of quest `" +
+        quest + "`, bound to commit `" + commit + "`. " +
         tapePreamble("audit", before.cycle) +
         " Your previous audit matrix carried no typed evidence for " +
         "these named rows: " + missingTyped.join(", ") + ". Collect " +
@@ -865,7 +865,7 @@ export default async function workflow(host) {
         "observed evidence verbatim. When a command's stdout is " +
         "empty and its exit is 0, quote `(empty stdout, exit 0)` " +
         "verbatim; never quote an empty string. Judge only; do not " +
-        "edit any file and do not call any `bp3 g u` update edge.",
+        "edit any file and do not call any `bp3 q u` update edge.",
     });
     const recollectVerdict = parseVerdict(recollect);
     if (recollectVerdict && typeof recollectVerdict.run_id === "string" && recollectVerdict.run_id) {
@@ -925,8 +925,8 @@ export default async function workflow(host) {
     return { node: node, outcome: "refused", matrix: matrix, run_ids: runIds, refusals: refusals };
   }
   const gradePrompt = deskNote +
-    "You are the grade child for node `" + node + "` of graph `" +
-    graph + "`, currently in state `" + before.state + "` at cycle " +
+    "You are the grade child for node `" + node + "` of quest `" +
+    quest + "`, currently in state `" + before.state + "` at cycle " +
     String(before.cycle) + ", bound to commit `" + commit + "`. " +
     gradeLoad + tapePreamble("grade", before.cycle) + gate +
     " Review the work at the bound commit against the node's " +
@@ -935,7 +935,7 @@ export default async function workflow(host) {
     "to a named successor node is not gated here), and any open " +
     "design question in the node means it was not done properly. " +
     "Pure grade (followup.5): judge only; do not edit the work " +
-    "and do not call any `bp3 g u` update edge. Return your " +
+    "and do not call any `bp3 q u` update edge. Return your " +
     "verdict as data for the looper to apply, binding the exact " +
     "commit: reply with only a JSON object {ok, run_id, commit, " +
     "verdict, fix, fix_class, failed_rows} where verdict is " +
@@ -944,12 +944,12 @@ export default async function workflow(host) {
     "ship), fix_class is mechanical|disagreement|owner|standard, " +
     "and failed_rows lists the failing acceptance cases.";
   const verifyPrompt = deskNote +
-    "You are the verify child for node `" + node + "` of graph `" +
-    graph + "`, currently in state `" + before.state + "` at cycle " +
+    "You are the verify child for node `" + node + "` of quest `" +
+    quest + "`, currently in state `" + before.state + "` at cycle " +
     String(before.cycle) + ", bound to commit `" + commit + "`. " +
     verifyLoad + tapePreamble("verify", before.cycle) + gate +
     " Run the node's checks against the bound commit and judge " +
-    "only; do not edit the work and do not call any `bp3 g u` " +
+    "only; do not edit the work and do not call any `bp3 q u` " +
     "update edge. Pure grade (followup.5): return your verdict " +
     "as data for the looper to apply, binding the exact commit: " +
     "reply with only a JSON object {ok, run_id, commit, verdict, " +
@@ -985,7 +985,7 @@ export default async function workflow(host) {
     : verdict.fix;
   const safeReason = String(reasonText).replace(/(["$`\\])/g, "\\$1");
   const applyCmd =
-    envPreset("grade", before.cycle) + bp3Bin + " g " + graph + " u " + node +
+    envPreset("grade", before.cycle) + bp3Bin + " q " + quest + " u " + node +
     " grade --verdict " + castVerdict + " --commit " + commit +
     " --verify-verdict " + verdict.verify_verdict +
     (verdict.fix_class === "mechanical" ? " --mechanical" : "") +
@@ -994,7 +994,7 @@ export default async function workflow(host) {
     label: "apply " + node,
     input:
       deskNote +
-      "Run exactly `" + applyCmd + "` from the graph worktree if " +
+      "Run exactly `" + applyCmd + "` from the quest worktree if " +
       "one is named above, else the repository root, and return " +
       "only its stdout JSON verdict verbatim as your entire " +
       "reply, with no prose and no code fences. If the command " +

@@ -21,15 +21,15 @@ root="$work/project with spaces"
 cp "$repo/bin/bp3" "$root/bin/"
 cp "$repo/scripts/check-skills" "$root/scripts/"
 cp -R "$repo/skills" "$root/"
-# A self repo by derivation (dogfood.3): tracked src/graph + bin/bp3.
+# A self repo by derivation (dogfood.3): tracked src/quest + bin/bp3.
 # The fixture names its target explicitly (BP3_TARGET); mode still
 # derives from the fixture repo itself, never from a flag.
-mkdir -p "$root/src/graph"
-touch "$root/src/graph/.keep"
+mkdir -p "$root/src/quest"
+touch "$root/src/quest/.keep"
 git -C "$root" init -q -b main
 git -C "$root" config user.email t@t.t
 git -C "$root" config user.name t
-git -C "$root" add bin/bp3 src/graph
+git -C "$root" add bin/bp3 src/quest
 export BP3_TARGET="$root"
 source="$root/skills/add-yap-skill/SKILL.md"
 cp "$source" "$work/good.md"
@@ -120,15 +120,15 @@ assert cmp "$root/skills/bp3g/workflows/bp3g-grade.js" "$root/.agents/workflows/
 assert test -f "$root/.agents/workflows/bp3g-land.js"
 assert cmp "$root/skills/bp3g/workflows/bp3g-land.js" "$root/.agents/workflows/bp3g-land.js"
 assert test -f "$root/.claude/hooks.json"
-assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 g hooks || true" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.claude/hooks.json"
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks || true" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.claude/hooks.json"
 assert test -f "$root/.muse/hooks.json"
 assert cmp "$root/.claude/hooks.json" "$root/.muse/hooks.json"
 assert test -f "$root/.claude/settings.json"
-assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 g hooks || true" and (.hooks | has("PostLLMCall") | not)' "$root/.claude/settings.json"
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks || true" and (.hooks | has("PostLLMCall") | not)' "$root/.claude/settings.json"
 mkdir -p "$root/.claude"
 printf '{"keepMe":true}\n' > "$root/.claude/settings.json"
 "$root/bin/bp3" skills install --harness=claude > /dev/null
-assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./bin/bp3 g hooks || true"' "$root/.claude/settings.json"
+assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks || true"' "$root/.claude/settings.json"
 cp "$root/.pi/settings.json" "$work/settings.before"
 "$root/bin/bp3" skills install --harness=pi > /dev/null
 assert cmp "$work/settings.before" "$root/.pi/settings.json"
@@ -148,7 +148,7 @@ printf '{broken' > "$root/.pi/settings.json"
 "$root/bin/bp3" skills install --harness=codex > /dev/null
 assert grep -qx '{broken' "$root/.pi/settings.json"
 
-# Graph red-chair of the source: critical/major concerns settle or become follow-up nodes.
+# Quest red-chair of the source: critical/major concerns settle or become follow-up nodes.
 assert grep -q 'Red-chair the source itself' "$repo/skills/bp3g-frame/SKILL.md"
 assert grep -q 'appended as a \*\*follow-up node\*\*' "$repo/skills/bp3g-frame/SKILL.md"
 assert grep -q 'Risks is not a parking lot' "$repo/skills/bp3g-frame/SKILL.md"
@@ -168,7 +168,7 @@ for h in .pi .agents .claude; do
   assert test -f "$root/$h/skills/bp3g-no-human/SKILL.md"
   assert grep -q 'skills/bp3g/SKILL.md' "$root/$h/skills/bp3g-no-human/SKILL.md"
 done
-assert grep -q 'means `/bp3g <graph>` per' "$repo/skills/bp3g-no-human/SKILL.md"
+assert grep -q 'means `/bp3g <quest>` per' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'BP3_DECIDER` stays unset' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'never takes `resume` or `delete`' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'park it' "$repo/skills/bp3g-no-human/SKILL.md"
@@ -187,20 +187,20 @@ assert grep -q 'No-human never' "$root/.agents/skills/bp3g/SKILL.md"
 # Fleet (node-9): footprint preflight, merge order, fleet budget, check-in report.
 assert grep -q 'one fleet, not several queues' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'merge order before the queue starts' "$repo/skills/bp3g-no-human/SKILL.md"
-assert grep -q 'Footprint: the paths a graph declares' "$repo/skills/bp3g-no-human/SKILL.md"
+assert grep -q 'Footprint: the paths a quest declares' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'no declared footprint' "$repo/skills/bp3g-no-human/SKILL.md"
-assert grep -q 'Disjoint graphs run in parallel' "$repo/skills/bp3g-no-human/SKILL.md"
+assert grep -q 'Disjoint quests run in parallel' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'refused at preflight, named' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'zero Runs spent on it' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'queues serially in a later fleet' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'The fleet never merges' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'predeclared merge order (fleet never merges)' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'one budget caps the whole fleet' "$repo/skills/bp3g-no-human/SKILL.md"
-assert grep -q 'every graph stops' "$repo/skills/bp3g-no-human/SKILL.md"
+assert grep -q 'every quest stops' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'one check-in list' "$repo/skills/bp3g-no-human/SKILL.md"
-assert grep -q 'grouped by graph, each with its inbox reason' "$repo/skills/bp3g-no-human/SKILL.md"
+assert grep -q 'grouped by quest, each with its inbox reason' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'same human decision appear as one' "$repo/skills/bp3g-no-human/SKILL.md"
 assert grep -q 'attested per node at resume time' "$repo/skills/bp3g-no-human/SKILL.md"
-assert grep -q 'Disjoint graphs run in parallel' "$root/.agents/skills/bp3g-no-human/SKILL.md"
+assert grep -q 'Disjoint quests run in parallel' "$root/.agents/skills/bp3g-no-human/SKILL.md"
 
 printf 'skills tests: ok (%s assertions)\n' "$checks"

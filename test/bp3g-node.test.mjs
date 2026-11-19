@@ -14,7 +14,7 @@ function mockHost({ reads, gradeReason, edgeResults, extraArgs }) {
   const labels = [];
   const inputs = { reads: [] };
   const host = {
-    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
+    args: Object.assign({ quest: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
     async agent({ label, input }) {
       if (input.includes("harness link mint")) {
         labels.push("mint");
@@ -80,8 +80,8 @@ const st = (state, cycle) => ({ state, cycle: cycle || 1, commit: "abc1234", leg
   const result = await workflow(host);
   assert(result.outcome === "landed" && result.node === "fx", "happy outcome landed, got " + result.outcome);
   assert(labels.filter((l) => l === "apply").length === 1, "looper casts once, got " + labels.join(","));
-  assert(inputs.grade[0].includes("do not call any `bp3 g u`"), "grade child is pure");
-  assert(inputs.verify[0].includes("do not call any `bp3 g u`"), "verify child is pure");
+  assert(inputs.grade[0].includes("do not call any `bp3 q u`"), "grade child is pure");
+  assert(inputs.verify[0].includes("do not call any `bp3 q u`"), "verify child is pure");
   assert(result.commit === "abc1234", "happy commit, got " + result.commit);
   assert(labels.filter((l) => l === "handoff").length === 1, "one author, got " + labels.join(","));
   assert(labels.filter((l) => l === "grade").length === 1, "one grade, got " + labels.join(","));
@@ -121,7 +121,7 @@ for (const state of ["blocked", "deleted", "landed"]) {
   assert(result.outcome === "blocked", "typed failure blocks, got " + result.outcome);
   assert(result.reason === "choose storage shape", "bubble reason verbatim, got " + result.reason);
   assert(result.last_edge === "handoff", "bubble last edge, got " + result.last_edge);
-  assert(result.graph === "toy" && result.inbox_key === "toy/fx", "bubble graph + inbox key");
+  assert(result.quest === "toy" && result.inbox_key === "toy/fx", "bubble quest + inbox key");
   assert(labels.filter((l) => l === "handoff").length === 1, "failed edge never retried, got " + labels.join(","));
   assert(labels.filter((l) => l === "block").length === 1, "exactly one block call, got " + labels.join(","));
   assert(inputs.block[0].includes("choose storage shape"), "block reason rides verbatim");
@@ -172,7 +172,7 @@ for (const state of ["blocked", "deleted", "landed"]) {
   assert(result.outcome === "landed", "desk+context run lands, got " + result.outcome);
   assert(inputs.reads.length > 0, "reads captured, got " + inputs.reads.length);
   for (const read of inputs.reads) {
-    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
+    assert(read.includes("quest worktree `.bp3/worktrees/toy-desk`"),
       "read prompt names the desk worktree");
     assert(!read.includes("named below"), "read prompt never points below for the desk");
   }
@@ -183,7 +183,7 @@ for (const state of ["blocked", "deleted", "landed"]) {
 // --- missing args refuse without spawning anything ---
 {
   const host = {
-    args: { graph: "toy" },
+    args: { quest: "toy" },
     async agent() { throw new Error("must not spawn"); },
     async parallel() { throw new Error("must not spawn"); },
   };

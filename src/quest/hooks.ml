@@ -1,4 +1,4 @@
-(* hooks — the bp3 g hooks emitter. Reads one Muse hook
+(* hooks — the bp3 q hooks emitter. Reads one Muse hook
    event JSON from stdin, self-gates, resolves the witnessed Run
    binding, and appends past-tense event lines to the node ledger
    through the internal fact writer below. Always exits 0:
@@ -100,7 +100,7 @@ let refusal_code j =
 (* ---------- run registry (in the git dir, never the worktree,
    so witnessing a Run never dirties the tree it observes) ---------- *)
 type binding = {
-  graph : string; node : string; run_id : string; session_id : string;
+  quest : string; node : string; run_id : string; session_id : string;
   started_ts : string; started_epoch : float;
   mutable last_seen_ts : string; mutable last_seen_epoch : float;
   mutable settled : bool; mutable unsettled : bool;
@@ -117,7 +117,7 @@ let registry_path () =
 
 let binding_to_json b =
   (b.session_id, `Assoc [
-    ("graph", json_str b.graph); ("node", json_str b.node);
+    ("quest", json_str b.quest); ("node", json_str b.node);
     ("run_id", json_str b.run_id); ("started_ts", json_str b.started_ts);
     ("started_epoch", `Float b.started_epoch);
     ("last_seen_ts", json_str b.last_seen_ts);
@@ -132,7 +132,7 @@ let binding_to_json b =
 let binding_of_json sid j =
   let f key = try match Yojson.Safe.Util.member key j with `Float x -> x | `Int n -> float_of_int n | _ -> 0. with _ -> 0. in
   let bl key = try match Yojson.Safe.Util.member key j with `Bool x -> x | _ -> false with _ -> false in
-  { graph = member_str j "graph"; node = member_str j "node";
+  { quest = (let v = member_str j "quest" in if v <> "" then v else member_str j "graph"); node = member_str j "node";
     run_id = member_str j "run_id"; session_id = sid;
     started_ts = member_str j "started_ts"; started_epoch = f "started_epoch";
     last_seen_ts = member_str j "last_seen_ts";
@@ -183,15 +183,15 @@ let touch b =
 (* ---------- fact writer: appends one event line to the node
    ledger on its branch. The only ledger door hooks may use;
    it writes no state.yaml because event lines change no state. ---------- *)
-let append_event graph node line =
-  match ledger_read (node_branch graph node) (node_ledger_path graph node) (legacy_node_ledger_paths graph node) with
+let append_event quest node line =
+  match ledger_read (node_branch quest node) (node_ledger_path quest node) (legacy_node_ledger_paths quest node) with
   | None -> false
   | Some (tip, text, lpath) ->
       let new_text = (if String.trim text = "" then "" else
         (if text.[String.length text - 1] = '\n' then text else text ^ "\n"))
         ^ line ^ "\n" in
       (try
-         ignore (commit_files ~branch:(node_branch graph node) ~base_tip:tip
+         ignore (commit_files ~branch:(node_branch quest node) ~base_tip:tip
            ~expect_tip:tip ~files:[(lpath, new_text)]
            ~msg:"bp3: hooks");
          true
@@ -204,7 +204,7 @@ let emit bindings b kind fields dedupe_key =
     let fields = ("event", json_str kind) :: ("ts", json_str (now_ts ()))
       :: ("run_id", json_str b.run_id) :: fields in
     let line = Yojson.Safe.to_string (`Assoc fields) in
-    if append_event b.graph b.node line then begin
+    if append_event b.quest b.node line then begin
       b.emitted <- dedupe_key :: b.emitted;
       Some (`Assoc fields)
     end else None
@@ -236,8 +236,8 @@ let handle () =
         if not is_repo then no_write "not a bp3 repo"
         else
           let command = command_of payload in
-          if contains_sub command "bp3 g hooks" ||
-             contains_sub command "bp3 g hooks"
+          if contains_sub command "bp3 q hooks" ||
+             contains_sub command "bp3 q hooks"
           then no_write "reentrant"
           else begin
             let bindings = ref (load_registry ()) in
@@ -251,7 +251,7 @@ let handle () =
                      finish (no_write "already bound")
                  | None ->
                      (match extract_preset command "BP3_RUN_ID",
-                            extract_preset command "BP3_GRAPH",
+                            extract_preset command "BP3_QUEST",
                             extract_preset command "BP3_NODE" with
                       | Some run_id, Some q, Some e
                         when valid_slug q && valid_slug e ->
@@ -262,7 +262,7 @@ let handle () =
                           then finish (no_write "no matching run folder")
                           else begin
                             let (_edge, cycle) = parse_edge_cycle run_id in
-                            let b = { graph = q; node = e; run_id;
+                            let b = { quest = q; node = e; run_id;
                               session_id = session; started_ts = now_ts ();
                               started_epoch = Unix.time ();
                               last_seen_ts = now_ts ();

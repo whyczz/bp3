@@ -9,7 +9,7 @@ DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.
 check: lint
 	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
 	./test/skills.sh
-	$(DUNE_BUILD) src/graph/main.exe
+	$(DUNE_BUILD) src/quest/main.exe
 	./test/g.sh
 	./test/ready.sh
 	./test/diagram.sh
@@ -53,16 +53,16 @@ check-changed:
 	./scripts/check-changed.sh
 
 # --- release (Node 5): tag-gated artifact + checksum; publish-once via gh ---
-RELEASE_VERSION := $(shell sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' src/graph/gitx.ml | head -1)
+RELEASE_VERSION := $(shell sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' src/quest/gitx.ml | head -1)
 RELEASE_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 RELEASE_ARCH := $(shell uname -m)
-RELEASE_ARTIFACT := dist/bp3-g-v$(RELEASE_VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
+RELEASE_ARTIFACT := dist/bp3-q-v$(RELEASE_VERSION)-$(RELEASE_OS)-$(RELEASE_ARCH)
 
 release:
 	@./scripts/release-check >/dev/null
-	$(DUNE_BUILD) src/graph/main.exe
+	$(DUNE_BUILD) src/quest/main.exe
 	mkdir -p dist
-	cp _build/default/src/graph/main.exe $(RELEASE_ARTIFACT)
+	cp _build/default/src/quest/main.exe $(RELEASE_ARTIFACT)
 	cd dist && shasum -a 256 $$(basename $(RELEASE_ARTIFACT)) > $$(basename $(RELEASE_ARTIFACT)).sha256
 	@echo "released $(RELEASE_ARTIFACT)"
 

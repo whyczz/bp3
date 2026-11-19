@@ -8,7 +8,7 @@
 import { readFileSync } from "node:fs";
 import nodeLoop from "../skills/bp3g/workflows/node-loop.js";
 import inductGrade from "../skills/bp3g/workflows/bp3g-grade.js";
-import graphLand from "../skills/bp3g/workflows/bp3g-land.js";
+import questLand from "../skills/bp3g/workflows/bp3g-land.js";
 
 const TS = "20260101T000000Z";
 const COMMIT = "abc1234";
@@ -26,13 +26,13 @@ function passRow(name) {
 }
 
 // Shared fixture: one node whose state only the stage children
-// advance, exactly as bp3 g u edges would. Reads always report
+// advance, exactly as bp3 q u edges would. Reads always report
 // the current fixture state.
 function fixtureHost() {
   let current = { state: "todo", cycle: 1, commit: null, legal_edges: ["handoff"] };
   const stages = [];
   const host = {
-    args: { graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: null },
+    args: { quest: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: null },
     async agent({ label, input }) {
       if (label.startsWith("validations")) {
         return JSON.stringify({
@@ -108,7 +108,7 @@ function fixtureHost() {
       outcomes.push((await inductGrade(host)).outcome);
     } else if (s === "approved") {
       dispatched.push("bp3g-land");
-      outcomes.push((await graphLand(host)).outcome);
+      outcomes.push((await questLand(host)).outcome);
     } else {
       break;
     }

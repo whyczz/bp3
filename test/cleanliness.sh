@@ -14,7 +14,7 @@ cp "$root/.gitignore" .gitignore
 echo base > a.txt; git add .; git commit -qm base
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-runs_dir="docs/graphs/demo/nodes/parser-fix/runs/run-1"
+runs_dir="docs/quests/demo/nodes/parser-fix/runs/run-1"
 mkdir -p "$runs_dir"
 printf '%s\n' '{"run_id":"run-1"}' > .bp3-context.json
 printf '%s\n' 'tape line' > "$runs_dir/tape.log"

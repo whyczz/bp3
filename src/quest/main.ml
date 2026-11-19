@@ -1,4 +1,4 @@
-(* bp3 g — graph/node FSM CLI. Only writer of graph state.
+(* bp3 q — quest/node FSM CLI. Only writer of quest state.
    Doors and the FSM judge live here; plumbing in Gitx,
    truth in Store, presentation in Render. *)
 open Gitx
@@ -113,54 +113,54 @@ let illegal state edge =
     "Pick a legal edge from legal_edges for the current state." 1
 
 (* ---------- operations ---------- *)
-let do_graph_create graph fl id =
-  check_creatable graph;
+let do_quest_create quest fl id =
+  check_creatable quest;
   let qtype = (match fl.typ with Some t -> t | None -> "default") in
-  let _ = graph_knobs qtype in
-  if ref_tip (graph_branch graph) <> None then
-    err "E_EXISTS" (`Assoc [("graph", json_str graph)]) "Graph already exists." 1;
+  let _ = quest_knobs qtype in
+  if ref_tip (quest_branch quest) <> None then
+    err "E_EXISTS" (`Assoc [("quest", json_str quest)]) "Quest already exists." 1;
   let deps = match fl.depends_on with
     | Some s when s <> "" -> String.split_on_char ',' s |> List.map String.trim
     | _ -> [] in
   List.iter check_slug deps;
   let head = head_sha () in
-  let qpath = graph_dir graph ^ "/" ^ Layout.quest_file in
-  let existing_graph_md = git_show head qpath in
-  let graph_md = match existing_graph_md with
+  let qpath = quest_dir quest ^ "/" ^ Layout.quest_file in
+  let existing_quest_md = git_show head qpath in
+  let quest_md = match existing_quest_md with
     | Some c -> c
-    | None -> Printf.sprintf "---\nstatus: proposed\ngoal_type: %s\n---\n\n# %s\n\n## Success picture\n\nTODO\n" qtype graph in
+    | None -> Printf.sprintf "---\nstatus: proposed\ngoal_type: %s\n---\n\n# %s\n\n## Success picture\n\nTODO\n" qtype quest in
   let line = ledger_line ~edge:"create" ~from:"" ~to_:"proposed" ~cycle:1
     ~commit:None ~verdict:None ~reason:"" ~id
     ~extra:[("goal_type", json_str qtype);
             ("depends_on", `List (List.map json_str deps))] () in
-  let existing_ledger = git_show head (graph_ledger_path graph) in
+  let existing_ledger = git_show head (quest_ledger_path quest) in
   let ledger = (match existing_ledger with Some t when String.trim t <> "" -> t ^ (if t.[String.length t-1] = '\n' then "" else "\n") | _ -> "") ^ line ^ "\n" in
-  let _new_tip = create_branch_commit ~branch:(graph_branch graph) ~base_tip:head
-    ~files:[(qpath, graph_md); (graph_ledger_path graph, ledger)] ~msg:("bp3: create graph " ^ graph) in
-  with_warnings id true [("ok", `Bool true); ("graph", json_str graph); ("state", json_str "proposed")]
+  let _new_tip = create_branch_commit ~branch:(quest_branch quest) ~base_tip:head
+    ~files:[(qpath, quest_md); (quest_ledger_path quest, ledger)] ~msg:("bp3: create quest " ^ quest) in
+  with_warnings id true [("ok", `Bool true); ("quest", json_str quest); ("state", json_str "proposed")]
 
-let do_graph_delete graph fl id =
-  check_slug graph;
+let do_quest_delete quest fl id =
+  check_slug quest;
   let reason = require_reason fl in
-  (match fold_graph graph with None -> not_found "graph" graph | Some _ -> ());
-  let (view, _, _, qs) = graph_view graph in
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  let (view, _, _, qs) = quest_view quest in
   ignore view;
   if qs.st = "deleted" then illegal "deleted" "delete";
-  let nodes = list_nodes graph in
+  let nodes = list_nodes quest in
   let any_blocked = List.exists (fun e ->
-    match fold_node graph e with Some (_, s, _) -> s.st = "blocked" | None -> false) nodes in
+    match fold_node quest e with Some (_, s, _) -> s.st = "blocked" | None -> false) nodes in
   if any_blocked && not id.decider_human then
-    err "E_HUMAN_REQUIRED" (`Assoc [("graph", json_str graph)])
+    err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest)])
       "An node is blocked; a human decision is required (BP3_DECIDER=human)." 1;
-  (match ledger_read (graph_branch graph) (graph_ledger_path graph) (legacy_graph_ledger_paths graph) with
-   | None -> not_found "graph" graph
+  (match ledger_read (quest_branch quest) (quest_ledger_path quest) (legacy_quest_ledger_paths quest) with
+   | None -> not_found "quest" quest
    | Some (tip, text, lpath) ->
        let line = ledger_line ~edge:"delete" ~from:qs.st ~to_:"deleted" ~cycle:1
          ~commit:None ~verdict:None ~reason ~id () in
        let new_text = text ^ (if text = "" || text.[String.length text-1] = '\n' then "" else "\n") ^ line ^ "\n" in
-       ignore (commit_files ~branch:(graph_branch graph) ~base_tip:tip ~expect_tip:tip
-         ~files:[(lpath, new_text)] ~msg:("bp3: delete graph " ^ graph)));
-  with_warnings id true [("ok", `Bool true); ("graph", json_str graph); ("state", json_str "deleted")]
+       ignore (commit_files ~branch:(quest_branch quest) ~base_tip:tip ~expect_tip:tip
+         ~files:[(lpath, new_text)] ~msg:("bp3: delete quest " ^ quest)));
+  with_warnings id true [("ok", `Bool true); ("quest", json_str quest); ("state", json_str "deleted")]
 
 (* Node deps (mvp.3): declared at node create, editable
    through the dep verb, always read back from ledger
@@ -173,104 +173,104 @@ let parse_dep_list = function
         (String.split_on_char ',' s) []
   | _ -> []
 
-let dep_graph graph =
+let dep_quest quest =
   List.map (fun e ->
-    match fold_node graph e with
+    match fold_node quest e with
     | Some (_, _, text) -> (e, deps_of_text text)
-    | None -> (e, [])) (list_nodes graph)
+    | None -> (e, [])) (list_nodes quest)
 
-let validate_deps graph self deps =
+let validate_deps quest self deps =
   List.iter check_slug deps;
   List.iter (fun d ->
-    if fold_node graph d = None then not_found "node" d) deps;
-  let dgraph = (self, deps) :: List.filter (fun (e, _) -> e <> self) (dep_graph graph) in
+    if fold_node quest d = None then not_found "node" d) deps;
+  let dgraph = (self, deps) :: List.filter (fun (e, _) -> e <> self) (dep_quest quest) in
   match dep_cycle_through dgraph self with
   | Some cyc ->
-      err "E_DEP_CYCLE" (`Assoc [("graph", json_str graph); ("node", json_str self);
+      err "E_DEP_CYCLE" (`Assoc [("quest", json_str quest); ("node", json_str self);
         ("cycle", `List (List.map json_str cyc))])
         "Dep cycle refused at write time; break the named cycle." 1
   | None -> ()
 
-let do_node_create graph node fl id =
-  check_slug graph; check_creatable node;
-  (match fold_graph graph with None -> not_found "graph" graph | Some _ -> ());
+let do_node_create quest node fl id =
+  check_slug quest; check_creatable node;
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
   let etype = (match fl.typ with Some t -> t | None -> "default") in
   (* validate node plan exists for non-default *)
-  (match fold_graph graph with
-   | Some (_, _, qt, _, _) -> ignore (effective_knobs ~graph_type:qt ~node_type:etype)
+  (match fold_quest quest with
+   | Some (_, _, qt, _, _) -> ignore (effective_knobs ~quest_type:qt ~node_type:etype)
    | None -> ());
-  if ref_tip (node_branch graph node) <> None then
-    err "E_EXISTS" (`Assoc [("graph", json_str graph); ("node", json_str node)]) "Node already exists." 1;
+  if ref_tip (node_branch quest node) <> None then
+    err "E_EXISTS" (`Assoc [("quest", json_str quest); ("node", json_str node)]) "Node already exists." 1;
   let deps = parse_dep_list fl.depends_on in
-  validate_deps graph node deps;
-  let qtip = (match ref_tip (graph_branch graph) with Some t -> t | None -> not_found "graph" graph) in
+  validate_deps quest node deps;
+  let qtip = (match ref_tip (quest_branch quest) with Some t -> t | None -> not_found "quest" quest) in
   let st = fresh_state () in
   let line = ledger_line ~edge:"create" ~from:"" ~to_:"todo" ~cycle:1
     ~commit:None ~verdict:None ~reason:"" ~id
     ~extra:[("node_type", json_str etype);
             ("depends_on", `List (List.map json_str deps))] () in
-  let _ = create_branch_commit ~branch:(node_branch graph node) ~base_tip:qtip
-    ~files:[(node_ledger_path graph node, line ^ "\n");
-            (node_state_path graph node, state_yaml graph node st)]
+  let _ = create_branch_commit ~branch:(node_branch quest node) ~base_tip:qtip
+    ~files:[(node_ledger_path quest node, line ^ "\n");
+            (node_state_path quest node, state_yaml quest node st)]
     ~msg:("bp3: create node " ^ node) in
-  with_warnings id true [("ok", `Bool true); ("graph", json_str graph);
+  with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
     ("node", json_str node); ("state", json_str "todo"); ("cycle", `Int 1);
     ("deps", `List (List.map json_str deps));
     ("legal_edges", `List (List.map json_str (legal_edges "todo")))]
 
-let do_node_dep graph node fl id =
-  check_slug graph; check_slug node;
+let do_node_dep quest node fl id =
+  check_slug quest; check_slug node;
   let reason = require_reason fl in
   let deps = match fl.depends_on with
     | Some _ -> parse_dep_list fl.depends_on
     | None -> usage "dep needs --depends-on <a,b> (empty clears)" in
-  (match fold_graph graph with None -> not_found "graph" graph | Some _ -> ());
-  (match fold_node graph node with
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  (match fold_node quest node with
    | None -> not_found "node" node
    | Some (_, s, _) ->
-       validate_deps graph node deps;
+       validate_deps quest node deps;
        let line = ledger_line ~edge:"dep" ~from:s.st ~to_:s.st ~cycle:s.cycle
          ~commit:s.last_commit ~verdict:None ~reason ~id
          ~extra:[("depends_on", `List (List.map json_str deps))] () in
-       ignore (append_node_line graph node line s));
-  (match fold_node graph node with
+       ignore (append_node_line quest node line s));
+  (match fold_node quest node with
    | Some (_, s, text) ->
-       with_warnings id true [("ok", `Bool true); ("graph", json_str graph);
+       with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
          ("node", json_str node); ("state", json_str s.st); ("cycle", `Int s.cycle);
          ("deps", `List (List.map json_str (deps_of_text text)));
          ("legal_edges", `List (List.map json_str (legal_edges s.st)))]
    | None -> not_found "node" node)
 
-let do_node_delete graph node fl id =
-  check_slug graph; check_slug node;
+let do_node_delete quest node fl id =
+  check_slug quest; check_slug node;
   let reason = require_reason fl in
-  (match fold_graph graph with None -> not_found "graph" graph | Some _ -> ());
-  (match fold_node graph node with
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  (match fold_node quest node with
    | None -> not_found "node" node
    | Some (_, s, _) ->
        if s.st = "landed" || s.st = "deleted" then illegal s.st "delete";
        if s.st = "blocked" && not id.decider_human then
-         err "E_HUMAN_REQUIRED" (`Assoc [("graph", json_str graph); ("node", json_str node)])
+         err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest); ("node", json_str node)])
            "Deleting a blocked node requires a human (BP3_DECIDER=human)." 1;
        let ns = { s with st = "deleted" } in
        let line = ledger_line ~edge:"delete" ~from:s.st ~to_:"deleted" ~cycle:s.cycle
          ~commit:s.last_commit ~verdict:None ~reason ~id () in
-       ignore (append_node_line graph node line ns));
-  with_warnings id true [("ok", `Bool true); ("graph", json_str graph);
+       ignore (append_node_line quest node line ns));
+  with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
     ("node", json_str node); ("state", json_str "deleted")]
 
-let do_update graph node edge fl id =
-  check_slug graph; check_slug node;
+let do_update quest node edge fl id =
+  check_slug quest; check_slug node;
   let reason = require_reason fl in
   if not (List.mem edge ["handoff"; "grade"; "verify"; "land"; "block"; "resume"]) then
     usage ("unknown edge: " ^ edge);
-  (match fold_graph graph with None -> not_found "graph" graph | Some _ -> ());
-  let (_, s, _) = (match fold_node graph node with Some v -> v | None -> not_found "node" node) in
-  let (_, qt, deps) = (match fold_graph graph with Some (_, _, a, b, _) -> ((), a, b) | None -> not_found "graph" graph) in
-  let knobs = effective_knobs ~graph_type:qt ~node_type:s.node_type in
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  let (_, s, _) = (match fold_node quest node with Some v -> v | None -> not_found "node" node) in
+  let (_, qt, deps) = (match fold_quest quest with Some (_, _, a, b, _) -> ((), a, b) | None -> not_found "quest" quest) in
+  let knobs = effective_knobs ~quest_type:qt ~node_type:s.node_type in
   let finish ns line =
-    ignore (append_node_line graph node line ns);
-    with_warnings id true [("ok", `Bool true); ("graph", json_str graph);
+    ignore (append_node_line quest node line ns);
+    with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
       ("node", json_str node); ("state", json_str ns.st); ("cycle", `Int ns.cycle);
       ("commit", (match ns.last_commit with Some c -> json_str c | None -> `Null));
       ("legal_edges", `List (List.map json_str (legal_edges ns.st)))] in
@@ -287,10 +287,10 @@ let do_update graph node edge fl id =
       if blocked_by <> [] then
         err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str blocked_by))])
           "Dependencies are not landed yet." 1;
-      let node_deps = (match fold_node graph node with
+      let node_deps = (match fold_node quest node with
         | Some (_, _, text) -> deps_of_text text | None -> []) in
       let node_blocked = List.filter (fun d ->
-        match fold_node graph d with
+        match fold_node quest d with
         | Some (_, ds, _) -> ds.st <> "landed" && ds.st <> "deleted"
         | None -> true) node_deps in
       if node_blocked <> [] then
@@ -371,15 +371,15 @@ let do_update graph node edge fl id =
       let ns = { s with st = "landed" } in
       let line = ledger_line ~edge ~from:s.st ~to_:"landed" ~cycle:s.cycle
         ~commit:s.last_commit ~verdict:None ~reason ~id () in
-      ignore (append_node_line graph node line ns);
-      let node_tip = (match ref_tip (node_branch graph node) with Some t -> t | None -> "") in
-      let qbranch = graph_branch graph in
+      ignore (append_node_line quest node line ns);
+      let node_tip = (match ref_tip (node_branch quest node) with Some t -> t | None -> "") in
+      let qbranch = quest_branch quest in
       let qtip = (match ref_tip qbranch with Some t -> t | None -> "") in
       if is_ancestor qtip node_tip then begin
         if run_status (git ["update-ref"; qbranch; node_tip; qtip]) <> 0 then
-          err "E_STALE_WORLD" (`Assoc []) "Graph tip moved; re-read and retry." 1;
+          err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
         invalidate_ref_caches ();
-        with_warnings id true [("ok", `Bool true); ("graph", json_str graph);
+        with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
           ("node", json_str node); ("state", json_str "landed"); ("fin", json_str "node_fin"); ("cycle", `Int s.cycle);
           ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
           ("legal_edges", `List [])]
@@ -390,8 +390,8 @@ let do_update graph node edge fl id =
           let ns2 = { s with st = "todo" } in
           let line2 = ledger_line ~edge:"land" ~from:"approved" ~to_:"todo" ~cycle:s.cycle
             ~commit:s.last_commit ~verdict:None ~reason ~id () in
-          ignore (append_node_line graph node line2 ns2);
-          `Assoc [("ok", `Bool true); ("graph", json_str graph); ("node", json_str node);
+          ignore (append_node_line quest node line2 ns2);
+          `Assoc [("ok", `Bool true); ("quest", json_str quest); ("node", json_str node);
             ("state", json_str "todo"); ("cycle", `Int s.cycle);
             ("facts", `Assoc [("land_conflict", `Bool true)]);
             ("legal_edges", `List (List.map json_str (legal_edges "todo")))]
@@ -399,9 +399,9 @@ let do_update graph node edge fl id =
           let mtip, _ = git_out ~input:("bp3: land " ^ node)
               ["commit-tree"; tree; "-p"; qtip; "-p"; node_tip] in
           if run_status (git ["update-ref"; qbranch; mtip; qtip]) <> 0 then
-            err "E_STALE_WORLD" (`Assoc []) "Graph tip moved; re-read and retry." 1;
+            err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
           invalidate_ref_caches ();
-          with_warnings id true [("ok", `Bool true); ("graph", json_str graph);
+          with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
             ("node", json_str node); ("state", json_str "landed"); ("fin", json_str "node_fin"); ("cycle", `Int s.cycle);
             ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
             ("legal_edges", `List [])]
@@ -419,7 +419,7 @@ let do_update graph node edge fl id =
   | "resume" ->
       if s.st <> "blocked" then illegal s.st edge;
       if not id.decider_human then
-        err "E_HUMAN_REQUIRED" (`Assoc [("graph", json_str graph); ("node", json_str node)])
+        err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest); ("node", json_str node)])
           "Resume requires a human decision (BP3_DECIDER=human)." 1;
       let ncyc = if s.has_bound then s.cycle + 1 else s.cycle in
       let ns = { s with st = "todo"; cycle = ncyc; bound = None; has_bound = false;
@@ -430,7 +430,7 @@ let do_update graph node edge fl id =
   | _ -> usage ("unknown edge: " ^ edge)
 
 (* ---------- diagram (mvp.4) ---------- *)
-(* Read-only: renders the graph_view rollup snapshot at
+(* Read-only: renders the quest_view rollup snapshot at
    call time and writes no ledger line. ascii/mermaid print
    raw text; json prints the same facts as a verdict. *)
 let parse_diagram_flags args =
@@ -449,10 +449,10 @@ let parse_diagram_flags args =
     | stray :: _ -> usage ("stray positional: " ^ stray) in
   loop "ascii" false args
 
-let do_diagram graph tail =
-  check_slug graph;
+let do_diagram quest tail =
+  check_slug quest;
   let fmt = parse_diagram_flags tail in
-  let (view, _, _, _) = graph_view graph in
+  let (view, _, _, _) = quest_view quest in
   let fields = match view with `Assoc fs -> fs | _ -> [] in
   let generated_at = now_ts () in
   (match fmt with
@@ -460,7 +460,7 @@ let do_diagram graph tail =
    | "mermaid" -> print_string (emit_mermaid fields generated_at)
    | _ ->
        print_verdict ~fmt:"json" (`Assoc [
-         ("ok", `Bool true); ("graph", json_str graph);
+         ("ok", `Bool true); ("quest", json_str quest);
          ("format", json_str "json");
          ("generated_at", json_str generated_at);
          ("rollup", json_str (dstr fields "rollup"));
@@ -494,7 +494,7 @@ let no_context amb =
 let with_context v (rc : Config.run_config) source =
   match v with
   | `Assoc fs ->
-      `Assoc (fs @ [("graph", json_str rc.Config.rc_graph);
+      `Assoc (fs @ [("quest", json_str rc.Config.rc_quest);
                     ("node", json_str rc.Config.rc_node);
                     ("source", json_str source);
                     ("source_rung", json_str source);
@@ -502,9 +502,9 @@ let with_context v (rc : Config.run_config) source =
   | other -> other
 
 let do_e_bare (rc : Config.run_config) source =
-  let graph = rc.Config.rc_graph and node = rc.Config.rc_node in
+  let quest = rc.Config.rc_quest and node = rc.Config.rc_node in
   let (state, legal) =
-    match fold_node graph node with
+    match fold_node quest node with
     | Some (_, s, _) -> (json_str s.st, List.map json_str (legal_edges s.st))
     | None -> (`Null, []) in
   let thresholds =
@@ -512,7 +512,7 @@ let do_e_bare (rc : Config.run_config) source =
     | Some dir -> Config.thresholds_json (Config.load_thresholds dir)
     | None -> Config.thresholds_json Config.default_thresholds in
   `Assoc [("ok", `Bool true);
-          ("graph", json_str graph);
+          ("quest", json_str quest);
           ("node", json_str node);
           ("edge", (match rc.Config.rc_edge with Some e -> json_str e | None -> `Null));
           ("run_id", json_str rc.Config.rc_id);
@@ -534,7 +534,7 @@ let do_e ctx_rc ctx_source ctx_amb id = function
       if pos <> [] then usage "stray positional in e";
       (match ctx_rc with
        | Some rc ->
-           let v = do_update rc.Config.rc_graph rc.Config.rc_node edge fl id in
+           let v = do_update rc.Config.rc_quest rc.Config.rc_node edge fl id in
            print_verdict ~fmt:fl.fmt (with_context v rc ctx_source); 0
        | None -> no_context ctx_amb)
 
@@ -545,14 +545,14 @@ let do_n ctx_rc ctx_source ctx_amb = function
   | [] | ["r"] | ["read"] ->
       (match ctx_rc with
        | Some rc ->
-           let graph = rc.Config.rc_graph and node = rc.Config.rc_node in
-           (match fold_graph graph with None -> not_found "graph" graph | Some _ -> ());
-           (match fold_node graph node with
+           let quest = rc.Config.rc_quest and node = rc.Config.rc_node in
+           (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+           (match fold_node quest node with
             | None -> not_found "node" node
             | Some (_, s, text) ->
                 print_verdict ~fmt:"json"
                   (with_context
-                     (node_verdict graph node s (deps_of_text text)
+                     (node_verdict quest node s (deps_of_text text)
                         (timing_of_text text)) rc ctx_source); 0)
        | None -> no_context ctx_amb)
   | _ -> usage "node door verbs are r"
@@ -565,7 +565,7 @@ let normalize_verb = function
 
 let is_verb = function "c" | "create" | "r" | "read" | "u" | "update" | "d" | "delete" -> true | _ -> false
 
-(* icebox door: bp3 g icebox r [term...] | r <slug> (read-only) *)
+(* icebox door: bp3 q icebox r [term...] | r <slug> (read-only) *)
 let do_icebox = function
   | verb_raw :: rest when is_verb verb_raw ->
       if normalize_verb verb_raw <> "r" then usage "icebox door is read-only: only r";
@@ -584,46 +584,46 @@ let do_icebox = function
   | _ -> usage "icebox door verbs are r"
 
 (* ---------- help (docstrings beside dispatch; Node 4) ---------- *)
-let help_g = "bp3 g - graph/node state. Doors:\n\
-  bp3 g c|r|d ...              graph door (create, read, delete)\n\
-  bp3 g <graph> c|r|u|d ...    node door for one graph\n\
-  bp3 g <graph> n <node> r     read one node (canonical nested address)\n\
-  bp3 g <graph> n <node> e <edge> [flags]   take one node's edge (canonical nested address)\n\
-  bp3 g <graph> diagram ...    generated graph diagram from the live rollup (mvp.4)\n\
-  bp3 g icebox r [term...]     search frozen icebox entries (read-only)\n\
+let help_q = "bp3 q - quest/node state. Doors:\n\
+  bp3 q c|r|d ...              quest door (create, read, delete)\n\
+  bp3 q <quest> c|r|u|d ...    node door for one quest\n\
+  bp3 q <quest> n <node> r     read one node (canonical nested address)\n\
+  bp3 q <quest> n <node> e <edge> [flags]   take one node's edge (canonical nested address)\n\
+  bp3 q <quest> diagram ...    generated quest diagram from the live rollup (mvp.4)\n\
+  bp3 q icebox r [term...]     search frozen icebox entries (read-only)\n\
   bp3 n [r]                    claimed node door: read the claimed run's node (rename.1)\n\
   bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)\n\
   bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias\n\
   bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)\n\
-  bp3 g hooks                  harness hook emitter (fail-open)\n\
-Run bp3 g <door> -h for that door's verbs, edges, and flags.\n"
+  bp3 q hooks                  harness hook emitter (fail-open)\n\
+Run bp3 q <door> -h for that door's verbs, edges, and flags.\n"
 
-let help_graph_door = "bp3 g <graph door> - verbs:\n\
-  bp3 g c <graph> [--type <goal_type>] [--depends-on <a,b>]   create a graph\n\
-  bp3 g r [<graph>] [--format json|table|tree]                 list graphs, or read one\n\
-  bp3 g d <graph> --reason <why>                               delete a graph\n\
-Long forms: create, read, delete. Example: bp3 g c my-graph --type default\n"
+let help_quest_door = "bp3 q <quest door> - verbs:\n\
+  bp3 q c <quest> [--type <goal_type>] [--depends-on <a,b>]   create a quest\n\
+  bp3 q r [<quest>] [--format json|table|tree]                 list quests, or read one\n\
+  bp3 q d <quest> --reason <why>                               delete a quest\n\
+Long forms: create, read, delete. Example: bp3 q c my-quest --type default\n"
 
-let help_node_door = "bp3 g <graph> <node door> - verbs:\n\
-  bp3 g <graph> c <node> [--type <node_type>] [--depends-on <a,b>]   create an node, deps name nodes in the same graph\n\
-  bp3 g <graph> r [<node>] [--format json|table|tree]           read the graph, or one node\n\
-  bp3 g <graph> u <node> <edge> [flags]                         take an FSM edge (see u -h)\n\
-  bp3 g <graph> d <node> --reason <why>                         delete an node\n\
-  bp3 g <graph> dep <node> --depends-on <a,b> --reason <why>    redeclare an node's deps (mutable-but-logged)\n\
-  bp3 g <graph> diagram [--format ascii|mermaid|json]          generated diagram from the live rollup (see diagram -h)\n\
-Long forms: create, read, update, delete. Example: bp3 g my-graph r node-1\n"
+let help_node_door = "bp3 q <quest> <node door> - verbs:\n\
+  bp3 q <quest> c <node> [--type <node_type>] [--depends-on <a,b>]   create an node, deps name nodes in the same quest\n\
+  bp3 q <quest> r [<node>] [--format json|table|tree]           read the quest, or one node\n\
+  bp3 q <quest> u <node> <edge> [flags]                         take an FSM edge (see u -h)\n\
+  bp3 q <quest> d <node> --reason <why>                         delete an node\n\
+  bp3 q <quest> dep <node> --depends-on <a,b> --reason <why>    redeclare an node's deps (mutable-but-logged)\n\
+  bp3 q <quest> diagram [--format ascii|mermaid|json]          generated diagram from the live rollup (see diagram -h)\n\
+Long forms: create, read, update, delete. Example: bp3 q my-quest r node-1\n"
 
-let help_dep = "bp3 g <graph> dep <node> - redeclare an node's node deps (mvp.3):\n\
-  bp3 g <graph> dep <node> --depends-on <a,b> --reason <why>   set deps; --depends-on \"\" clears them\n\
-  Deps name nodes in the same graph, are read back from the node ledger, and a cycle refuses at write time (E_DEP_CYCLE) naming the cycle. The dep line is logged with the node state and cycle, so a mid-flight edit stays on the record.\n\
-Example: bp3 g my-graph dep node-2 --depends-on node-1 --reason \"needs node-1 first\"\n"
+let help_dep = "bp3 q <quest> dep <node> - redeclare an node's node deps (mvp.3):\n\
+  bp3 q <quest> dep <node> --depends-on <a,b> --reason <why>   set deps; --depends-on \"\" clears them\n\
+  Deps name nodes in the same quest, are read back from the node ledger, and a cycle refuses at write time (E_DEP_CYCLE) naming the cycle. The dep line is logged with the node state and cycle, so a mid-flight edit stays on the record.\n\
+Example: bp3 q my-quest dep node-2 --depends-on node-1 --reason \"needs node-1 first\"\n"
 
-let help_diagram = "bp3 g <graph> diagram - generated graph diagram from the live rollup (mvp.4):\n\
-  bp3 g <graph> diagram [--format ascii|mermaid|json]   emit the diagram (default ascii)\n\
+let help_diagram = "bp3 q <quest> diagram - generated quest diagram from the live rollup (mvp.4):\n\
+  bp3 q <quest> diagram [--format ascii|mermaid|json]   emit the diagram (default ascii)\n\
   Nodes carry state and cycle (landed nodes carry node_fin), deps are drawn once, todo nodes are grouped into ready-set waves, and a blocked node names the dependents it starves. Output is generated at call time from live state; its header carries the rollup timestamp (generated_at). ascii suits terminals and records, mermaid suits rendered docs, json carries the same facts plus both texts for diffing.\n\
-Example: bp3 g my-graph diagram --format mermaid\n"
+Example: bp3 q my-quest diagram --format mermaid\n"
 
-let help_update = "bp3 g <graph> u <node> <edge> - edges and their flags:\n\
+let help_update = "bp3 q <quest> u <node> <edge> - edges and their flags:\n\
   edges: handoff grade verify land block resume\n\
   handoff --commit <sha> --reason <why>    bind a clean commit for grade\n\
   grade  --verdict ship|needs_fix [--verify-verdict pass|fail] [--mechanical] --reason <why>   one combined cast (pure-grade); --mechanical never blocks\n\
@@ -632,33 +632,33 @@ let help_update = "bp3 g <graph> u <node> <edge> - edges and their flags:\n\
   block  --reason <why>                    park for a human decision\n\
   resume --reason <why>                    human only: unblock\n\
 Shared flags: --format json|table|tree, --target <name>.\n\
-Example: bp3 g my-graph u node-1 handoff --commit abc123 --reason \"ready\"\n"
+Example: bp3 q my-quest u node-1 handoff --commit abc123 --reason \"ready\"\n"
 
 let help_e = "bp3 e - claimed edge door (mvp.2): context is resolved, never carried:\n\
   bp3 e                                    print the resolved context, its source rung (session|desk), state, and legal edges\n\
-  bp3 e <edge> [flags]                     take the claimed run's edge: handoff grade verify land block resume (same flags as bp3 g <graph> u <node> <edge>)\n\
+  bp3 e <edge> [flags]                     take the claimed run's edge: handoff grade verify land block resume (same flags as bp3 q <quest> u <node> <edge>)\n\
   Resolution: session claim first, desk context second, checked against cwd; no rung refuses E_NO_CONTEXT, an ambiguous desk refuses E_NO_CONTEXT naming the live run_ids. Env BP3_RUN_ID is a hint only: a mismatch warns W_CONTEXT_ENV_MISMATCH and the claim wins; an unclaimed explicit edge call warns W_CONTEXT_UNCLAIMED.\n\
 Example: bp3 e handoff --commit abc123 --reason \"ready\"\n"
 
 let help_n = "bp3 n - claimed node door (rename.1): context is resolved, never carried:\n\
   bp3 n [r]                        read the claimed run's node (same resolution as bp3 e: session claim first, desk context second)\n\
-  No rung resolving refuses E_NO_CONTEXT; address the call explicitly with bp3 g <graph> n <node> r instead.\n\
+  No rung resolving refuses E_NO_CONTEXT; address the call explicitly with bp3 q <quest> n <node> r instead.\n\
 Example: bp3 n r\n"
 
-let help_icebox = "bp3 g icebox r - search frozen icebox entries (read-only):\n\
-  bp3 g icebox r [term...] [--format json|table|tree]   list entries matching all terms\n\
-  bp3 g icebox r <slug>                                 print one entry in full\n\
-Example: bp3 g icebox r table completion\n"
+let help_icebox = "bp3 q icebox r - search frozen icebox entries (read-only):\n\
+  bp3 q icebox r [term...] [--format json|table|tree]   list entries matching all terms\n\
+  bp3 q icebox r <slug>                                 print one entry in full\n\
+Example: bp3 q icebox r table completion\n"
 
 let help_worktree = "bp3 worktree - documented alias of bp3 harness desk, machine-local desks, never ledgered:\n\
   verbs: derive, create, inspect, remove, prepare, check, exit, release, list\n\
-  bp3 harness desk prepare <graph> <node> --run <run-id> [--commit <sha>] [--path <dir>]\n\
-  bp3 harness desk list [--graph <graph>]\n\
-Example: bp3 harness desk prepare my-graph node-1 --run R1\n"
+  bp3 harness desk prepare <quest> <node> --run <run-id> [--commit <sha>] [--path <dir>]\n\
+  bp3 harness desk list [--quest <quest>]\n\
+Example: bp3 harness desk prepare my-quest node-1 --run R1\n"
 
 let help_config = "bp3 config - view the machine-local bp3 config store (<git-common-dir>/bp3/, never committed):\n\
   bp3 config [--source] [--format json|table]   thresholds plus contexts folded from runs/<run_id>.json\n\
-  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. The depth cap is enforced at link mint (mvp.1, E_DEPTH); W_SETUP_SLOW fires on the graph rollup when a claimed Run's setup_wall_s exceeds setup_slow_s (mvp.3, local only). First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
+  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. The depth cap is enforced at link mint (mvp.1, E_DEPTH); W_SETUP_SLOW fires on the quest rollup when a claimed Run's setup_wall_s exceeds setup_slow_s (mvp.3, local only). First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
 Example: bp3 config --source\n"
 
 let is_help = function "-h" | "--help" -> true | _ -> false
@@ -666,7 +666,7 @@ let is_help = function "-h" | "--help" -> true | _ -> false
 (* Node 5 guard: an older-MAJOR binary never writes in a newer repo.
    Newer MINOR/PATCH only warns (warnings_of carries W_VERSION_AHEAD). *)
 let guard_write argv =
-  let argv = match argv with "g" :: rest -> rest | other -> other in
+  let argv = match argv with "q" :: rest -> rest | other -> other in
   let is_write = match argv with
     | v :: _ when is_verb v -> let n = normalize_verb v in n = "c" || n = "d"
     | _q :: v :: _ when is_verb v -> normalize_verb v <> "r"
@@ -704,8 +704,8 @@ let rec run argv =
     (match ctx_rc with Some rc -> Some rc.Config.rc_id | None -> None);
   let edge_call = match argv with
     | "e" :: _ :: _ -> true
-    | "g" :: _g :: v :: _n :: _edge :: _ when is_verb v && normalize_verb v = "u" -> true
-    | "g" :: _g :: "n" :: _n :: "e" :: _edge :: _ -> true
+    | "q" :: _q :: v :: _n :: _edge :: _ when is_verb v && normalize_verb v = "u" -> true
+    | "q" :: _q :: "n" :: _n :: "e" :: _edge :: _ -> true
     | _q :: v :: _e :: _edge :: _ when is_verb v && normalize_verb v = "u" -> true
     | _ -> false in
   Store.context_warnings :=
@@ -719,10 +719,10 @@ let rec run argv =
          if edge_call && ctx_amb = None then ["W_CONTEXT_UNCLAIMED"] else []);
   guard_write argv;
   match argv with
-  | "-h" :: _ | "--help" :: _ -> print_string help_g; 0
+  | "-h" :: _ | "--help" :: _ -> print_string help_q; 0
   | "--version" :: _ -> print_endline bp3_version; 0
-  | "g" :: (h :: _) when is_help h -> print_string help_g; 0
-  | "g" :: rest -> run rest
+  | "q" :: (h :: _) when is_help h -> print_string help_q; 0
+  | "q" :: rest -> run rest
   | "n" :: (h :: _) when is_help h -> print_string help_n; 0
   | "n" :: rest -> do_n ctx_rc ctx_source ctx_amb rest
   | "harness" :: rest -> Harness.run rest
@@ -736,9 +736,9 @@ let rec run argv =
   | "worktree" :: (h :: _) when is_help h -> print_string help_worktree; 0
   | "icebox" :: (h :: _) when is_help h -> print_string help_icebox; 0
   | "icebox" :: ("r" | "read") :: (h :: _) when is_help h -> print_string help_icebox; 0
-  | first :: (h :: _) when is_verb first && is_help h -> print_string help_graph_door; 0
-  | _graph :: (h :: _) when is_help h -> print_string help_node_door; 0
-  | _graph :: verb_raw :: (h :: _) when is_verb verb_raw && is_help h ->
+  | first :: (h :: _) when is_verb first && is_help h -> print_string help_quest_door; 0
+  | _quest :: (h :: _) when is_help h -> print_string help_node_door; 0
+  | _quest :: verb_raw :: (h :: _) when is_verb verb_raw && is_help h ->
       print_string (if normalize_verb verb_raw = "u" then help_update else help_node_door); 0
   | "worktree" :: rest ->
       (* documented alias of harness desk (mvp.6): same store,
@@ -770,102 +770,102 @@ let rec run argv =
   | first :: rest when is_verb first ->
       let verb = normalize_verb first in
       (match verb, rest with
-       | "c", graph :: tail ->
+       | "c", quest :: tail ->
            let (pos, fl) = split_flags tail in
-           if pos <> [] then usage "stray positional in graph create";
-           let v = do_graph_create graph fl id in print_verdict ~fmt:fl.fmt v; 0
-       | "c", [] -> usage "graph create needs a graph name"
+           if pos <> [] then usage "stray positional in quest create";
+           let v = do_quest_create quest fl id in print_verdict ~fmt:fl.fmt v; 0
+       | "c", [] -> usage "quest create needs a quest name"
        | "r", [] ->
            let qs = List.map (fun q ->
-             let (view, _, _, _) = graph_view q in view) (list_graphs ()) in
-           print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true); ("graphs", `List qs)]); 0
-       | "r", [graph] ->
-           let (pos, fl) = ( [graph], { reason=None; commit=None; verdict=None; target=None; typ=None; depends_on=None; fmt="json"; verify_verdict=None; mechanical=false } ) in
+             let (view, _, _, _) = quest_view q in view) (list_quests ()) in
+           print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true); ("quests", `List qs)]); 0
+       | "r", [quest] ->
+           let (pos, fl) = ( [quest], { reason=None; commit=None; verdict=None; target=None; typ=None; depends_on=None; fmt="json"; verify_verdict=None; mechanical=false } ) in
            ignore pos;
-           (* re-parse: graph may be followed by --format in original rest; handled below *)
+           (* re-parse: quest may be followed by --format in original rest; handled below *)
            ignore fl;
-           let (view, _, _, _) = graph_view graph in
+           let (view, _, _, _) = quest_view quest in
            print_verdict ~fmt:"json" (`Assoc (("ok", `Bool true) ::
              (match view with `Assoc fs -> fs | _ -> []))); 0
-       | "r", graph :: tail ->
-           let (pos, fl) = split_flags (graph :: tail) in
+       | "r", quest :: tail ->
+           let (pos, fl) = split_flags (quest :: tail) in
            (match pos with
             | [q] ->
-                let (view, _, _, _) = graph_view q in
+                let (view, _, _, _) = quest_view q in
                 print_verdict ~fmt:fl.fmt (`Assoc (("ok", `Bool true) ::
                   (match view with `Assoc fs -> fs | _ -> []))); 0
-            | _ -> usage "graph read takes at most one graph")
-       | "d", graph :: tail ->
+            | _ -> usage "quest read takes at most one quest")
+       | "d", quest :: tail ->
            let (pos, fl) = split_flags tail in
-           if pos <> [] then usage "stray positional in graph delete";
-           let v = do_graph_delete graph fl id in print_verdict ~fmt:fl.fmt v; 0
-       | "d", [] -> usage "graph delete needs a graph name"
-       | _ -> usage "graph door verbs are c, r, d")
+           if pos <> [] then usage "stray positional in quest delete";
+           let v = do_quest_delete quest fl id in print_verdict ~fmt:fl.fmt v; 0
+       | "d", [] -> usage "quest delete needs a quest name"
+       | _ -> usage "quest door verbs are c, r, d")
   | _q :: "diagram" :: (h :: _) when is_help h -> print_string help_diagram; 0
-  | graph :: "diagram" :: tail -> do_diagram graph tail
+  | quest :: "diagram" :: tail -> do_diagram quest tail
   | _q :: "dep" :: (h :: _) when is_help h -> print_string help_dep; 0
-  | graph :: "dep" :: node :: tail ->
+  | quest :: "dep" :: node :: tail ->
       let (pos, fl) = split_flags tail in
       if pos <> [] then usage "stray positional in dep";
-      let v = do_node_dep graph node fl id in print_verdict ~fmt:fl.fmt v; 0
+      let v = do_node_dep quest node fl id in print_verdict ~fmt:fl.fmt v; 0
   | _g :: "n" :: (h :: _) when is_help h -> print_string help_node_door; 0
-  | graph :: "n" :: ("c" | "create") :: node :: tail ->
+  | quest :: "n" :: ("c" | "create") :: node :: tail ->
       let (pos, fl) = split_flags tail in
       if pos <> [] then usage "stray positional in node create";
-      let v = do_node_create graph node fl id in print_verdict ~fmt:fl.fmt v; 0
-  | graph :: "n" :: node :: ("r" | "read") :: tail ->
+      let v = do_node_create quest node fl id in print_verdict ~fmt:fl.fmt v; 0
+  | quest :: "n" :: node :: ("r" | "read") :: tail ->
       let (pos, fl) = split_flags tail in
       if pos <> [] then usage "stray positional in node read";
-      (match fold_graph graph with None -> not_found "graph" graph | Some _ -> ());
-      (match fold_node graph node with
+      (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+      (match fold_node quest node with
        | None -> not_found "node" node
        | Some (_, s, text) ->
            print_verdict ~fmt:fl.fmt
-             (node_verdict graph node s (deps_of_text text) (timing_of_text text)); 0)
-  | graph :: "n" :: node :: "e" :: edge :: tail ->
+             (node_verdict quest node s (deps_of_text text) (timing_of_text text)); 0)
+  | quest :: "n" :: node :: "e" :: edge :: tail ->
       let (pos, fl) = split_flags tail in
       if pos <> [] then usage "stray positional in nested edge";
-      let v = do_update graph node edge fl id in
+      let v = do_update quest node edge fl id in
       let v = match ctx_rc with
         | Some rc -> with_context v rc ctx_source | None -> v in
       print_verdict ~fmt:fl.fmt v; 0
-  | graph :: "n" :: node :: [] ->
-      (match fold_graph graph with None -> not_found "graph" graph | Some _ -> ());
-      (match fold_node graph node with
+  | quest :: "n" :: node :: [] ->
+      (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+      (match fold_node quest node with
        | None -> not_found "node" node
        | Some (_, s, text) ->
            print_verdict ~fmt:"json"
-             (node_verdict graph node s (deps_of_text text) (timing_of_text text)); 0)
-  | graph :: verb_raw :: rest when is_verb verb_raw ->
+             (node_verdict quest node s (deps_of_text text) (timing_of_text text)); 0)
+  | quest :: verb_raw :: rest when is_verb verb_raw ->
       let verb = normalize_verb verb_raw in
       (match verb, rest with
        | "c", node :: tail ->
            let (pos, fl) = split_flags tail in
            if pos <> [] then usage "stray positional in node create";
-           let v = do_node_create graph node fl id in print_verdict ~fmt:fl.fmt v; 0
+           let v = do_node_create quest node fl id in print_verdict ~fmt:fl.fmt v; 0
        | "c", [] -> usage "node create needs an node name"
        | "r", [] ->
-           let (view, _, _, _) = graph_view graph in
+           let (view, _, _, _) = quest_view quest in
            print_verdict ~fmt:"json" (`Assoc (("ok", `Bool true) ::
              (match view with `Assoc fs -> fs | _ -> []))); 0
        | "r", [node] ->
-           (match fold_graph graph with None -> not_found "graph" graph | Some _ -> ());
-           (match fold_node graph node with
+           (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+           (match fold_node quest node with
             | None -> not_found "node" node
-            | Some (_, s, text) -> print_verdict ~fmt:"json" (node_verdict graph node s (deps_of_text text) (timing_of_text text)); 0)
+            | Some (_, s, text) -> print_verdict ~fmt:"json" (node_verdict quest node s (deps_of_text text) (timing_of_text text)); 0)
        | "r", node :: tail ->
            let (pos, fl) = split_flags (node :: tail) in
            (match pos with
             | [e] ->
-                (match fold_graph graph with None -> not_found "graph" graph | Some _ -> ());
-                (match fold_node graph e with
+                (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+                (match fold_node quest e with
                  | None -> not_found "node" e
-                 | Some (_, s, text) -> print_verdict ~fmt:fl.fmt (node_verdict graph e s (deps_of_text text) (timing_of_text text)); 0)
+                 | Some (_, s, text) -> print_verdict ~fmt:fl.fmt (node_verdict quest e s (deps_of_text text) (timing_of_text text)); 0)
             | _ -> usage "node read takes at most one node")
        | "u", node :: edge :: tail ->
            let (pos, fl) = split_flags tail in
            if pos <> [] then usage "stray positional in update";
-           let v = do_update graph node edge fl id in
+           let v = do_update quest node edge fl id in
            let v = match ctx_rc with
              | Some rc -> with_context v rc ctx_source | None -> v in
            print_verdict ~fmt:fl.fmt v; 0
@@ -873,10 +873,10 @@ let rec run argv =
        | "d", node :: tail ->
            let (pos, fl) = split_flags tail in
            if pos <> [] then usage "stray positional in node delete";
-           let v = do_node_delete graph node fl id in print_verdict ~fmt:fl.fmt v; 0
+           let v = do_node_delete quest node fl id in print_verdict ~fmt:fl.fmt v; 0
        | "d", [] -> usage "node delete needs an node name"
        | _ -> usage "node door verbs are c, r, u, d")
-  | _ -> usage "expected: bp3 g c|r|d ... or bp3 g <graph> c|r|u|d ... (see bp3 g -h)"
+  | _ -> usage "expected: bp3 q c|r|d ... or bp3 q <quest> c|r|u|d ... (see bp3 q -h)"
 
 let () =
   let argv = List.tl (Array.to_list Sys.argv) in

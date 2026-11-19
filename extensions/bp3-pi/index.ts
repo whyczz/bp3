@@ -36,9 +36,9 @@ function refused(err: unknown): ToolResult {
 const SPAWN_PARAMS = {
   type: "object",
   additionalProperties: true,
-  required: ["graph", "node", "edge", "prompt"],
+  required: ["quest", "node", "edge", "prompt"],
   properties: {
-    graph: { type: "string", description: "Graph slug the child Run belongs to" },
+    quest: { type: "string", description: "Quest slug the child Run belongs to" },
     node: { type: "string", description: "Node id the child Run belongs to" },
     edge: { type: "string", description: "FSM edge the child will call (e.g. handoff)" },
     prompt: { type: "string", description: "Task prompt for the pi child" },
@@ -55,7 +55,7 @@ export default function bp3Pi(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "spawn_run",
     label: "Spawn Run",
-    description: "Spawn one supervised pi child: link mint before spawn, the child claims first, bind-tape after exit. Example: spawn_run({graph, node, edge:\"handoff\", prompt})",
+    description: "Spawn one supervised pi child: link mint before spawn, the child claims first, bind-tape after exit. Example: spawn_run({quest, node, edge:\"handoff\", prompt})",
     parameters: SPAWN_PARAMS as never,
     async execute(_id, params, _signal, _onUpdate, ctx) {
       try {
@@ -93,16 +93,16 @@ export default function bp3Pi(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "list_runs",
     label: "List Runs",
-    description: "List pi Runs with the supervisor's derived lifecycle (folded from run-lifecycle-derivations). Example: list_runs({graph})",
+    description: "List pi Runs with the supervisor's derived lifecycle (folded from run-lifecycle-derivations). Example: list_runs({quest})",
     parameters: {
       type: "object",
       additionalProperties: false,
-      properties: { graph: { type: "string", description: "Optional graph slug filter" } },
+      properties: { quest: { type: "string", description: "Optional quest slug filter" } },
     } as never,
     async execute(_id, params, _signal, _onUpdate, ctx) {
       try {
-        const p = params as { graph?: string };
-        return ok({ ok: true, runs: dispatcherFor(ctx.cwd).listRuns(p.graph) });
+        const p = params as { quest?: string };
+        return ok({ ok: true, runs: dispatcherFor(ctx.cwd).listRuns(p.quest) });
       } catch (err) {
         return refused(err);
       }

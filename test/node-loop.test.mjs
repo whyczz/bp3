@@ -25,7 +25,7 @@ function mockHost({ reads, initFails, bindFails, extraArgs }) {
   const inits = [];
   const binds = [];
   const host = {
-    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
+    args: Object.assign({ quest: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model" }, extraArgs || {}),
     async agent({ label, input }) {
       if (input.includes("harness link mint")) {
         labels.push("init");
@@ -88,8 +88,8 @@ const handedOff = { state: "handed_off", cycle: 1, commit: "abc1234", legal_edge
     "mint names the author's run-id, got " + inits.join(","));
   assert(inputs.init.includes("harness link mint") && inputs.init.includes("--edge handoff"),
     "minter calls link mint for the author edge");
-  assert(inputs.init.includes("--harness muse-code") && inputs.init.includes("--graph toy") && inputs.init.includes("--node fx"),
-    "minter records harness, graph, and node");
+  assert(inputs.init.includes("--harness muse-code") && inputs.init.includes("--quest toy") && inputs.init.includes("--node fx"),
+    "minter records harness, quest, and node");
   assert(!inputs.init.includes("--tape-path"),
     "writer names no tape pre-spawn; the session tape is bound after the child returns");
   assert(inputs.resolve.includes("harness find-tape --run-id " + TS + "-handoff-muse-code-test-model-c1"),
@@ -103,8 +103,8 @@ const handedOff = { state: "handed_off", cycle: 1, commit: "abc1234", legal_edge
   const input = inputs.author;
   assert(input.includes("link claim bp3link_test-handoff"), "author brief carries its claim token");
   assert(input.includes("BP3_RUN_ID=<that run_id>"), "author is told to stamp the claimed run-id");
-  assert(input.includes("BP3_GRAPH=toy") && input.includes("BP3_NODE=fx"),
-    "author prefix carries graph/node");
+  assert(input.includes("BP3_QUEST=toy") && input.includes("BP3_NODE=fx"),
+    "author prefix carries quest/node");
   assert(input.includes("runs/" + TS + "-handoff-muse-code-test-model-c1"),
     "handoff run folder matches the minted run-id");
   assert(!input.includes("Prefix your FIRST"),
@@ -163,7 +163,7 @@ for (const state of ["approved", "landed", "blocked"]) {
 // --- missing args refuse without spawning anything ---
 {
   const host = {
-    args: { graph: "toy" },
+    args: { quest: "toy" },
     async agent() { throw new Error("must not spawn"); },
     async parallel() { throw new Error("must not spawn"); },
   };
@@ -181,7 +181,7 @@ for (const state of ["approved", "landed", "blocked"]) {
   assert(result.outcome === "handed_off", "desk+context build hands off, got " + result.outcome);
   assert(inputs.reads.length === 2, "two reads captured, got " + inputs.reads.length);
   for (const read of inputs.reads) {
-    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
+    assert(read.includes("quest worktree `.bp3/worktrees/toy-desk`"),
       "read prompt names the desk worktree");
     assert(read.includes("named above"), "read prompt points above at the desk");
     assert(!read.includes("named below"), "read prompt never points below for the desk");

@@ -1,11 +1,11 @@
-# bp3 bash completion: static verbs/edges/flags, dynamic graph/node names.
+# bp3 bash completion: static verbs/edges/flags, dynamic quest/node names.
 # Candidates come from _bp3_candidates (words after bp3, last word is the
 # current one); completion fails silently on any error.
 # shellcheck shell=bash
 
 _bp3_flags='--format --reason --commit --verdict --verify-verdict --mechanical --target --type --depends-on --mode'
 _bp3_edges='handoff grade verify land block resume'
-_bp3_graph_verbs='c r d create read delete'
+_bp3_quest_verbs='c r d create read delete'
 _bp3_node_verbs='c r u d create read update delete dep diagram n'
 _bp3_format_values='json table tree'
 _bp3_verdict_values='ship needs_fix pass fail'
@@ -40,18 +40,18 @@ _bp3_cmd() {
   fi
 }
 
-_bp3_graphs() {
+_bp3_quests() {
   local cmd
   cmd="$(_bp3_cmd)" || return 0
   command -v jq >/dev/null 2>&1 || return 0
-  "$cmd" g r 2>/dev/null | jq -r '.graphs[]?.graph // empty' 2>/dev/null || true
+  "$cmd" q r 2>/dev/null | jq -r '.quests[]?.quest // empty' 2>/dev/null || true
 }
 
 _bp3_nodes() {
-  local cmd graph="$1"
+  local cmd quest="$1"
   cmd="$(_bp3_cmd)" || return 0
   command -v jq >/dev/null 2>&1 || return 0
-  "$cmd" g "$graph" r 2>/dev/null | jq -r '.nodes[]?.node // empty' 2>/dev/null || true
+  "$cmd" q "$quest" r 2>/dev/null | jq -r '.nodes[]?.node // empty' 2>/dev/null || true
 }
 
 _bp3_is_verb() {
@@ -93,7 +93,7 @@ _bp3_candidates() {
   for ((i = 0; i < n - 1; i++)); do a+=("${words[$i]}"); done
 
   local has_g=0
-  if [ "${#a[@]}" -gt 0 ] && { [ "${a[0]}" = 'g' ]; }; then
+  if [ "${#a[@]}" -gt 0 ] && { [ "${a[0]}" = 'q' ]; }; then
     has_g=1
     local -a rest=()
     local j
@@ -104,7 +104,7 @@ _bp3_candidates() {
 
   if [ "$has_g" -eq 0 ]; then
     if [ "${#a[@]}" -eq 0 ]; then
-      printf '%s\n' g n e init skills harness worktree config | _bp3_filter "$cur"
+      printf '%s\n' q n e init skills harness worktree config | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'config' ]; then
       printf '%s\n' --source --format -h --help | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'n' ]; then
@@ -126,21 +126,21 @@ _bp3_candidates() {
   _bp3_cmd >/dev/null 2>&1 || return 0
 
   if [ "${#a[@]}" -eq 0 ]; then
-    _bp3_graphs | _bp3_filter "$cur"
+    _bp3_quests | _bp3_filter "$cur"
     return 0
   fi
 
   if _bp3_is_verb "${a[0]}"; then
     if [ "${#a[@]}" -eq 1 ]; then
       case "${a[0]}" in
-        r|read|d|delete) _bp3_graphs | _bp3_filter "$cur" ;;
+        r|read|d|delete) _bp3_quests | _bp3_filter "$cur" ;;
         *) : ;;
       esac
     fi
     return 0
   fi
 
-  # a[0] is a graph name.
+  # a[0] is a quest name.
   if [ "${#a[@]}" -eq 1 ]; then
     _bp3_words "$_bp3_node_verbs" | _bp3_filter "$cur"
     return 0

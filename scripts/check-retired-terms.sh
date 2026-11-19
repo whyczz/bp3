@@ -5,7 +5,7 @@
 # term costs seconds, not a grade cycle.
 #
 # Retired spellings (single source; post-rename vocabulary):
-#   GOAL.md QUEST.md EXPERIMENT.md   (now GRAPH.md / NODE.md)
+#   GOAL.md GRAPH.md EXPERIMENT.md   (now QUEST.md / NODE.md)
 #
 # Live surfaces swept: skills/, src/, bin/, scripts/,
 # extensions/, the rendered skill copies (.pi/skills/,
@@ -34,7 +34,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 cd "$root"
-retired="GOAL.md QUEST.md EXPERIMENT.md"
+retired="GOAL.md GRAPH.md EXPERIMENT.md"
 scope="skills src bin scripts extensions .pi/skills .agents/skills .claude/skills .agents/workflows"
 hits=$(mktemp)
 trap 'rm -f "$hits"' EXIT

@@ -1,27 +1,27 @@
 ---
 name: bp3g
-description: Conduct one bp3 graph from the main session — read state with bp3 g r, dispatch the one step that state calls for, re-read, until the graph is terminal or a human decision is owed.
+description: Conduct one bp3 quest from the main session — read state with bp3 q r, dispatch the one step that state calls for, re-read, until the quest is terminal or a human decision is owed.
 ---
 <!-- GENERATED from skills/bp3g/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->
 
 # Bp3g
 
 Use when a human in a bp3-enabled repo invokes this skill by
-name (`/bp3g <graph>`, `$bp3g <graph>`) or asks to "bp3g",
-"run", or "keep going on" a named graph until it lands or
-blocks. One graph per bp3g. One output: step dispatches
-through `bp3 g`, ending in a bp3g report — what reached
+name (`/bp3g <quest>`, `$bp3g <quest>`) or asks to "bp3g",
+"run", or "keep going on" a named quest until it lands or
+blocks. One quest per bp3g. One output: step dispatches
+through `bp3 q`, ending in a bp3g report — what reached
 `node_fin`, what is blocked, and what human decision is owed
 next. Finish lines have report words: `node_fin` names an node
 whose state is `landed` (its `land` edge taken); `goal_fin`
-names graph promotion to master, the only owner-gated finish
+names quest promotion to master, the only owner-gated finish
 line. The FSM states stay `landed`; `node_fin`/`goal_fin`
 name the finish lines in reports, never new edges.
 
-Use `graph` instead to frame a new graph. Use `using-bp3`
+Use `quest` instead to frame a new quest. Use `using-bp3`
 instead for a single state operation by hand (one handoff, one
 grade, recovery after a dead session). Use
-`red-ink-bp3g-landing-demo` instead when the graph is done and the
+`red-ink-bp3g-landing-demo` instead when the quest is done and the
 human wants the landing writeup. A design under review is
 `red-ink`'s job, not a bp3g.
 
@@ -31,7 +31,7 @@ This skill is the conductor: it owns the loop and nothing
 else. It reads state, dispatches the one step the state calls
 for, and re-reads. It never does a step's work itself, never
 calls a verdict edge for a step, and never re-judges a grade
-matrix — it quotes the matrix verbatim. Legality is `bp3 g`'s
+matrix — it quotes the matrix verbatim. Legality is `bp3 q`'s
 call, never this skill's: a refusal is information, answered by
 re-reading, not by arguing or retrying unchanged.
 
@@ -45,7 +45,7 @@ out of a cycle.
 ## No-human variant
 
 With no human present, the `bp3g-no-human` skill
-runs this same conductor over a queue of graphs under
+runs this same conductor over a queue of quests under
 no-human rails: preflight before queueing, desks only,
 blocked work parks in the inbox instead of paging, a
 stated Run budget stops the queue, and the run ends in
@@ -59,43 +59,43 @@ above stays the one conductor procedure.
 ## Procedure
 
 Mode (dogfood.3): the repo derives the mode, never a flag.
-**self** (tracked `src/graph` + `bin/bp3`: bp3 is the product)
+**self** (tracked `src/quest` + `bin/bp3`: bp3 is the product)
 conducts from a desk and reads via `./bin/bp3`; **host** (neither
 tracked: bp3 is a tool) has no desk, installs core skills only,
 and reads call `bp3` on PATH. `bp3 config` reports the derived
 `mode`; every Run record carries it. Passing `--mode` anywhere
 is a usage error naming this derivation.
 
-1. Take exactly one argument: the graph. Confirm the engine
-   exists: `bp3 g r <graph>` must answer JSON. If `bp3 g` is
+1. Take exactly one argument: the quest. Confirm the engine
+   exists: `bp3 q r <quest>` must answer JSON. If `bp3 q` is
    unavailable, stop and say so — never improvise state with
    file edits or another command.
-2. Read the world live: `bp3 g r <graph>` gives node states,
+2. Read the world live: `bp3 q r <quest>` gives node states,
    the railway order, and the blocked inbox. Trust only this
    read — never session memory, `state.yaml`, or a ledger read
    by hand. At a fan-out group, stop and ask the human which
    members run; members are exploration only and never
    landable.
-2.5. Graph worktree, by default (self mode only; host mode
+2.5. Quest worktree, by default (self mode only; host mode
    passes no `desk` and children work in the repo root): before
    the first dispatch,
-   `./bin/bp3 harness desk prepare --graph <graph>` and pass its
+   `./bin/bp3 harness desk prepare --quest <quest>` and pass its
    `path` as `desk` in every step's args. All step children
-   work in that one worktree for the whole graph; the
+   work in that one worktree for the whole quest; the
    conductor's checkout is never worked in, so parallel
    bp3gs and the owner's own work cannot collide with the
    Run. If the desk cannot be prepared, stop and say so —
    never fall back to the shared tree. Release it only at
    `goal_fin` or on the owner's word (`bp3 harness desk
-   release --graph <graph>`; a dirty desk refuses and is
+   release --quest <quest>`; a dirty desk refuses and is
    preserved).
 3. Dispatch exactly one step per read, by state only:
 
    | State | Dispatch | Args |
    |---|---|---|
-   | `todo` | `node-loop` workflow | `{graph, node, ts, harness, model, desk, context}` |
-   | `handed_off` | `bp3g-grade` workflow | `{graph, node, ts, harness, model, commit, desk}` with `commit` from this read |
-   | `approved` | `bp3g-land` workflow | `{graph, node, ts, harness, model, desk}` |
+   | `todo` | `node-loop` workflow | `{quest, node, ts, harness, model, desk, context}` |
+   | `handed_off` | `bp3g-grade` workflow | `{quest, node, ts, harness, model, commit, desk}` with `commit` from this read |
+   | `approved` | `bp3g-land` workflow | `{quest, node, ts, harness, model, desk}` |
    | `blocked` | human gate (step 4) | — |
    | `landed` / `deleted` | none | advance to the next node, or report at terminal (`landed` is reported as `node_fin`) |
 
@@ -105,7 +105,7 @@ is a usage error naming this derivation.
    timestamps), and per-Run `setup` (`W_SETUP_SLOW` when a
    setup exceeds the local threshold). Dispatch one
    `bp3g-node` workflow run per node in `ready`
-   (`{graph, node, ts, harness, model, desk, context}`), in
+   (`{quest, node, ts, harness, model, desk, context}`), in
    parallel desks: it owns that node's whole FSM loop
    (author, grade+verify, and land as phases inside it)
    and returns exactly one terminal outcome (`landed`,
@@ -113,7 +113,7 @@ is a usage error naming this derivation.
    the table above remain the phases' shapes and the
    fallback when `bp3g-node` is not installed. Landing
    stays serial: one node's land at a time, each land
-   re-checked against the new graph tip. A blocked node
+   re-checked against the new quest tip. A blocked node
    starves only the dependents named in `starved`; the
    rest of the ready set keeps moving.
 
@@ -126,7 +126,7 @@ is a usage error naming this derivation.
    that dies with no verdict is an orphaned Run: the node
    is not blocked, and the run mints one fresh link and
    dispatches one replacement. The run returns exactly
-   one terminal bubble carrying facts only (graph, node,
+   one terminal bubble carrying facts only (quest, node,
    state, reason, last edge, run chain, desk, inbox
    key); the conductor pages the human off that bubble,
    and revival after `resume` is a fresh node run that
@@ -169,7 +169,7 @@ is a usage error naming this derivation.
    Pure grade (followup.5): grade is a pure function
    `grade(commit, node_record) -> Verdict`; audit, grade,
    and verify children return verdicts as data and make
-   zero `bp3 g u` calls. The looper (`bp3g-grade` itself,
+   zero `bp3 q u` calls. The looper (`bp3g-grade` itself,
    or the `bp3g-node` loop) applies the verdict with
    exactly one combined cast
    (`grade --verdict ... --verify-verdict ...`), opens
@@ -225,21 +225,21 @@ is a usage error naming this derivation.
    main session (node, reason, checkpoint, cycle), capture
    the human's decision in their words, attest it
    (`BP3_DECIDER=human`), and take `resume` or `delete`
-   through `bp3 g <graph> u <node>`. The human never calls bp3
+   through `bp3 q <quest> u <node>`. The human never calls bp3
    and never supplies a commit. A blocked Run is never
    resumed in place; after a `resume`, the next read
    dispatches a fresh step. Only human-only calls reach
    this gate: scope changes, `delete`, and moves touching
-   another graph's state. The conductor never takes a
+   another quest's state. The conductor never takes a
    `delete` or a scope change autonomously, at any cycle.
-5. Re-read after every dispatch return (`bp3 g r <graph>`)
+5. Re-read after every dispatch return (`bp3 q r <quest>`)
    and go to step 3. A return that moved nothing (refusal, no
    commit) is re-judged from the fresh read, never retried
    unchanged against a moved tip.
 6. Stop when the rollup is terminal (every node `landed` or
    `deleted`) or a human decision is owed that this session
    cannot get. Name each `landed` node `node_fin` in the
-   report; when the graph is promoted to master, name that
+   report; when the quest is promoted to master, name that
    finish line `goal_fin` (owner gate, demo first). Report: dispatches per node with their ledger
    evidence, the grade matrices quoted verbatim, Runs and
    tapes left behind, scorecard fields (wall time, context
@@ -248,7 +248,7 @@ is a usage error naming this derivation.
 
 ## Rules
 
-- The skill writes no state. `bp3 g u` is the only writer,
+- The skill writes no state. `bp3 q u` is the only writer,
   called by step children (and at the blocked gate, by this
   session on attested human words); ledger files, `state.yaml`,
   and branch tips are never hand-edited, and tape is evidence,
@@ -268,4 +268,4 @@ is a usage error naming this derivation.
   the current commit instead of arguing with the refusal.
 - Instructions only: this skill holds no state, spawns no
   daemon, and assumes no runtime beyond the main session, its
-  workflow children, and the `bp3 g` binary.
+  workflow children, and the `bp3 q` binary.

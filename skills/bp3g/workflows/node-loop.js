@@ -4,7 +4,7 @@
 // spawns the single author child for a `todo` node, re-reads, and
 // returns what the re-read reports. Any other state belongs to
 // a different step; this file refuses it untouched. All state
-// moves through `bp3 g u`, called directly by the author child;
+// moves through `bp3 q u`, called directly by the author child;
 // this script never writes state. Its one write is proof, not
 // state: as the link minter (mvp.1) it mints a one-time link via
 // `bp3 harness link mint` before the child spawns; the
@@ -12,7 +12,7 @@
 // session to run-id. As the named tape binder it then
 // binds the child's session tape via `bp3 harness
 // bind-tape` after the child returns.
-// Args are supplied by the calling bp3g skill as {graph, node,
+// Args are supplied by the calling bp3g skill as {quest, node,
 // ts, harness, model, desk, context}; ts is a UTC compact timestamp from the
 // caller, embedded by the child in its run-id because scripts
 // cannot read the clock. The conductor's context (a cycle's
@@ -66,7 +66,7 @@ export default async function workflow(host) {
   const rawArgs = typeof host.args === "string"
     ? JSON.parse(host.args)
     : (host.args || {});
-  const graph = rawArgs.graph;
+  const quest = rawArgs.quest;
   const node = rawArgs.node;
   const ts = rawArgs.ts;
   const harness = rawArgs.harness || "muse-code";
@@ -75,7 +75,7 @@ export default async function workflow(host) {
   const context = rawArgs.context ? String(rawArgs.context) : "";
   const envPrefix =
     "BP3_HARNESS=" + harness + " BP3_MODEL=" + model + " ";
-  const deskNote = desk ? ("Your working directory is the graph worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
+  const deskNote = desk ? ("Your working directory is the quest worktree `" + desk + "` - cd there first and run every command from there; do not work in the conductor checkout. ") : "";
   // Mode-aware reads (dogfood.3): a desk exists only in self mode,
   // so desk presence derives the read path - self reads via the
   // desk script, host reads call bp3 on PATH. Never a flag.
@@ -86,30 +86,30 @@ export default async function workflow(host) {
     "its language references. ";
   const refusals = [];
   const runIds = [];
-  if (!graph || !node || !ts) {
+  if (!quest || !node || !ts) {
     return {
       node: node || null,
       outcome: "refused",
       commit: null,
       run_ids: runIds,
-      refusals: ["missing graph, node, or ts in workflow args"],
+      refusals: ["missing quest, node, or ts in workflow args"],
     };
   }
 
   const nodeDir =
-    "docs/graphs/" + graph + "/nodes/" + node;
+    "docs/quests/" + quest + "/nodes/" + node;
 
   async function readState() {
     const result = await host.agent({
       label: "read " + node,
       input:
         deskNote +
-        "Run exactly `" + envPrefix + bp3Bin + " g " + graph + " r " + node +
-        "` from the graph worktree if one is named above, else the repository root, and return only its stdout JSON " +
+        "Run exactly `" + envPrefix + bp3Bin + " q " + quest + " r " + node +
+        "` from the quest worktree if one is named above, else the repository root, and return only its stdout JSON " +
         "verdict verbatim as your entire reply, with no prose and no " +
         "code fences. If the command fails, return its stdout JSON " +
         "verdict verbatim instead. Do not edit any file and do not " +
-        "call any `bp3 g u` update edge.",
+        "call any `bp3 q u` update edge.",
     });
     const v = parseVerdict(result);
     if (!v || typeof v.state !== "string") {
@@ -141,7 +141,7 @@ export default async function workflow(host) {
     // with BP3_RUN_ID=<run_id from the claim verdict>; bp3
     // stamps it into verdicts and ledger lines.
     void edge; void cycle;
-    return "BP3_GRAPH=" + graph + " BP3_NODE=" + node + " " + envPrefix;
+    return "BP3_QUEST=" + quest + " BP3_NODE=" + node + " " + envPrefix;
   }
 
   const links = {};
@@ -175,7 +175,7 @@ export default async function workflow(host) {
     const cmd =
       envPreset(edge, cycle) + bp3Bin + " harness link mint" +
       (fsm ? " --kind edge --edge " + edge : " --kind node") +
-      " --graph " + graph + " --node " + node +
+      " --quest " + quest + " --node " + node +
       " --harness " + harness + " --model " + model +
       " --cycle " + String(cycle) +
       (desk ? " --desk " + desk : "");
@@ -183,12 +183,12 @@ export default async function workflow(host) {
       label: "mint " + node,
       input:
         deskNote +
-        "Run exactly `" + cmd + "` from the graph worktree if " +
+        "Run exactly `" + cmd + "` from the quest worktree if " +
         "one is named above, else the repository root, and return " +
         "only its stdout JSON verdict verbatim as your entire " +
         "reply, with no prose and no code fences. If the command " +
         "fails, return its stdout JSON verdict verbatim instead. " +
-        "Do not edit any file and do not call any `bp3 g u` " +
+        "Do not edit any file and do not call any `bp3 q u` " +
         "update edge.",
     });
     const v = parseVerdict(result);
@@ -220,12 +220,12 @@ export default async function workflow(host) {
       label: "resolve " + node,
       input:
         deskNote +
-        "Run exactly `" + resolveCmd + "` from the graph worktree if " +
+        "Run exactly `" + resolveCmd + "` from the quest worktree if " +
         "one is named above, else the repository root, and return " +
         "only its stdout JSON verdict verbatim as your entire " +
         "reply, with no prose and no code fences. If the command " +
         "fails, return its stdout JSON verdict verbatim instead. " +
-        "Do not edit any file and do not call any `bp3 g u` " +
+        "Do not edit any file and do not call any `bp3 q u` " +
         "update edge.",
     });
     const rv = parseVerdict(resolved);
@@ -248,12 +248,12 @@ export default async function workflow(host) {
       label: "bind " + node,
       input:
         deskNote +
-        "Run exactly `" + bindCmd + "` from the graph worktree if " +
+        "Run exactly `" + bindCmd + "` from the quest worktree if " +
         "one is named above, else the repository root, and return " +
         "only its stdout JSON verdict verbatim as your entire " +
         "reply, with no prose and no code fences. If the command " +
         "fails, return its stdout JSON verdict verbatim instead. " +
-        "Do not edit any file and do not call any `bp3 g u` " +
+        "Do not edit any file and do not call any `bp3 q u` " +
         "update edge.",
     });
     const bv = parseVerdict(bound);
@@ -272,7 +272,7 @@ export default async function workflow(host) {
     return (
       "Your run folder is `" + folder + "` under `" + nodeDir +
       "/runs/`. " + claimNote(edge) +
-      "`BP3_GRAPH`, `BP3_NODE`, `BP3_HARNESS`, and `BP3_MODEL` " +
+      "`BP3_QUEST`, `BP3_NODE`, `BP3_HARNESS`, and `BP3_MODEL` " +
       "arrive via environment; your run-id arrives via the " +
       "claim above and `bp3` stamps it into its verdicts and " +
       "ledger lines. First check whether that concrete run " +
@@ -312,16 +312,16 @@ export default async function workflow(host) {
   const author = await host.agent({
     label: "author " + node,
     input:
-      deskNote + "You are the author child for node `" + node + "` of graph `" +
-      graph + "`, currently in state `todo` at cycle " +
+      deskNote + "You are the author child for node `" + node + "` of quest `" +
+      quest + "`, currently in state `todo` at cycle " +
       String(before.cycle) + ". " + authorLoad + tapePreamble("handoff", before.cycle) +
       (context ? " The conductor named this context; carry it verbatim: " + context : "") +
       " Do the node's work in the repository, then commit the " +
       "work as a clean git commit and note its full sha. Then " +
       "call the state edge directly yourself: " +
-      "`" + envPreset("handoff", before.cycle) + bp3Bin + " g " + graph + " u " + node +
+      "`" + envPreset("handoff", before.cycle) + bp3Bin + " q " + quest + " u " + node +
       " handoff --commit <your-commit-sha> --reason \"<short reason>\"`. " +
-      "Children call `bp3 g u` directly; never only return a " +
+      "Children call `bp3 q u` directly; never only return a " +
       "verdict for the parent to relay. Reply with only a JSON " +
       "object {ok, run_id, commit, verdict} where verdict is " +
       "the JSON printed by the handoff call.",

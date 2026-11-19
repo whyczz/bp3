@@ -17,7 +17,7 @@
 #   check-skills  ./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
 #   skills-check  ./bin/bp3 skills check
 #   skills        ./test/skills.sh
-#   build         dune build src/graph/main.exe (Makefile SDK rule)
+#   build         dune build src/quest/main.exe (Makefile SDK rule)
 #   g             ./test/g.sh
 #   pi-tree       node test/pi-tree.test.mjs
 #   bp3-pi        node --test extensions/bp3-pi/test/bp3-pi.test.mjs
@@ -67,7 +67,7 @@ cmd_for() {
     check-skills) echo "./scripts/check-skills skills .pi/skills .agents/skills .claude/skills" ;;
     skills-check) echo "./bin/bp3 skills check" ;;
     skills) echo "./test/skills.sh" ;;
-    build) echo "$dune_build src/graph/main.exe" ;;
+    build) echo "$dune_build src/quest/main.exe" ;;
     g) echo "./test/g.sh" ;;
     pi-tree) echo "node test/pi-tree.test.mjs" ;;
     bp3-pi) echo "node --test extensions/bp3-pi/test/bp3-pi.test.mjs" ;;

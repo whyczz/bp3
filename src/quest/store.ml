@@ -12,7 +12,7 @@ let valid_slug s =
 let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
 
 (* Door and verb spellings across every bp3 door. A created
-   graph or node carrying one of these slugs could never be
+   quest or node carrying one of these slugs could never be
    addressed again (the token would parse as the door or
    verb instead), so creation refuses it; reads stay total. *)
 let reserved_slugs =
@@ -127,10 +127,10 @@ let load_plan_file path =
     err "E_INVALID_PLAN" (`Assoc [("plan", json_str path)]) ("Plan file missing: " ^ path) 1;
   plan_knobs_from_text (read_file_or full "")
 
-let graph_knobs graph_type = load_plan_file ("plans/" ^ graph_type ^ ".yaml")
+let quest_knobs quest_type = load_plan_file ("plans/" ^ quest_type ^ ".yaml")
 
-let effective_knobs ~graph_type ~node_type =
-  if node_type = "default" || node_type = "" then graph_knobs graph_type
+let effective_knobs ~quest_type ~node_type =
+  if node_type = "default" || node_type = "" then quest_knobs quest_type
   else load_plan_file ("plans/node-" ^ node_type ^ ".yaml")
 
 (* ---------- ledger fold ---------- *)
@@ -168,7 +168,7 @@ let get_opt j key =
 (* The one compat mapping (mig.1, rename.1): pre-rename ledger
    strings fold to the new words here and nowhere else; new ledger
    lines already carry the new words. Verb/state words arrived in
-   mig.1; the graph/node type keys arrived in rename.1. *)
+   mig.1; the quest/node type keys arrived in rename.1. *)
 let fold_edge = function
   | "submit" -> "handoff" | "review" -> "grade" | "check" -> "verify"
   | e -> e
@@ -198,7 +198,7 @@ let legacy_node_id e =
 
 let fold_ledger text =
   let s = fresh_state () in
-  let graph_type = ref "default" in
+  let quest_type = ref "default" in
   let depends_on = ref [] in
   String.split_on_char '\n' text |> List.iter (fun ln ->
     let ln = String.trim ln in
@@ -213,8 +213,8 @@ let fold_ledger text =
             s.node_type <- fold_type_key j "node_type" "exp_type"
               (fold_type_key j "goal_type" "graph_type"
                  (get_str j "quest_type" "default"));
-            graph_type := fold_type_key j "goal_type" "graph_type"
-              (get_str j "quest_type" !graph_type)
+            quest_type := fold_type_key j "goal_type" "graph_type"
+              (get_str j "quest_type" !quest_type)
           end;
           (try match Yojson.Safe.Util.member "depends_on" j with
              | `List xs -> depends_on := List.map (function `String x -> canon_node_id x | _ -> "") xs
@@ -243,7 +243,7 @@ let fold_ledger text =
       with _ ->
         err "E_INVALID_PLAN" (`Assoc []) "Malformed ledger line." 1
   );
-  (s, !graph_type, !depends_on)
+  (s, !quest_type, !depends_on)
 
 let ledger_text branch path =
   match ref_tip branch with
@@ -257,7 +257,7 @@ let first_existing_ref canon legacies =
   | Some r -> r
   | None -> canon
 
-let graph_branch q =
+let quest_branch q =
   first_existing_ref (Layout.quest_ref_of Layout.quest_ref_kind q)
     (List.map (fun k -> Layout.quest_ref_of k q) Layout.legacy_quest_ref_kinds)
 
@@ -266,10 +266,10 @@ let node_branch q e =
     (List.map (fun k -> Layout.node_ref_prefix_of k q ^ legacy_node_id e)
        Layout.legacy_node_ref_kinds)
 
-let graph_dir q = Layout.quest_dir q
+let quest_dir q = Layout.quest_dir q
 let ledger_in dir = dir ^ "/" ^ Layout.ledger_file
 let node_dir_in root q id = Layout.quest_dir_in root q ^ "/" ^ Layout.nodes_dir ^ "/" ^ id
-let graph_ledger_path q = ledger_in (graph_dir q)
+let quest_ledger_path q = ledger_in (quest_dir q)
 let node_dir q e = node_dir_in Layout.quests_root q (canon_node_id e)
 let node_ledger_path q e = ledger_in (node_dir q e)
 let node_state_path q e = node_dir q e ^ "/" ^ Layout.state_file
@@ -277,9 +277,9 @@ let node_state_path q e = node_dir q e ^ "/" ^ Layout.state_file
 (* Pre-rename ledger paths on the same branch: every legacy root,
    and legacy node ids under each root; canonical path excluded. *)
 let all_roots = Layout.quests_root :: Layout.legacy_quests_roots
-let legacy_graph_ledger_paths q =
+let legacy_quest_ledger_paths q =
   List.map (fun r -> ledger_in (Layout.quest_dir_in r q)) all_roots
-  |> List.filter (fun p -> p <> graph_ledger_path q)
+  |> List.filter (fun p -> p <> quest_ledger_path q)
 let legacy_node_ledger_paths q e =
   List.concat_map (fun r ->
       List.map (fun id -> ledger_in (node_dir_in r q id))
@@ -304,7 +304,7 @@ let ledger_read branch canon legacy =
 
 (* Every bp3 prefix lives under refs/heads/bp3/: list that once
    per cache epoch and filter in memory, instead of one
-   for-each-ref per prefix (two per graph in the version scan). *)
+   for-each-ref per prefix (two per quest in the version scan). *)
 let refs_cache : (int * string list) option ref = ref None
 let list_refs prefix =
   let all = match !refs_cache with
@@ -316,7 +316,7 @@ let list_refs prefix =
         refs_cache := Some (!cache_epoch, refs); refs in
   List.filter (fun r -> starts_with r prefix) all
 
-let list_graphs () =
+let list_quests () =
   (* Legacy storage prefixes fold here only (Layout). *)
   let strip p r = String.sub r (String.length p) (String.length r - String.length p) in
   let dedup xs = List.fold_right (fun x acc -> if List.mem x acc then acc else x :: acc) xs [] in
@@ -332,7 +332,7 @@ let list_nodes q =
   let legacy = List.concat_map under Layout.legacy_node_ref_kinds |> List.map canon_node_id in
   dedup (canon @ legacy)
 
-(* newest bp3_version stamped in any graph/node ledger in this repo *)
+(* newest bp3_version stamped in any quest/node ledger in this repo *)
 let newest_bp3_version () =
   let from_text acc text =
     List.fold_left (fun acc line ->
@@ -348,14 +348,14 @@ let newest_bp3_version () =
         | _ -> acc
       with _ -> acc) acc (String.split_on_char '\n' text) in
   List.fold_left (fun acc q ->
-    let acc = match ledger_read (graph_branch q) (graph_ledger_path q) (legacy_graph_ledger_paths q) with
+    let acc = match ledger_read (quest_branch q) (quest_ledger_path q) (legacy_quest_ledger_paths q) with
       | Some (_, t, _) -> from_text acc t | None -> acc in
     List.fold_left (fun acc e ->
       match ledger_read (node_branch q e) (node_ledger_path q e) (legacy_node_ledger_paths q e) with
       | Some (_, t, _) -> from_text acc t | None -> acc) acc (list_nodes q))
-    None (list_graphs ())
+    None (list_quests ())
 
-(* One scan per process (each bp3 g call is one command). This process
+(* One scan per process (each bp3 q call is one command). This process
    only stamps bp3_version, so its own writes cannot change the answer. *)
 let version_ahead =
   let ahead = lazy (match newest_bp3_version () with
@@ -372,8 +372,8 @@ let fold_node q e =
   | None -> None
   | Some (tip, text, _) -> let (s, _, _) = fold_ledger text in Some (tip, s, text)
 
-let fold_graph q =
-  match ledger_read (graph_branch q) (graph_ledger_path q) (legacy_graph_ledger_paths q) with
+let fold_quest q =
+  match ledger_read (quest_branch q) (quest_ledger_path q) (legacy_quest_ledger_paths q) with
   | None -> None
   | Some (tip, text, _) -> let (s, qt, deps) = fold_ledger text in Some (tip, s, qt, deps, text)
 
@@ -386,7 +386,7 @@ let legal_edges st =
   | _ -> []
 
 let state_yaml q e s =
-  Printf.sprintf "graph: %s\nnode: %s\nstate: %s\ncycle: %d\ncommit: %s\n"
+  Printf.sprintf "quest: %s\nnode: %s\nstate: %s\ncycle: %d\ncommit: %s\n"
     q (canon_node_id e) s.st s.cycle (match s.last_commit with Some c -> c | None -> "none")
 
 let ledger_line ~edge ~from ~to_ ~cycle ~commit ~verdict ~reason ~id
@@ -432,7 +432,7 @@ let make_checkpoint () =
   ckpt
 
 let dep_satisfied dep =
-  match fold_graph dep with
+  match fold_quest dep with
   | None -> false
   | Some (_, qs, _, _, _) ->
       if qs.st = "deleted" then false
@@ -503,8 +503,8 @@ let timing_of_text text =
     t_dwell = List.sort compare
       (List.map (fun st -> (st, Hashtbl.find dwell st)) !order) }
 
-let dep_cycle_through graph start =
-  let deps_of n = match List.assoc_opt n graph with Some ds -> ds | None -> [] in
+let dep_cycle_through quest start =
+  let deps_of n = match List.assoc_opt n quest with Some ds -> ds | None -> [] in
   let rec visit path n =
     if n = start && path <> [] then Some (List.rev (n :: path))
     else if List.mem n path then None

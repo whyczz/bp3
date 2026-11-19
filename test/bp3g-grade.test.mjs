@@ -15,7 +15,7 @@
 // re-collected inside the audit (named rows, no cycle burn),
 // evidence still uncollectable is an explicit audit_failure
 // with no verdict cast. Followup.5 (pure-grade): audit, grade,
-// and verify children return verdicts as data (zero `bp3 g u`
+// and verify children return verdicts as data (zero `bp3 q u`
 // calls); the looper applies exactly one combined cast, with
 // named pushbacks (superseded, empty fix, blocked), a fix
 // ledger OPEN entry, audit reuse of prior typed evidence,
@@ -43,7 +43,7 @@ function deferredRow(name) {
     case: name,
     evidence: {
       kind: "file",
-      ref: "docs/graphs/toy/nodes/fx/NODE.md:57",
+      ref: "docs/quests/toy/nodes/fx/NODE.md:57",
       quote: "| " + name + " | NOT gated by this node |",
     },
     verdict: "deferred",
@@ -71,7 +71,7 @@ function mockHost({ reads, auditRows, auditSeq, validationsObs, stageReplies, in
   const order = [];
   const inits = [];
   const host = {
-    args: Object.assign({ graph: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: COMMIT }, extraArgs || {}),
+    args: Object.assign({ quest: "toy", node: "fx", ts: TS, harness: "muse-code", model: "test-model", commit: COMMIT }, extraArgs || {}),
     async agent({ label, input }) {
       if (label.startsWith("validations")) {
         order.push("validations");
@@ -161,7 +161,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
     assert(inputs[edge].includes("link claim bp3link_test-" + edge), edge + " brief carries its claim token");
     assert(inputs[edge].includes("BP3_RUN_ID=<that run_id>"), edge + " is told to stamp the claimed run-id");
   }
-  assert(inputs.audit.includes("do not call any `bp3 g u` update edge"),
+  assert(inputs.audit.includes("do not call any `bp3 q u` update edge"),
     "audit child spawns no state edge");
   assert(inputs.audit.includes("notes.md"), "audit writes matrix in its notes.md");
   assert(inputs.audit.includes("acceptance rows only"), "audit builds acceptance rows only");
@@ -175,7 +175,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
     "validations transport writes the .git/bp3 validations log");
   assert(inputs.validations.includes("git show --stat " + COMMIT + " | head -3"),
     "validations transport bounds git_show to its head for the JSON return");
-  assert(inputs.validations.includes("git show bp3/node/toy/fx:docs/graphs/toy/nodes/fx/ledger.jsonl"),
+  assert(inputs.validations.includes("git show bp3/node/toy/fx:docs/quests/toy/nodes/fx/ledger.jsonl"),
     "validations probe resolves the handoff ledger via the post-migration node branch");
   assert(!inputs.validations.includes("bp3/exp/"),
     "validations probe carries no retired bp3/exp hardcode");
@@ -184,8 +184,8 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
       "validations minted " + name);
   }
   for (const edge of ["grade", "verify"]) {
-    assert(inputs[edge].includes("do not call any `bp3 g u` update edge"),
-      edge + " child is pure (zero bp3 g u calls)");
+    assert(inputs[edge].includes("do not call any `bp3 q u` update edge"),
+      edge + " child is pure (zero bp3 q u calls)");
     assert(inputs[edge].includes("return your verdict as data") ||
            inputs[edge].includes("Return your verdict as data"),
       edge + " child returns its verdict as data");
@@ -195,7 +195,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   }
   assert(inputs.apply.includes("grade --verdict ship --commit " + COMMIT + " --verify-verdict pass"),
     "looper's one cast binds the exact commit with the combined verdict");
-  assert((inputs.apply.match(/bp3 g /g) || []).length === 1,
+  assert((inputs.apply.match(/bp3 q /g) || []).length === 1,
     "looper apply runs exactly one bp3 command");
   assert(result.run_ids.join(",") === [TS + "-audit-muse-code-test-model-c1", "r-audit", TS + "-grade-muse-code-test-model-c1", TS + "-verify-muse-code-test-model-c1", "r-grade", "r-verify"].join(","),
     "run_ids collect mints and every grade child, got " + result.run_ids.join(","));
@@ -267,7 +267,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
   assert(order.length === 0, "no grade children spawn on mismatch");
 
   const noCommit = {
-    args: { graph: "toy", node: "fx", ts: TS },
+    args: { quest: "toy", node: "fx", ts: TS },
     async agent() { throw new Error("must not spawn"); },
     async parallel() { throw new Error("must not spawn"); },
   };
@@ -373,7 +373,7 @@ const approved = { state: "approved", cycle: 1, commit: COMMIT, legal_edges: ["l
     auditRows: [passRow("acceptance: a")],
   });
   await workflow(host);
-  assert(inputs.audit.includes("rung 1 the graph and node records"), "audit starts at rung 1 (records)");
+  assert(inputs.audit.includes("rung 1 the quest and node records"), "audit starts at rung 1 (records)");
   assert(inputs.audit.includes("rung 2 committed code and git diff"), "audit climbs to rung 2 (diff)");
   assert(inputs.audit.includes("rung 3 demos and tests, run"), "audit climbs to rung 3 (tests run)");
   assert(inputs.audit.includes("rung 4 style"), "audit climbs to rung 4 (style)");
@@ -541,7 +541,7 @@ function rungRow(name, rung, verdict, quote) {
   assert(result.casts === 1, "one cast only, got " + result.casts);
   assert(!result.refusals.some((r) => r.includes("expected verdict race") || r.includes("E_ILLEGAL_EDGE")),
     "verdict-race refusal no longer occurs");
-  assert(!inputs.grade.includes("bp3 g " + "toy u") && !inputs.verify.includes("bp3 g " + "toy u"),
+  assert(!inputs.grade.includes("bp3 q " + "toy u") && !inputs.verify.includes("bp3 q " + "toy u"),
     "grade/verify tapes carry no cast (tape grep evidence)");
 }
 
@@ -621,7 +621,7 @@ function rungRow(name, rung, verdict, quote) {
   const { host, inputs } = mockHost({
     reads: [atCap, atCap, { state: "todo", cycle: 6, commit: COMMIT, legal_edges: ["handoff"] }],
     auditRows: [fail],
-    stageReplies: { grade: JSON.stringify({ ok: true, run_id: "r-grade", commit: COMMIT, verdict: "needs_fix", fix: "skills/bp3g/SKILL.md:12 replace GOAL.md with GRAPH.md", fix_class: "mechanical" }) },
+    stageReplies: { grade: JSON.stringify({ ok: true, run_id: "r-grade", commit: COMMIT, verdict: "needs_fix", fix: "skills/bp3g/SKILL.md:12 replace GOAL.md with QUEST.md", fix_class: "mechanical" }) },
   });
   const result = await workflow(host);
   assert(result.outcome === "needs_fix", "mechanical at cap stays needs_fix, got " + result.outcome);
@@ -637,7 +637,7 @@ function rungRow(name, rung, verdict, quote) {
     reads: [handedOff, handedOff, { state: "blocked", cycle: 1, commit: COMMIT, legal_edges: ["resume", "delete"] }],
     auditRows: [fail],
     extraArgs: { prior_failed_rows: ["acceptance: a"], max_cycles: 1 },
-    stageReplies: { grade: JSON.stringify({ ok: true, run_id: "r-grade", commit: COMMIT, verdict: "needs_fix", fix: "skills/bp3g/SKILL.md:12 replace GOAL.md with GRAPH.md" }) },
+    stageReplies: { grade: JSON.stringify({ ok: true, run_id: "r-grade", commit: COMMIT, verdict: "needs_fix", fix: "skills/bp3g/SKILL.md:12 replace GOAL.md with QUEST.md" }) },
   });
   const result = await workflow(host);
   assert(result.verdict.fix_class === "disagreement", "repeat row classed disagreement, got " + result.verdict.fix_class);
@@ -729,7 +729,7 @@ function rungRow(name, rung, verdict, quote) {
   assert(result.outcome === "approved", "desk grade approves, got " + result.outcome);
   assert(inputs.reads.length > 0, "reads captured, got " + inputs.reads.length);
   for (const read of inputs.reads) {
-    assert(read.includes("graph worktree `.bp3/worktrees/toy-desk`"),
+    assert(read.includes("quest worktree `.bp3/worktrees/toy-desk`"),
       "read prompt names the desk worktree");
     assert(!read.includes("named below"), "read prompt never points below for the desk");
   }

@@ -22,12 +22,12 @@ expect_list() { # name expected... -- actual from stdin file
 "$sel" --list skills/bp3g/SKILL.md | expect_list skills-mapping check-skills skills bp3g
 "$sel" --list skills/bp3g/SKILL.md | grep -q harness && fail "skills-mapping ran harness" || checks=$((checks + 1))
 # 2. src/** -> build + binary suite, never skills suites.
-"$sel" --list src/graph/main.ml | expect_list src-mapping build g
+"$sel" --list src/quest/main.ml | expect_list src-mapping build g
 # 3. workflow renders -> skills check + matching test only.
 "$sel" --list .agents/workflows/bp3g-grade.js | expect_list render-mapping skills-check wf:bp3g-grade
 "$sel" --list skills/bp3g/workflows/node-loop.js | expect_list render-mapping-src skills-check wf:node-loop
 # 4. Unknown path fails safe to the fast tier, never zero suites.
-"$sel" --list docs/graphs/some-graph/GRAPH.md > "$work/unknown.txt"
+"$sel" --list docs/quests/some-quest/QUEST.md > "$work/unknown.txt"
 "$sel" --fast --list > "$work/fast.txt"
 cmp -s "$work/unknown.txt" "$work/fast.txt" || fail "unknown path did not fail safe to fast tier"
 [ -s "$work/unknown.txt" ] || fail "unknown path selected zero suites"
@@ -54,12 +54,12 @@ grep -q 'retired-term sweep: FAIL' "$work/planted-run.out" || fail "check-change
 grep -q 'check-changed: run' "$work/planted-run.out" && fail "a suite ran before the sweep failed" || checks=$((checks + 3))
 # 7. Fossils stay legal: ledger lines, run notes, and the
 # migration rename table quoting retired spellings pass.
-mkdir -p "$work/fossil/scripts" "$work/fossil/skills/demo" "$work/fossil/docs/graphs/g/nodes/n/runs/r1"
+mkdir -p "$work/fossil/scripts" "$work/fossil/skills/demo" "$work/fossil/docs/quests/g/nodes/n/runs/r1"
 cp "$sweep" "$work/fossil/scripts/"
-cp "$repo/scripts/migrate-graph-rename.sh" "$work/fossil/scripts/"
+cp "$repo/scripts/migrate-quest-rename.sh" "$work/fossil/scripts/"
 printf -- '---\nname: demo\ndescription: demo\n---\nClean.\n' > "$work/fossil/skills/demo/SKILL.md"
-printf '{"old":"docs/goals/g/GOAL.md"}\n' > "$work/fossil/docs/graphs/g/ledger.jsonl"
-printf 'quoted EXPERIMENT.md in run notes\n' > "$work/fossil/docs/graphs/g/nodes/n/runs/r1/notes.md"
+printf '{"old":"docs/goals/g/GOAL.md"}\n' > "$work/fossil/docs/quests/g/ledger.jsonl"
+printf 'quoted EXPERIMENT.md in run notes\n' > "$work/fossil/docs/quests/g/nodes/n/runs/r1/notes.md"
 (cd "$work/fossil" && git init -q && git add -A)
 "$work/fossil/scripts/check-retired-terms.sh" --root "$work/fossil" > /dev/null || fail "fossil paths failed the sweep"
 checks=$((checks + 1))

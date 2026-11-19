@@ -62,7 +62,7 @@ slices later.
 
 Deferred direction is context, and it already lives somewhere:
 before round one, search the icebox (`docs/icebox/` where the
-repo has one) for entries naming this artifact, its graph or
+repo has one) for entries naming this artifact, its quest or
 node, or its concepts. Present hits in round one's Observe as
 "where we want to get to" — frozen sketches with promotion
 triggers, read for direction, never treated as settled design.
@@ -210,29 +210,29 @@ node with no demo and no runnable goal block is unfinished
 spec. The design file itself gets the same treatment at its
 scale: a Demos section up front, traces honestly labeled.
 
-## Graph-level functional tests
+## Quest-level functional tests
 
-When the artifact is a whole graph (or another multi-node
+When the artifact is a whole quest (or another multi-node
 design), add a closing functional pass after the per-node
 tests. These are not larger unit tests: they drive the
 public interfaces end to end — CLI, workflow, files, git
-artifacts — and prove the nodes compose into the graph's
+artifacts — and prove the nodes compose into the quest's
 promise. Put the cases at the end of the working copy,
 after all node sections. Each case names its starting
 state, the actions taken, the exact observable result,
 and its evidence label.
 
 Cover, where they apply: the happy path across the whole
-graph; one refusal or failure path with state unchanged;
+quest; one refusal or failure path with state unchanged;
 the human gate and recovery from it; crash or restart with
 state reconstructed from the record; and consistency
 across surfaces (JSON verdict, ledger, files, human view).
 
 Separate true end-to-end cases (real harness, real
 processes) from functional fixtures (same public path in a
-fake repo) and label which is which. A graph whose
+fake repo) and label which is which. A quest whose
 functional cases only restate per-node tests is unfinished.
-A graph proposing only design traces must say so plainly.
+A quest proposing only design traces must say so plainly.
 
 ## Rules
 

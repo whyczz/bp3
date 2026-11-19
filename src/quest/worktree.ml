@@ -1,5 +1,5 @@
 (* worktree — git worktree layers for bp3.
-   Util layer: derive a worktree path from (graph, node,
+   Util layer: derive a worktree path from (quest, node,
    run-id), create a worktree on a branch or detached at a
    commit, inspect its ref and dirty state, and remove it.
    The dirty refusal lives in the remove primitive itself,
@@ -28,11 +28,11 @@ let valid_run_id s =
    let rec loop i = i >= n || (ok s.[i] && loop (i + 1)) in
    s.[0] <> '.' && s.[0] <> '-' && loop 0)
 
-let derive_path graph node run_id =
-  Store.check_slug graph;
+let derive_path quest node run_id =
+  Store.check_slug quest;
   Store.check_slug node;
   if not (valid_run_id run_id) then usage ("invalid run id: " ^ run_id);
-  String.concat "/" [Layout.desks_root; graph; node; run_id]
+  String.concat "/" [Layout.desks_root; quest; node; run_id]
 
 (* ---------- git in a worktree ---------- *)
 let abs_path p =
@@ -179,7 +179,7 @@ let do_remove path force =
    The desks are machine-local furniture under .bp3/,
    never ledger state. *)
 type record = {
-  r_run : string; r_graph : string; r_node : string;
+  r_run : string; r_quest : string; r_node : string;
   r_path : string; r_ref : string; r_detached : bool;
   r_created : int;
 }
@@ -192,7 +192,7 @@ let record_of_json j =
   | None -> None
   | Some run ->
       Some { r_run = run;
-             r_graph = Store.get_str j "graph" "";
+             r_quest = Store.get_str j "quest" (Store.get_str j "graph" "");
              r_node = Store.get_str j "node" "";
              r_path = Store.get_str j "path" "";
              r_ref = Store.get_str j "ref" "";
@@ -232,7 +232,7 @@ let save_record r =
   let tmp = Filename.concat desks_dir
       (Printf.sprintf ".%s.%d.tmp" r.r_run (Unix.getpid ())) in
   let json = `Assoc [("run_id", json_str r.r_run);
-                     ("graph", json_str r.r_graph);
+                     ("quest", json_str r.r_quest);
                      ("node", json_str r.r_node);
                      ("path", json_str r.r_path);
                      ("ref", json_str r.r_ref);
@@ -252,7 +252,7 @@ let now_s () = int_of_float (Unix.time ())
 let stale_s r = max 0 (now_s () - r.r_created)
 
 let record_json r =
-  [("run_id", json_str r.r_run); ("graph", json_str r.r_graph);
+  [("run_id", json_str r.r_run); ("quest", json_str r.r_quest);
    ("node", json_str r.r_node); ("path", json_str r.r_path);
    ("ref", json_str r.r_ref); ("detached", `Bool r.r_detached);
    ("created_ts", `Int r.r_created)]
@@ -276,11 +276,11 @@ let prepare_verdict r existing =
   let fields = [("ok", `Bool true)] @ record_json r in
   `Assoc (if existing then fields @ [("existing", `Bool true)] else fields)
 
-let do_prepare graph node run_id commit path_override =
-  Store.check_creatable graph;
+let do_prepare quest node run_id commit path_override =
+  Store.check_creatable quest;
   Store.check_creatable node;
   ignore (Config.ensure_config ());
-  let default_path = derive_path graph node run_id in
+  let default_path = derive_path quest node run_id in
   match load_record run_id with
   | Some r ->
       if Sys.file_exists (abs_path r.r_path) then prepare_verdict r true
@@ -292,12 +292,12 @@ let do_prepare graph node run_id commit path_override =
       end
   | None ->
       let path = match path_override with Some p -> p | None -> default_path in
-      let branch = Layout.node_branch_short graph (Store.canon_node_id node) in
+      let branch = Layout.node_branch_short quest (Store.canon_node_id node) in
       let _ = (match commit with
                | Some c -> do_create path None (Some c)
                | None -> do_create path (Some branch) None) in
       let i = inspect_info path in
-      let r = { r_run = run_id; r_graph = graph; r_node = node; r_path = path;
+      let r = { r_run = run_id; r_quest = quest; r_node = node; r_path = path;
                 r_ref = i.iref; r_detached = i.idetached;
                 r_created = now_s () } in
       if save_record r then prepare_verdict r false
@@ -305,14 +305,14 @@ let do_prepare graph node run_id commit path_override =
             | Some existing -> prepare_verdict existing true
             | None -> prepare_verdict r false)
 
-(* Node 8: one worktree per graph for a whole bp3g.
-   Record key is graph-<graph>; node field is "(graph)". *)
-let graph_run_id graph = "graph-" ^ graph
+(* Node 8: one worktree per quest for a whole bp3g.
+   Record key is quest-<quest>; node field is "(quest)". *)
+let quest_run_id quest = "quest-" ^ quest
 
-let do_prepare_graph graph =
-  Store.check_creatable graph;
+let do_prepare_quest quest =
+  Store.check_creatable quest;
   ignore (Config.ensure_config ());
-  let run_id = graph_run_id graph in
+  let run_id = quest_run_id quest in
   match load_record run_id with
   | Some r ->
       if Sys.file_exists (abs_path r.r_path) then prepare_verdict r true
@@ -321,11 +321,11 @@ let do_prepare_graph graph =
         prepare_verdict r true
       end
   | None ->
-      let path = Layout.desk_dir graph in
-      let branch = Layout.work_branch graph in
+      let path = Layout.desk_dir quest in
+      let branch = Layout.work_branch quest in
       let _ = do_create path (Some branch) None in
       let i = inspect_info path in
-      let r = { r_run = run_id; r_graph = graph; r_node = "(graph)";
+      let r = { r_run = run_id; r_quest = quest; r_node = "(quest)";
                 r_path = path; r_ref = i.iref; r_detached = i.idetached;
                 r_created = now_s () } in
       if save_record r then prepare_verdict r false
@@ -361,11 +361,11 @@ let release_record r force =
             @ record_json r)
   end
 
-let do_release_graph graph =
-  Store.check_slug graph;
-  let run_id = graph_run_id graph in
+let do_release_quest quest =
+  Store.check_slug quest;
+  let run_id = quest_run_id quest in
   let r = match load_record run_id with
-    | Some r -> r | None -> not_found "graph worktree" graph in
+    | Some r -> r | None -> not_found "quest worktree" quest in
   release_record r false
 
 let do_release run_id force =
@@ -394,7 +394,7 @@ let do_exit force =
        | other -> other)
 
 (* Orphans: worktrees under the default root with no record.
-   Their graph/node/run are read back from the derived path. *)
+   Their quest/node/run are read back from the derived path. *)
 let orphan_entry abs =
   let croot = canon root in
   let rel =
@@ -418,16 +418,16 @@ let orphan_entry abs =
            [("ref", json_str i.iref); ("detached", `Bool i.idetached);
             ("dirty", `Bool i.idirty); ("changed_count", `Int i.ichanged)]
          with Verdict _ -> [("missing", `Bool true)]) in
-      Some (q, `Assoc ([("run_id", json_str r); ("graph", json_str q);
+      Some (q, `Assoc ([("run_id", json_str r); ("quest", json_str q);
                         ("node", json_str e); ("path", json_str shown);
                         ("orphan", `Bool true); ("missing", `Bool false);
                         ("stale_s", `Int 0)] @ live))
   | _ -> None
 
-let do_list graph_filter =
+let do_list quest_filter =
   let records = load_records () in
   let shown_records = List.filter
-    (fun r -> match graph_filter with None -> true | Some q -> r.r_graph = q)
+    (fun r -> match quest_filter with None -> true | Some q -> r.r_quest = q)
     records in
   let recorded = List.map (fun r -> canon (abs_path r.r_path)) records in
   let wt_paths =
@@ -439,7 +439,7 @@ let do_list graph_filter =
     if List.mem (canon p) recorded then None
     else match orphan_entry p with
       | Some (q, j) ->
-          (match graph_filter with
+          (match quest_filter with
            | Some f when f <> q -> None | _ -> Some j)
       | None -> None) wt_paths in
   `Assoc [("ok", `Bool true);
@@ -507,25 +507,25 @@ let parse_prepare_flags args =
     | f :: _ -> usage ("unknown flag: " ^ f) in
   loop None None None args
 
-let parse_graph_flag args =
-  let rec loop graph = function
-    | [] -> graph
-    | "--graph" :: v :: rest ->
-        if graph <> None then usage "duplicate flag --graph";
+let parse_quest_flag args =
+  let rec loop quest = function
+    | [] -> quest
+    | "--quest" :: v :: rest ->
+        if quest <> None then usage "duplicate flag --quest";
         loop (Some v) rest
-    | ["--graph"] -> usage "--graph needs a value"
+    | ["--quest"] -> usage "--quest needs a value"
     | f :: _ -> usage ("unknown flag: " ^ f) in
   loop None args
 
 let run = function
-  | "prepare" :: "--graph" :: [graph] -> do_prepare_graph graph
-  | "release" :: "--graph" :: [graph] -> do_release_graph graph
-  | "prepare" :: graph :: node :: rest ->
+  | "prepare" :: "--quest" :: [quest] -> do_prepare_quest quest
+  | "release" :: "--quest" :: [quest] -> do_release_quest quest
+  | "prepare" :: quest :: node :: rest ->
       let (run_id, commit, path) = parse_prepare_flags rest in
       let run_id = (match run_id with
         | Some r -> r | None -> usage "worktree prepare needs --run <run-id>") in
-      do_prepare graph node run_id commit path
-  | "prepare" :: _ -> usage "worktree prepare needs <graph> <node> --run <run-id>"
+      do_prepare quest node run_id commit path
+  | "prepare" :: _ -> usage "worktree prepare needs <quest> <node> --run <run-id>"
   | "check" :: rest ->
       let (run_id, _) = parse_run_flag rest in
       let run_id = (match run_id with
@@ -537,10 +537,10 @@ let run = function
         | Some r -> r | None -> usage "worktree release needs --run <run-id>") in
       do_release run_id force
   | "exit" :: rest -> do_exit (parse_force rest)
-  | "list" :: rest -> do_list (parse_graph_flag rest)
-  | "derive" :: [graph; node; run_id] ->
-      `Assoc [("ok", `Bool true); ("path", json_str (derive_path graph node run_id))]
-  | "derive" :: _ -> usage "worktree derive needs <graph> <node> <run-id>"
+  | "list" :: rest -> do_list (parse_quest_flag rest)
+  | "derive" :: [quest; node; run_id] ->
+      `Assoc [("ok", `Bool true); ("path", json_str (derive_path quest node run_id))]
+  | "derive" :: _ -> usage "worktree derive needs <quest> <node> <run-id>"
   | "create" :: path :: rest ->
       let (branch, commit) = parse_create_flags rest in
       do_create path branch commit

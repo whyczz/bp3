@@ -13,7 +13,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/src/graph/main.exe" "$work/repo/g-bin"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
 cd "$work/repo"
 git init -q -b master
@@ -21,9 +21,9 @@ git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
-q() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
+q() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
-ledger() { git show "bp3/node/demo/$1:docs/graphs/demo/nodes/$1/ledger.jsonl"; }
+ledger() { git show "bp3/node/demo/$1:docs/quests/demo/nodes/$1/ledger.jsonl"; }
 
 q c demo >/dev/null
 
