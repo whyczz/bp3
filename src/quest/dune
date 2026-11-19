@@ -1,1 +1,12 @@
-(executable (name main) (libraries yojson unix str))
+; The engine is a library so unit tests link it (test-pyramid unit.1);
+; unwrapped, so modules keep their names (Store, Hooks, ...).
+(library
+ (name bp3_quest)
+ (wrapped false)
+ (modules :standard \ main)
+ (libraries yojson unix str))
+
+(executable
+ (name main)
+ (modules main)
+ (libraries bp3_quest yojson unix str))

@@ -1,0 +1,5 @@
+; Unit tier (test-pyramid): `dune test` runs these; no git, no process,
+; no wall clock. Test names start with their kind: case_, law_, char_.
+(tests
+ (names test_smoke)
+ (libraries bp3_quest ounit2 qcheck-core qcheck-ounit))

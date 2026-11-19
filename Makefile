@@ -5,11 +5,13 @@
 # Use it when present; harmless elsewhere.
 MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk ]; then echo /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk; fi)
 DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
+DUNE_TEST = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune test$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
 
 check: lint
 	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
 	./test/skills.sh
 	$(DUNE_BUILD) src/quest/main.exe
+	$(DUNE_TEST)
 	./test/g.sh
 	./test/ready.sh
 	./test/diagram.sh
