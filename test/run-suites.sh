@@ -4,14 +4,17 @@
 # budget kills the whole process group and never fires early, Ctrl-C
 # (once or mashed), Ctrl-\ and SIGHUP reap every suite and the temp
 # dir, serial rows never overlap, table validation, --list and
-# --report. Planted suites live in test/run-suites/. Runs that are
-# meant to fail point TMPDIR inside $work, so nothing leaks.
+# --report. Planted suites live in test/run-suites/. TMPDIR points
+# inside $work for the whole test, so nothing leaks.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 rs="$root/scripts/run-suites"
 p="$root/test/run-suites"
 work=$(mktemp -d "${TMPDIR:-/tmp}/bp3-run-suites.XXXXXX")
 trap 'rm -rf -- "$work"' EXIT
+# every runner call below makes its temp dir inside $work, so a run that
+# fails on purpose (and keeps its logs) never leaks into the caller's TMPDIR
+mkdir "$work/tmp"; export TMPDIR="$work/tmp"
 checks=0
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { checks=$((checks + 1)); }

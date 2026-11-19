@@ -215,8 +215,9 @@ let () =
   let wall = now_ms () - t0 in
   let results = List.rev !done_ in
   let failed = List.filter (fun (_, _, o) -> o <> Suites.Passed) results in
-  (* clean up before printing, so a closed reader leaves only the
-     failed suites' logs: passed suites go, failed ones lose their HOME *)
+  (* clean up before printing: passed suites go, failed ones lose their
+     HOME and keep their log. A closed reader after this point ends the
+     run in the handler below, which removes the whole temp dir *)
   List.iter (fun ((r : Suites.row), _, o) ->
       let dir = Filename.concat tmpbase r.name in
       if o = Suites.Passed then rm_rf dir else rm_rf (Filename.concat dir "home")) results;
