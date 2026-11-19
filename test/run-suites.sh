@@ -138,11 +138,12 @@ mkdir -p "$work/fw/scripts"
 awk '{ print } /bash -c "\$\{cmds\[\$i\]\}" \) > "\$dir\/log" 2>&1 < \/dev\/null &$/ { print "  kill -INT $$" }' "$rs" > "$work/fw/scripts/run-suites"
 chmod +x "$work/fw/scripts/run-suites"
 grep -q 'kill -INT \$\$' "$work/fw/scripts/run-suites" || fail "fork-window probe: could not instrument the runner"
-printf '%s\n' "forkwin${T}fixture${T}sleep 997${T}60${T}0${T}-${T}-" > "$work/forkwin.tsv"
+cp "$(command -v sleep)" "$work/forkwin-sleep"   # a name unique to this run: parallel self-tests never collide
+printf '%s\n' "forkwin${T}fixture${T}$work/forkwin-sleep 997${T}60${T}0${T}-${T}-" > "$work/forkwin.tsv"
 rc=0; TMPDIR="$work/rt" "$work/fw/scripts/run-suites" --table "$work/forkwin.tsv" > "$work/forkwin.out" 2>&1 || rc=$?
 [ "$rc" = 130 ] || fail "fork-window probe exit: $rc ($(cat "$work/forkwin.out"))"
 sleep 1.5
-if pgrep -f 'sleep 997' > /dev/null; then pkill -f 'sleep 997'; fail "a suite forked just before the signal survived"; fi; ok
+if pgrep -f "$work/forkwin-sleep" > /dev/null; then pkill -f "$work/forkwin-sleep"; fail "a suite forked just before the signal survived"; fi; ok
 
 # 2d. SIGHUP (terminal closed) reaps, cleans up, and prints no job notices
 rm -f "$work/hold.pid"
@@ -156,6 +157,13 @@ rc=0; wait "$rpid" || rc=$?
 if kill -0 "$(cat "$work/hold.pid")" 2>/dev/null; then kill "$(cat "$work/hold.pid")"; fail "HUP left a suite running"; fi; ok
 [ -z "$(ls "$work/rt")" ] || fail "HUP left the runner temp dir: $(ls "$work/rt")"; ok
 if grep -E -q 'Terminated|Killed' "$work/hup.out"; then fail "job notices on the interrupt path: $(cat "$work/hup.out")"; fi; ok
+
+# 2e. launch order: the largest budget starts first, whatever its row
+printf '%s\n' "short1${T}fixture${T}true${T}5${T}0${T}-${T}-" "short2${T}fixture${T}true${T}5${T}0${T}-${T}-" \
+  "long${T}fixture${T}true${T}90${T}0${T}-${T}-" > "$work/order.tsv"
+"$rs" --table "$work/order.tsv" --jobs 1 > "$work/order.out" 2>&1 || fail "order run: $(cat "$work/order.out")"
+[ "$(grep -E '^  ok ' "$work/order.out" | awk '{print $2}' | tr '\n' ' ')" = "long short1 short2 " ] || fail "launch order not largest budget first: $(cat "$work/order.out")"; ok
+[ "$("$rs" --table "$work/order.tsv" --list | tr '\n' ' ')" = "short1 short2 long " ] || fail "--list must keep table order"; ok
 
 # 3. serial rows never overlap; the same rows without the flag do
 "$rs" --table "$work/t.tsv" --only serial-a,serial-b --jobs 4 > "$work/serial.out" 2>&1 || fail "serial rows overlapped: $(cat "$work/serial.out")"; ok
