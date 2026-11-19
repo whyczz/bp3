@@ -2424,7 +2424,7 @@ let write_desk_context dir run_id graph node edge desk =
      with _ -> ());
     (try
        if Sys.file_exists desk && Sys.is_directory desk then
-         Config.write_file_atomic (Filename.concat desk ".bp3-context.json") payload
+         Config.write_file_atomic (Filename.concat desk Layout.context_file) payload
      with _ -> ())
 
 let do_link_claim args =

@@ -250,45 +250,57 @@ let ledger_text branch path =
   | None -> None
   | Some tip -> (match git_show tip path with Some t -> Some (tip, t) | None -> Some (tip, ""))
 
-(* Canonical spellings after the followup.3 scope-C rename;
-   legacy spellings fold here only, never in callers. *)
+(* Canonical spellings come from Layout; legacy spellings fold
+   here only, never in callers. *)
+let first_existing_ref canon legacies =
+  match List.find_opt (fun r -> ref_tip r <> None) (canon :: legacies) with
+  | Some r -> r
+  | None -> canon
+
 let graph_branch q =
-  let canon = "refs/heads/bp3/graph/" ^ q in
-  if ref_tip canon <> None then canon
-  else if ref_tip ("refs/heads/bp3/goal/" ^ q) <> None then "refs/heads/bp3/goal/" ^ q
-  else if ref_tip ("refs/heads/bp3/quest/" ^ q) <> None then "refs/heads/bp3/quest/" ^ q
-  else canon
+  first_existing_ref (Layout.quest_ref_of Layout.quest_ref_kind q)
+    (List.map (fun k -> Layout.quest_ref_of k q) Layout.legacy_quest_ref_kinds)
 
 let node_branch q e =
-  let canon = "refs/heads/bp3/node/" ^ q ^ "/" ^ canon_node_id e in
-  if ref_tip canon <> None then canon
-  else
-    let legacy = "refs/heads/bp3/exp/" ^ q ^ "/" ^ legacy_node_id e in
-    if ref_tip legacy <> None then legacy else canon
+  first_existing_ref (Layout.node_ref_prefix_of Layout.node_ref_kind q ^ canon_node_id e)
+    (List.map (fun k -> Layout.node_ref_prefix_of k q ^ legacy_node_id e)
+       Layout.legacy_node_ref_kinds)
 
-let graph_dir q = "docs/graphs/" ^ q
-let graph_ledger_path q = graph_dir q ^ "/ledger.jsonl"
-let node_dir q e = graph_dir q ^ "/nodes/" ^ canon_node_id e
-let node_ledger_path q e = node_dir q e ^ "/ledger.jsonl"
-let node_state_path q e = node_dir q e ^ "/state.yaml"
-let legacy_graph_ledger_path q = "docs/graphs/" ^ q ^ "/ledger.jsonl"
-let legacy_node_ledger_path q e =
-  "docs/graphs/" ^ q ^ "/nodes/" ^ legacy_node_id e ^ "/ledger.jsonl"
+let graph_dir q = Layout.quest_dir q
+let ledger_in dir = dir ^ "/" ^ Layout.ledger_file
+let node_dir_in root q id = Layout.quest_dir_in root q ^ "/" ^ Layout.nodes_dir ^ "/" ^ id
+let graph_ledger_path q = ledger_in (graph_dir q)
+let node_dir q e = node_dir_in Layout.quests_root q (canon_node_id e)
+let node_ledger_path q e = ledger_in (node_dir q e)
+let node_state_path q e = node_dir q e ^ "/" ^ Layout.state_file
+
+(* Pre-rename ledger paths on the same branch: every legacy root,
+   and legacy node ids under each root; canonical path excluded. *)
+let all_roots = Layout.quests_root :: Layout.legacy_quests_roots
+let legacy_graph_ledger_paths q =
+  List.map (fun r -> ledger_in (Layout.quest_dir_in r q)) all_roots
+  |> List.filter (fun p -> p <> graph_ledger_path q)
+let legacy_node_ledger_paths q e =
+  List.concat_map (fun r ->
+      List.map (fun id -> ledger_in (node_dir_in r q id))
+        [canon_node_id e; legacy_node_id e]) all_roots
+  |> List.filter (fun p -> p <> node_ledger_path q e)
 
 (* Read a ledger at its canonical path, falling back to the
-   pre-rename path on the same branch; the third component
+   pre-rename paths on the same branch; the third component
    names the path the text was read from so appends write
    back to the same path. *)
 let ledger_read branch canon legacy =
   match ref_tip branch with
   | None -> None
   | Some tip ->
-      (match git_show tip canon with
-       | Some t -> Some (tip, t, canon)
-       | None ->
-           (match git_show tip legacy with
-            | Some t -> Some (tip, t, legacy)
-            | None -> Some (tip, "", canon)))
+      let rec first = function
+        | [] -> Some (tip, "", canon)
+        | p :: rest ->
+            (match git_show tip p with
+             | Some t -> Some (tip, t, p)
+             | None -> first rest) in
+      first (canon :: legacy)
 
 (* Every bp3 prefix lives under refs/heads/bp3/: list that once
    per cache epoch and filter in memory, instead of one
@@ -298,26 +310,26 @@ let list_refs prefix =
   let all = match !refs_cache with
     | Some (epoch, refs) when epoch = !cache_epoch -> refs
     | _ ->
-        let out, code = git_out ["for-each-ref"; "--format=%(refname)"; "refs/heads/bp3/"] in
+        let out, code = git_out ["for-each-ref"; "--format=%(refname)"; Layout.ref_root] in
         let refs = if code <> 0 then [] else
           String.split_on_char '\n' out |> List.map String.trim |> List.filter (fun s -> s <> "") in
         refs_cache := Some (!cache_epoch, refs); refs in
   List.filter (fun r -> starts_with r prefix) all
 
 let list_graphs () =
-  (* Legacy storage prefixes fold here only (followup.3). *)
+  (* Legacy storage prefixes fold here only (Layout). *)
   let strip p r = String.sub r (String.length p) (String.length r - String.length p) in
   let dedup xs = List.fold_right (fun x acc -> if List.mem x acc then acc else x :: acc) xs [] in
-  dedup (List.concat_map (fun p -> list_refs p |> List.map (strip p))
-    ["refs/heads/bp3/graph/"; "refs/heads/bp3/goal/"; "refs/heads/bp3/quest/"])
+  dedup (List.concat_map (fun k ->
+      let p = Layout.quest_ref_prefix_of k in list_refs p |> List.map (strip p))
+    (Layout.quest_ref_kind :: Layout.legacy_quest_ref_kinds))
 
 let list_nodes q =
   let strip p r = String.sub r (String.length p) (String.length r - String.length p) in
   let dedup xs = List.fold_right (fun x acc -> if List.mem x acc then acc else x :: acc) xs [] in
-  let canon = list_refs ("refs/heads/bp3/node/" ^ q ^ "/")
-    |> List.map (strip ("refs/heads/bp3/node/" ^ q ^ "/")) in
-  let legacy = list_refs ("refs/heads/bp3/exp/" ^ q ^ "/")
-    |> List.map (strip ("refs/heads/bp3/exp/" ^ q ^ "/")) |> List.map canon_node_id in
+  let under k = let p = Layout.node_ref_prefix_of k q in list_refs p |> List.map (strip p) in
+  let canon = under Layout.node_ref_kind in
+  let legacy = List.concat_map under Layout.legacy_node_ref_kinds |> List.map canon_node_id in
   dedup (canon @ legacy)
 
 (* newest bp3_version stamped in any graph/node ledger in this repo *)
@@ -336,10 +348,10 @@ let newest_bp3_version () =
         | _ -> acc
       with _ -> acc) acc (String.split_on_char '\n' text) in
   List.fold_left (fun acc q ->
-    let acc = match ledger_read (graph_branch q) (graph_ledger_path q) (legacy_graph_ledger_path q) with
+    let acc = match ledger_read (graph_branch q) (graph_ledger_path q) (legacy_graph_ledger_paths q) with
       | Some (_, t, _) -> from_text acc t | None -> acc in
     List.fold_left (fun acc e ->
-      match ledger_read (node_branch q e) (node_ledger_path q e) (legacy_node_ledger_path q e) with
+      match ledger_read (node_branch q e) (node_ledger_path q e) (legacy_node_ledger_paths q e) with
       | Some (_, t, _) -> from_text acc t | None -> acc) acc (list_nodes q))
     None (list_graphs ())
 
@@ -356,12 +368,12 @@ let warnings_of id is_write =
   @ (match version_ahead () with Some _ -> ["W_VERSION_AHEAD"] | None -> [])
 
 let fold_node q e =
-  match ledger_read (node_branch q e) (node_ledger_path q e) (legacy_node_ledger_path q e) with
+  match ledger_read (node_branch q e) (node_ledger_path q e) (legacy_node_ledger_paths q e) with
   | None -> None
   | Some (tip, text, _) -> let (s, _, _) = fold_ledger text in Some (tip, s, text)
 
 let fold_graph q =
-  match ledger_read (graph_branch q) (graph_ledger_path q) (legacy_graph_ledger_path q) with
+  match ledger_read (graph_branch q) (graph_ledger_path q) (legacy_graph_ledger_paths q) with
   | None -> None
   | Some (tip, text, _) -> let (s, qt, deps) = fold_ledger text in Some (tip, s, qt, deps, text)
 
@@ -399,7 +411,7 @@ let ledger_line ~edge ~from ~to_ ~cycle ~commit ~verdict ~reason ~id
 
 let append_node_line q e line new_state =
   let branch = node_branch q e in
-  match ledger_read branch (node_ledger_path q e) (legacy_node_ledger_path q e) with
+  match ledger_read branch (node_ledger_path q e) (legacy_node_ledger_paths q e) with
   | None -> not_found "node" e
   | Some (tip, text, lpath) ->
       let new_text = (if String.trim text = "" then "" else
@@ -579,7 +591,7 @@ let parse_icebox_entry slug text =
     promoted; title; text }
 
 let list_icebox_entries () =
-  let dir = Filename.concat root "docs/icebox" in
+  let dir = Filename.concat root Layout.icebox_dir in
   let names = try Array.to_list (Sys.readdir dir) with _ -> [] in
   names
   |> List.filter (fun n -> n <> "README.md" && Filename.check_suffix n ".md"

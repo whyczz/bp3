@@ -184,7 +184,7 @@ let touch b =
    ledger on its branch. The only ledger door hooks may use;
    it writes no state.yaml because event lines change no state. ---------- *)
 let append_event graph node line =
-  match ledger_read (node_branch graph node) (node_ledger_path graph node) (legacy_node_ledger_path graph node) with
+  match ledger_read (node_branch graph node) (node_ledger_path graph node) (legacy_node_ledger_paths graph node) with
   | None -> false
   | Some (tip, text, lpath) ->
       let new_text = (if String.trim text = "" then "" else
@@ -230,8 +230,9 @@ let handle () =
         let gate_root = if cwd_field <> "" then cwd_field else root in
         let is_repo =
           Sys.file_exists (Filename.concat gate_root "bin/bp3") &&
-          (try Sys.is_directory (Filename.concat gate_root "docs/graphs")
-           with _ -> false) in
+          List.exists (fun r ->
+              try Sys.is_directory (Filename.concat gate_root r) with _ -> false)
+            (Layout.quests_root :: Layout.legacy_quests_roots) in
         if not is_repo then no_write "not a bp3 repo"
         else
           let command = command_of payload in
@@ -256,7 +257,7 @@ let handle () =
                         when valid_slug q && valid_slug e ->
                           let run_dir = Filename.concat root
                             (Filename.concat (node_dir q e)
-                               (Filename.concat "runs" run_id)) in
+                               (Filename.concat Layout.runs_dir run_id)) in
                           if not (try Sys.is_directory run_dir with _ -> false)
                           then finish (no_write "no matching run folder")
                           else begin

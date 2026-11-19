@@ -370,7 +370,7 @@ and resolve_desk claimed =
          corroborates the rung, checked against cwd: a file
          naming a run whose desk is elsewhere resolves
          nothing (no sibling inheritance) *)
-      let file = Filename.concat cwd ".bp3-context.json" in
+      let file = Filename.concat cwd Layout.context_file in
       if not (Sys.file_exists file) then No_context
       else
         (try

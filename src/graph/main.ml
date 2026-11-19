@@ -124,7 +124,7 @@ let do_graph_create graph fl id =
     | _ -> [] in
   List.iter check_slug deps;
   let head = head_sha () in
-  let qpath = graph_dir graph ^ "/GRAPH.md" in
+  let qpath = graph_dir graph ^ "/" ^ Layout.quest_file in
   let existing_graph_md = git_show head qpath in
   let graph_md = match existing_graph_md with
     | Some c -> c
@@ -152,7 +152,7 @@ let do_graph_delete graph fl id =
   if any_blocked && not id.decider_human then
     err "E_HUMAN_REQUIRED" (`Assoc [("graph", json_str graph)])
       "An node is blocked; a human decision is required (BP3_DECIDER=human)." 1;
-  (match ledger_read (graph_branch graph) (graph_ledger_path graph) (legacy_graph_ledger_path graph) with
+  (match ledger_read (graph_branch graph) (graph_ledger_path graph) (legacy_graph_ledger_paths graph) with
    | None -> not_found "graph" graph
    | Some (tip, text, lpath) ->
        let line = ledger_line ~edge:"delete" ~from:qs.st ~to_:"deleted" ~cycle:1

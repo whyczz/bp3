@@ -32,7 +32,7 @@ let derive_path graph node run_id =
   Store.check_slug graph;
   Store.check_slug node;
   if not (valid_run_id run_id) then usage ("invalid run id: " ^ run_id);
-  ".bp3/worktrees/" ^ graph ^ "/" ^ node ^ "/" ^ run_id
+  String.concat "/" [Layout.desks_root; graph; node; run_id]
 
 (* ---------- git in a worktree ---------- *)
 let abs_path p =
@@ -292,7 +292,7 @@ let do_prepare graph node run_id commit path_override =
       end
   | None ->
       let path = match path_override with Some p -> p | None -> default_path in
-      let branch = "bp3/node/" ^ graph ^ "/" ^ Store.canon_node_id node in
+      let branch = Layout.node_branch_short graph (Store.canon_node_id node) in
       let _ = (match commit with
                | Some c -> do_create path None (Some c)
                | None -> do_create path (Some branch) None) in
@@ -321,8 +321,8 @@ let do_prepare_graph graph =
         prepare_verdict r true
       end
   | None ->
-      let path = ".bp3/worktrees/" ^ graph in
-      let branch = "graph/" ^ graph in
+      let path = Layout.desk_dir graph in
+      let branch = Layout.work_branch graph in
       let _ = do_create path (Some branch) None in
       let i = inspect_info path in
       let r = { r_run = run_id; r_graph = graph; r_node = "(graph)";
@@ -403,9 +403,15 @@ let orphan_entry abs =
     then String.sub abs (String.length croot + 1)
            (String.length abs - String.length croot - 1)
     else abs in
-  match String.split_on_char '/' rel with
-  | [".bp3"; "worktrees"; q; e; r] ->
-      let shown = ".bp3/worktrees/" ^ q ^ "/" ^ e ^ "/" ^ r in
+  let prefix = Layout.desks_root ^ "/" in
+  let under_desks =
+    if Store.starts_with rel prefix then
+      String.split_on_char '/'
+        (String.sub rel (String.length prefix) (String.length rel - String.length prefix))
+    else [] in
+  match under_desks with
+  | [q; e; r] ->
+      let shown = String.concat "/" [Layout.desks_root; q; e; r] in
       let live =
         (try
            let i = inspect_info shown in
