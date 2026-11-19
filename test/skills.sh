@@ -67,6 +67,17 @@ printf '{"defaultModel":"keep","skills":["/extra","!**/ignored/**"]}\n' > "$root
 "$root/bin/bp3" skills install --harness=all > /dev/null
 "$root/scripts/check-skills" "$root/skills" "$root/.pi/skills" "$root/.agents/skills" "$root/.claude/skills" > /dev/null
 
+# Stale renders: a generated copy whose skill left the set is pruned;
+# a hand-written skill (no GENERATED notice) is never touched.
+mkdir -p "$root/.claude/skills/retired-skill" "$root/.claude/skills/hand-made"
+printf -- '---\nname: retired-skill\n---\n<!-- GENERATED from skills/retired-skill/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->\nold\n' > "$root/.claude/skills/retired-skill/SKILL.md"
+printf -- '---\nname: hand-made\n---\nmine\n' > "$root/.claude/skills/hand-made/SKILL.md"
+"$root/bin/bp3" skills install --harness=claude > "$work/prune.out"
+assert test ! -e "$root/.claude/skills/retired-skill"
+assert test -f "$root/.claude/skills/hand-made/SKILL.md"
+assert grep -q 'pruned retired-skill' "$work/prune.out"
+rm -rf "$root/.claude/skills/hand-made"
+
 # Render freshness (followup.2, workflow-birth): a fresh desk
 # passes silently; a backdated render refuses E_RENDER_STALE
 # naming render and source; re-render restores freshness.

@@ -98,6 +98,22 @@ install_one() {
   echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness)"
 }
 
+# A rename leaves the old render behind, still triggerable. Remove
+# renders this script generated (the GENERATED notice) whose skill
+# is no longer in the set; hand-written skills carry no notice.
+prune_stale() {
+  local harness="$1" target="$2" skills="$3" target_dir dir name
+  target_dir="$(harness_target "$harness")"
+  for dir in "$target/$target_dir"/*/; do
+    [ -f "$dir/SKILL.md" ] || continue
+    name="$(basename "$dir")"
+    case " $skills " in *" $name "*) continue ;; esac
+    grep -q '^<!-- GENERATED from skills/' "$dir/SKILL.md" || continue
+    rm -rf "$dir"
+    echo "pruned $name -> $target_dir/$name (no longer in the skill set)"
+  done
+}
+
 skills_install() {
   local harness="all"
   while [ $# -gt 0 ]; do
@@ -163,6 +179,9 @@ skills_install() {
     for h in $harnesses; do
       install_one "$skill" "$h" "$target"
     done
+  done
+  for h in $harnesses; do
+    prune_stale "$h" "$target" "$skills"
   done
   if [ -n "$settings_plan" ]; then
     mkdir -p "$target/.pi"
