@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# run-suites fixtures (test-pyramid tier.1): HOME and env isolation,
+# run-suites fixtures (test-pyramid tier.1), black-box against
+# scripts/run-suites (the OCaml runner): HOME and env isolation,
 # budget kills the whole process group and never fires early, Ctrl-C
 # (once or mashed), Ctrl-\ and SIGHUP reap every suite and the temp
 # dir, serial rows never overlap, table validation, --list and
@@ -68,11 +69,23 @@ for n in 1 2 3; do
   "$rs" --table "$work/t.tsv" --only near > "$work/near.out" 2>&1 || fail "1.5s suite killed under a 2s budget (run $n): $(cat "$work/near.out")"
 done; ok
 
-# 2b'. suites start with default INT/QUIT (bash ignores them for `&`
-# commands when job control is off; the runner must undo that)
-printf '%s\n' "sigs${T}fixture${T}perl -e 'print \"INT=\", (\$SIG{INT} // \"DEFAULT\"), \"\\n\"' > $work/sigs.out${T}5${T}0${T}-${T}-" > "$work/sigs.tsv"
-"$rs" --table "$work/sigs.tsv" > /dev/null 2>&1 || fail "signal probe run"
-grep -q '^INT=DEFAULT$' "$work/sigs.out" || fail "suite started with INT not default: $(cat "$work/sigs.out")"; ok
+# 2b'. suites start with default INT and QUIT, even when the runner
+# inherited them ignored (bash ignores both for `&` commands when job
+# control is off, as here): a suite signalled directly dies of it
+# (128 + N) instead of riding out its budget
+for sig in INT QUIT; do
+  printf '%s\n' "sig-$sig${T}fixture${T}echo \$\$ > $work/sig-$sig.pid; exec sleep 30${T}5${T}0${T}-${T}-"
+done > "$work/sigs.tsv"
+"$rs" --table "$work/sigs.tsv" > "$work/sigs.out" 2>&1 &
+rsp=$!
+for sig in INT QUIT; do
+  for _ in $(seq 50); do [ -s "$work/sig-$sig.pid" ] && break; sleep 0.1; done
+  kill -"$sig" "$(cat "$work/sig-$sig.pid")" || fail "signal probe: no sig-$sig suite to signal"
+done
+rc=0; wait "$rsp" || rc=$?
+[ "$rc" = 1 ] || fail "signal probe exit: $rc ($(cat "$work/sigs.out"))"
+grep -Eq 'FAIL sig-INT .*rc=130$' "$work/sigs.out" || fail "suite did not die of INT: $(cat "$work/sigs.out")"; ok
+grep -Eq 'FAIL sig-QUIT .*rc=131$' "$work/sigs.out" || fail "suite did not die of QUIT: $(cat "$work/sigs.out")"; ok
 
 # 2c. a terminal Ctrl-C reaps every running suite and the runner's temp dir
 mkdir -p "$work/rt"
@@ -135,24 +148,19 @@ for probe in int:130 int3:130 quit:131; do
 done
 
 # 2c'. a signal that lands between a suite's fork and its bookkeeping
-# still reaps it: an instrumented copy signals itself right after the
-# fork (the window the job table covers), then nothing may survive
-mkdir -p "$work/fw/scripts"
-awk '{ print } /bash -c "\$\{cmds\[\$i\]\}" \) > "\$dir\/log" 2>&1 < \/dev\/null &$/ { print "  kill -INT $$" }' "$rs" > "$work/fw/scripts/run-suites"
-chmod +x "$work/fw/scripts/run-suites"
-grep -q 'kill -INT \$\$' "$work/fw/scripts/run-suites" || fail "fork-window probe: could not instrument the runner"
+# still reaps it: the runner's test hook signals itself inside that
+# window (where INT/TERM/HUP/QUIT are blocked), then nothing may survive
 # a name unique to this run, so parallel self-tests never collide. A
 # symlink, not a copy: macOS kills a copied system binary at exec
 # (code-signing launch constraint), which would make this probe vacuous.
 ln -s "$(command -v sleep)" "$work/forkwin-sleep"
 "$work/forkwin-sleep" 0 || fail "fork-window probe: the marker binary does not run"
 printf '%s\n' "forkwin${T}fixture${T}$work/forkwin-sleep 997${T}60${T}0${T}-${T}-" > "$work/forkwin.tsv"
-# perl resets INT first: a self-test started with INT ignored would pass
-# that ignore on, and the instrumented runner could never trap its signal
-rc=0; TMPDIR="$work/rt" perl -e '$SIG{INT} = "DEFAULT"; exec @ARGV or die' "$work/fw/scripts/run-suites" --table "$work/forkwin.tsv" > "$work/forkwin.out" 2>&1 || rc=$?
+rc=0; TMPDIR="$work/rt" RUN_SUITES_SIGNAL_AFTER_FORK=INT "$rs" --table "$work/forkwin.tsv" > "$work/forkwin.out" 2>&1 || rc=$?
 [ "$rc" = 130 ] || fail "fork-window probe exit: $rc ($(cat "$work/forkwin.out"))"
 sleep 1.5
 if pgrep -f "$work/forkwin-sleep" > /dev/null; then pkill -f "$work/forkwin-sleep"; fail "a suite forked just before the signal survived"; fi; ok
+[ -z "$(ls "$work/rt")" ] || fail "fork-window probe left the runner temp dir"; ok
 
 # 2d. SIGHUP (terminal closed) reaps, cleans up, and prints no job notices
 rm -f "$work/hold.pid"

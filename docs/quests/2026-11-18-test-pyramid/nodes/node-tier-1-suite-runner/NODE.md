@@ -88,7 +88,7 @@ print_lines(results); exit(0 if all(r.ok for r in results) else 1)
 |---|---|
 | Intent | cut make check wall time by running suites at once, safely |
 | Lane | standard |
-| Output | `scripts/run-suites`, `test/suites.tsv`, `test/harness/lib.sh` plus the split harness pieces, the five-run timing log |
+| Output | `scripts/run-suites`, `test/suites.tsv`, `test/harness/lib.sh` plus the split harness pieces, the five-run timing log. The runner is OCaml on stdlib and `unix` only (`src/quest/run_suites.ml`, pure core `src/quest/suites.ml` unit-tested in `test/unit/test_suites.ml`); `scripts/run-suites` execs it (owner, 2026-11-19: no perl, fewer deps) |
 | Acceptance | goal block above; fails today (`scripts/run-suites` does not exist) |
 | Depends on | none |
 | Tests | known cases: planted suites under `test/run-suites/` (HOME leak, env leak, budget overrun, serial lock); property-based: none, by decision: the runner orchestrates processes and has no pure function to generate over |

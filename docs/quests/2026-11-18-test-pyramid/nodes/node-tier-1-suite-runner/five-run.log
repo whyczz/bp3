@@ -1,8 +1,8 @@
-# tier.1 five-run proof: scripts/run-suites, default jobs (10), bound = longest suite + 10s, computed by script
-# tree: 92cb256 + working changes (round 6); date: 2026-11-19T19:11:14Z
-run 1  rc=0  ok 31/31  wall=25.2s  longest=25.1s  bound=35.1s  MET  load=7.09
-run 2  rc=0  ok 31/31  wall=25.4s  longest=25.3s  bound=35.3s  MET  load=8.39
-run 3  rc=0  ok 31/31  wall=25.3s  longest=25.3s  bound=35.3s  MET  load=8.61
-run 4  rc=0  ok 31/31  wall=25.4s  longest=25.4s  bound=35.4s  MET  load=8.47
-run 5  rc=0  ok 31/31  wall=25.2s  longest=25.1s  bound=35.1s  MET  load=8.01
+# tier.1 five-run proof: scripts/run-suites (OCaml runner), default jobs (10), bound = longest suite + 10s, computed by script
+# tree: e2d9c80 + working changes (round 7: OCaml runner); date: 2026-11-19T19:31:30Z
+run 1  rc=0  ok 31/31  wall=24.1s  longest=24.1s  bound=34.1s  MET  load=4.45
+run 2  rc=0  ok 31/31  wall=23.9s  longest=23.9s  bound=33.9s  MET  load=5.25
+run 3  rc=0  ok 31/31  wall=23.9s  longest=23.9s  bound=33.9s  MET  load=5.62
+run 4  rc=0  ok 31/31  wall=23.8s  longest=23.8s  bound=33.8s  MET  load=7.19
+run 5  rc=0  ok 31/31  wall=23.9s  longest=23.9s  bound=33.9s  MET  load=6.86
 result: 5/5 runs exit 0 within the bound

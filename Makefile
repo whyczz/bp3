@@ -10,7 +10,7 @@ DUNE_TEST = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune test$(if $(findstring /.bp
 check: lint
 	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
 	./test/skills.sh
-	$(DUNE_BUILD) src/quest/main.exe
+	$(DUNE_BUILD) src/quest/main.exe src/quest/run_suites.exe
 	$(DUNE_TEST)
 	./test/g.sh
 	./test/ready.sh
