@@ -100,9 +100,18 @@ function normalize(text, run, bpPid = null) {
   if (bpPid) s = s.replace(pidRe(bpPid), "<BP3_PID>");
   (run?.pids ?? []).forEach((pid, i) => { s = s.replace(pidRe(pid), `<RUN_PID_${i}>`); });
   s = s.replace(pidRe(process.pid), "<FAKE_PID>").replace(pidRe(process.ppid), "<CALLER_PID>");
-  // a pid nobody here owns (one the test wrote into a run config): replay
-  // stands in a live one, the caller's
-  return s.replace(/("pid":)\d+/g, "$1<OTHER_PID>");
+  // pids the test itself wrote into bp3's files before the call (a live
+  // child it spawned): replay stands in a live one, the caller's. Any
+  // other pid stays literal, so a changed pid in bp3's own output drifts.
+  for (const pid of testPids) s = s.replace(pidRe(pid), "<OTHER_PID>");
+  return s;
+}
+
+let testPids = [];
+function pidsIn(files) {
+  const out = new Set();
+  for (const v of Object.values(files)) for (const m of v.matchAll(/"pid":(\d+)/g)) out.add(m[1]);
+  return [...out].filter((p) => p !== String(process.pid) && p !== String(process.ppid));
 }
 
 function keyedEnv(run) {
@@ -130,6 +139,7 @@ function record() {
   const stateFile = common ? path.join(common, "fake-bp3-record-state.json") : null;
   const state = stateFile ? readState(stateFile) : { runs: [] };
   const before = common ? snapshot(path.join(common, "bp3")) : {};
+  testPids = pidsIn(before).filter((p) => !(state.runs.flatMap((r) => r.pids ?? []).map(String).includes(p)));
   const res = spawnSync(real, argv, { cwd, encoding: "utf8", env: process.env });
   if (res.error) die(`cannot run the real binary ${real}: ${res.error.message}`, 2);
   const after = common ? snapshot(path.join(common, "bp3")) : {};
@@ -145,6 +155,13 @@ function record() {
     introduced = { run_id: verdict.run_id, token: verdict.token, origin: null };
     state.runs.push(introduced);
   }
+  // the shape replay mints in: the run_id with its timestamp and random
+  // part blanked, the token with its random tail measured
+  const shape = introduced ? {
+    run_id: introduced.run_id.replace(/^\d{8}T\d{6}(\.\d{3}[0-9a-f]{4})?Z/, "<RUN_TS>"),
+    token_prefix: (introduced.token.match(/^[A-Za-z0-9]+_/) ?? [""])[0],
+    token_len: introduced.token.length,
+  } : null;
   const texts = [...argv, res.stdout ?? "", res.stderr ?? "", ...Object.keys(files), ...Object.values(files).filter((v) => v !== null),
     ...KEYED_ENV.map((k) => process.env[k] ?? "")];
   const run = runIn(state, texts);
@@ -153,7 +170,7 @@ function record() {
   const nargv = argv.map((a) => normalize(a, run));
   if (introduced) introduced.origin = JSON.stringify(nargv);
   const row = {
-    argv: nargv, env: keyedEnv(run), run: run ? run.origin : null, exit: res.status ?? 1,
+    argv: nargv, env: keyedEnv(run), run: run ? run.origin : null, ...(shape ? { shape } : {}), exit: res.status ?? 1,
     stdout: normalize(res.stdout ?? "", run, res.pid), stderr: normalize(res.stderr ?? "", run, res.pid), files: nfiles,
   };
   if (run) run.pids = [...(run.pids ?? []), res.pid];
@@ -183,13 +200,22 @@ function replay() {
   try {
     rows = fs.readFileSync(transcriptsPath, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
   } catch (e) { die(`cannot read transcripts ${transcriptsPath}: ${e.message}`, 97); }
-  const row = rows.find((r) => keyOf(r) === key) ?? (run ? undefined : rows.find((r) => keyOf(r) === keyNoRun));
+  const matches = (k) => rows.filter((r) => keyOf(r) === k);
+  let hits = matches(key);
+  if (hits.length === 0 && !run) hits = matches(keyNoRun);
+  if (hits.length > 1) die(`duplicate transcripts for argv ${JSON.stringify(argv)}: one call, one row`, 96);
+  const row = hits[0];
   if (!row) die(`no transcript for argv ${JSON.stringify(argv)}; record one with scripts/record-transcripts`, 97);
   const recorded = [row.stdout, row.stderr, ...Object.keys(row.files), ...Object.values(row.files).filter((v) => v !== null)];
   if (!run && recorded.some((t) => t.includes("<RUN_ID>") || t.includes("<TOKEN>"))) {
     const now = new Date();
     const cts = now.toISOString().replace(/[-:]/g, "").replace(/\.(\d{3})Z$/, ".$1");
-    run = { run_id: `${cts}${hex(4)}Z-fake-c1`, token: `bp3link_fake${hex(16)}`, origin: JSON.stringify(nargv) };
+    const shape = row.shape ?? { run_id: "<RUN_TS>-fake-c1", token_prefix: "bp3link_", token_len: 40 };
+    run = {
+      run_id: shape.run_id.replace("<RUN_TS>", `${cts}${hex(4)}Z`),
+      token: shape.token_prefix + hex(Math.max(8, shape.token_len - shape.token_prefix.length)),
+      origin: JSON.stringify(nargv),
+    };
     state.runs.push(run);
     if (stateFile) fs.writeFileSync(stateFile, JSON.stringify(state));
   }

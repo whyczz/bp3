@@ -145,7 +145,8 @@ test("listRuns: live runs answer at once and are never signalled (seam.2)", () =
     const ms = Date.now() - t0;
     assert.equal(runs.length, 3);
     for (const r of runs) assert.equal(r.lifecycle, "active", `lifecycle for ${r.run_id}`);
-    assert.ok(ms < 1000, `listRuns took ${ms}ms over 3 live runs`);
+    // a hang guard (R2'): the old blocking listRuns spent 5s per live run
+    assert.ok(ms < 10000, `listRuns took ${ms}ms over 3 live runs`);
     for (const c of live) assert.equal(c.exitCode, null, "a live run was signalled");
   } finally {
     for (const c of live) c.kill("SIGKILL");

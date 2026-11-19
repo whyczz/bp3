@@ -230,6 +230,7 @@ echo "$out" | jq -e '.ready == ["bw"] and .starved == [{"blocked":"bx","starved"
 # workflow, never a resume of the old run's agents. Evidence
 # is timestamps and the process table, not state inference.
 cat > "$work/bubble-drive.mjs" <<'BUBBLE_JS'
+import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -237,8 +238,6 @@ import { pathToFileURL } from "node:url";
 const repo = process.cwd();
 const root = process.env.BP3_ROOT;
 const work = process.env.BP3_WORK;
-let failures = 0;
-function assert(c, m) { if (!c) { console.error("FAIL: " + m); failures++; } }
 function alive(pid) { try { process.kill(pid, 0); return true; } catch { return false; } }
 async function waitDead(pid, ms = 5000) {
   const end = Date.now() + ms;
@@ -341,29 +340,29 @@ const piBubbles = path.join(work, "pi-bubbles.jsonl");
 const piT0 = Date.now();
 const piSeed = spawnPi("block-fail", "bubpi", "seeded-pi", piBubbles, path.join(work, "pi-seed"));
 const piSib = spawnPi("handoff", "bubpi", "sib-pi", piBubbles, path.join(work, "pi-sib"));
-assert((await exitOf(piSeed.child)) === 0, "Pi seeded node worker exits 0 on block");
-assert((await exitOf(piSib.child)) === 0, "Pi sibling node worker exits 0");
+assert.ok((await exitOf(piSeed.child)) === 0, "Pi seeded node worker exits 0 on block");
+assert.ok((await exitOf(piSib.child)) === 0, "Pi sibling node worker exits 0");
 const piT1 = Date.now();
 const piLines = fs.readFileSync(piBubbles, "utf8").trim().split("\n").map((l) => JSON.parse(l));
 const piSeedBubbles = piLines.filter((b) => b.node === "seeded-pi");
-assert(piSeedBubbles.length === 1, "Pi exactly one bubble, got " + piSeedBubbles.length);
+assert.ok(piSeedBubbles.length === 1, "Pi exactly one bubble, got " + piSeedBubbles.length);
 const pb = piSeedBubbles[0];
-assert(pb && pb.state === "blocked" && pb.reason === "choose storage shape" && pb.last_edge === "handoff" && pb.inbox_key === "bubpi/seeded-pi" && Array.isArray(pb.run_chain) && pb.run_chain.length === 2 && !("pid" in pb), "Pi bubble facts only: " + JSON.stringify(pb));
-assert(await waitDead(piSeed.pid), "Pi node worker pid dead after bubble");
+assert.ok(pb && pb.state === "blocked" && pb.reason === "choose storage shape" && pb.last_edge === "handoff" && pb.inbox_key === "bubpi/seeded-pi" && Array.isArray(pb.run_chain) && pb.run_chain.length === 2 && !("pid" in pb), "Pi bubble facts only: " + JSON.stringify(pb));
+assert.ok(await waitDead(piSeed.pid), "Pi node worker pid dead after bubble");
 const piEdgePid = Number(fs.readFileSync(path.join(work, "pi-seed.edge.pid"), "utf8"));
-assert(await waitDead(piEdgePid), "Pi edge worker pid dead after bubble (process table)");
-assert(await waitDead(piSib.pid), "Pi sibling tree dead after its bubble");
-assert(bp3(["q", "bubpi", "r", "seeded-pi"]).state === "blocked", "Pi seeded rests blocked");
-assert(bp3(["q", "bubpi", "r", "sib-pi"]).state === "handed_off", "Pi sibling unaffected: handed_off while seeded blocked");
-assert(bp3(["q", "r", "bubpi"]).inbox.filter((i) => i.node === "seeded-pi").length === 1, "Pi exactly one inbox entry");
+assert.ok(await waitDead(piEdgePid), "Pi edge worker pid dead after bubble (process table)");
+assert.ok(await waitDead(piSib.pid), "Pi sibling tree dead after its bubble");
+assert.ok(bp3(["q", "bubpi", "r", "seeded-pi"]).state === "blocked", "Pi seeded rests blocked");
+assert.ok(bp3(["q", "bubpi", "r", "sib-pi"]).state === "handed_off", "Pi sibling unaffected: handed_off while seeded blocked");
+assert.ok(bp3(["q", "r", "bubpi"]).inbox.filter((i) => i.node === "seeded-pi").length === 1, "Pi exactly one inbox entry");
 const piResumed = bp3(["q", "bubpi", "u", "seeded-pi", "resume", "--reason", "use localStorage"], { BP3_DECIDER: "human" });
-assert(piResumed.ok === true && piResumed.state === "todo", "Pi resume revives to todo");
+assert.ok(piResumed.ok === true && piResumed.state === "todo", "Pi resume revives to todo");
 const piFresh = spawnPi("handoff", "bubpi", "seeded-pi", piBubbles, path.join(work, "pi-seed2"));
-assert((await exitOf(piFresh.child)) === 0, "Pi fresh tree exits 0");
-assert(piFresh.runId !== piSeed.runId && piFresh.pid !== piSeed.pid, "Pi revival is a fresh tree: new run-id and pid");
-assert(await waitDead(piFresh.pid), "Pi fresh tree dead after revival bubble");
-assert(bp3(["q", "bubpi", "r", "seeded-pi"]).state === "handed_off", "Pi fresh tree continues node to handed_off");
-assert(bp3(["q", "bubpi", "r", "sib-pi"]).state === "handed_off", "Pi sibling still unaffected after revival");
+assert.ok((await exitOf(piFresh.child)) === 0, "Pi fresh tree exits 0");
+assert.ok(piFresh.runId !== piSeed.runId && piFresh.pid !== piSeed.pid, "Pi revival is a fresh tree: new run-id and pid");
+assert.ok(await waitDead(piFresh.pid), "Pi fresh tree dead after revival bubble");
+assert.ok(bp3(["q", "bubpi", "r", "seeded-pi"]).state === "handed_off", "Pi fresh tree continues node to handed_off");
+assert.ok(bp3(["q", "bubpi", "r", "sib-pi"]).state === "handed_off", "Pi sibling still unaffected after revival");
 // --- Muse form in parallel: real induct-node workflow, same bubble ---
 const workflow = (await import(pathToFileURL(path.join(root, "skills/induct/workflows/induct-node.js")).href)).default;
 bp3(["q", "c", "bubcl"]); bp3(["q", "bubcl", "c", "seeded-cl"]); bp3(["q", "bubcl", "c", "sib-cl"]);
@@ -416,21 +415,20 @@ function makeClaudeHost(node, blockMode) {
 const clSeedHost = makeClaudeHost("seeded-cl", true);
 const clSibHost = makeClaudeHost("sib-cl", false);
 const [clSeed, clSib] = await Promise.all([workflow(clSeedHost), workflow(clSibHost)]);
-assert(clSeed.outcome === "blocked" && clSeed.reason === "choose storage shape" && clSeed.last_edge === "handoff" && clSeed.quest === "bubcl" && clSeed.inbox_key === "bubcl/seeded-cl", "Muse parity bubble same terminal facts: " + JSON.stringify(clSeed));
-assert(clSib.outcome === "landed", "Muse sibling landed unaffected, got " + clSib.outcome);
-assert((clSeedHost.edgeCalls.handoff || 0) === 1 && clSeedHost.blockCalls === 1, "Muse failed edge never retried, exactly one block");
-assert(bp3(["q", "bubcl", "r", "seeded-cl"]).state === "blocked", "Muse seeded rests blocked");
-assert(bp3(["q", "bubcl", "r", "sib-cl"]).state === "landed", "Muse sibling state landed");
+assert.ok(clSeed.outcome === "blocked" && clSeed.reason === "choose storage shape" && clSeed.last_edge === "handoff" && clSeed.quest === "bubcl" && clSeed.inbox_key === "bubcl/seeded-cl", "Muse parity bubble same terminal facts: " + JSON.stringify(clSeed));
+assert.ok(clSib.outcome === "landed", "Muse sibling landed unaffected, got " + clSib.outcome);
+assert.ok((clSeedHost.edgeCalls.handoff || 0) === 1 && clSeedHost.blockCalls === 1, "Muse failed edge never retried, exactly one block");
+assert.ok(bp3(["q", "bubcl", "r", "seeded-cl"]).state === "blocked", "Muse seeded rests blocked");
+assert.ok(bp3(["q", "bubcl", "r", "sib-cl"]).state === "landed", "Muse sibling state landed");
 const clOldCalls = clSeedHost.calls;
 const clResumed = bp3(["q", "bubcl", "u", "seeded-cl", "resume", "--reason", "use localStorage"], { BP3_DECIDER: "human" });
-assert(clResumed.ok === true && clResumed.state === "todo", "Muse resume revives to todo");
+assert.ok(clResumed.ok === true && clResumed.state === "todo", "Muse resume revives to todo");
 const clFreshHost = makeClaudeHost("seeded-cl", false);
 const clFresh = await workflow(clFreshHost);
-assert(clFresh.outcome === "landed", "Muse fresh workflow lands seeded, got " + clFresh.outcome);
-assert(clSeedHost.calls === clOldCalls, "Muse revival never resumes old workflow agents");
-assert(clFresh.run_ids.every((r) => !clSeed.run_ids.includes(r)), "Muse revival run-ids are fresh, disjoint from blocked run");
-assert(bp3(["q", "bubcl", "r", "sib-cl"]).state === "landed", "Muse sibling still landed after revival");
-if (failures > 0) process.exit(1);
+assert.ok(clFresh.outcome === "landed", "Muse fresh workflow lands seeded, got " + clFresh.outcome);
+assert.ok(clSeedHost.calls === clOldCalls, "Muse revival never resumes old workflow agents");
+assert.ok(clFresh.run_ids.every((r) => !clSeed.run_ids.includes(r)), "Muse revival run-ids are fresh, disjoint from blocked run");
+assert.ok(bp3(["q", "bubcl", "r", "sib-cl"]).state === "landed", "Muse sibling still landed after revival");
 console.log(JSON.stringify({ pi_bubble: pb.state, pi_fresh_run: piFresh.runId, pi_wall_ms: piT1 - piT0, claude_bubble: clSeed.outcome, claude_fresh: clFresh.outcome, sibling_pi: "handed_off", sibling_claude: clSib.outcome }));
 BUBBLE_JS
 bubble_out=$(BP3_ROOT="$root" BP3_WORK="$work" node "$work/bubble-drive.mjs") || fail "bubble drive: $bubble_out"

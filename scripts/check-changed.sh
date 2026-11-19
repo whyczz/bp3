@@ -69,8 +69,10 @@ cmd_for() {
     skills) echo "./test/skills.sh" ;;
     build) echo "$dune_build src/quest/main.exe" ;;
     g) echo "./test/g.sh" ;;
-    pi-tree) echo "node test/pi-tree.test.mjs" ;;
-    bp3-pi) echo "node --test extensions/bp3-pi/test/bp3-pi.test.mjs" ;;
+    js-unit) echo "./test/js-unit.sh" ;;
+    pi-tree) echo "scripts/run-suites --only pi-tree" ;;
+    bp3-pi) echo "node --test extensions/bp3-pi/test/bp3-pi-real.test.mjs" ;;
+    transcripts) echo "./test/transcripts.sh" ;;
     induct) echo "./test/induct.sh" ;;
     check-tiers) echo "./test/check-tiers.sh" ;;
     wf:*) echo "node test/${1#wf:}.test.mjs" ;;
@@ -78,10 +80,10 @@ cmd_for() {
     *) echo "unknown suite: $1" >&2; return 1 ;;
   esac
 }
-order="lint check-skills skills-check skills build g pi-tree bp3-pi induct check-tiers"
+order="lint check-skills skills-check skills build g js-unit pi-tree bp3-pi transcripts induct check-tiers"
 declare -a want=()
 add() { local s; for s in "${want[@]:-}"; do [ "$s" = "$1" ] && return 0; done; want+=("$1"); }
-add_fast() { local s; for s in lint check-skills skills build induct pi-tree bp3-pi check-tiers; do add "$s"; done; }
+add_fast() { local s; for s in lint check-skills skills build induct js-unit bp3-pi check-tiers; do add "$s"; done; }
 if [ "$fast" = 1 ]; then
   add_fast
 else
@@ -106,9 +108,11 @@ else
         esac ;;
       skills/*|.pi/skills/*|.agents/skills/*|.claude/skills/*)
         add check-skills; add skills; add induct ;;
-      src/*) add build; add g ;;
+      src/*) add build; add g; add transcripts ;;
+      test/pi-tree.test.mjs) add build; add pi-tree ;;
+      test/fake-bp3/*|scripts/record-transcripts) add build; add js-unit; add transcripts ;;
       test/*) add build; add "test:$p" ;;
-      extensions/*) add bp3-pi ;;
+      extensions/*) add build; add js-unit; add bp3-pi; add transcripts ;;
       bin/*|scripts/*|completions/*|Makefile) add_fast ;;
       *) add_fast ;;
     esac

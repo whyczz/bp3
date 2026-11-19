@@ -22,7 +22,7 @@ expect_list() { # name expected... -- actual from stdin file
 "$sel" --list skills/induct/SKILL.md | expect_list skills-mapping check-skills skills induct
 "$sel" --list skills/induct/SKILL.md | grep -q harness && fail "skills-mapping ran harness" || checks=$((checks + 1))
 # 2. src/** -> build + binary suite, never skills suites.
-"$sel" --list src/quest/main.ml | expect_list src-mapping build g
+"$sel" --list src/quest/main.ml | expect_list src-mapping build g transcripts
 # 3. workflow renders -> skills check + matching test only.
 "$sel" --list .agents/workflows/induct-grade.js | expect_list render-mapping skills-check wf:induct-grade
 "$sel" --list skills/induct/workflows/node-loop.js | expect_list render-mapping-src skills-check wf:node-loop

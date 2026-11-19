@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # JS unit tier (test-pyramid js.1): the workflow tests (mock host) and
 # the bp3-pi unit suite (fake bp3 replaying transcripts), all on
-# node:test. Proves the tier launches no real bp3: every route to the
-# real binary points at a counting shim, which must count 0. Reports
+# node:test. Proves the tier launches no real bp3: it runs in a scratch
+# copy of the repo whose real entry points (_build/.../main.exe and
+# bin/bp3) are counting shims, with every env route aimed at the same
+# shim, so any launch is counted whatever path a test builds. Reports
 # the tier's time; slowness is read, never failed (red-ink R2').
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -12,21 +14,25 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 files=(test/node-loop.test.mjs test/induct-node.test.mjs test/induct-grade.test.mjs
   test/induct-land.test.mjs test/induct-conduct.test.mjs extensions/bp3-pi/test/bp3-pi.test.mjs)
 
-for f in "${files[@]}"; do
-  if grep -q 'main\.exe\|realBp3' "$root/$f"; then fail "$f names the real bp3 binary"; fi
-done
-
+copy="$work/repo"
+mkdir "$copy"
+(cd "$root" && tar --exclude ./_build --exclude ./.git --exclude ./.bp3 --exclude ./docs -cf - .) | (cd "$copy" && tar -xf -)
 shim="$work/counting-bp3"
-printf '#!/bin/sh\necho "$*" >> "%s"\nexit 99\n' "$work/launches" > "$shim"
+# shellcheck disable=SC2016  # $0 and $* belong to the shim, not this script
+printf '#!/bin/sh\necho "$0 $*" >> "%s"\nexit 99\n' "$work/launches" > "$shim"
 chmod +x "$shim"
-"$shim" canary || true   # the shim must count, or a 0 below proves nothing
-[ "$(wc -l < "$work/launches" | tr -d ' ')" = 1 ] || fail "the counting shim does not count"
+mkdir -p "$copy/_build/default/src/quest"
+cp "$shim" "$copy/_build/default/src/quest/main.exe"
+cp "$shim" "$copy/bin/bp3"
+# every shim must count, or a 0 below proves nothing
+for s in "$shim" "$copy/_build/default/src/quest/main.exe" "$copy/bin/bp3"; do "$s" canary || true; done
+[ "$(wc -l < "$work/launches" | tr -d ' ')" = 3 ] || fail "the counting shims do not count"
 : > "$work/launches"
 
 rc=0
-(cd "$root" && FAKE_BP3_MODE=replay FAKE_BP3_REAL="$shim" BP3_PI_REAL_BP3="$shim" \
-  BP3_PI_TEST_BP3="$root/test/fake-bp3/bp3" node --test "${files[@]}") > "$work/out" 2>&1 || rc=$?
-# launches first: a leak also fails tests (the shim exits 99), and the
+(cd "$copy" && FAKE_BP3_MODE=replay FAKE_BP3_REAL="$shim" BP3_PI_REAL_BP3="$shim" BP3_Q_BIN="$shim" \
+  BP3_PI_TEST_BP3="$copy/test/fake-bp3/bp3" node --test "${files[@]}") > "$work/out" 2>&1 || rc=$?
+# launches first: a leak also fails tests (the shims exit 99), and the
 # leak is the cause worth naming
 n=$(wc -l < "$work/launches" | tr -d ' ')
 [ "$n" = 0 ] || fail "the unit tier launched the real bp3 $n times: $(head -3 "$work/launches")"

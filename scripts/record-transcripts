@@ -17,7 +17,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const real = path.join(root, "_build", "default", "src", "quest", "main.exe");
+// RECORD_TRANSCRIPTS_REAL: record through another binary (test/transcripts.sh
+// wraps the real one to prove a changed output is caught)
+const real = process.env.RECORD_TRANSCRIPTS_REAL ?? path.join(root, "_build", "default", "src", "quest", "main.exe");
 const suite = path.join(root, "extensions", "bp3-pi", "test", "bp3-pi.test.mjs");
 // RECORD_TRANSCRIPTS_FILE: compare against another copy (test/transcripts.sh edits one)
 const checkedIn = process.env.RECORD_TRANSCRIPTS_FILE ?? path.join(root, "test", "fake-bp3", "transcripts.jsonl");
@@ -33,7 +35,8 @@ if (!fs.existsSync(real)) {
 }
 
 const keyOf = (row) => JSON.stringify([row.argv, row.env, row.run]);   // as test/fake-bp3/bp3 keys a call
-const show = (row) => row.argv.join(" ") + (Object.keys(row.env).length ? `  (env ${JSON.stringify(row.env)})` : "");
+const show = (row) => row.argv.join(" ") + (Object.keys(row.env).length ? `  (env ${JSON.stringify(row.env)})` : "")
+  + (row.run && row.run !== JSON.stringify(row.argv) ? `  (run of: ${JSON.parse(row.run).join(" ")})` : "");
 const sameResult = (a, b) => JSON.stringify([a.exit, a.stdout, a.stderr, a.files]) === JSON.stringify([b.exit, b.stdout, b.stderr, b.files]);
 
 // where two results of one call part ways, for the author to normalize
@@ -48,10 +51,16 @@ function firstDiff(a, b) {
   return "";
 }
 
+// a call recorded twice is refused: the fake serves one row per call,
+// so a second row (an edit or a merge that kept both) would hide drift
 function load(file) {
   const rows = new Map();
   for (const line of fs.readFileSync(file, "utf8").split("\n").filter(Boolean)) {
     const row = JSON.parse(line);
+    if (rows.has(keyOf(row))) {
+      console.error(`record-transcripts: duplicate transcript row in ${path.relative(root, file)}: ${show(row)}`);
+      process.exit(1);
+    }
     rows.set(keyOf(row), row);
   }
   return rows;
