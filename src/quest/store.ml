@@ -295,20 +295,28 @@ let legacy_node_ledger_paths q e =
    with the most lines is the newest (ties: canonical first). The
    third component names the path read, so appends write back to
    the same path. *)
+(* The longest-copy rule, pure (test-pyramid unit.3): among the
+   (path, text) copies found, canonical first, the one with the most
+   lines wins; a tie keeps the earlier copy; no copy reads as empty
+   at the canonical path. Returns (text, path). *)
+let pick_longest canon found =
+  let lines t = List.length (String.split_on_char '\n' (String.trim t)) in
+  match found with
+  | [] -> ("", canon)
+  | first :: rest ->
+      let (p, t) = List.fold_left (fun (bp, bt) (p, t) ->
+          if lines t > lines bt then (p, t) else (bp, bt)) first rest in
+      (t, p)
+
 let ledger_read branch canon legacy =
   match ref_tip branch with
   | None -> None
   | Some tip ->
-      let lines t = List.length (String.split_on_char '\n' (String.trim t)) in
       let found = List.filter_map (fun p ->
           match git_show tip p with Some t -> Some (p, t) | None -> None)
           (canon :: legacy) in
-      (match found with
-       | [] -> Some (tip, "", canon)
-       | first :: rest ->
-           let (p, t) = List.fold_left (fun (bp, bt) (p, t) ->
-               if lines t > lines bt then (p, t) else (bp, bt)) first rest in
-           Some (tip, t, p))
+      let (t, p) = pick_longest canon found in
+      Some (tip, t, p)
 
 (* Every bp3 prefix lives under refs/heads/bp3/: list that once
    per cache epoch and filter in memory, instead of one

@@ -115,7 +115,7 @@ function can be extracted pure (`pick_longest : (path * text) list
 of git-bound code parks the node back to the owner.
 
 Samples (red-ink R8) are real node ledgers copied from the
-`bp3/quest/*` storage refs, one per era; for example,
+`bp3/quest/*` and `bp3/node/*` storage refs, one per era; for example,
 `2026-11-07-bp3-mvp-engine-core`'s exp-3-fsm ledger carries
 `submitted` edges. They are sanitized and frozen under
 `test/unit/samples/`, and they catch old spellings nobody thought to

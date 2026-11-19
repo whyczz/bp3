@@ -54,7 +54,7 @@ accepted a 24.6s `make check`; today it is 170.40s.
 | law | a QCheck property that must hold for all generated inputs; test names start `law_` |
 | case | a named example or boundary; a table of cases is the "parameter test"; test names start `case_` |
 | char | a characterization: pins today's behavior without blessing it; test names start `char_` (kinds carried from 11-14; re-decided: adopted) |
-| sample | a real ledger copied from a `bp3/quest/*` storage ref, sanitized (no home paths or session ids), frozen under `test/unit/samples/`, and replayed through the fold by a `case_` test (red-ink R8). Renamed from the 11-14 "Tape" because a run's `tape.log` is verbatim evidence, never parsed; a sample is deliberately adopted test input |
+| sample | a real ledger copied from a `bp3/quest/*` or `bp3/node/*` storage ref, sanitized (no home paths or session ids), frozen under `test/unit/samples/`, and replayed through the fold by a `case_` test (red-ink R8). Renamed from the 11-14 "Tape" because a run's `tape.log` is verbatim evidence, never parsed; a sample is deliberately adopted test input |
 | fake bp3 | `test/fake-bp3/`: a stand-in executable for JS tests that replays transcripts instead of running the engine |
 | transcript | a recorded `(argv, stdin, stdout, exit)` row captured from the real binary; `check-full` re-records and diffs them |
 | coverage map | `test/COVERAGE.md`: one row per old-suite assertion cluster, naming its new home or the reason it is kept |

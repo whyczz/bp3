@@ -1,11 +1,17 @@
 (* Store and scheduler units (test-pyramid unit.3): the ledger fold,
    ledger lines, legal edges, slugs, versions, waves, dates, icebox,
-   plan knobs, and the frozen samples. No git, no process, no clock
-   (the clock is pinned where a function reads it).
-   case_ = named example, law_ = QCheck property, char_ = today's
-   behavior pinned without blessing it. Not here, by decision:
-   effective_knobs and quest_knobs read plans/ files from the repo
-   root, so they stay at the fixture tier. *)
+   plan knobs, the longest-copy rule, and the frozen samples. No git,
+   no process, no clock (the clock is pinned where a function reads
+   it). case_ = named example, law_ = QCheck property, char_ = today's
+   behavior pinned without blessing it.
+   Not here, by decision (each needs git or the filesystem, so it
+   stays at the fixture tier, covered by g.sh / ready.sh / diagram.sh):
+   - fold_node, fold_quest: read the ledger through ledger_read (git
+     show at a ref tip); their pure parts are fold_ledger and
+     pick_longest, both tested here.
+   - dep_satisfied: folds every node of another quest from git.
+   - effective_knobs, quest_knobs: read plans/ files from the repo
+     root; their pure part is plan_knobs_from_text, tested here. *)
 open OUnit2
 open Gen
 
@@ -69,6 +75,31 @@ let case_fold_captures_reason_checkpoint_and_since_on_blocked _ =
   assert_equal (Some "cp1") s.Store.blocked_checkpoint;
   assert_equal ~printer:Fun.id "2026-11-19T01:02:03Z" s.Store.blocked_since
 
+let case_fold_resets_both_verdicts_on_a_legacy_submit_like_a_handoff _ =
+  let s = fold (text [ edge ~commit:"c1" "handoff" "todo" "handed_off";
+                       edge ~verdict:"ship" ~verify:"pass" "grade" "handed_off" "approved";
+                       edge ~cycle:2 ~commit:"c2" "submit" "approved" "submitted" ]) in
+  assert_bool "a legacy submit resets grade" (not s.Store.grade_ok);
+  assert_bool "a legacy submit resets verify" (not s.Store.verify_ok);
+  assert_equal ~printer:Fun.id "handed_off" s.Store.st
+
+let case_fold_clears_both_verdicts_on_a_ship_cast_whose_verify_failed _ =
+  let s = fold (text [ edge ~commit:"c1" "handoff" "todo" "handed_off";
+                       edge ~verdict:"ship" ~verify:"fail" "grade" "handed_off" "handed_off" ]) in
+  assert_bool "grade not ok" (not s.Store.grade_ok);
+  assert_bool "verify not ok" (not s.Store.verify_ok)
+
+let case_fold_reads_plan_types_from_pre_rename_create_keys _ =
+  let (s, qt, _) = Store.fold_ledger (text [ line [ jstr "edge" "create"; jstr "to" "todo";
+                                                     jstr "exp_type" "spike"; jstr "graph_type" "direct" ] ]) in
+  assert_equal ~printer:Fun.id "spike" s.Store.node_type;
+  assert_equal ~printer:Fun.id "direct" qt;
+  let (s, qt, _) = Store.fold_ledger (text [ line [ jstr "edge" "create"; jstr "to" "todo";
+                                                     jstr "node_type" "n"; jstr "exp_type" "old";
+                                                     jstr "goal_type" "g"; jstr "graph_type" "old" ] ]) in
+  assert_equal ~printer:Fun.id "n" s.Store.node_type;
+  assert_equal ~printer:Fun.id "g" qt
+
 let case_fold_reads_depends_on_with_legacy_exp_ids_as_node_ids _ =
   let (_, _, deps) = Store.fold_ledger (text [ edge ~deps:[ "exp-1-a"; "node-2-b" ] "create" "" "todo" ]) in
   assert_equal ~printer:(String.concat ",") [ "node-1-a"; "node-2-b" ] deps;
@@ -131,28 +162,28 @@ let gen_ledger_fields =
   let open QCheck2.Gen in
   let any_string = string_size ~gen:(char_range '\000' '\255') (int_range 0 30) in
   let pick xs = oneof [ oneof_list xs; any_string ] in
-  tup9 (pick [ "create"; "handoff"; "grade"; "verify"; "land"; "block"; "resume"; "" ])
+  pair (tup9 (pick [ "create"; "handoff"; "grade"; "verify"; "land"; "block"; "resume"; "" ])
     (pick [ "todo"; "handed_off"; "approved"; "blocked"; "landed" ])
     (pick [ "todo"; "handed_off"; "approved"; "blocked"; "landed" ])
     (int_range (-3) 1000)
     (option (oneof [ hex; return ""; any_string ]))
     (option (pick [ "ship"; "needs_fix"; "pass"; "fail" ]))
-    any_string (pair any_string any_string) (option any_string)
+    any_string (pair any_string any_string) (option any_string)) (option any_string)
 
 let law_ledger_line_decodes_back_to_the_same_fields_it_encoded =
   QCheck2.Test.make ~count:300 ~name:"law_ledger_line_decodes_back_to_the_same_fields_it_encoded"
     gen_ledger_fields
-    (fun (e, from, to_, cycle, commit, verdict, reason, (harness, model), run_id) ->
+    (fun ((e, from, to_, cycle, commit, verdict, reason, (harness, model), run_id), checkpoint) ->
       let id = { Store.harness; model; decider_human = false; incomplete = false; run_id } in
       let l = Clock.with_fixed 1_795_000_000. (fun () ->
-          Store.ledger_line ~edge:e ~from ~to_ ~cycle ~commit ~verdict ~reason ~id ()) in
+          Store.ledger_line ~edge:e ~from ~to_ ~cycle ~commit ~verdict ~reason ~id ?checkpoint ()) in
       let j = decode l in
       let s k = match field j k with `String v -> Some v | _ -> None in
       not (String.contains l '\n')
       && s "edge" = Some e && s "from" = Some from && s "to" = Some to_
       && field j "cycle" = `Int cycle && s "commit" = commit && s "verdict" = verdict
       && s "reason" = Some reason && s "harness" = Some harness && s "model" = Some model
-      && s "run_id" = run_id && s "ts" = Some "2026-11-18T11:06:40Z"
+      && s "run_id" = run_id && s "checkpoint" = checkpoint && s "ts" = Some "2026-11-18T11:06:40Z"
       && s "bp3_version" = Some Gitx.bp3_version)
 
 (* ---------- legal edges, slugs, ids ---------- *)
@@ -170,6 +201,10 @@ let case_valid_slug_accepts_lowercase_kebab_and_refuses_everything_else _ =
   List.iter (fun (s, ok) -> assert_equal ~msg:(Printf.sprintf "%S" s) ok (Store.valid_slug s))
     [ ("a", true); ("0-day", true); ("2026-11-18-test-pyramid", true); ("a--b-", true);
       ("", false); ("-a", false); ("A", false); ("a_b", false); ("a.b", false); ("a b", false); ("é", false) ]
+
+let case_check_slug_refuses_an_invalid_slug_with_E_USAGE _ =
+  assert_equal ~printer:Fun.id "E_USAGE" (verdict_code (fun () -> Store.check_slug "Bad/Slug"));
+  assert_equal ~printer:Fun.id "no verdict" (verdict_code (fun () -> Store.check_slug "good-slug"))
 
 let case_check_creatable_refuses_a_reserved_door_slug_with_E_USAGE _ =
   assert_equal ~printer:Fun.id "E_USAGE" (verdict_code (fun () -> Store.check_creatable "watch"));
@@ -224,40 +259,60 @@ let law_version_cmp_is_a_total_order =
 
 let node id st deps = { Store.n_id = id; n_state = st; n_deps = deps }
 
-(* A random DAG: node i depends only on lower-numbered nodes. *)
+(* A random DAG over every node state: node i depends only on
+   lower-numbered nodes, so deps can be done (landed, deleted), still
+   waiting (todo), or in flight (handed_off, approved, blocked). *)
 let gen_dag =
   let open QCheck2.Gen in
   int_range 1 8 >>= fun n ->
   let id i = Printf.sprintf "n%d" i in
   let one i =
     map2 (fun st mask -> node (id i) st (List.filteri (fun j _ -> j < i && mask land (1 lsl j) <> 0) (List.init n id)))
-      (oneof_list_weighted [ (5, "todo"); (1, "landed") ]) (int_bound 255) in
+      (oneof_list_weighted [ (6, "todo"); (2, "landed"); (1, "deleted"); (1, "handed_off");
+                             (1, "approved"); (1, "blocked") ]) (int_bound 255) in
   flatten_list (List.init n one)
 
+let print_dag ns =
+  String.concat " " (List.map (fun n -> n.Store.n_id ^ ":" ^ n.Store.n_state ^ "<-[" ^ String.concat "," n.Store.n_deps ^ "]") ns)
+
+(* A todo node can be scheduled iff each dep is done (landed or
+   deleted) or is itself a todo node that can be scheduled; a dep in
+   flight holds back it and everything behind it. *)
 let law_sched_waves_place_every_dep_in_an_earlier_wave =
-  QCheck2.Test.make ~count:300 ~name:"law_sched_waves_place_every_dep_in_an_earlier_wave"
-    ~print:(fun ns -> String.concat " " (List.map (fun n -> n.Store.n_id ^ ":" ^ n.Store.n_state ^ "<-[" ^ String.concat "," n.Store.n_deps ^ "]") ns))
-    gen_dag
+  QCheck2.Test.make ~count:500 ~name:"law_sched_waves_place_every_dep_in_an_earlier_wave"
+    ~print:print_dag gen_dag
     (fun nodes ->
       let waves = Store.sched_waves nodes in
       let wave_of id = let rec go k = function [] -> None | w :: r -> if List.mem id w then Some k else go (k + 1) r in go 0 waves in
-      let done_ id = List.exists (fun n -> n.Store.n_id = id && n.Store.n_state = "landed") nodes in
+      let find id = List.find_opt (fun n -> n.Store.n_id = id) nodes in
+      let is_done id = match find id with Some n -> n.Store.n_state = "landed" || n.Store.n_state = "deleted" | None -> false in
+      let rec placeable id = match find id with
+        | Some n when n.Store.n_state = "todo" ->
+            List.for_all (fun d -> is_done d || placeable d) n.Store.n_deps
+        | _ -> false in
       let todo = List.filter (fun n -> n.Store.n_state = "todo") nodes in
       List.for_all (fun w -> w <> []) waves
-      && List.length (List.concat waves) = List.length todo
+      && List.for_all (fun id -> match find id with Some n -> n.Store.n_state = "todo" | None -> false) (List.concat waves)
       && List.for_all (fun n ->
              match wave_of n.Store.n_id with
-             | None -> false
-             | Some k -> List.for_all (fun d -> done_ d || (match wave_of d with Some k' -> k' < k | None -> false)) n.Store.n_deps)
+             | None -> not (placeable n.Store.n_id)
+             | Some k ->
+                 placeable n.Store.n_id
+                 && List.for_all (fun d -> is_done d || (match wave_of d with Some k' -> k' < k | None -> false)) n.Store.n_deps)
            todo)
 
 let case_sched_waves_count_landed_deps_as_done _ =
   let ns = [ node "a" "landed" []; node "b" "todo" [ "a" ]; node "c" "todo" [ "b" ]; node "d" "todo" [] ] in
   assert_equal [ [ "b"; "d" ]; [ "c" ] ] (Store.sched_waves ns)
 
+let case_sched_waves_count_a_deleted_dep_as_done_and_hold_back_an_in_flight_one _ =
+  let ns = [ node "x" "deleted" []; node "y" "handed_off" []; node "a" "todo" [ "x" ];
+             node "b" "todo" [ "y" ]; node "c" "todo" [ "a"; "b" ] ] in
+  assert_equal [ [ "a" ] ] (Store.sched_waves ns)
+
 let case_sched_starved_names_the_todo_dependents_of_a_blocked_node _ =
   let ns = [ node "a" "blocked" []; node "b" "todo" [ "a" ]; node "c" "todo" [ "b" ];
-             node "d" "landed" [ "a" ]; node "e" "todo" [] ] in
+             node "d" "landed" [ "a" ]; node "e" "todo" []; node "f" "handed_off" [ "a" ] ] in
   assert_equal [ ("a", [ "b"; "c" ]) ] (Store.sched_starved ns)
 
 let case_dep_cycle_through_names_the_cycle_it_closes _ =
@@ -338,6 +393,32 @@ let char_plan_knobs_read_any_required_false_as_grade_optional_when_a_grade_key_e
   let k = Store.plan_knobs_from_text "grade:\n  required: true\nverify:\n  required: false\n" in
   assert_bool "grade reads optional" (not k.Store.grade_required)
 
+(* ---------- the longest-copy rule ---------- *)
+
+let case_pick_longest_keeps_the_copy_with_the_most_lines _ =
+  assert_equal ("a\nb\nc", "old/l") (Store.pick_longest "canon/l" [ ("canon/l", "a\nb"); ("old/l", "a\nb\nc") ])
+
+let case_pick_longest_breaks_a_tie_in_favor_of_the_earlier_canonical_copy _ =
+  assert_equal ("x\ny", "canon/l") (Store.pick_longest "canon/l" [ ("canon/l", "x\ny"); ("old/l", "a\nb") ])
+
+let case_pick_longest_reads_no_copy_as_empty_at_the_canonical_path _ =
+  assert_equal ("", "canon/l") (Store.pick_longest "canon/l" [])
+
+let char_pick_longest_counts_an_empty_copy_as_one_line _ =
+  assert_equal ("", "canon/l") (Store.pick_longest "canon/l" [ ("canon/l", ""); ("old/l", "one line") ])
+
+let law_pick_longest_returns_a_found_copy_no_shorter_than_any_other =
+  let lines t = List.length (String.split_on_char '\n' (String.trim t)) in
+  QCheck2.Test.make ~count:300 ~name:"law_pick_longest_returns_a_found_copy_no_shorter_than_any_other"
+    QCheck2.Gen.(list_size (int_range 1 5)
+                   (pair (map (Printf.sprintf "p%d") (int_range 0 9))
+                         (map (String.concat "\n") (list_size (int_range 0 6) (oneof_list [ "{}"; "x"; "" ])))))
+    (fun found ->
+      let (t, p) = Store.pick_longest "canon" found in
+      List.mem (p, t) found
+      && List.for_all (fun (_, t') -> lines t' <= lines t) found
+      && (let first_max = List.find (fun (_, t') -> lines t' = lines t) found in first_max = (p, t)))
+
 (* ---------- samples: real ledgers, one per era ---------- *)
 
 let case_fold_reads_the_exp_era_sample_with_submitted_edges_as_landed_in_cycle_1 _ =
@@ -367,6 +448,9 @@ let () =
        "case_fold_resets_both_verdicts_on_a_new_handoff" >:: case_fold_resets_both_verdicts_on_a_new_handoff;
        "case_fold_clears_the_bound_commit_and_both_verdicts_on_resume" >:: case_fold_clears_the_bound_commit_and_both_verdicts_on_resume;
        "case_fold_captures_reason_checkpoint_and_since_on_blocked" >:: case_fold_captures_reason_checkpoint_and_since_on_blocked;
+       "case_fold_resets_both_verdicts_on_a_legacy_submit_like_a_handoff" >:: case_fold_resets_both_verdicts_on_a_legacy_submit_like_a_handoff;
+       "case_fold_clears_both_verdicts_on_a_ship_cast_whose_verify_failed" >:: case_fold_clears_both_verdicts_on_a_ship_cast_whose_verify_failed;
+       "case_fold_reads_plan_types_from_pre_rename_create_keys" >:: case_fold_reads_plan_types_from_pre_rename_create_keys;
        "case_fold_reads_depends_on_with_legacy_exp_ids_as_node_ids" >:: case_fold_reads_depends_on_with_legacy_exp_ids_as_node_ids;
        "char_fold_moves_state_on_an_unknown_edge_that_carries_a_to_field" >:: char_fold_moves_state_on_an_unknown_edge_that_carries_a_to_field;
        "char_fold_keeps_the_previous_cycle_when_cycle_is_not_an_int" >:: char_fold_keeps_the_previous_cycle_when_cycle_is_not_an_int;
@@ -377,6 +461,7 @@ let () =
        QCheck_ounit.to_ounit2_test law_ledger_line_decodes_back_to_the_same_fields_it_encoded;
        "case_legal_edges_name_the_moves_each_state_allows" >:: case_legal_edges_name_the_moves_each_state_allows;
        "case_valid_slug_accepts_lowercase_kebab_and_refuses_everything_else" >:: case_valid_slug_accepts_lowercase_kebab_and_refuses_everything_else;
+       "case_check_slug_refuses_an_invalid_slug_with_E_USAGE" >:: case_check_slug_refuses_an_invalid_slug_with_E_USAGE;
        "case_check_creatable_refuses_a_reserved_door_slug_with_E_USAGE" >:: case_check_creatable_refuses_a_reserved_door_slug_with_E_USAGE;
        "case_canon_node_id_maps_exp_ids_and_leaves_other_ids_alone" >:: case_canon_node_id_maps_exp_ids_and_leaves_other_ids_alone;
        QCheck_ounit.to_ounit2_test law_canon_node_id_undoes_legacy_node_id_for_every_node_id;
@@ -386,6 +471,7 @@ let () =
        QCheck_ounit.to_ounit2_test law_version_cmp_is_a_total_order;
        QCheck_ounit.to_ounit2_test law_sched_waves_place_every_dep_in_an_earlier_wave;
        "case_sched_waves_count_landed_deps_as_done" >:: case_sched_waves_count_landed_deps_as_done;
+       "case_sched_waves_count_a_deleted_dep_as_done_and_hold_back_an_in_flight_one" >:: case_sched_waves_count_a_deleted_dep_as_done_and_hold_back_an_in_flight_one;
        "case_sched_starved_names_the_todo_dependents_of_a_blocked_node" >:: case_sched_starved_names_the_todo_dependents_of_a_blocked_node;
        "case_dep_cycle_through_names_the_cycle_it_closes" >:: case_dep_cycle_through_names_the_cycle_it_closes;
        QCheck_ounit.to_ounit2_test law_dep_cycle_through_finds_no_cycle_in_a_dag;
@@ -398,6 +484,11 @@ let () =
        "case_plan_knobs_read_the_default_plan_as_one_round_grade_and_verify_required" >:: case_plan_knobs_read_the_default_plan_as_one_round_grade_and_verify_required;
        "case_plan_knobs_refuse_stages_and_edges_keys_with_E_INVALID_PLAN" >:: case_plan_knobs_refuse_stages_and_edges_keys_with_E_INVALID_PLAN;
        "char_plan_knobs_read_any_required_false_as_grade_optional_when_a_grade_key_exists" >:: char_plan_knobs_read_any_required_false_as_grade_optional_when_a_grade_key_exists;
+       "case_pick_longest_keeps_the_copy_with_the_most_lines" >:: case_pick_longest_keeps_the_copy_with_the_most_lines;
+       "case_pick_longest_breaks_a_tie_in_favor_of_the_earlier_canonical_copy" >:: case_pick_longest_breaks_a_tie_in_favor_of_the_earlier_canonical_copy;
+       "case_pick_longest_reads_no_copy_as_empty_at_the_canonical_path" >:: case_pick_longest_reads_no_copy_as_empty_at_the_canonical_path;
+       "char_pick_longest_counts_an_empty_copy_as_one_line" >:: char_pick_longest_counts_an_empty_copy_as_one_line;
+       QCheck_ounit.to_ounit2_test law_pick_longest_returns_a_found_copy_no_shorter_than_any_other;
        "case_fold_reads_the_exp_era_sample_with_submitted_edges_as_landed_in_cycle_1" >:: case_fold_reads_the_exp_era_sample_with_submitted_edges_as_landed_in_cycle_1;
        "case_fold_reads_the_graph_era_sample_as_landed_after_four_cycles" >:: case_fold_reads_the_graph_era_sample_as_landed_after_four_cycles;
        "case_fold_reads_the_quest_era_sample_as_landed_in_cycle_1" >:: case_fold_reads_the_quest_era_sample_as_landed_in_cycle_1;
