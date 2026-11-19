@@ -21,24 +21,24 @@
 #   g             ./test/g.sh
 #   pi-tree       node test/pi-tree.test.mjs
 #   bp3-pi        node --test extensions/bp3-pi/test/bp3-pi.test.mjs
-#   bp3g          ./test/bp3g.sh (all workflow node tests)
+#   induct          ./test/induct.sh (all workflow node tests)
 #   wf:<name>     node test/<name>.test.mjs (one workflow test)
 #   check-tiers   ./test/check-tiers.sh (selector fixtures)
 #   test:<path>   the changed test file itself
 #
 # Fast tier (check-fast): lint + skills checks + unit/workflow
 # tests, zero wall-clock timer fixtures. Membership (one table):
-#   lint check-skills skills build bp3g pi-tree bp3-pi check-tiers
+#   lint check-skills skills build induct pi-tree bp3-pi check-tiers
 # test/harness.sh is the wall-clock suite (sleep/watch cases)
 # and stays full-tier only; so do the integration drives
 # (g, ready, dogfood-*, worktree, tape, release, install),
 # reached through the mapping below or full make check.
 #
 # Path -> suite mapping (first match wins):
-#   skills/bp3g/workflows/*.js, .agents/workflows/*.js
+#   skills/induct/workflows/*.js, .agents/workflows/*.js
 #       -> skills-check + the one matching wf:<name> test
 #   skills/**, .pi/skills/**, .agents/skills/**, .claude/skills/**
-#       -> check-skills skills bp3g        (never harness)
+#       -> check-skills skills induct        (never harness)
 #   src/**  -> build g                     (never skills suites)
 #   test/** -> build + the changed suite itself
 #   extensions/** -> bp3-pi
@@ -71,17 +71,17 @@ cmd_for() {
     g) echo "./test/g.sh" ;;
     pi-tree) echo "node test/pi-tree.test.mjs" ;;
     bp3-pi) echo "node --test extensions/bp3-pi/test/bp3-pi.test.mjs" ;;
-    bp3g) echo "./test/bp3g.sh" ;;
+    induct) echo "./test/induct.sh" ;;
     check-tiers) echo "./test/check-tiers.sh" ;;
     wf:*) echo "node test/${1#wf:}.test.mjs" ;;
     test:*) local p=${1#test:}; case "$p" in *.sh) echo "./$p" ;; *) echo "node $p" ;; esac ;;
     *) echo "unknown suite: $1" >&2; return 1 ;;
   esac
 }
-order="lint check-skills skills-check skills build g pi-tree bp3-pi bp3g check-tiers"
+order="lint check-skills skills-check skills build g pi-tree bp3-pi induct check-tiers"
 declare -a want=()
 add() { local s; for s in "${want[@]:-}"; do [ "$s" = "$1" ] && return 0; done; want+=("$1"); }
-add_fast() { local s; for s in lint check-skills skills build bp3g pi-tree bp3-pi check-tiers; do add "$s"; done; }
+add_fast() { local s; for s in lint check-skills skills build induct pi-tree bp3-pi check-tiers; do add "$s"; done; }
 if [ "$fast" = 1 ]; then
   add_fast
 else
@@ -95,17 +95,17 @@ else
   for p in "${paths[@]:-}"; do
     [ -n "$p" ] || continue
     case "$p" in
-      skills/bp3g/workflows/*.js|.agents/workflows/*.js)
+      skills/induct/workflows/*.js|.agents/workflows/*.js)
         add skills-check
         case "$(basename "$p")" in
           node-loop.js) add wf:node-loop ;;
-          bp3g-node.js) add wf:bp3g-node ;;
-          bp3g-grade.js) add wf:bp3g-grade ;;
-          bp3g-land.js) add wf:bp3g-land ;;
-          *) add bp3g ;;
+          induct-node.js) add wf:induct-node ;;
+          induct-grade.js) add wf:induct-grade ;;
+          induct-land.js) add wf:induct-land ;;
+          *) add induct ;;
         esac ;;
       skills/*|.pi/skills/*|.agents/skills/*|.claude/skills/*)
-        add check-skills; add skills; add bp3g ;;
+        add check-skills; add skills; add induct ;;
       src/*) add build; add g ;;
       test/*) add build; add "test:$p" ;;
       extensions/*) add bp3-pi ;;

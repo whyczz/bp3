@@ -18,7 +18,7 @@
    session-keyed shared maps and legacy per-Run event
    files are no longer imported on any path. Since mvp.8
    the InitRecord has a named writer: record-init, called
-   by the bp3g workflow launcher before it spawns each
+   by the induct workflow launcher before it spawns each
    workflow child (the child never writes its own proof).
    followup.1 fixed the writer discipline for parallel
    supervisors: one write() per derivation row on an
@@ -1751,7 +1751,7 @@ let do_watch args =
   loop ()
 
 (* ---------- record-init (mvp.8: the InitRecord writer) ---------- *)
-(* The bp3g workflow launcher is the named writer: it is
+(* The induct workflow launcher is the named writer: it is
    the only actor present before a workflow child exists, so
    it calls this verb before spawning the child. The child
    never writes its own proof. Create-only: an existing
@@ -1763,7 +1763,7 @@ let do_record_init _args =
     "record-init is retired: mint a one-time link (bp3 harness link mint) and let the child claim it (bp3 harness link claim); the run config is the InitRecord-equivalent." 1
 
 (* ---------- bind-tape (followup.3: the launcher's bind step) ---------- *)
-(* The bp3g workflow launcher is the named binder: it runs
+(* The induct workflow launcher is the named binder: it runs
    after the author child returns, when the child's session
    tape exists and has closed. The author child writes no
    InitRecord, binding, or observation. A binding row is a

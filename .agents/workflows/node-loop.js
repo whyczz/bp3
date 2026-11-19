@@ -12,7 +12,7 @@
 // session to run-id. As the named tape binder it then
 // binds the child's session tape via `bp3 harness
 // bind-tape` after the child returns.
-// Args are supplied by the calling bp3g skill as {quest, node,
+// Args are supplied by the calling induct skill as {quest, node,
 // ts, harness, model, desk, context}; ts is a UTC compact timestamp from the
 // caller, embedded by the child in its run-id because scripts
 // cannot read the clock. The conductor's context (a cycle's

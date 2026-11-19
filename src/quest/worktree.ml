@@ -305,7 +305,7 @@ let do_prepare quest node run_id commit path_override =
             | Some existing -> prepare_verdict existing true
             | None -> prepare_verdict r false)
 
-(* Node 8: one worktree per quest for a whole bp3g.
+(* Node 8: one worktree per quest for a whole induct.
    Record key is quest-<quest>; node field is "(quest)". *)
 let quest_run_id quest = "quest-" ^ quest
 

@@ -224,7 +224,7 @@ echo "$out" | jq -e '.ready == ["bw"] and .starved == [{"blocked":"bx","starved"
 # Pi form: real OS processes (edge worker dies, node worker
 # records blocked and exits, exactly one bubble, no descendant
 # process remains; resume + a fresh Pi tree continues it).
-# Muse form: the real bp3g-node workflow returns the same
+# Muse form: the real induct-node workflow returns the same
 # terminal blocked bubble and exits; revival is a fresh
 # workflow, never a resume of the old run's agents. Evidence
 # is timestamps and the process table, not state inference.
@@ -363,8 +363,8 @@ assert(piFresh.runId !== piSeed.runId && piFresh.pid !== piSeed.pid, "Pi revival
 assert(await waitDead(piFresh.pid), "Pi fresh tree dead after revival bubble");
 assert(bp3(["q", "bubpi", "r", "seeded-pi"]).state === "handed_off", "Pi fresh tree continues node to handed_off");
 assert(bp3(["q", "bubpi", "r", "sib-pi"]).state === "handed_off", "Pi sibling still unaffected after revival");
-// --- Muse form in parallel: real bp3g-node workflow, same bubble ---
-const workflow = (await import(pathToFileURL(path.join(root, "skills/bp3g/workflows/bp3g-node.js")).href)).default;
+// --- Muse form in parallel: real induct-node workflow, same bubble ---
+const workflow = (await import(pathToFileURL(path.join(root, "skills/induct/workflows/induct-node.js")).href)).default;
 bp3(["q", "c", "bubcl"]); bp3(["q", "bubcl", "c", "seeded-cl"]); bp3(["q", "bubcl", "c", "sib-cl"]);
 function extractCmd(input) { const i = input.indexOf("Run exactly `"); if (i < 0) return ""; const s = i + "Run exactly `".length; const e = input.indexOf("`", s); return e < 0 ? "" : input.slice(s, e); }
 function makeClaudeHost(node, blockMode) {

@@ -11,15 +11,15 @@ engine, CLI verb, file, or state. Invoked by name (`/naming`,
 `$naming`). One output: one recommended name, with the vocabulary
 it reuses. A shortlist only when two names genuinely tie.
 
-Use `bp3g-frame` for framing a quest (it delegates naming here),
+Use `quest` for framing a quest (it delegates naming here),
 `using-bp3` for operating the CLI, and general judgment for
 ordinary code identifiers with no bp3 meaning.
 
 ## The vocabulary (reuse before inventing)
 
 - Planning: quest, node, Run. The conducting skill family is
-  `bp3g`: `/bp3g` conducts a quest, `/bp3g-frame` frames one,
-  `/bp3g-no-human` runs unattended (G stands for goal and quest;
+  `induct`: `/induct` conducts a quest, `/quest` frames one,
+  `/induct-yolo` runs unattended (G stands for goal and quest;
   bare "goal" collides across harnesses).
 - Doors: `bp3 q` (quest), `bp3 n` (claimed node), `bp3 e`
   (claimed edge); the canonical address nests:

@@ -182,7 +182,7 @@ echo "$out" | jq -e '.ok == true and .state == "approved" and .cycle == 1' >/dev
 git show bp3/node/demo/pure-node:docs/quests/demo/nodes/pure-node/ledger.jsonl | jq -se '([.[] | select(.edge == "grade")] | length == 1) and ([.[] | select(.edge == "grade")][0] | .verify_verdict == "pass")' >/dev/null || fail "combined cast is one ledger line"
 out=$(q demo c mech-node)
 out=$(q demo u mech-node handoff --commit "$B" --reason "work")
-out=$(q demo u mech-node grade --verdict needs_fix --mechanical --reason "skills/bp3g/SKILL.md:12 stale term")
+out=$(q demo u mech-node grade --verdict needs_fix --mechanical --reason "skills/induct/SKILL.md:12 stale term")
 echo "$out" | jq -e '.ok == true and .state == "todo" and .cycle == 2' >/dev/null || fail "mechanical needs_fix returns todo at cap, never blocked: $out"
 git show bp3/node/demo/mech-node:docs/quests/demo/nodes/mech-node/ledger.jsonl | tail -1 | jq -e '.to == "todo" and .fix_class == "mechanical"' >/dev/null || fail "mechanical ledger line"
 out=$(q r demo)

@@ -1,4 +1,4 @@
-// Mock-host test for skills/bp3g/workflows/node-loop.js.
+// Mock-host test for skills/induct/workflows/node-loop.js.
 // Covers the node Acceptance table for the slimmed build-only
 // step: the launcher's link mint precedes the author
 // child on a todo node (mvp.1; a refused mint spawns nothing),
@@ -10,7 +10,7 @@
 // children (state untouched), and the env-set run-id still
 // holds for the author.
 import { readFileSync } from "node:fs";
-import workflow from "../skills/bp3g/workflows/node-loop.js";
+import workflow from "../skills/induct/workflows/node-loop.js";
 
 const TS = "20260101T000000Z";
 let failures = 0;
@@ -192,7 +192,7 @@ for (const state of ["approved", "landed", "blocked"]) {
 
 // --- stage set is finite: no other stage's prompts in the file ---
 {
-  const src = readFileSync(new URL("../skills/bp3g/workflows/node-loop.js", import.meta.url), "utf8");
+  const src = readFileSync(new URL("../skills/induct/workflows/node-loop.js", import.meta.url), "utf8");
   assert(!src.includes("host.parallel"), "no parallel stage fan-out in the file");
   assert(!src.includes("grade --verdict"), "no grade prompt in the file");
   assert(!src.includes("verify --verdict"), "no verify prompt in the file");

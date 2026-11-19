@@ -33,15 +33,18 @@ fi
 # Skill sets (dogfood.3): one spelling, named here only. A source
 # skill in neither list installs nowhere (fail-closed for hosts);
 # test/mode.sh asserts every source skill is listed exactly once.
-CORE_SKILLS="bp3g bp3g-frame bp3g-no-human icebox naming red-ink"
-DEV_SKILLS="add-bp3-skill add-yap-skill bp3g-landing-demo using-bp3"
+CORE_SKILLS="induct quest induct-yolo icebox naming red-ink"
+DEV_SKILLS="add-bp3-skill add-yap-skill trial using-bp3"
 
 # Layout: every path and name this script spells, named here only
 # (the engine's twin is src/quest/layout.ml). A rename edits these.
 ENGINE_SRC="src/quest"
-WORKFLOW_SKILL="bp3g"
-WORKFLOW_NAMES="node-loop bp3g-grade bp3g-land bp3g-node"
+WORKFLOW_SKILL="induct"
+WORKFLOW_NAMES="node-loop induct-grade induct-land induct-node"
 WORKFLOWS_DIR=".agents/workflows"
+# Workflow renders are plain copies (no notice to key on), so renamed
+# ones are pruned by explicit name.
+RETIRED_WORKFLOWS="bp3g-grade bp3g-land bp3g-node"
 
 # Target repo: BP3_TARGET wins; else the cwd repo when it is not
 # this script's own repo; else this script's repo (self conduct
@@ -167,7 +170,7 @@ skills_install() {
       ;;
   esac
 
-  # The bp3g saved workflows ship with the bp3g skill (core, both
+  # The induct saved workflows ship with the induct skill (core, both
   # modes). They are plain copies (no render notice); the target is
   # the project workflows dir every harness discovers. Absent source
   # means nothing to copy.
@@ -193,6 +196,12 @@ skills_install() {
       mkdir -p "$target/$WORKFLOWS_DIR"
       cp "$src_dir/$WORKFLOW_SKILL/workflows/$workflow_name.js" "$target/$WORKFLOWS_DIR/$workflow_name.js"
       echo "installed $workflow_name -> $WORKFLOWS_DIR/$workflow_name.js"
+    fi
+  done
+  for workflow_name in $RETIRED_WORKFLOWS; do
+    if [ -f "$target/$WORKFLOWS_DIR/$workflow_name.js" ]; then
+      rm -f "$target/$WORKFLOWS_DIR/$workflow_name.js"
+      echo "pruned $workflow_name -> $WORKFLOWS_DIR/$workflow_name.js (retired workflow)"
     fi
   done
   # Muse hook registration: one fail-open emitter command for
@@ -277,7 +286,7 @@ skills_install() {
 # Render freshness (followup.2, workflow-birth): a dispatch
 # must never launch a render older than its source. Workflow
 # renders are plain copies, so freshness is byte equality
-# between skills/bp3g/workflows/<name>.js (source) and
+# between skills/induct/workflows/<name>.js (source) and
 # .agents/workflows/<name>.js (render). Fresh is silent JSON
 # ok; stale refuses E_RENDER_STALE naming render and source.
 skills_check() {

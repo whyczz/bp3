@@ -81,8 +81,8 @@ for id in $core $dev; do assert test -f "$self/.agents/skills/$id/SKILL.md"; don
 assert grep -q '"command": "./bin/bp3 q hooks || true"' "$self/.claude/hooks.json"
 
 # Mode-aware reads: desk presence derives the read path.
-for wf in node-loop bp3g-node bp3g-grade bp3g-land; do
-  assert grep -q 'desk ? "./bin/bp3" : "bp3"' "$repo/skills/bp3g/workflows/$wf.js"
+for wf in node-loop induct-node induct-grade induct-land; do
+  assert grep -q 'desk ? "./bin/bp3" : "bp3"' "$repo/skills/induct/workflows/$wf.js"
 done
 
 printf 'mode tests: ok (%s assertions)\n' "$checks"

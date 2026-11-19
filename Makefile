@@ -27,18 +27,18 @@ check: lint
 	./test/tape.sh
 	./test/cleanliness.sh
 	./test/hooks.sh
-	./test/bp3g.sh
+	./test/induct.sh
 	./test/completion.sh
 	./test/release.sh
 	./test/install.sh
 
 lint:
-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/g.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/mode.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/cleanliness.sh test/hooks.sh test/bp3g.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/g.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/config.sh test/link.sh test/mode.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/cleanliness.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
 	node --check test/pi-tree.test.mjs
-	node --check skills/bp3g/workflows/bp3g-node.js
-	node --check skills/bp3g/workflows/node-loop.js
-	node --check skills/bp3g/workflows/bp3g-grade.js
-	node --check skills/bp3g/workflows/bp3g-land.js
+	node --check skills/induct/workflows/induct-node.js
+	node --check skills/induct/workflows/node-loop.js
+	node --check skills/induct/workflows/induct-grade.js
+	node --check skills/induct/workflows/induct-land.js
 
 test:
 	./test/skills.sh
