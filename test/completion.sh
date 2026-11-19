@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Tab completion fixture: static lists pin against src/quest/main.ml,
+# Tab completion fixture: static lists pin against the q door's source
+# (src/quest/main.ml plus cli.ml, where its argv helpers live),
 # scripted candidate traces (bash and zsh), silent failure, delivery.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -8,28 +9,29 @@ trap 'rm -rf "$work"' EXIT
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-# --- static lists: every spelling in the scripts exists in main.ml ---
-main_ml="$root/src/quest/main.ml"
+# --- static lists: every spelling in the scripts exists in the door's source ---
+main_ml="$work/door.ml"
+cat "$root/src/quest/main.ml" "$root/src/quest/cli.ml" > "$main_ml"
 for shell_file in "$root/completions/_bp3" "$root/completions/bp3.bash"; do
   [ -f "$shell_file" ] || fail "missing completion script: $shell_file"
   flags=$(sed -n 's/^_bp3_flags=//p' "$shell_file" | tr -d "()'" | tr ' ' '\n' | sed '/^$/d')
   for flag in $flags; do
-    grep -q -- "\"$flag\"" "$main_ml" || fail "flag $flag in $shell_file not in main.ml"
+    grep -q -- "\"$flag\"" "$main_ml" || fail "flag $flag in $shell_file not in main.ml/cli.ml"
   done
   # Reverse: every flag main.ml parses is completed.
   for flag in $(sed -n '/^let parse_flags/,/^let split_flags/p' "$main_ml" | grep -o '"--[a-z-]*"' | tr -d '"' | sort -u); do
-    echo "$flags" | grep -qx -- "$flag" || fail "flag $flag in main.ml not in $shell_file"
+    echo "$flags" | grep -qx -- "$flag" || fail "flag $flag in main.ml/cli.ml not in $shell_file"
   done
   edges=$(sed -n 's/^_bp3_edges=//p' "$shell_file" | tr -d "()'" | tr ' ' '\n' | sed '/^$/d')
   for edge in $edges; do
-    grep -q "\"$edge\"" "$main_ml" || fail "edge $edge in $shell_file not in main.ml"
+    grep -q "\"$edge\"" "$main_ml" || fail "edge $edge in $shell_file not in main.ml/cli.ml"
   done
   for edge in handoff grade verify land block resume; do
-    echo "$edges" | grep -qx -- "$edge" || fail "edge $edge in main.ml not in $shell_file"
+    echo "$edges" | grep -qx -- "$edge" || fail "edge $edge in main.ml/cli.ml not in $shell_file"
   done
   for verb in c create r read u update d delete; do
     grep -qw -- "$verb" "$shell_file" || fail "verb $verb not in $shell_file"
-    grep -q "\"$verb\"" "$main_ml" || fail "verb $verb not in main.ml"
+    grep -q "\"$verb\"" "$main_ml" || fail "verb $verb not in main.ml/cli.ml"
   done
 done
 grep -q '#compdef bp3' "$root/completions/_bp3" || fail "zsh script lacks #compdef bp3"
