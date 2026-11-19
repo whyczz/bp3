@@ -52,6 +52,18 @@ checks=$((checks + 3))
 if (cd "$work/planted" && ./scripts/check-changed.sh skills/demo/SKILL.md) > "$work/planted-run.out" 2>&1; then fail "planted term passed check-changed"; fi
 grep -q 'retired-term sweep: FAIL' "$work/planted-run.out" || fail "check-changed did not fail at the sweep"
 grep -q 'check-changed: run' "$work/planted-run.out" && fail "a suite ran before the sweep failed" || checks=$((checks + 3))
+# 6b. Root docs match in any case: a lowercase readme.md hit fails
+# the sweep naming file:line, with and without git. A case-exact
+# README.md lookup skips it on Linux and drops the name on macOS.
+for mode in git plain; do
+  mkdir -p "$work/case-$mode/scripts"
+  cp "$sweep" "$work/case-$mode/scripts/"
+  printf '# demo\n\nSee docs/graphs for the plan.\n' > "$work/case-$mode/readme.md"
+  if [ "$mode" = git ]; then (cd "$work/case-$mode" && git init -q && git add -A); fi
+  if "$work/case-$mode/scripts/check-retired-terms.sh" --root "$work/case-$mode" > "$work/case-$mode.out" 2>&1; then fail "case-$mode: lowercase readme.md hit passed the sweep"; fi
+  grep -q '^readme.md:3:' "$work/case-$mode.out" || fail "case-$mode: hit did not name readme.md:3: $(cat "$work/case-$mode.out")"
+  checks=$((checks + 2))
+done
 # 7. Fossils stay legal: ledger lines, run notes, and the
 # migration rename table quoting retired spellings pass.
 mkdir -p "$work/fossil/scripts" "$work/fossil/skills/demo" "$work/fossil/docs/quests/g/nodes/n/runs/r1"

@@ -12,7 +12,8 @@
 # Live surfaces swept: skills/, src/, bin/, scripts/,
 # extensions/, the rendered skill copies (.pi/skills/,
 # .agents/skills/, .claude/skills/, .agents/workflows/),
-# and the root docs AGENTS.md / CLAUDE.md / README.md.
+# and the root docs AGENTS.md / CLAUDE.md / README.md, matched in
+# any case (this repo tracks readme.md).
 # Out of scope by definition: docs/ (frozen records — ledger
 # lines, dated amendments, run notes quote history) and
 # test/ (fixtures quote retired spellings as data).
@@ -43,15 +44,16 @@ retired="GOAL.md GRAPH.md EXPERIMENT.md bp3g docs/graphs"
 scope="skills src bin scripts extensions .pi/skills .agents/skills .claude/skills .agents/workflows"
 hits=$(mktemp)
 trap 'rm -f "$hits"' EXIT
+# Root docs by their real spelling: find -iname, because a
+# case-exact name skips readme.md on Linux and macOS hides the gap.
+root_docs=$(for d in AGENTS.md CLAUDE.md README.md; do
+  find . -maxdepth 1 -type f -iname "$d"; done | sed 's|^\./||')
 # Tracked files only; untracked run residue is not a live surface.
 for term in $retired; do
-  for f in AGENTS.md CLAUDE.md README.md; do
-    [ -f "$f" ] && grep -n -F "$term" "$f" >> "$hits" || true
-  done
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git grep -n -F "$term" -- $scope >> "$hits" || true
+    git grep -n -F "$term" -- $scope $root_docs >> "$hits" || true
   else
-    grep -rn -F "$term" $scope >> "$hits" 2>/dev/null || true
+    grep -rHn -F "$term" $scope $root_docs >> "$hits" 2>/dev/null || true
   fi
 done
 # Apply per-path fossil exemptions.
