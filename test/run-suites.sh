@@ -87,6 +87,9 @@ seen = []
 ready, keys, cmd = sys.argv[1], sys.argv[2], sys.argv[3:]
 pid, fd = pty.fork()
 if pid == 0:
+    # an inherited ignore would survive exec and the runner could not trap it
+    import signal
+    signal.signal(signal.SIGINT, signal.SIG_DFL); signal.signal(signal.SIGQUIT, signal.SIG_DFL)
     os.execvp(cmd[0], cmd)
 def drain():  # never block: a blocking read would delay the Ctrl-C
     while select.select([fd], [], [], 0)[0]:
@@ -138,9 +141,15 @@ mkdir -p "$work/fw/scripts"
 awk '{ print } /bash -c "\$\{cmds\[\$i\]\}" \) > "\$dir\/log" 2>&1 < \/dev\/null &$/ { print "  kill -INT $$" }' "$rs" > "$work/fw/scripts/run-suites"
 chmod +x "$work/fw/scripts/run-suites"
 grep -q 'kill -INT \$\$' "$work/fw/scripts/run-suites" || fail "fork-window probe: could not instrument the runner"
-cp "$(command -v sleep)" "$work/forkwin-sleep"   # a name unique to this run: parallel self-tests never collide
+# a name unique to this run, so parallel self-tests never collide. A
+# symlink, not a copy: macOS kills a copied system binary at exec
+# (code-signing launch constraint), which would make this probe vacuous.
+ln -s "$(command -v sleep)" "$work/forkwin-sleep"
+"$work/forkwin-sleep" 0 || fail "fork-window probe: the marker binary does not run"
 printf '%s\n' "forkwin${T}fixture${T}$work/forkwin-sleep 997${T}60${T}0${T}-${T}-" > "$work/forkwin.tsv"
-rc=0; TMPDIR="$work/rt" "$work/fw/scripts/run-suites" --table "$work/forkwin.tsv" > "$work/forkwin.out" 2>&1 || rc=$?
+# perl resets INT first: a self-test started with INT ignored would pass
+# that ignore on, and the instrumented runner could never trap its signal
+rc=0; TMPDIR="$work/rt" perl -e '$SIG{INT} = "DEFAULT"; exec @ARGV or die' "$work/fw/scripts/run-suites" --table "$work/forkwin.tsv" > "$work/forkwin.out" 2>&1 || rc=$?
 [ "$rc" = 130 ] || fail "fork-window probe exit: $rc ($(cat "$work/forkwin.out"))"
 sleep 1.5
 if pgrep -f "$work/forkwin-sleep" > /dev/null; then pkill -f "$work/forkwin-sleep"; fail "a suite forked just before the signal survived"; fi; ok
