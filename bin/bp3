@@ -198,10 +198,12 @@ skills_install() {
   # Muse hook registration: one fail-open emitter command for
   # every event. Repos without this file never fire hooks. The
   # command is mode-aware (dogfood.3): self reads via the desk
-  # script, host reads call bp3 on PATH.
-  local hook_cmd="./bin/bp3 g hooks"
+  # script, host reads call bp3 on PATH. `|| true` makes fail-open
+  # hold outside the script too: harnesses read exit 2 as "block",
+  # so a broken wrapper (or a missing bp3 on PATH) must still exit 0.
+  local hook_cmd="./bin/bp3 g hooks || true"
   if [ "$mode" = "host" ]; then
-    hook_cmd="bp3 g hooks"
+    hook_cmd="bp3 g hooks || true"
   fi
   mkdir -p "$target/.claude"
   {

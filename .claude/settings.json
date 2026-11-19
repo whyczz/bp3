@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./bin/bp3 g hooks"
+            "command": "./bin/bp3 g hooks || true"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./bin/bp3 g hooks"
+            "command": "./bin/bp3 g hooks || true"
           }
         ]
       }
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./bin/bp3 g hooks"
+            "command": "./bin/bp3 g hooks || true"
           }
         ]
       }
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./bin/bp3 g hooks"
+            "command": "./bin/bp3 g hooks || true"
           }
         ]
       }
@@ -45,7 +45,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./bin/bp3 g hooks"
+            "command": "./bin/bp3 g hooks || true"
           }
         ]
       }
@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./bin/bp3 g hooks"
+            "command": "./bin/bp3 g hooks || true"
           }
         ]
       }
@@ -65,7 +65,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./bin/bp3 g hooks"
+            "command": "./bin/bp3 g hooks || true"
           }
         ]
       }
@@ -75,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./bin/bp3 g hooks"
+            "command": "./bin/bp3 g hooks || true"
           }
         ]
       }

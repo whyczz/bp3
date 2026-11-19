@@ -1,13 +1,13 @@
 {
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "PostToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "PostLLMCall": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "SubagentStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "SubagentStop": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "Stop": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}],
-    "SessionEnd": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks"}]}]
+    "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks || true"}]}],
+    "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks || true"}]}],
+    "PostToolUse": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks || true"}]}],
+    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks || true"}]}],
+    "PostLLMCall": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks || true"}]}],
+    "SubagentStart": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks || true"}]}],
+    "SubagentStop": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks || true"}]}],
+    "Stop": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks || true"}]}],
+    "SessionEnd": [{"hooks": [{"type": "command", "command": "./bin/bp3 g hooks || true"}]}]
   }
 }

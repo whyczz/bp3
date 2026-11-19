@@ -62,7 +62,7 @@ assert jq -e '.mode == "host"' "$host/.git/bp3/runs/$run_id.json"
 BP3_TARGET="$host" "$repo/bin/bp3" skills install --harness=muse > /dev/null
 for id in $core; do assert test -f "$host/.agents/skills/$id/SKILL.md"; done
 for id in $dev; do assert test ! -e "$host/.agents/skills/$id"; done
-assert grep -q '"command": "bp3 g hooks"' "$host/.claude/hooks.json"
+assert grep -q '"command": "bp3 g hooks || true"' "$host/.claude/hooks.json"
 assert test -f "$host/.agents/workflows/node-loop.js"
 
 # Self fixture: tracked src/graph + bin/bp3 derives self and
@@ -78,7 +78,7 @@ git -C "$self" add .
 git -C "$self" commit -qm base
 BP3_TARGET="$self" "$repo/bin/bp3" skills install --harness=muse > /dev/null
 for id in $core $dev; do assert test -f "$self/.agents/skills/$id/SKILL.md"; done
-assert grep -q '"command": "./bin/bp3 g hooks"' "$self/.claude/hooks.json"
+assert grep -q '"command": "./bin/bp3 g hooks || true"' "$self/.claude/hooks.json"
 
 # Mode-aware reads: desk presence derives the read path.
 for wf in node-loop bp3g-node bp3g-grade bp3g-land; do
