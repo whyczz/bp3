@@ -248,7 +248,7 @@ let save_record r =
 let delete_record run_id =
   try Unix.unlink (desk_file run_id) with _ -> ()
 
-let now_s () = int_of_float (Unix.time ())
+let now_s () = int_of_float (Clock.time ())
 let stale_s r = max 0 (now_s () - r.r_created)
 
 let record_json r =

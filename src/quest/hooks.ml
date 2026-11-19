@@ -178,7 +178,7 @@ let stale_after_s = 900.
 
 let touch b =
   b.last_seen_ts <- now_ts ();
-  b.last_seen_epoch <- Unix.time ()
+  b.last_seen_epoch <- Clock.time ()
 
 (* ---------- fact writer: appends one event line to the node
    ledger on its branch. The only ledger door hooks may use;
@@ -264,9 +264,9 @@ let handle () =
                             let (_edge, cycle) = parse_edge_cycle run_id in
                             let b = { quest = q; node = e; run_id;
                               session_id = session; started_ts = now_ts ();
-                              started_epoch = Unix.time ();
+                              started_epoch = Clock.time ();
                               last_seen_ts = now_ts ();
-                              last_seen_epoch = Unix.time (); settled = false;
+                              last_seen_epoch = Clock.time (); settled = false;
                               unsettled = false; emitted = [];
                               in_tok = 0; out_tok = 0; cached_tok = 0;
                               reasoning_tok = 0; llm_calls = 0 } in
@@ -283,7 +283,8 @@ let handle () =
                 let swept = ref None in
                 List.iter (fun b ->
                   if b.session_id <> session && not b.settled && not b.unsettled
-                     && Unix.time () -. b.last_seen_epoch > stale_after_s then
+                     && Clock.stale ~now:(Clock.time ())
+                          ~last_seen:b.last_seen_epoch ~stale_after_s then
                     match emit !bindings b "run_unsettled"
                       [("last_seen_ts", json_str b.last_seen_ts)]
                       (b.run_id ^ "|run_unsettled") with
@@ -355,7 +356,7 @@ let handle () =
                      else begin
                        let settled_ts = now_ts () in
                        let wall_ms =
-                         int_of_float ((Unix.time () -. b.started_epoch) *. 1000.) in
+                         int_of_float ((Clock.time () -. b.started_epoch) *. 1000.) in
                        ignore (emit !bindings b "usage_recorded"
                          [("input_tokens", `Int b.in_tok);
                           ("output_tokens", `Int b.out_tok);
@@ -370,7 +371,7 @@ let handle () =
                           (b.run_id ^ "|run_settled") with
                         | Some line -> b.settled <- true;
                             b.last_seen_ts <- settled_ts;
-                            b.last_seen_epoch <- Unix.time ();
+                            b.last_seen_epoch <- Clock.time ();
                             finish (verdict line None)
                         | None -> finish (no_write "duplicate or unwritable fact"))
                      end)

@@ -359,8 +359,8 @@ let fold_run_file ~silence_seconds path =
          | Some tp ->
              (try
                 let st = Unix.stat tp in
-                (true, Unix.time () -. st.Unix.st_mtime
-                        <= float_of_int silence_seconds)
+                (true, not (Clock.silent ~now:(Clock.time ()) ~last:st.Unix.st_mtime
+                              ~silence_s:(float_of_int silence_seconds)))
               with _ -> blind := true; (o.tape_seen, o.fresh)) in
        (* the tape tail itself is folded live, so a Run
           derives finished from files + pid alone, with no
@@ -455,7 +455,8 @@ let read_cache dir run_id silence_seconds =
           else
             let fresh = match tape_path with
               | Some _ when tsz >= 0 ->
-                  Unix.time () -. float_of_int tmt <= float_of_int silence_seconds
+                  not (Clock.silent ~now:(Clock.time ()) ~last:(float_of_int tmt)
+                         ~silence_s:(float_of_int silence_seconds))
               | _ -> false in
             if fresh <> get_bool j "fresh" then None
             else
@@ -495,8 +496,8 @@ let fold_run_config ~silence_seconds (rc : Config.run_config) =
       | None -> (false, false, true)
       | Some tp ->
           (try let st = Unix.stat tp in
-               (true, Unix.time () -. st.Unix.st_mtime
-                       <= float_of_int silence_seconds, false)
+               (true, not (Clock.silent ~now:(Clock.time ()) ~last:st.Unix.st_mtime
+                             ~silence_s:(float_of_int silence_seconds)), false)
            with _ -> (false, false, true)) in
     let (fin, exit_e, torn_t) = match rec_.tape_path with
       | Some tp -> tape_evidence rec_.harness (read_file_or tp "")
@@ -590,7 +591,8 @@ let probe_observation ~silence_seconds (rec_ : init_record) prior =
     || (match rec_.tape_path with Some tp -> Sys.file_exists tp | None -> false) in
   let fresh = match rec_.tape_path with
     | Some tp -> (match stat_fp tp with
-        | Some (_, mt) -> Unix.time () -. float_of_int mt <= float_of_int silence_seconds
+        | Some (_, mt) -> not (Clock.silent ~now:(Clock.time ()) ~last:(float_of_int mt)
+                                 ~silence_s:(float_of_int silence_seconds))
         | None -> prior.fresh)
     | None -> prior.fresh in
   let blind = match rec_.tape_path with
@@ -716,7 +718,7 @@ let do_supervisor quest args =
        if List.exists (fun v -> v.rv_harness <> "" && v.rv_harness <> e) runs0 then
          usage "--engine contradicts a Run InitRecord"
    | None -> ());
-  let deadline = Unix.time () +. float_of_int fl.timeout_seconds in
+  let deadline = Clock.time () +. float_of_int fl.timeout_seconds in
   let last_key = ref "" in
   let streamed = ref [] in
   let rec tick () =
@@ -771,7 +773,7 @@ let do_supervisor quest args =
       exit_of_outcome outcome in
     if rollup = "landed" then finish "settled"
     else if inbox <> [] then finish "human_gate"
-    else if Unix.time () >= deadline then finish "timeout"
+    else if Clock.past_deadline ~now:(Clock.time ()) ~deadline then finish "timeout"
     else begin
       ignore (Unix.select [] [] [] 1.0);
       tick ()
@@ -1640,7 +1642,7 @@ let watch_lifecycle ~alive ~exit_obs ~evidence ~settle ~tape_seen ~fresh =
 let do_watch args =
   let fl = parse_wt_flags args in
   let (wal, harness, session_id, pid, run_id, blind0) = resolve_watch fl in
-  let start = Unix.time () in
+  let start = Clock.time () in
   let deadline = start +. float_of_int fl.wt_timeout in
   let last_growth = ref start in
   let last_size = ref (-1) in
@@ -1652,15 +1654,15 @@ let do_watch args =
   let blind = ref blind0 in
   let last_key = ref "" in
   let wait_dead secs =
-    let until = Unix.time () +. secs in
+    let until = Clock.time () +. secs in
     let rec go () =
       match pid with
-      | Some p when pid_alive p && Unix.time () < until ->
+      | Some p when pid_alive p && not (Clock.past_deadline ~now:(Clock.time ()) ~deadline:until) ->
           ignore (Unix.select [] [] [] 0.05); go ()
       | _ -> () in
     go () in
   let rec loop () =
-    let now = Unix.time () in
+    let now = Clock.time () in
     (* derivation fold for this Run: sticky mechanical facts *)
     (match derivations_dir () with
      | Some dir ->
@@ -1696,7 +1698,8 @@ let do_watch args =
      | None -> blind := true);
     let alive = match pid with Some p -> Some (pid_alive p) | None -> None in
     if alive = Some false then exit_obs := true;
-    let fresh = now -. !last_growth <= float_of_int fl.wt_silence in
+    let fresh = not (Clock.silent ~now ~last:!last_growth
+                       ~silence_s:(float_of_int fl.wt_silence)) in
     let lifecycle = watch_lifecycle ~alive ~exit_obs:!exit_obs
       ~evidence:!evidence ~settle:!settle ~tape_seen:!tape_seen ~fresh in
     if lifecycle <> !last_key && not fl.wt_once then begin
@@ -1737,7 +1740,8 @@ let do_watch args =
       (* seam.2: one read-only fold; never TERM, KILL, or wait *)
       finish "snapshot" lifecycle
     else if alive = Some true && not !evidence && not !settle
-            && now -. !last_growth > float_of_int fl.wt_silence then begin
+            && Clock.silent ~now ~last:!last_growth
+                 ~silence_s:(float_of_int fl.wt_silence) then begin
       (* sole killer: silence past budget, no settling grace *)
       (match pid with
        | Some p ->
@@ -1750,7 +1754,7 @@ let do_watch args =
        | None -> ());
       finish "watchdog_killed" "orphaned"
     end
-    else if now >= deadline then
+    else if Clock.past_deadline ~now ~deadline then
       finish "timeout" lifecycle
     else begin
       ignore (Unix.select [] [] [] 0.05);
@@ -2128,13 +2132,13 @@ let mint_token () =
       Unix.close fd;
       if n = 16 then Bytes.to_string b else raise Exit
     with _ ->
-      let seed = Printf.sprintf "%d-%f-%d" (Unix.getpid ()) (Unix.time ())
+      let seed = Printf.sprintf "%d-%f-%d" (Unix.getpid ()) (Clock.time ())
         (Random.int 1_000_000_000) in
       String.sub (sha256_hex seed ^ sha256_hex (seed ^ "!")) 0 16 in
   "bp3link_" ^ link_hex_of_bytes raw
 
 let compact_ts () =
-  let t = Unix.gmtime (Unix.time ()) in
+  let t = Unix.gmtime (Clock.time ()) in
   Printf.sprintf "%04d%02d%02dT%02d%02d%02dZ"
     (t.Unix.tm_year + 1900) (t.Unix.tm_mon + 1) t.Unix.tm_mday
     t.Unix.tm_hour t.Unix.tm_min t.Unix.tm_sec

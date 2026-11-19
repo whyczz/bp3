@@ -1,0 +1,69 @@
+(* Clock seam (test-pyramid unit.2): time decisions with literal
+   times, effectful readers under a pinned clock. No sleeps.
+   case_ = named example or boundary, law_ = QCheck property. *)
+open OUnit2
+
+let stale_at age =
+  Clock.stale ~now:1_000_000. ~last_seen:(1_000_000. -. age)
+    ~stale_after_s:Hooks.stale_after_s
+
+let case_stale_gate_keeps_a_binding_seen_899_seconds_ago _ =
+  assert_bool "899s is not stale" (not (stale_at 899.))
+
+let case_stale_gate_keeps_a_binding_seen_exactly_900_seconds_ago _ =
+  assert_bool "900s is not stale (strictly more than 900 is)" (not (stale_at 900.))
+
+let case_stale_gate_sweeps_a_binding_seen_901_seconds_ago _ =
+  assert_bool "901s is stale" (stale_at 901.)
+
+let case_silence_is_fresh_at_exactly_the_window_and_silent_just_past_it _ =
+  assert_bool "1.0s inside a 1s window is fresh"
+    (not (Clock.silent ~now:10. ~last:9. ~silence_s:1.));
+  assert_bool "1.5s past a 1s window is silent"
+    (Clock.silent ~now:10.5 ~last:9. ~silence_s:1.)
+
+let case_a_deadline_is_reached_at_the_deadline_itself _ =
+  assert_bool "one tick before" (not (Clock.past_deadline ~now:99.9 ~deadline:100.));
+  assert_bool "at the deadline" (Clock.past_deadline ~now:100. ~deadline:100.)
+
+let case_compact_ts_formats_epoch_1795000000_as_20261118T110640Z _ =
+  assert_equal ~printer:Fun.id "20261118T110640Z"
+    (Clock.with_fixed 1_795_000_000. Harness.compact_ts)
+
+let case_now_ts_formats_epoch_1795000000_as_2026_11_18T11_06_40Z _ =
+  assert_equal ~printer:Fun.id "2026-11-18T11:06:40Z"
+    (Clock.with_fixed 1_795_000_000. Gitx.now_ts)
+
+let case_time_truncates_a_sub_second_clock_to_whole_seconds_like_unix_time _ =
+  Clock.with_fixed 1_795_000_000.987 (fun () ->
+    assert_equal ~printer:string_of_float 1_795_000_000. (Clock.time ());
+    assert_equal ~printer:string_of_float 1_795_000_000.987 (Clock.now ()))
+
+let case_with_fixed_restores_the_previous_clock_even_when_the_body_raises _ =
+  let before = !Clock.source in
+  (try Clock.with_fixed 5. (fun () -> failwith "boom") with Failure _ -> ());
+  assert_bool "source restored" (!Clock.source == before)
+
+(* Once stale, a binding stays stale as time moves forward. *)
+let law_stale_never_reverts_as_now_grows =
+  QCheck2.Test.make ~count:200 ~name:"law_stale_never_reverts_as_now_grows"
+    ~print:(fun (l, a, n, d) -> Printf.sprintf "last_seen=%g after=%g now=%g later=+%g" l a n d)
+    QCheck2.Gen.(quad (float_range 0. 1e9) (float_range 0. 1e5) (float_range 0. 2e9) (float_range 0. 1e6))
+    (fun (last_seen, stale_after_s, now, later) ->
+      (not (Clock.stale ~now ~last_seen ~stale_after_s))
+      || Clock.stale ~now:(now +. later) ~last_seen ~stale_after_s)
+
+let () =
+  run_test_tt_main
+    ("clock" >::: [
+       "case_stale_gate_keeps_a_binding_seen_899_seconds_ago" >:: case_stale_gate_keeps_a_binding_seen_899_seconds_ago;
+       "case_stale_gate_keeps_a_binding_seen_exactly_900_seconds_ago" >:: case_stale_gate_keeps_a_binding_seen_exactly_900_seconds_ago;
+       "case_stale_gate_sweeps_a_binding_seen_901_seconds_ago" >:: case_stale_gate_sweeps_a_binding_seen_901_seconds_ago;
+       "case_silence_is_fresh_at_exactly_the_window_and_silent_just_past_it" >:: case_silence_is_fresh_at_exactly_the_window_and_silent_just_past_it;
+       "case_a_deadline_is_reached_at_the_deadline_itself" >:: case_a_deadline_is_reached_at_the_deadline_itself;
+       "case_compact_ts_formats_epoch_1795000000_as_20261118T110640Z" >:: case_compact_ts_formats_epoch_1795000000_as_20261118T110640Z;
+       "case_now_ts_formats_epoch_1795000000_as_2026_11_18T11_06_40Z" >:: case_now_ts_formats_epoch_1795000000_as_2026_11_18T11_06_40Z;
+       "case_time_truncates_a_sub_second_clock_to_whole_seconds_like_unix_time" >:: case_time_truncates_a_sub_second_clock_to_whole_seconds_like_unix_time;
+       "case_with_fixed_restores_the_previous_clock_even_when_the_body_raises" >:: case_with_fixed_restores_the_previous_clock_even_when_the_body_raises;
+       QCheck_ounit.to_ounit2_test law_stale_never_reverts_as_now_grows;
+     ])
