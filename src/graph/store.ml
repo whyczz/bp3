@@ -290,15 +290,19 @@ let ledger_read branch canon legacy =
             | Some t -> Some (tip, t, legacy)
             | None -> Some (tip, "", canon)))
 
-let refs_cache : (string, int * string list) Hashtbl.t = Hashtbl.create 16
+(* Every bp3 prefix lives under refs/heads/bp3/: list that once
+   per cache epoch and filter in memory, instead of one
+   for-each-ref per prefix (two per graph in the version scan). *)
+let refs_cache : (int * string list) option ref = ref None
 let list_refs prefix =
-  match Hashtbl.find_opt refs_cache prefix with
-  | Some (epoch, refs) when epoch = !cache_epoch -> refs
-  | _ ->
-      let out, code = git_out ["for-each-ref"; "--format=%(refname)"; prefix] in
-      let refs = if code <> 0 then [] else
-        String.split_on_char '\n' out |> List.map String.trim |> List.filter (fun s -> s <> "") in
-      Hashtbl.replace refs_cache prefix (!cache_epoch, refs); refs
+  let all = match !refs_cache with
+    | Some (epoch, refs) when epoch = !cache_epoch -> refs
+    | _ ->
+        let out, code = git_out ["for-each-ref"; "--format=%(refname)"; "refs/heads/bp3/"] in
+        let refs = if code <> 0 then [] else
+          String.split_on_char '\n' out |> List.map String.trim |> List.filter (fun s -> s <> "") in
+        refs_cache := Some (!cache_epoch, refs); refs in
+  List.filter (fun r -> starts_with r prefix) all
 
 let list_graphs () =
   (* Legacy storage prefixes fold here only (followup.3). *)
