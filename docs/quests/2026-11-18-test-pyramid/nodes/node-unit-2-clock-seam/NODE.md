@@ -13,8 +13,10 @@ status: proposed
 or `Unix.gettimeofday`. All 20 sites today (harness 12, hooks 6,
 gitx 1, worktree 1) go through it. Unit tests drive time with a fake
 clock, never the machine's clock. Shape (red-ink R4): hybrid. Time
-decisions are pure predicates taking `~now`; effectful loops call
-`Clock.now ()`; the binary honors no time env var.
+decisions are pure predicates taking `~now`; effectful loops read
+`Clock.time ()` (whole seconds, exactly what `Unix.time` returned);
+`Clock.now ()` (sub-second) is for new readers such as seam.1; the
+binary honors no time env var.
 
 ## Acceptance gates
 
@@ -48,7 +50,7 @@ done when:
 
 ```text
 before: harness.ml ─┐                after: harness.ml ─┐
-        hooks.ml ───┼─► Unix.time            hooks.ml ───┼─► Clock.now () ─► Unix.gettimeofday
+        hooks.ml ───┼─► Unix.time            hooks.ml ───┼─► Clock.time () ─► Unix.gettimeofday
         gitx.ml ────┤                        gitx.ml ────┤        ▲
         worktree.ml ┘                        worktree.ml ┘        │ tests: Clock.with_fixed 1795000000.
 ```
@@ -70,7 +72,7 @@ class Clock:                                       # src/quest/clock.ml
         finally: Clock.now = old
 
 # effectful caller
-if stale(b.last_seen_epoch, now=Clock.now(), stale_after_s=900.0): sweep(b)
+if stale(b.last_seen_epoch, now=Clock.time(), stale_after_s=900.0): sweep(b)
 ```
 
 | Field | Value |
@@ -92,11 +94,15 @@ real clock. That is where the timing flakes come from.
 Red-ink R4 settled the shape as hybrid. Decisions (stale, silent,
 past deadline) become pure predicates taking `~now`, which matches
 the 11-14 rule "the fake clock is an argument". The 12 harness sites
-inside effectful loops call `Clock.now ()` instead of threading
-`~now` through every caller. A `BP3_NOW` env var was rejected: it
+inside effectful loops read `Clock.time ()` instead of threading
+`~now` through every caller. They read whole seconds on purpose: a
+sub-second clock is not a no-op here, because comparisons such as
+`now - int_mtime <= silence` would shift by up to a second (found in
+grading). A `BP3_NOW` env var was rejected: it
 would let anyone forge ledger timestamps. `Clock.with_fixed` restores
 the real clock even when a test fails.
 
 `Unix.gettimeofday` gives sub-second time; seam.1 needs it for
-run-ids. Switching from `Unix.time` changes nothing for the
-second-granularity comparisons.
+run-ids through `Clock.now ()`. The pre-seam sites keep whole
+seconds through `Clock.time ()`; switching them to sub-second would
+not be a no-op (see above).

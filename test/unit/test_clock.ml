@@ -1,6 +1,9 @@
 (* Clock seam (test-pyramid unit.2): time decisions with literal
    times, effectful readers under a pinned clock. No sleeps.
-   case_ = named example or boundary, law_ = QCheck property. *)
+   case_ = named example or boundary, law_ = QCheck property.
+   Runner: ounit2's default (processes). Each test that pins the
+   clock does so through with_fixed, which restores the source even
+   on failure, so no test depends on another's clock. *)
 open OUnit2
 
 let stale_at age =
@@ -39,17 +42,29 @@ let case_time_truncates_a_sub_second_clock_to_whole_seconds_like_unix_time _ =
     assert_equal ~printer:string_of_float 1_795_000_000. (Clock.time ());
     assert_equal ~printer:string_of_float 1_795_000_000.987 (Clock.now ()))
 
+let case_stale_gate_still_sweeps_a_binding_seen_a_year_ago _ =
+  assert_bool "a year past the threshold is stale" (stale_at 31_536_000.)
+
+let case_stale_gate_keeps_a_binding_whose_last_seen_is_in_the_future _ =
+  assert_bool "clock skew: seen an hour ahead is not stale" (not (stale_at (-3600.)))
+
 let case_with_fixed_restores_the_previous_clock_even_when_the_body_raises _ =
   let before = !Clock.source in
   (try Clock.with_fixed 5. (fun () -> failwith "boom") with Failure _ -> ());
   assert_bool "source restored" (!Clock.source == before)
 
-(* Once stale, a binding stays stale as time moves forward. *)
+(* Once stale, a binding stays stale as time moves forward. The
+   generator puts [now] near the threshold (within 5s) or far from it
+   on either side, and moves [later] a little or a lot, so cases land
+   on both sides of the threshold and cross it. *)
 let law_stale_never_reverts_as_now_grows =
-  QCheck2.Test.make ~count:200 ~name:"law_stale_never_reverts_as_now_grows"
-    ~print:(fun (l, a, n, d) -> Printf.sprintf "last_seen=%g after=%g now=%g later=+%g" l a n d)
-    QCheck2.Gen.(quad (float_range 0. 1e9) (float_range 0. 1e5) (float_range 0. 2e9) (float_range 0. 1e6))
-    (fun (last_seen, stale_after_s, now, later) ->
+  QCheck2.Test.make ~count:500 ~name:"law_stale_never_reverts_as_now_grows"
+    ~print:(fun (l, a, o, d) -> Printf.sprintf "last_seen=%g after=%g now=last_seen+after%+g later=+%g" l a o d)
+    QCheck2.Gen.(quad (float_range 0. 1e9) (float_range 1. 2000.)
+                   (oneof [ float_range (-5.) 5.; float_range (-1e7) 1e7 ])
+                   (oneof [ float_range 0. 10.; float_range 0. 1e7 ]))
+    (fun (last_seen, stale_after_s, offset, later) ->
+      let now = last_seen +. stale_after_s +. offset in
       (not (Clock.stale ~now ~last_seen ~stale_after_s))
       || Clock.stale ~now:(now +. later) ~last_seen ~stale_after_s)
 
@@ -64,6 +79,8 @@ let () =
        "case_compact_ts_formats_epoch_1795000000_as_20261118T110640Z" >:: case_compact_ts_formats_epoch_1795000000_as_20261118T110640Z;
        "case_now_ts_formats_epoch_1795000000_as_2026_11_18T11_06_40Z" >:: case_now_ts_formats_epoch_1795000000_as_2026_11_18T11_06_40Z;
        "case_time_truncates_a_sub_second_clock_to_whole_seconds_like_unix_time" >:: case_time_truncates_a_sub_second_clock_to_whole_seconds_like_unix_time;
+       "case_stale_gate_still_sweeps_a_binding_seen_a_year_ago" >:: case_stale_gate_still_sweeps_a_binding_seen_a_year_ago;
+       "case_stale_gate_keeps_a_binding_whose_last_seen_is_in_the_future" >:: case_stale_gate_keeps_a_binding_whose_last_seen_is_in_the_future;
        "case_with_fixed_restores_the_previous_clock_even_when_the_body_raises" >:: case_with_fixed_restores_the_previous_clock_even_when_the_body_raises;
        QCheck_ounit.to_ounit2_test law_stale_never_reverts_as_now_grows;
      ])

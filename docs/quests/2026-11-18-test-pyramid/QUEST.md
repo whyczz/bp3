@@ -50,7 +50,7 @@ accepted a 24.6s `make check`; today it is 170.40s.
 | serial | suite-table flag for a suite that touches the real repo tree; the runner never runs two serial suites at once |
 | suite env | what a suite inherits (red-ink R5): `env -i` plus a named allowlist (`PATH`, `LANG`/`LC_*`, `SDKROOT`, opam vars `OPAM_SWITCH_PREFIX` `CAML_LD_LIBRARY_PATH` `OCAMLPATH`, node vars), then `HOME`, `TMPDIR`, `BP3_SUITE`, `GIT_CONFIG_NOSYSTEM=1`; no `GIT_*` or `BP3_*` leaks; a missing var fails loudly |
 | hermetic_fn | a function a unit test calls with every input passed in: no git, process, wall clock, env, or filesystem (carried from 11-14; re-decided: adopted) |
-| `Clock` | `src/quest/clock.ml`, the only module that reads the wall clock. Hybrid (red-ink R4): time decisions are pure predicates taking `~now` (`stale`, `silent`, `past_deadline`), tested with literal times; effectful code calls `Clock.now ()`, a swappable ref defaulting to `Unix.gettimeofday`, which tests pin with `Clock.with_fixed`. The binary honors no time env var |
+| `Clock` | `src/quest/clock.ml`, the only module that reads the wall clock. Hybrid (red-ink R4): time decisions are pure predicates taking `~now` (`stale`, `silent`, `past_deadline`), tested with literal times; effectful code reads a swappable source (default `Unix.gettimeofday`) that tests pin with `Clock.with_fixed`: `Clock.time ()` gives whole seconds exactly as `Unix.time` did, so every pre-seam site reads it and behavior is unchanged; `Clock.now ()` gives sub-second time for new readers (seam.1's run-id mint). The binary honors no time env var |
 | law | a QCheck property that must hold for all generated inputs; test names start `law_` |
 | case | a named example or boundary; a table of cases is the "parameter test"; test names start `case_` |
 | char | a characterization: pins today's behavior without blessing it; test names start `char_` (kinds carried from 11-14; re-decided: adopted) |
@@ -198,8 +198,9 @@ its first `dune test` stanza. Depends on: none.
 
 ### unit.2 - clock-seam
 `Clock` owns the wall clock; all 20 `Unix.time` sites go through it.
-Hybrid shape (R4): decisions become pure `~now` predicates; loops call
-`Clock.now ()`; no `BP3_NOW` knob. Depends on: unit.1.
+Hybrid shape (R4): decisions become pure `~now` predicates; loops read
+`Clock.time ()` (whole seconds, as before); no `BP3_NOW` knob.
+Depends on: unit.1.
 [record](nodes/node-unit-2-clock-seam/NODE.md)
 
 ### unit.3 - store-laws
