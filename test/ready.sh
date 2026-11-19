@@ -170,16 +170,25 @@ echo "$out" | grep -q "dep" || fail "node door help dep: $out"
 echo "$out" | grep -q -- "--depends-on" || fail "node door help depends-on: $out"
 
 # --- quest-level deps (Store.dep_satisfied): a handoff waits until
-# every node of each dependency quest has landed ---
-q c qdep-a >/dev/null; q qdep-a c e1 >/dev/null
+# every node of each dependency quest is landed or deleted; a node in
+# flight (approved, not landed) still holds it back ---
+q c qdep-a >/dev/null; q qdep-a c e1 >/dev/null; q qdep-a c e2 >/dev/null; q qdep-a c e3 >/dev/null
 q c qdep-b --depends-on qdep-a >/dev/null; q qdep-b c e1 >/dev/null
 echo qdep > qdep.txt; git add qdep.txt; git commit -qm qdep; QD=$(git rev-parse HEAD)
-if out=$(q qdep-b u e1 handoff --commit "$QD" --reason w 2>&1); then fail "handoff accepted before the dependency quest landed"; fi
-echo "$out" | jq -e '.error.code == "E_DEPENDENCY" and .error.facts.blocked_by == ["qdep-a"]' >/dev/null || fail "quest-dep refusal: $out"
+qdep_refused() { # why
+  if out=$(q qdep-b u e1 handoff --commit "$QD" --reason w 2>&1); then fail "handoff accepted: $1"; fi
+  echo "$out" | jq -e '.error.code == "E_DEPENDENCY" and .error.facts.blocked_by == ["qdep-a"]' >/dev/null || fail "quest-dep refusal ($1): $out"
+}
+qdep_refused "every dependency node todo"
+q qdep-a u e2 handoff --commit "$QD" --reason w >/dev/null
+q qdep-a u e2 grade --verdict ship --verify-verdict pass --reason ok >/dev/null
+q qdep-a u e2 land --reason "landed" >/dev/null
+q qdep-a d e3 --reason "dropped" >/dev/null
 q qdep-a u e1 handoff --commit "$QD" --reason w >/dev/null
 q qdep-a u e1 grade --verdict ship --verify-verdict pass --reason ok >/dev/null
+qdep_refused "one dependency node approved but not landed"
 q qdep-a u e1 land --reason "landed" >/dev/null
-out=$(q qdep-b u e1 handoff --commit "$QD" --reason w) || fail "handoff refused after the dependency quest landed: $out"
+out=$(q qdep-b u e1 handoff --commit "$QD" --reason w) || fail "handoff refused once every dependency node was landed or deleted: $out"
 echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "quest-dep handoff state: $out"
 
 echo "ready tests: ok"

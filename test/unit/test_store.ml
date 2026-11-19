@@ -10,8 +10,9 @@
      show at a ref tip); their pure parts are fold_ledger and
      pick_longest, both tested here; g.sh / ready.sh exercise them.
    - dep_satisfied: folds every node of another quest from git;
-     ready.sh's quest-level deps case pins it (handoff refused with
-     E_DEPENDENCY until the dependency quest lands).
+     ready.sh's quest-level deps case pins it: handoff refused with
+     E_DEPENDENCY while any dependency node is todo or approved,
+     accepted once each is landed or deleted.
    - effective_knobs, quest_knobs: read plans/ files from the repo
      root; their pure part is plan_knobs_from_text, tested here. *)
 open OUnit2
@@ -119,7 +120,9 @@ let case_fold_reads_plan_types_from_pre_rename_create_keys _ =
                                                      jstr "node_type" "n"; jstr "exp_type" "old";
                                                      jstr "goal_type" "g"; jstr "graph_type" "old" ] ]) in
   assert_equal ~printer:Fun.id "n" s.Store.node_type;
-  assert_equal ~printer:Fun.id "g" qt
+  assert_equal ~printer:Fun.id "g" qt;
+  let (s, _, _) = Store.fold_ledger (text [ line [ jstr "edge" "create"; jstr "to" "todo"; jstr "goal_type" "g2" ] ]) in
+  assert_equal ~msg:"no node key: node_type falls back to the quest type" ~printer:Fun.id "g2" s.Store.node_type
 
 let case_fold_reads_depends_on_with_legacy_exp_ids_as_node_ids _ =
   let (_, _, deps) = Store.fold_ledger (text [ edge ~deps:[ "exp-1-a"; "node-2-b" ] "create" "" "todo" ]) in
@@ -153,21 +156,25 @@ let observable (s : Store.node_state) =
    s.blocked_checkpoint, s.blocked_since, s.last_commit, s.node_type)
 
 (* Raw-text laws (the NODE's generator split): bad lines, not just
-   well-formed ones. A proper prefix of any JSON object line is never
-   valid JSON, so splicing one in anywhere must refuse the ledger. *)
-let law_fold_refuses_a_ledger_with_any_malformed_line_with_E_INVALID_PLAN =
-  QCheck2.Test.make ~count:200 ~name:"law_fold_refuses_a_ledger_with_any_malformed_line_with_E_INVALID_PLAN"
-    ~print:(fun (b, i, p) -> text b ^ Printf.sprintf "--- truncate line %d at %d" i p)
+   well-formed ones. A non-JSON line spliced in anywhere must refuse
+   the ledger: a truncated real line (a proper prefix of a JSON object
+   is never valid JSON) or plain garbage such as a merge marker. *)
+let garbage = [ "x"; "}"; "<<<<<<< HEAD"; "======="; "{\"edge\": "; "{,}"; "nul"; "'{}'" ]
+
+let law_fold_refuses_a_ledger_with_any_non_json_line_with_E_INVALID_PLAN =
+  QCheck2.Test.make ~count:200 ~name:"law_fold_refuses_a_ledger_with_any_non_json_line_with_E_INVALID_PLAN"
+    ~print:(fun (b, i, p) -> text b ^ Printf.sprintf "--- bad line %d at %d" i p)
     QCheck2.Gen.(triple fsm_walk nat nat)
     (fun (base, i, p) ->
       let src = List.nth base (i mod List.length base) in
-      let bad = String.sub src 0 (1 + p mod (String.length src - 1)) in
+      let bad = if p mod 3 = 0 then List.nth garbage (p mod List.length garbage)
+        else String.sub src 0 (1 + p mod (String.length src - 1)) in
       let at = i mod (List.length base + 1) in
       let lines = List.filteri (fun k _ -> k < at) base @ [ bad ] @ List.filteri (fun k _ -> k >= at) base in
       verdict_code (fun () -> fold (text lines)) = "E_INVALID_PLAN")
 
 (* A field of the wrong type reads exactly as if it were absent. *)
-let wrong_typed = [ ("edge", `Int 7); ("to", `List []); ("from", `Bool true); ("cycle", `String "seven");
+let wrong_typed = [ ("edge", `Int 7); ("to", `List []); ("cycle", `String "seven");
                     ("commit", `Int 1); ("verdict", `Assoc []); ("verify_verdict", `Int 0);
                     ("reason", `Null); ("depends_on", `String "a") ]
 
@@ -409,7 +416,10 @@ let case_ts_epoch_parses_utc_timestamps_and_refuses_other_shapes _ =
   assert_equal (Some 1_795_046_399) (Store.ts_epoch "2026-11-18T23:59:59Z");
   List.iter (fun s -> assert_equal ~msg:s None (Store.ts_epoch s))
     [ ""; "2026-11-18 11:06:40Z"; "2026-11-18T11:06:40"; "2026-11-18T11:06:40.5Z"; "yyyy-mm-ddThh:mm:ssZ";
-      "2026/11/18T11:06:40Z"; "2026-11-18T11-06-40Z"; "2026-11-18T11:06:40+" ]
+      "2026/11/18T11:06:40Z"; "2026-11-18T11-06-40Z"; "2026-11-18T11:06:40+";
+      (* one separator wrong at a time, and a trailing tail *)
+      "2026x11-18T11:06:40Z"; "2026-11x18T11:06:40Z"; "2026-11-18T11x06:40Z"; "2026-11-18T11:06x40Z";
+      "2026-11-18T11:06:40Zjunk" ]
 
 let law_ts_epoch_reads_back_the_second_now_ts_wrote =
   QCheck2.Test.make ~count:300 ~name:"law_ts_epoch_reads_back_the_second_now_ts_wrote"
@@ -535,7 +545,7 @@ let () =
        "case_fold_resets_both_verdicts_on_a_legacy_submit_like_a_handoff" >:: case_fold_resets_both_verdicts_on_a_legacy_submit_like_a_handoff;
        "case_fold_clears_both_verdicts_on_needs_fix_even_with_a_passing_verify" >:: case_fold_clears_both_verdicts_on_needs_fix_even_with_a_passing_verify;
        "case_fold_lets_a_failed_verify_edge_void_an_earlier_ship" >:: case_fold_lets_a_failed_verify_edge_void_an_earlier_ship;
-       QCheck_ounit.to_ounit2_test law_fold_refuses_a_ledger_with_any_malformed_line_with_E_INVALID_PLAN;
+       QCheck_ounit.to_ounit2_test law_fold_refuses_a_ledger_with_any_non_json_line_with_E_INVALID_PLAN;
        QCheck_ounit.to_ounit2_test law_fold_reads_a_wrong_typed_field_as_if_it_were_absent;
        "case_fold_clears_both_verdicts_on_a_ship_cast_whose_verify_failed" >:: case_fold_clears_both_verdicts_on_a_ship_cast_whose_verify_failed;
        "case_fold_reads_plan_types_from_pre_rename_create_keys" >:: case_fold_reads_plan_types_from_pre_rename_create_keys;

@@ -48,12 +48,15 @@ let fsm_walk : string list QCheck2.Gen.t =
     else step (st, cyc) >>= fun (st', cyc', l) -> go (k - 1) (st', cyc') (l :: acc) in
   go n ("todo", 1) [ edge "create" "" "todo" ]
 
-(* Event lines in the shape hooks.ml emits: an "event" key, never edge/to/commit/verdict. *)
+(* Event lines in the shape hooks.ml emits (its kinds and field keys):
+   an "event" key, never edge/to/commit/verdict. *)
 let event_line : string QCheck2.Gen.t =
   map3 (fun kind cyc tok ->
       line [ jstr "event" kind; jstr "ts" "2026-11-18T00:00:01Z"; jstr "run_id" "R-ev";
-             jint "cycle" cyc; jint "input_tokens" tok; jstr "session_id" "S-ev" ])
-    (oneof_list [ "usage_recorded"; "run_settled"; "run_unsettled"; "edge_refused"; "lint_finding" ])
+             jint "cycle" cyc; jint "input_tokens" tok; jstr "session_id" "S-ev";
+             jstr "code" "E_DEPTH"; jstr "attempted" "handoff"; jstr "check" "make check";
+             jstr "result" "pass"; jstr "outcome" "settled" ])
+    (oneof_list [ "usage_recorded"; "run_settled"; "run_unsettled"; "run_started"; "refused"; "lint_checked" ])
     (int_range 1 9) (int_range 0 5000)
 
 (* Insert each event at its own position (head, middle, tail all reachable). *)
