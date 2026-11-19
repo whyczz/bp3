@@ -9,14 +9,12 @@
 // commands, a handed_off node is refused with zero stage
 // children (state untouched), and the env-set run-id still
 // holds for the author.
+import { test } from "node:test";
+import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import workflow from "../skills/induct/workflows/node-loop.js";
 
 const TS = "20260101T000000Z";
-let failures = 0;
-function assert(cond, msg) {
-  if (!cond) { console.error("FAIL: " + msg); failures++; }
-}
 
 function mockHost({ reads, initFails, bindFails, extraArgs }) {
   let readIdx = 0;
@@ -78,127 +76,126 @@ const todo = { state: "todo", cycle: 1, commit: null, legal_edges: ["handoff"] }
 const handedOff = { state: "handed_off", cycle: 1, commit: "abc1234", legal_edges: ["grade", "verify"] };
 
 // --- todo: the writer records first, the author runs, the binder follows ---
-{
+test("todo: the writer records first, the author runs, the binder follows", async () => {
   const { host, labels, inputs, inits, binds } = mockHost({ reads: [todo, handedOff] });
   const result = await workflow(host);
-  assert(result.outcome === "handed_off", "todo build hands off, got " + result.outcome);
-  assert(result.commit === "abc1234", "commit comes from the re-read, got " + result.commit);
-  assert(labels.join(",") === "init,author,resolve,bind", "writer, author, then bind step, got " + labels.join(","));
-  assert(inits.join(",") === TS + "-handoff-muse-code-test-model-c1",
+  assert.ok(result.outcome === "handed_off", "todo build hands off, got " + result.outcome);
+  assert.ok(result.commit === "abc1234", "commit comes from the re-read, got " + result.commit);
+  assert.ok(labels.join(",") === "init,author,resolve,bind", "writer, author, then bind step, got " + labels.join(","));
+  assert.ok(inits.join(",") === TS + "-handoff-muse-code-test-model-c1",
     "mint names the author's run-id, got " + inits.join(","));
-  assert(inputs.init.includes("harness link mint") && inputs.init.includes("--edge handoff"),
+  assert.ok(inputs.init.includes("harness link mint") && inputs.init.includes("--edge handoff"),
     "minter calls link mint for the author edge");
-  assert(inputs.init.includes("--harness muse-code") && inputs.init.includes("--quest toy") && inputs.init.includes("--node fx"),
+  assert.ok(inputs.init.includes("--harness muse-code") && inputs.init.includes("--quest toy") && inputs.init.includes("--node fx"),
     "minter records harness, quest, and node");
-  assert(!inputs.init.includes("--tape-path"),
+  assert.ok(!inputs.init.includes("--tape-path"),
     "writer names no tape pre-spawn; the session tape is bound after the child returns");
-  assert(inputs.resolve.includes("harness find-tape --run-id " + TS + "-handoff-muse-code-test-model-c1"),
+  assert.ok(inputs.resolve.includes("harness find-tape --run-id " + TS + "-handoff-muse-code-test-model-c1"),
     "binder resolves the author's session tape mechanically");
-  assert(inputs.bind.includes("harness bind-tape --run-id " + TS + "-handoff-muse-code-test-model-c1"),
+  assert.ok(inputs.bind.includes("harness bind-tape --run-id " + TS + "-handoff-muse-code-test-model-c1"),
     "binder calls bind-tape for the author run-id");
-  assert(inputs.bind.includes("--tape-path /tmp/session-tape.jsonl"),
+  assert.ok(inputs.bind.includes("--tape-path /tmp/session-tape.jsonl"),
     "binder binds the resolved session tape");
-  assert(binds.join(",") === "/tmp/session-tape.jsonl",
+  assert.ok(binds.join(",") === "/tmp/session-tape.jsonl",
     "exactly one binding, for the resolved tape, got " + binds.join(","));
   const input = inputs.author;
-  assert(input.includes("link claim bp3link_test-handoff"), "author brief carries its claim token");
-  assert(input.includes("BP3_RUN_ID=<that run_id>"), "author is told to stamp the claimed run-id");
-  assert(input.includes("BP3_QUEST=toy") && input.includes("BP3_NODE=fx"),
+  assert.ok(input.includes("link claim bp3link_test-handoff"), "author brief carries its claim token");
+  assert.ok(input.includes("BP3_RUN_ID=<that run_id>"), "author is told to stamp the claimed run-id");
+  assert.ok(input.includes("BP3_QUEST=toy") && input.includes("BP3_NODE=fx"),
     "author prefix carries quest/node");
-  assert(input.includes("runs/" + TS + "-handoff-muse-code-test-model-c1"),
+  assert.ok(input.includes("runs/" + TS + "-handoff-muse-code-test-model-c1"),
     "handoff run folder matches the minted run-id");
-  assert(!input.includes("Prefix your FIRST"),
+  assert.ok(!input.includes("Prefix your FIRST"),
     "author brief carries no first-command prefix instruction");
-  assert(input.includes("arrives via the"),
+  assert.ok(input.includes("arrives via the"),
     "author is told the run-id arrives via the claim");
-  assert(input.includes("u fx handoff --commit"), "author calls the handoff edge");
-  assert(result.run_ids.join(",") === TS + "-handoff-muse-code-test-model-c1,r-author", "run_ids collect mint and author, got " + result.run_ids.join(","));
-}
+  assert.ok(input.includes("u fx handoff --commit"), "author calls the handoff edge");
+  assert.ok(result.run_ids.join(",") === TS + "-handoff-muse-code-test-model-c1,r-author", "run_ids collect mint and author, got " + result.run_ids.join(","));
+});
 
 // --- handed_off: refuses cleanly, no stage child, state untouched ---
-{
+test("handed_off: refuses cleanly, no stage child, state untouched", async () => {
   const { host, labels } = mockHost({ reads: [handedOff] });
   const result = await workflow(host);
-  assert(result.outcome === "refused", "handed_off node is refused, got " + result.outcome);
-  assert(labels.length === 0, "no stage child spawns for handed_off");
-  assert(result.refusals.some((r) => r.includes("handed_off")), "refusal names the state");
-}
+  assert.ok(result.outcome === "refused", "handed_off node is refused, got " + result.outcome);
+  assert.ok(labels.length === 0, "no stage child spawns for handed_off");
+  assert.ok(result.refusals.some((r) => r.includes("handed_off")), "refusal names the state");
+});
 
 // --- approved and landed also refuse: another step owns them ---
+test("approved and landed also refuse: another step owns them", async () => {
 for (const state of ["approved", "landed", "blocked"]) {
   const s = { state: state, cycle: 1, commit: "abc1234", legal_edges: [] };
   const { host, labels } = mockHost({ reads: [s] });
   const result = await workflow(host);
-  assert(result.outcome === "refused", state + " is refused, got " + result.outcome);
-  assert(labels.length === 0, "no stage child spawns for " + state);
+  assert.ok(result.outcome === "refused", state + " is refused, got " + result.outcome);
+  assert.ok(labels.length === 0, "no stage child spawns for " + state);
 }
+});
 
 // --- author makes no progress: refused, never loops ---
-{
+test("author makes no progress: refused, never loops", async () => {
   const { host, labels } = mockHost({ reads: [todo, todo] });
   const result = await workflow(host);
-  assert(result.outcome === "refused", "no-progress author is refused, got " + result.outcome);
-  assert(labels.join(",") === "init,author,resolve,bind", "author ran exactly once, then the bind step, got " + labels.join(","));
-}
+  assert.ok(result.outcome === "refused", "no-progress author is refused, got " + result.outcome);
+  assert.ok(labels.join(",") === "init,author,resolve,bind", "author ran exactly once, then the bind step, got " + labels.join(","));
+});
 
 // --- tape resolution refuses: nothing is bound, refusal is typed ---
-{
+test("tape resolution refuses: nothing is bound, refusal is typed", async () => {
   const { host, labels, binds } = mockHost({ reads: [todo, handedOff], bindFails: true });
   const result = await workflow(host);
-  assert(result.outcome === "handed_off", "bind refusal does not unhand the node, got " + result.outcome);
-  assert(labels.join(",") === "init,author,resolve", "no bind child after a refused resolution, got " + labels.join(","));
-  assert(binds.length === 0, "a refused resolution binds nothing, got " + binds.join(","));
-  assert(result.refusals.some((r) => r.includes("bind-tape")), "refusal names bind-tape");
-}
+  assert.ok(result.outcome === "handed_off", "bind refusal does not unhand the node, got " + result.outcome);
+  assert.ok(labels.join(",") === "init,author,resolve", "no bind child after a refused resolution, got " + labels.join(","));
+  assert.ok(binds.length === 0, "a refused resolution binds nothing, got " + binds.join(","));
+  assert.ok(result.refusals.some((r) => r.includes("bind-tape")), "refusal names bind-tape");
+});
 
 // --- writer refused: the child never starts ---
-{
+test("writer refused: the child never starts", async () => {
   const { host, labels } = mockHost({ reads: [todo, todo], initFails: true });
   const result = await workflow(host);
-  assert(result.outcome === "refused", "writer refusal refuses the step, got " + result.outcome);
-  assert(labels.join(",") === "init", "no author spawns after a refused mint, got " + labels.join(","));
-  assert(result.refusals.some((r) => r.includes("link mint")), "refusal names link mint");
-}
+  assert.ok(result.outcome === "refused", "writer refusal refuses the step, got " + result.outcome);
+  assert.ok(labels.join(",") === "init", "no author spawns after a refused mint, got " + labels.join(","));
+  assert.ok(result.refusals.some((r) => r.includes("link mint")), "refusal names link mint");
+});
 
 // --- missing args refuse without spawning anything ---
-{
+test("missing args refuse without spawning anything", async () => {
   const host = {
     args: { quest: "toy" },
     async agent() { throw new Error("must not spawn"); },
     async parallel() { throw new Error("must not spawn"); },
   };
   const result = await workflow(host);
-  assert(result.outcome === "refused", "missing args refuse");
-}
+  assert.ok(result.outcome === "refused", "missing args refuse");
+});
 
 // --- workflow-birth: the read carries the desk; context rides ---
-{
+test("workflow-birth: the read carries the desk; context rides", async () => {
   const { host, inputs } = mockHost({
     reads: [todo, handedOff],
     extraArgs: { desk: ".bp3/worktrees/toy-desk", context: "rename the widget verb, keep tests green" },
   });
   const result = await workflow(host);
-  assert(result.outcome === "handed_off", "desk+context build hands off, got " + result.outcome);
-  assert(inputs.reads.length === 2, "two reads captured, got " + inputs.reads.length);
+  assert.ok(result.outcome === "handed_off", "desk+context build hands off, got " + result.outcome);
+  assert.ok(inputs.reads.length === 2, "two reads captured, got " + inputs.reads.length);
   for (const read of inputs.reads) {
-    assert(read.includes("quest worktree `.bp3/worktrees/toy-desk`"),
+    assert.ok(read.includes("quest worktree `.bp3/worktrees/toy-desk`"),
       "read prompt names the desk worktree");
-    assert(read.includes("named above"), "read prompt points above at the desk");
-    assert(!read.includes("named below"), "read prompt never points below for the desk");
+    assert.ok(read.includes("named above"), "read prompt points above at the desk");
+    assert.ok(!read.includes("named below"), "read prompt never points below for the desk");
   }
-  assert(inputs.author.includes("conductor named this context; carry it verbatim: rename the widget verb, keep tests green"),
+  assert.ok(inputs.author.includes("conductor named this context; carry it verbatim: rename the widget verb, keep tests green"),
     "conductor context rides the author brief verbatim");
-}
+});
 
 // --- stage set is finite: no other stage's prompts in the file ---
-{
+test("stage set is finite: no other stage's prompts in the file", async () => {
   const src = readFileSync(new URL("../skills/induct/workflows/node-loop.js", import.meta.url), "utf8");
-  assert(!src.includes("host.parallel"), "no parallel stage fan-out in the file");
-  assert(!src.includes("grade --verdict"), "no grade prompt in the file");
-  assert(!src.includes("verify --verdict"), "no verify prompt in the file");
-  assert(!src.includes(" land --reason"), "no land prompt in the file");
-  assert(!src.includes("for (let stage"), "no stage loop in the file");
-}
-
-if (failures > 0) process.exit(1);
-console.log("node-loop tests: ok");
+  assert.ok(!src.includes("host.parallel"), "no parallel stage fan-out in the file");
+  assert.ok(!src.includes("grade --verdict"), "no grade prompt in the file");
+  assert.ok(!src.includes("verify --verdict"), "no verify prompt in the file");
+  assert.ok(!src.includes(" land --reason"), "no land prompt in the file");
+  assert.ok(!src.includes("for (let stage"), "no stage loop in the file");
+});

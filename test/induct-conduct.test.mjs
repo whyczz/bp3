@@ -5,6 +5,8 @@
 // machine, ending landed (reported node_fin). Each step is the
 // real workflow file; only the host (agent spawns and bp3 reads)
 // is mocked, so this proves conduction, not per-workflow parity.
+import { test } from "node:test";
+import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import nodeLoop from "../skills/induct/workflows/node-loop.js";
 import inductGrade from "../skills/induct/workflows/induct-grade.js";
@@ -12,10 +14,6 @@ import questLand from "../skills/induct/workflows/induct-land.js";
 
 const TS = "20260101T000000Z";
 const COMMIT = "abc1234";
-let failures = 0;
-function assert(cond, msg) {
-  if (!cond) { console.error("FAIL: " + msg); failures++; }
-}
 
 function passRow(name) {
   return {
@@ -92,7 +90,7 @@ function fixtureHost() {
 }
 
 // --- induct conducts: one fixture node, handoff -> grade -> land ---
-{
+test("induct conducts: one fixture node, handoff -> grade -> land", async () => {
   const { host, stages, state } = fixtureHost();
   const dispatched = [];
   const outcomes = [];
@@ -113,26 +111,23 @@ function fixtureHost() {
       break;
     }
   }
-  assert(dispatched.join(",") === "node-loop,induct-grade,induct-land",
+  assert.ok(dispatched.join(",") === "node-loop,induct-grade,induct-land",
     "induct dispatches handoff, grade, land in order, got " + dispatched.join(","));
-  assert(outcomes.join(",") === "handed_off,approved,landed",
+  assert.ok(outcomes.join(",") === "handed_off,approved,landed",
     "each step lands its transition, got " + outcomes.join(","));
-  assert(stages.join(",") === "author,audit,grade,verify,land",
+  assert.ok(stages.join(",") === "author,audit,grade,verify,land",
     "stage children run once each in order, got " + stages.join(","));
-  assert(state() === "landed", "fixture node reaches landed (node_fin), got " + state());
-  assert(host.args.commit === COMMIT, "bound commit flows from handoff into grade");
-}
+  assert.ok(state() === "landed", "fixture node reaches landed (node_fin), got " + state());
+  assert.ok(host.args.commit === COMMIT, "bound commit flows from handoff into grade");
+});
 
 // --- the conductor table in the skill names these same steps ---
-{
+test("the conductor table in the skill names these same steps", async () => {
   const skill = readFileSync(new URL("../skills/induct/SKILL.md", import.meta.url), "utf8");
-  assert(skill.includes("`node-loop` workflow"), "induct names node-loop for todo");
-  assert(skill.includes("`induct-grade` workflow"), "induct names induct-grade for handed_off");
-  assert(skill.includes("`induct-land` workflow"), "induct names induct-land for approved");
-  assert(skill.includes("bp3 skills check"), "induct checks render freshness before dispatch");
-  assert(skill.includes("E_RENDER_STALE"), "induct names the stale-render refusal");
-  assert(skill.includes("Never launch a stale render"), "induct states the freshness rule");
-}
-
-if (failures > 0) process.exit(1);
-console.log("induct-conduct tests: ok");
+  assert.ok(skill.includes("`node-loop` workflow"), "induct names node-loop for todo");
+  assert.ok(skill.includes("`induct-grade` workflow"), "induct names induct-grade for handed_off");
+  assert.ok(skill.includes("`induct-land` workflow"), "induct names induct-land for approved");
+  assert.ok(skill.includes("bp3 skills check"), "induct checks render freshness before dispatch");
+  assert.ok(skill.includes("E_RENDER_STALE"), "induct names the stale-render refusal");
+  assert.ok(skill.includes("Never launch a stale render"), "induct states the freshness rule");
+});

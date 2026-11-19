@@ -7,6 +7,8 @@
 // dispositioned via parent_run_id + watch, fresh-tree
 // revival after resume, root-session death revived from
 // bp3 rollup + inbox by a new root process.
+import { test } from "node:test";
+import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -15,10 +17,6 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const qBin = path.join(repoRoot, "_build", "default", "src", "quest", "main.exe");
-let failures = 0;
-function assert(cond, msg) {
-  if (!cond) { console.error("FAIL: " + msg); failures++; }
-}
 function alive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
@@ -142,6 +140,7 @@ function spawnNode(mode, quest, node, bubblePath, scratch) {
 }
 const exitOf = (child) => new Promise((r) => child.once("exit", r));
 
+test("pi process tree: one bubble, dead tree, orphan disposition, fresh revival, root revival", async () => {
 try {
   bp3(["q", "c", "demo"]);
   bp3(["q", "demo", "c", "pinode"]);
@@ -150,52 +149,52 @@ try {
   const bubblePath = path.join(work, "bubbles.jsonl");
   const scratch = path.join(work, "s1");
   const first = spawnNode("block-fail", "demo", "pinode", bubblePath, scratch);
-  assert((await exitOf(first.child)) === 0, "node worker exits 0 on block");
+  assert.ok((await exitOf(first.child)) === 0, "node worker exits 0 on block");
   const bubbles = fs.readFileSync(bubblePath, "utf8").trim().split("\n").map((l) => JSON.parse(l));
-  assert(bubbles.length === 1, "exactly one terminal bubble, got " + bubbles.length);
+  assert.ok(bubbles.length === 1, "exactly one terminal bubble, got " + bubbles.length);
   const b = bubbles[0];
-  assert(b.quest === "demo" && b.node === "pinode" && b.state === "blocked" && b.reason === "choose storage shape"
+  assert.ok(b.quest === "demo" && b.node === "pinode" && b.state === "blocked" && b.reason === "choose storage shape"
     && b.last_edge === "handoff" && b.inbox_key === "demo/pinode" && typeof b.desk === "string"
     && Array.isArray(b.run_chain) && b.run_chain.length === 2 && !("pid" in b), "bubble carries facts only: " + JSON.stringify(b));
   const edgeCfg = runCfg(b.run_chain[1]);
-  assert(edgeCfg.creator.run_id === b.run_chain[0], "edge run hangs off node run via parent_run_id");
-  assert(await waitDead(first.pid), "node worker pid dead after bubble");
+  assert.ok(edgeCfg.creator.run_id === b.run_chain[0], "edge run hangs off node run via parent_run_id");
+  assert.ok(await waitDead(first.pid), "node worker pid dead after bubble");
   const edgePid = Number(fs.readFileSync(scratch + ".edge.pid", "utf8"));
-  assert(await waitDead(edgePid), "edge worker pid dead after bubble (process table)");
+  assert.ok(await waitDead(edgePid), "edge worker pid dead after bubble (process table)");
   let read = bp3(["q", "demo", "r", "pinode"]);
-  assert(read.state === "blocked" && read.blocked.reason === "choose storage shape", "node rests blocked");
+  assert.ok(read.state === "blocked" && read.blocked.reason === "choose storage shape", "node rests blocked");
   let rollup = bp3(["q", "r", "demo"]);
-  assert(rollup.inbox.filter((i) => i.node === "pinode").length === 1, "exactly one inbox entry");
+  assert.ok(rollup.inbox.filter((i) => i.node === "pinode").length === 1, "exactly one inbox entry");
 
   // --- revival is a fresh tree: new claim/run chain, no reuse ---
   const resumed = bp3(["q", "demo", "u", "pinode", "resume", "--reason", "use localStorage"], { BP3_DECIDER: "human" });
-  assert(resumed.ok === true && resumed.state === "todo", "resume revives to todo");
+  assert.ok(resumed.ok === true && resumed.state === "todo", "resume revives to todo");
   const second = spawnNode("handoff", "demo", "pinode", bubblePath, path.join(work, "s2"));
-  assert((await exitOf(second.child)) === 0, "revived node worker exits 0");
-  assert(second.runId !== first.runId && second.pid !== first.pid, "fresh run-id and pid, no reuse");
+  assert.ok((await exitOf(second.child)) === 0, "revived node worker exits 0");
+  assert.ok(second.runId !== first.runId && second.pid !== first.pid, "fresh run-id and pid, no reuse");
   const secondCfg = runCfg(second.runId);
-  assert(secondCfg.claim.session_id !== runCfg(first.runId).claim.session_id || secondCfg.claim.pid !== runCfg(first.runId).claim.pid, "fresh claim identity");
+  assert.ok(secondCfg.claim.session_id !== runCfg(first.runId).claim.session_id || secondCfg.claim.pid !== runCfg(first.runId).claim.pid, "fresh claim identity");
   read = bp3(["q", "demo", "r", "pinode"]);
-  assert(read.state === "handed_off", "fresh tree drives node to handed_off, got " + read.state);
+  assert.ok(read.state === "handed_off", "fresh tree drives node to handed_off, got " + read.state);
 
   // --- unreaped grandchild: root follows parent_run_id, watch dispositions ---
   bp3(["q", "demo", "c", "orphanode"]);
   const orphanScratch = path.join(work, "orphan.json");
   const parent = spawnNode("orphan-parent", "demo", "orphanode", bubblePath, orphanScratch);
-  assert((await exitOf(parent.child)) === 0, "orphan-parent node worker dies first");
+  assert.ok((await exitOf(parent.child)) === 0, "orphan-parent node worker dies first");
   const orphan = JSON.parse(fs.readFileSync(orphanScratch, "utf8"));
-  assert(runCfg(orphan.grandchild_run).creator.run_id === orphan.node_run, "grandchild chain via parent_run_id");
-  assert(alive(orphan.grandchild_pid), "grandchild still live before disposition (genuinely unreaped)");
+  assert.ok(runCfg(orphan.grandchild_run).creator.run_id === orphan.node_run, "grandchild chain via parent_run_id");
+  assert.ok(alive(orphan.grandchild_pid), "grandchild still live before disposition (genuinely unreaped)");
   // The grandchild claims its link after node starts; only a claimed Run has a record to watch.
   const claimEnd = Date.now() + 5000;
   while (!runCfg(orphan.grandchild_run).claim && Date.now() < claimEnd) await new Promise((r) => setTimeout(r, 50));
-  assert(runCfg(orphan.grandchild_run).claim, "grandchild claimed its link before disposition");
+  assert.ok(runCfg(orphan.grandchild_run).claim, "grandchild claimed its link before disposition");
   const tapePath = path.join(work, "grandchild.jsonl");
   fs.writeFileSync(tapePath, JSON.stringify({ type: "message", id: "g1", message: { role: "user", content: "work" } }) + "\n");
   bp3(["harness", "bind-tape", "--run-id", orphan.grandchild_run, "--tape-path", tapePath]);
   const verdict = bp3Fail(["harness", "watch", "--run-id", orphan.grandchild_run, "--silence-seconds", "1", "--timeout-seconds", "20", "--grace-seconds", "1"]) ?? {};
-  assert(verdict.lifecycle === "orphaned", "watch dispositions grandchild orphaned: " + JSON.stringify(verdict));
-  assert(await waitDead(orphan.grandchild_pid), "grandchild dead after disposition; tree dead");
+  assert.ok(verdict.lifecycle === "orphaned", "watch dispositions grandchild orphaned: " + JSON.stringify(verdict));
+  assert.ok(await waitDead(orphan.grandchild_pid), "grandchild dead after disposition; tree dead");
 
   // --- root dies: a new root process revives from rollup + inbox alone ---
   bp3(["q", "demo", "c", "rootnode"]);
@@ -214,11 +213,10 @@ const minted = bp3(["harness", "link", "mint", "--kind", "node", "--quest", "dem
 console.log(JSON.stringify({ run_id: minted.run_id, token: minted.token }));
 `);
   const fresh = JSON.parse(execFileSync(process.execPath, [newRoot], { cwd: repo, encoding: "utf8", env }).trim().split("\n").pop());
-  assert(fresh.run_id !== dying.runId, "new root mints a fresh node run");
+  assert.ok(fresh.run_id !== dying.runId, "new root mints a fresh node run");
   read = bp3(["q", "demo", "r", "rootnode"]);
-  assert(read.state === "todo", "rootnode revived to todo by new root, got " + read.state);
+  assert.ok(read.state === "todo", "rootnode revived to todo by new root, got " + read.state);
 } finally {
   try { fs.rmSync(work, { recursive: true, force: true }); } catch {}
 }
-if (failures > 0) process.exit(1);
-console.log("pi-tree tests: ok");
+});
