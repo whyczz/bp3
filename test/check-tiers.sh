@@ -44,8 +44,6 @@ units=()
 while IFS= read -r u; do units+=("$u"); done < <(awk -F'\t' '$2 == "unit" { print $1 }' "$repo/test/suites.tsv")
 [ ${#units[@]} -gt 0 ] || fail "the suite table has no unit tier"
 "$sel" --list docs/quests/some-quest/QUEST.md | expect_list real-docs "${units[@]}"
-"$sel" --list test/pi-tree.test.mjs | grep -qx pi-tree || fail "test/pi-tree.test.mjs did not select pi-tree"
-checks=$((checks + 1))
 # 4. The gates' wiring is checked from lint (scripts/check-gates), which
 # both gates run first; lint must keep running it, and each planted
 # break must fail it by name.

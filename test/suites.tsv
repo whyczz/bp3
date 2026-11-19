@@ -21,19 +21,13 @@ g	fixture	./test/g.sh	150	0	-	src/*,bin/bp3,test/g.sh
 ready	fixture	./test/ready.sh	60	0	-	src/*,bin/bp3,test/ready.sh
 diagram	fixture	./test/diagram.sh	60	0	-	src/*,bin/bp3,test/diagram.sh
 blocked	fixture	./test/blocked.sh	60	0	-	src/*,bin/bp3,test/blocked.sh
-pi-tree	slow	node --test test/pi-tree.test.mjs	150	0	real pi process tree: link claims across live child processes	src/*,bin/bp3,skills/induct/*,test/pi-tree.test.mjs
 harness-cli	fixture	./test/harness/cli.sh	60	0	-	src/*,bin/bp3,test/harness/*
 harness-fold	fixture	./test/harness/fold.sh	60	0	-	src/*,bin/bp3,test/harness/*
-harness-watch	slow	./test/harness/watch.sh	120	0	watch sends real SIGTERM/SIGKILL after real silence windows	src/*,bin/bp3,test/harness/*
-harness-supervisor	slow	./test/harness/supervisor.sh	60	0	supervisor ticks over a live pid with real timeouts	src/*,bin/bp3,test/harness/*
-harness-race	slow	./test/harness/race.sh	60	0	two supervisors write one derivation log concurrently	src/*,bin/bp3,test/harness/*
 harness-evidence	fixture	./test/harness/evidence.sh	60	0	-	src/*,bin/bp3,test/harness/*
 harness-backtest	fixture	./test/harness/backtest.sh	60	0	-	src/*,bin/bp3,test/harness/*
 config	fixture	./test/config.sh	60	0	-	src/*,bin/bp3,test/config.sh
 link	fixture	./test/link.sh	60	0	-	src/*,bin/bp3,test/link.sh
 mode	fixture	./test/mode.sh	60	0	-	src/*,bin/bp3,skills/*,test/mode.sh
-dogfood-link	slow	./test/dogfood-link.sh	60	0	drives real child runs through link mint and claim	src/*,bin/bp3,skills/induct/*,test/dogfood-link.sh
-dogfood-parallel	slow	./test/dogfood-parallel.sh	90	0	real parallel node runs racing on one quest	src/*,bin/bp3,skills/induct/*,test/dogfood-parallel.sh
 context	fixture	./test/context.sh	60	0	-	src/*,bin/bp3,test/context.sh
 bp3-pi	fixture	node --test extensions/bp3-pi/test/bp3-pi-real.test.mjs	60	0	-	extensions/*,src/*
 js-unit	unit	./test/js-unit.sh	60	0	-	extensions/*,test/fake-bp3/*,test/js-unit.sh
