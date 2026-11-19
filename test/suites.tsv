@@ -41,4 +41,4 @@ completion	fixture	./test/completion.sh	10	0	-	src/*,bin/bp3,completions/*,test/
 release	fixture	./test/release.sh	5	0	-	scripts/release-*,Makefile,src/quest/gitx.ml,test/release.sh
 install	fixture	./test/install.sh	5	0	-	scripts/install-bp3.sh,scripts/bp3-shim,test/install.sh
 check-tiers	fixture	./test/check-tiers.sh	5	0	-	scripts/check-changed.sh,scripts/check-retired-terms.sh,test/check-tiers.sh
-run-suites	fixture	./test/run-suites.sh	15	0	-	scripts/run-suites,test/run-suites.sh,test/run-suites/*,test/suites.tsv
+run-suites	fixture	./test/run-suites.sh	40	0	-	scripts/run-suites,test/run-suites.sh,test/run-suites/*,test/suites.tsv

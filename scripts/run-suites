@@ -2,10 +2,14 @@
 # run-suites — parallel suite runner (test-pyramid tier.1).
 # Reads the suite table (test/suites.tsv) and runs the selected
 # rows at once. Each suite runs under `env -i` plus a named
-# allowlist, with its own HOME and TMPDIR and its own process
-# group, inside a wall-clock budget: an overrun kills the whole
-# group and fails the suite by name. Rows with serial=1 never
-# overlap each other (they touch the real repo tree).
+# allowlist (a suite that needs anything else fails on its own,
+# loudly; the runner never passes it), with its own HOME and
+# TMPDIR and its own process group, inside a wall-clock budget:
+# only a real overrun (millisecond clock) kills the whole group
+# and fails the suite by name. Rows with serial=1 never overlap
+# each other (they touch the real repo tree). The runner stays in
+# the caller's process group, so Ctrl-C reaches it; it then kills
+# every suite group, and an EXIT trap does the same on any abort.
 #
 # Table: one row per suite, tab-separated, '#' starts a comment,
 # '-' marks an empty field:
@@ -24,19 +28,25 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 
 usage() { echo "run-suites: $*" >&2; exit 2; }
-table="test/suites.tsv"; tiers="fixture,slow"; only=""; jobs=""; list=0; report=0
+table="test/suites.tsv"; tiers="fixture,slow"; only=""; only_set=0; jobs=""; list=0; report=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --tier) [ $# -ge 2 ] || usage "--tier needs a value"; tiers=$2; shift 2 ;;
-    --only) [ $# -ge 2 ] || usage "--only needs a value"; only=$2; shift 2 ;;
+    --only) [ $# -ge 2 ] || usage "--only needs a value"; only=$2; only_set=1; shift 2 ;;
     --table) [ $# -ge 2 ] || usage "--table needs a value"; table=$2; shift 2 ;;
     --jobs) [ $# -ge 2 ] || usage "--jobs needs a value"; jobs=$2; shift 2 ;;
     --list) list=1; shift ;;
     --report) report=1; shift ;;
-    -h|--help) grep '^#' "$0" | sed -n '2,24p'; exit 0 ;;
+    -h|--help) grep '^#' "$0" | sed -n '2,28p'; exit 0 ;;
     *) usage "unknown argument: $1" ;;
   esac
 done
+[ -n "$tiers" ] || usage "--tier needs a value"
+IFS=',' read -r -a tier_list <<< "$tiers"
+for t in "${tier_list[@]}"; do
+  case "$t" in fixture|slow) ;; *) usage "unknown tier: $t (fixture or slow)" ;; esac
+done
+if [ "$only_set" = 1 ] && [ -z "$only" ]; then usage "--only needs a value"; fi
 [ -f "$table" ] || usage "no suite table: $table"
 if [ -z "$jobs" ]; then jobs=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4); fi
 case "$jobs" in ''|*[!0-9]*|0) usage "--jobs must be a positive integer" ;; esac
@@ -51,8 +61,10 @@ lineno=0
 while IFS= read -r line || [ -n "$line" ]; do
   lineno=$((lineno + 1))
   case "$line" in ''|'#'*) continue ;; esac
+  tabs=${line//[!$'\t']/}
+  [ ${#tabs} -eq 6 ] || usage "$table:$lineno: expected 7 tab-separated fields, got $(( ${#tabs} + 1 ))"
   IFS=$'\t' read -r name tier cmd budget serial why paths <<< "$line"
-  [ -n "${paths:-}" ] || usage "$table:$lineno: expected 7 tab-separated fields"
+  [ -n "${paths:-}" ] || usage "$table:$lineno: empty field (use '-')"
   case "$tier" in fixture|slow) ;; *) usage "$table:$lineno: tier must be fixture or slow: $tier" ;; esac
   case "$budget" in ''|*[!0-9]*|0) usage "$table:$lineno: budget_s must be a positive integer: $budget" ;; esac
   case "$serial" in 0|1) ;; *) usage "$table:$lineno: serial must be 0 or 1: $serial" ;; esac
@@ -80,65 +92,81 @@ done
 if [ "$list" = 1 ]; then for i in "${sel[@]}"; do echo "${names[$i]}"; done; exit 0; fi
 
 # --- environment allowlist: nothing else reaches a suite ---
-allow="PATH LANG LC_ALL LC_CTYPE SDKROOT OPAM_SWITCH_PREFIX CAML_LD_LIBRARY_PATH OCAMLPATH OCAML_TOPLEVEL_PATH NODE_PATH NODE_OPTIONS"
+allow="PATH LANG SDKROOT OPAM_SWITCH_PREFIX CAML_LD_LIBRARY_PATH OCAMLPATH OCAML_TOPLEVEL_PATH NODE_PATH NODE_OPTIONS"
 base_env=()
 for v in $allow; do
   if [ -n "${!v+x}" ]; then base_env+=("$v=${!v}"); fi
 done
+for v in $(compgen -e); do
+  case "$v" in LC_*) base_env+=("$v=${!v}") ;; esac
+done
 
-now() { perl -MTime::HiRes=time -e 'printf "%.2f", time'; }
+ms() { perl -MTime::HiRes=time -e 'printf "%d", time * 1000'; }
+secs() { printf '%d.%d' $(($1 / 1000)) $(($1 % 1000 / 100)); }   # ms -> s.d
 tmpbase=$(mktemp -d "${TMPDIR:-/tmp}/run-suites.XXXXXX")
-set -m   # each background suite leads its own process group
 
-state=(); pids=(); start_s=(); start_t=(); took=(); rcs=()
+state=(); pids=(); start_ms=(); took=(); rcs=()
 for i in "${sel[@]}"; do state[i]=pending; done
 
-kill_group() { # pid
-  kill -TERM -- "-$1" 2>/dev/null || true
+kill_group() { # pid: the suite's group; the pid itself if setpgrp has not run yet
+  kill -TERM -- "-$1" 2>/dev/null || kill -TERM "$1" 2>/dev/null || true
   sleep 0.3
-  kill -KILL -- "-$1" 2>/dev/null || true
+  kill -KILL -- "-$1" 2>/dev/null || kill -KILL "$1" 2>/dev/null || true
 }
-# shellcheck disable=SC2329  # invoked by the trap below
+# shellcheck disable=SC2329  # invoked by on_signal and the EXIT trap
+reap_running() {
+  for i in "${sel[@]}"; do
+    if [ "${state[$i]}" = running ]; then kill_group "${pids[$i]}"; state[i]=killed; fi
+  done
+}
+# shellcheck disable=SC2329  # invoked by the traps below
 on_signal() {
-  for i in "${sel[@]}"; do [ "${state[$i]}" = running ] && kill_group "${pids[$i]}"; done
+  trap - INT TERM
+  reap_running
   rm -rf "$tmpbase"
   echo "run-suites: interrupted" >&2
   exit 130
 }
 trap on_signal INT TERM
+trap reap_running EXIT   # any abort (set -e included) still reaps every suite group
 
-launch() { # index
+launch() { # index now_ms
   local i=$1 dir="$tmpbase/${names[$1]}"
   mkdir -p "$dir/home" "$dir/home/t"
+  # setpgrp gives the suite its own process group without job
+  # control, so the runner stays where the terminal's Ctrl-C lands.
+  # shellcheck disable=SC2016  # perl code, not shell
   ( exec env -i "${base_env[@]}" HOME="$dir/home" TMPDIR="$dir/home/t" \
       BP3_SUITE="${names[$i]}" GIT_CONFIG_NOSYSTEM=1 \
+      perl -e 'setpgrp(0, 0); exec { $ARGV[0] } @ARGV or die "run-suites: exec: $!\n"' \
       bash -c "${cmds[$i]}" ) > "$dir/log" 2>&1 < /dev/null &
-  pids[i]=$!; start_s[i]=$SECONDS; start_t[i]=$(now); state[i]=running
+  pids[i]=$!; start_ms[i]=$2; state[i]=running
 }
-finish() { # index rc
+finish() { # index rc now_ms
   local i=$1
-  took[i]=$(echo "$(now) - ${start_t[$i]}" | bc)
+  took[i]=$(($3 - start_ms[i]))
   rcs[i]=$2; state[i]="done"
   kill -KILL -- "-${pids[$i]}" 2>/dev/null || true   # stragglers in the group
   local word=ok note=""
   if [ "$2" = budget ]; then word=FAIL; note="  budget exceeded, group killed"
   elif [ "$2" != 0 ]; then word=FAIL; note="  rc=$2"; fi
-  printf '  %-4s %-22s %6.1fs  (budget %ss)%s\n' "$word" "${names[$i]}" "${took[$i]}" "${budgets[$i]}" "$note"
+  printf '  %-4s %-22s %6ss  (budget %ss)%s\n' "$word" "${names[$i]}" "$(secs "${took[$i]}")" "${budgets[$i]}" "$note"
 }
 
-t0=$(now)
+t0=$(ms)
 echo "run-suites: ${#sel[@]} suites, $jobs jobs, HOME isolated"
 while :; do
   running=0; serial_busy=0; pending=0
+  now_ms=$(ms)
   for i in "${sel[@]}"; do
     if [ "${state[$i]}" = running ]; then
       if ! kill -0 "${pids[$i]}" 2>/dev/null; then
         rc=0; wait "${pids[$i]}" 2>/dev/null || rc=$?
-        finish "$i" "$rc"
-      elif [ $((SECONDS - start_s[i])) -ge "${budgets[$i]}" ]; then
+        finish "$i" "$rc" "$now_ms"
+      elif [ $((now_ms - start_ms[i])) -gt $((budgets[i] * 1000)) ]; then
         kill_group "${pids[$i]}"
         wait "${pids[$i]}" 2>/dev/null || true
-        finish "$i" budget
+        finish "$i" budget "$now_ms"
       else
         running=$((running + 1))
         [ "${serials[$i]}" = 1 ] && serial_busy=1
@@ -153,22 +181,22 @@ while :; do
       [ "$serial_busy" = 0 ] || continue
       serial_busy=1
     fi
-    launch "$i"; running=$((running + 1)); pending=$((pending - 1))
+    launch "$i" "$now_ms"; running=$((running + 1)); pending=$((pending - 1))
   done
   [ "$running" -gt 0 ] || [ "$pending" -gt 0 ] || break
-  sleep 0.1
+  sleep 0.1 || true
 done
-wall=$(echo "$(now) - $t0" | bc)
+wall=$(($(ms) - t0))
 
 failed=(); sum=0
 for i in "${sel[@]}"; do
-  sum=$(echo "$sum + ${took[$i]}" | bc)
+  sum=$((sum + took[i]))
   [ "${rcs[$i]}" = 0 ] || failed+=("$i")
 done
 if [ "$report" = 1 ]; then
   echo "run-suites: report (actual vs budget, highest share first)"
   for i in "${sel[@]}"; do
-    printf '%s\t%s\t%s\n' "$(echo "scale=0; 100 * ${took[$i]} / ${budgets[$i]}" | bc)" "${names[$i]}" "${took[$i]}/${budgets[$i]}s"
+    printf '%s\t%s\t%s\n' $((took[i] / 10 / budgets[i])) "${names[$i]}" "$(secs "${took[$i]}")/${budgets[$i]}s"
   done | sort -t$'\t' -k1,1nr | while IFS=$'\t' read -r pct n frac; do
     printf '  %3s%%  %-22s %s\n' "$pct" "$n" "$frac"
   done
@@ -183,9 +211,9 @@ for i in "${sel[@]}"; do
 done
 if [ ${#failed[@]} -eq 0 ]; then
   rmdir "$tmpbase" 2>/dev/null || true
-  printf 'run-suites: ok %d/%d  wall %.1fs  (serial sum %.1fs)\n' "${#sel[@]}" "${#sel[@]}" "$wall" "$sum"
+  printf 'run-suites: ok %d/%d  wall %ss  (serial sum %ss)\n' "${#sel[@]}" "${#sel[@]}" "$(secs "$wall")" "$(secs "$sum")"
   exit 0
 fi
 names_failed=""; for i in "${failed[@]}"; do names_failed="$names_failed ${names[$i]}"; done
-printf 'run-suites: FAIL %d/%d:%s  wall %.1fs\n' "${#failed[@]}" "${#sel[@]}" "$names_failed" "$wall"
+printf 'run-suites: FAIL %d/%d:%s  wall %ss\n' "${#failed[@]}" "${#sel[@]}" "$names_failed" "$(secs "$wall")"
 exit 1
