@@ -174,7 +174,7 @@ assert grep -q 'park it' "$repo/skills/induct-yolo/SKILL.md"
 assert grep -q 'missing Acceptance rows' "$repo/skills/induct-yolo/SKILL.md"
 assert grep -q 'open' "$repo/skills/induct-yolo/SKILL.md"
 assert grep -q 'design question' "$repo/skills/induct-yolo/SKILL.md"
-assert grep -q 'make check` is green' "$repo/skills/induct-yolo/SKILL.md"
+assert grep -q 'make check-full` is green' "$repo/skills/induct-yolo/SKILL.md"
 assert grep -q 'the budget stopped it' "$repo/skills/induct-yolo/SKILL.md"
 assert grep -q 'goal_fin` stays the' "$repo/skills/induct-yolo/SKILL.md"
 assert grep -q 'usage_recorded` token totals' "$repo/skills/induct-yolo/SKILL.md"
@@ -201,5 +201,16 @@ assert grep -q 'grouped by quest, each with its inbox reason' "$repo/skills/indu
 assert grep -q 'same human decision appear as one' "$repo/skills/induct-yolo/SKILL.md"
 assert grep -q 'attested per node at resume time' "$repo/skills/induct-yolo/SKILL.md"
 assert grep -q 'Disjoint quests run in parallel' "$root/.agents/skills/induct-yolo/SKILL.md"
+
+# test-pyramid tier.3: grade and land run the full gate. No line that
+# grades, lands or hands off may name the inner loop (plain make check),
+# and each conducting skill names make check-full.
+gate_lines=$(grep -nE 'make check([^-]|$)' "$repo"/skills/*/SKILL.md "$repo"/skills/induct/workflows/*.js \
+  | grep -iE 'grade|land|handoff|gate' || true)
+[ -z "$gate_lines" ] || { echo "FAIL: a grade/land instruction names plain make check: $gate_lines" >&2; exit 1; }
+checks=$((checks + 1))
+for s in induct induct-inline induct-yolo using-bp3; do
+  assert grep -q 'make check-full' "$repo/skills/$s/SKILL.md"
+done
 
 printf 'skills tests: ok (%s assertions)\n' "$checks"

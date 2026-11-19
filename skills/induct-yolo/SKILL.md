@@ -83,8 +83,8 @@ quest up it. Names below reuse the node's words: `fleet`,
      (an node missing Acceptance rows fails this check);
    - no NODE.md in the quest carries an open
      design question;
-   - `make check` is green (`make check` red fails
-     this check);
+   - `make check-full` is green (`make check-full` red
+     fails this check);
    - the quest declares a footprint (see Fleet).
    Footprint preflight: in merge order, the first quest
    claims its footprint; a quest whose footprint overlaps

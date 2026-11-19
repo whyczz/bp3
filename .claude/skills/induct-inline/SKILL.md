@@ -50,7 +50,8 @@ This session wrote the commit, so it never forms the verdict.
 - **Subagent available** (Claude Code's Agent tool, Muse's
   `agent()`): spawn one fresh grader with a cold brief — quest,
   node, the bound commit SHA, the NODE.md acceptance gates, and
-  the commands to run; never the authoring rationale. It returns
+  the commands to run, `make check-full` (the grade gate)
+  among them; never the authoring rationale. It returns
   the verdict as data and makes no `bp3 q` calls (pure grade, as
   in `induct`). This session casts that verdict verbatim, bound to
   that SHA. One grader per grade; never reused across commits.

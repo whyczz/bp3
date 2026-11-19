@@ -223,13 +223,12 @@ is a usage error naming this derivation.
    stops looping and escalates to the owner through the
    blocked gate instead of dispatching another cycle.
 
-   Check tiers (followup.6): an author cycle verifies with
-   `make check-changed` (only the suites its diff touches)
-   or `make check-fast` when unsure — never the full suite
-   per cycle. Full `make check` runs only when the node's
-   acceptance names it, or at handoff when the conductor
-   asks; grade and land gates keep the full `make check`,
-   unchanged.
+   Check tiers (test-pyramid tier.2): an author cycle
+   verifies with `make check` (lint and the unit tier, in
+   seconds) or `make check-changed` (plus the suites its
+   diff touches) — never `make check-full` per cycle. Grade
+   and land gates run `make check-full`, the full gate; a
+   grade that ran only the inner loop has not run the gate.
 4. Blocked gate (the only page): present the inbox in the
    main session (node, reason, checkpoint, cycle), capture
    the human's decision in their words, attest it
