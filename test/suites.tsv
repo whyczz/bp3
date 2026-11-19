@@ -1,0 +1,44 @@
+# Suite table: the single list of fixture and slow suites (test-pyramid tier.1).
+# Read by scripts/run-suites. Tab-separated; '-' marks an empty field.
+# Columns: name  tier  cmd  budget_s  serial  why  paths
+#   tier      fixture | slow. A suite is slow iff it proves what no fake can:
+#             a real process tree, signals, real wall-clock waits, or
+#             concurrent writers (red-ink R7); slow rows carry a why.
+#   budget_s  hand-set: about 2x the suite's time measured under run-suites
+#             (10 jobs), rounded up to the next 5s, minimum 5 (red-ink R2).
+#             Measured 2026-11-19; parallel contention runs ~1.7x serial.
+#             Tighten with a reviewed diff after `run-suites --report`.
+#   serial    1 when the suite writes the real repo tree; serial rows never overlap.
+#   paths     globs that select the suite for a changed file (red-ink R3').
+# The unit tier (dune test, JS unit tests) is not listed here.
+check-skills	fixture	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills	5	1	-	skills/*,.pi/skills/*,.agents/skills/*,.claude/skills/*,scripts/check-skills
+skills	fixture	./test/skills.sh	15	1	-	skills/*,.pi/skills/*,.agents/skills/*,.claude/skills/*,bin/bp3,test/skills.sh
+g	fixture	./test/g.sh	45	0	-	src/*,bin/bp3,test/g.sh
+ready	fixture	./test/ready.sh	20	0	-	src/*,bin/bp3,test/ready.sh
+diagram	fixture	./test/diagram.sh	10	0	-	src/*,bin/bp3,test/diagram.sh
+blocked	fixture	./test/blocked.sh	10	0	-	src/*,bin/bp3,test/blocked.sh
+pi-tree	slow	node test/pi-tree.test.mjs	50	0	real pi process tree: link claims across live child processes	src/*,bin/bp3,skills/induct/*,test/pi-tree.test.mjs
+harness-cli	fixture	./test/harness/cli.sh	10	0	-	src/*,bin/bp3,test/harness/*
+harness-fold	fixture	./test/harness/fold.sh	15	0	-	src/*,bin/bp3,test/harness/*
+harness-watch	slow	./test/harness/watch.sh	40	0	watch sends real SIGTERM/SIGKILL after real silence windows	src/*,bin/bp3,test/harness/*
+harness-supervisor	slow	./test/harness/supervisor.sh	20	0	supervisor ticks over a live pid with real timeouts	src/*,bin/bp3,test/harness/*
+harness-race	slow	./test/harness/race.sh	20	0	two supervisors write one derivation log concurrently	src/*,bin/bp3,test/harness/*
+harness-evidence	fixture	./test/harness/evidence.sh	20	0	-	src/*,bin/bp3,test/harness/*
+harness-backtest	fixture	./test/harness/backtest.sh	5	0	-	src/*,bin/bp3,test/harness/*
+config	fixture	./test/config.sh	5	0	-	src/*,bin/bp3,test/config.sh
+link	fixture	./test/link.sh	10	0	-	src/*,bin/bp3,test/link.sh
+mode	fixture	./test/mode.sh	5	0	-	src/*,bin/bp3,skills/*,test/mode.sh
+dogfood-link	slow	./test/dogfood-link.sh	15	0	drives real child runs through link mint and claim	src/*,bin/bp3,skills/induct/*,test/dogfood-link.sh
+dogfood-parallel	slow	./test/dogfood-parallel.sh	30	0	real parallel node runs racing on one quest	src/*,bin/bp3,skills/induct/*,test/dogfood-parallel.sh
+context	fixture	./test/context.sh	10	0	-	src/*,bin/bp3,test/context.sh
+bp3-pi	fixture	node --test extensions/bp3-pi/test/bp3-pi.test.mjs	20	0	-	extensions/*,src/*
+worktree	fixture	./test/worktree.sh	15	0	-	src/*,bin/bp3,test/worktree.sh
+tape	fixture	./test/tape.sh	5	0	-	src/*,bin/bp3,test/tape.sh
+cleanliness	fixture	./test/cleanliness.sh	5	0	-	.gitignore,test/cleanliness.sh
+hooks	fixture	./test/hooks.sh	10	0	-	src/*,bin/bp3,test/hooks.sh
+induct	fixture	./test/induct.sh	5	0	-	skills/induct/*,test/induct.sh,test/induct-*.test.mjs,test/node-loop.test.mjs
+completion	fixture	./test/completion.sh	10	0	-	src/*,bin/bp3,completions/*,test/completion.sh
+release	fixture	./test/release.sh	5	0	-	scripts/release-*,Makefile,src/quest/gitx.ml,test/release.sh
+install	fixture	./test/install.sh	5	0	-	scripts/install-bp3.sh,scripts/bp3-shim,test/install.sh
+check-tiers	fixture	./test/check-tiers.sh	5	0	-	scripts/check-changed.sh,scripts/check-retired-terms.sh,test/check-tiers.sh
+run-suites	fixture	./test/run-suites.sh	15	0	-	scripts/run-suites,test/run-suites.sh,test/run-suites/*,test/suites.tsv
