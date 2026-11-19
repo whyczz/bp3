@@ -55,6 +55,15 @@ rails live in `skills/induct-yolo/SKILL.md`;
 this section names the variant only, so the procedure
 above stays the one conductor procedure.
 
+## Inline variant
+
+To work a small quest inside one session with no workflow
+children, the `induct-inline` skill does each step itself
+(author, hand off, land) and sends only the grade judgment to
+one fresh grader subagent, or to the owner when no subagent
+tool exists. The conductor rule above binds `induct` alone;
+the inline rules live in `skills/induct-inline/SKILL.md`.
+
 ## Procedure
 
 Mode (dogfood.3): the repo derives the mode, never a flag.

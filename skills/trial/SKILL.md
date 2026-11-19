@@ -1,15 +1,16 @@
 ---
 name: trial
-description: Produce the Landing IIUC for a bp3 Quest being promoted — diligence gate first (every node checked against its own acceptance; unsettled or improperly-done nodes route to red-ink, not landing), then decision record, settled picture, demo traces, files touched, verification, and deliberately-open items.
+description: "Land a bp3 Quest with something the owner can watch and try — diligence gate first (unsettled or improperly-done nodes route to red-ink), then the Landing IIUC and a trial: one sandboxed script, recorded with asciinema and runnable live."
 ---
 
-# Red-Ink Quest Landing Demo
+# Trial
 
 Use when a human or Controller in bp3 invokes this skill by
 name (`/trial`), when a Quest reaches
 Quest-to-master promotion, or when asked “walk me through
-what this quest became / what got done / give me the demos.”
-One output: a Landing IIUC, presented in chat and, on human
+what this quest became / what got done / let me try it.”
+One output: a Landing IIUC with its trial (a script the owner
+can watch as a recording or run live), presented in chat and, on human
 approval, recorded at the Quest's landing.
 
 Use `quest` instead to frame a new Quest. Use `using-bp3`
@@ -56,12 +57,20 @@ entries or deferrals the quest spawned.
 4. Decision record: every settled decision, one line each,
    before -> after, grouped by the walk's slices (output,
    inputs, data/state, functions, names, concepts).
-5. Demos: one worked trace per acceptance claim — happy
-   path, the main failure/refusal path, and the recovery
-   path where one exists. Label each honestly: `observed`
-   (actually run; quote real output) or `design trace`
-   (walked from the spec). A design trace is never dressed
-   as a run.
+5. Trial: write `docs/quests/<quest>/trial/trial.sh`. It
+   builds a scratch sandbox (temp repo, freshly built binary;
+   never this repo's state), then runs the happy path, the main
+   refusal path, and the recovery path where one exists,
+   echoing each command before it runs and exiting non-zero on
+   any unexpected result. Record it in that folder with
+   `asciinema rec --overwrite -c ./trial.sh trial.cast` (add
+   `--headless` when recording without a terminal, as agents do); the owner
+   replays it (`asciinema play trial.cast`)
+   or runs `trial.sh` live, which prints the sandbox path and
+   leaves it for poking until the owner removes it. Numbers in
+   the IIUC come from this run (`observed`); a claim the script
+   does not exercise is a `design trace`, labeled so, never
+   dressed as a run.
 6. Files touched: changed paths with one-line roles; name
    the original any working copy forked from, and state
    whether it is untouched.
@@ -83,8 +92,9 @@ entries or deferrals the quest spawned.
 - Terms in the Landing IIUC are the Quest's settled Terms,
   spelled exactly as the code and data structures spell
   them.
-- Instructions only: this skill writes nothing unless the
-  human approves recording the landing; it takes no bp3
-  moves and edits no ledger or state.
+- Writes only the quest's `trial/` folder (`trial.sh`,
+  `trial.cast`) and, on the owner's approval, the recorded
+  Landing IIUC; it takes no bp3 moves and edits no ledger or
+  state. The sandbox never touches this repo's refs.
 - Keep it readable in one sitting: short sentences, short
   paragraphs, tables only where a mapping earns them.

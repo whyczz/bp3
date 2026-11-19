@@ -1,0 +1,72 @@
+---
+name: induct-inline
+description: Run one bp3 quest inside the current session with no workflow children — author each node here, have one fresh grader subagent (or the owner) judge it, cast the edges, re-read — for small quests worked hands-on.
+---
+<!-- GENERATED from skills/induct-inline/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->
+
+# Induct inline
+
+Use when a human in a bp3-enabled repo invokes this skill by
+name (`/induct-inline <quest>`) or asks to work a quest "here",
+"inline", or "without spawning workflows" in this session. One
+quest. One output: the `induct` report (`node_fin`, blocked,
+owed decisions), with every step done in this session except the
+grade judgment.
+
+Use `induct` to conduct with workflow children (one per ready
+node, desks per node). Use `induct-yolo` when no human is
+present. Use `using-bp3` for one hand-cast edge.
+
+## How it differs from induct
+
+| | `induct` | `induct-inline` |
+|---|---|---|
+| author | `node-loop` child | this session |
+| grade judgment | `induct-grade` child | one fresh grader subagent; without one, the owner |
+| edges cast by | the looper | this session (the looper) |
+| fan-out | one child per ready node | none: one node in flight |
+| desk | one per node | one for the quest (self mode) |
+
+## Procedure
+
+1. `bp3 q r <quest>` must answer JSON, or stop. In self mode,
+   prepare the quest desk exactly as `induct` step 2 does and
+   work only there; host mode works in the repo.
+2. Take the first node in `ready` order; its state names the step:
+   - `todo`: read its NODE.md acceptance gates, make the change,
+     run the gates' `prove by` checks, commit clean, then cast
+     `bp3 q <quest> n <node> e handoff --commit <sha> --reason "..."`.
+   - `handed_off`: grade (below).
+   - `approved`: cast `e land --reason "..."`.
+   - `blocked`: stop and report the owed decision.
+3. Re-read after every edge. A refusal is information: re-read,
+   never retry unchanged.
+4. Loop until no node is ready or one blocks; give the report.
+
+## Grade: the author never judges
+
+This session wrote the commit, so it never forms the verdict.
+
+- **Subagent available** (Claude Code's Agent tool, Muse's
+  `agent()`): spawn one fresh grader with a cold brief — quest,
+  node, the bound commit SHA, the NODE.md acceptance gates, and
+  the commands to run; never the authoring rationale. It returns
+  the verdict as data and makes no `bp3 q` calls (pure grade, as
+  in `induct`). This session casts that verdict verbatim, bound to
+  that SHA. One grader per grade; never reused across commits.
+- **No subagent tool**: stop at `handed_off` and show the owner
+  the commit, the gate output, and the diff stat; the owner
+  judges, this session casts.
+- `needs_fix` below the cycle cap is weather: fix here, commit,
+  hand off again, fresh grader.
+
+## Rules
+
+- One quest, one session, one node in flight.
+- A verdict binds to the exact commit graded; a commit changed
+  after the grader saw it gets a new grade.
+- Clean commits only; a dirty tree is never state.
+- Never attest (`BP3_DECIDER` stays unset), never `resume` or
+  `delete`, never promote: `goal_fin` stays the owner gate.
+- State moves only through `bp3 q`; never edit a ledger or
+  `state.yaml` by hand.

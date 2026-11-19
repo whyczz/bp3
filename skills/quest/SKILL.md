@@ -263,8 +263,8 @@ Transitions: `proposed -> active -> landed`; `proposed | active -> canceled`.
 Files stay in `docs/quests/` for life — node records point at them.
 
 At `landed`, run `trial` and record its Landing IIUC
-(decision record, demo traces, verification, open items) under
-Success picture.
+(decision record, the trial run, verification, open items)
+under Success picture.
 
 | Boundary | Rule |
 |---|---|
