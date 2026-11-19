@@ -44,7 +44,8 @@ const sameResult = (a, b) => FIELDS.every((f) => JSON.stringify(a[f]) === JSON.s
 // where two results of one call part ways, for the author to normalize
 function firstDiff(a, b) {
   for (const f of FIELDS) {
-    const x = JSON.stringify(a[f]), y = JSON.stringify(b[f]);
+    // a field only one row has (a deleted shape) stringifies to undefined
+    const x = String(JSON.stringify(a[f])), y = String(JSON.stringify(b[f]));
     if (x === y) continue;
     let i = 0;
     while (i < x.length && x[i] === y[i]) i++;

@@ -78,6 +78,21 @@ if [ "$rc" != 1 ] || ! grep -q 'drift in shape: harness link mint .*--model fake
   fail "a hand-edited shape passed the check (exit $rc): $(tail -3 "$work/shape.out")"
 fi; ok
 
+# a shape deleted by hand drifts too, and the report still names the call
+node -e '
+const fs = require("fs");
+const [src, dst] = process.argv.slice(1);
+const rows = fs.readFileSync(src, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+const row = rows.find((r) => r.shape && r.argv.includes("role-model"));
+if (!row) process.exit(3);
+delete row.shape;
+fs.writeFileSync(dst, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
+' "$root/test/fake-bp3/transcripts.jsonl" "$work/noshape.jsonl" || fail "no role-model mint row to edit"
+rc=0; RECORD_TRANSCRIPTS_FILE="$work/noshape.jsonl" "$rec" --check > "$work/noshape.out" 2>&1 || rc=$?
+if [ "$rc" != 1 ] || ! grep -q 'drift in shape: harness link mint .*--model role-model' "$work/noshape.out" || grep -q TypeError "$work/noshape.out"; then
+  fail "a deleted shape was not reported by name (exit $rc): $(tail -3 "$work/noshape.out")"
+fi; ok
+
 # the real binary, wrapped so watch on R-live-1 reports R-live-2's pid:
 # a pid reported for the wrong run drifts
 cat > "$work/pid-swap-bp3" <<WRAP
