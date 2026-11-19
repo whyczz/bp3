@@ -1,14 +1,22 @@
 (* CLI and config edges (test-pyramid unit.4): flag parsing and its
-   typed refusals, verb spellings, dep lists, index keys. Cli holds
-   main.ml's argv helpers (moved there so tests can link them). Not
-   here: Config.canon_path, desk_matches and load_thresholds read the
-   filesystem or git (fixture tier, config.sh / worktree.sh). *)
+   typed refusals (code and message), verb spellings, dep lists,
+   index keys, thresholds. Cli holds main.ml's argv helpers (moved
+   there so tests can link them). Not here: Config.canon_path and
+   desk_matches resolve real paths (Unix.realpath, git common dir),
+   and load_thresholds' file read; its JSON logic is
+   thresholds_of_json, tested here. (fixture tier: config.sh,
+   worktree.sh) *)
 open OUnit2
 
 let code f =
   match f () with
   | _ -> "no verdict"
   | exception Gitx.Verdict (_, j) -> Yojson.Safe.Util.(j |> member "error" |> member "code" |> to_string)
+
+let detail f =
+  match f () with
+  | _ -> "no verdict"
+  | exception Gitx.Verdict (_, j) -> Yojson.Safe.Util.(j |> member "error" |> member "facts" |> member "detail" |> to_string)
 
 let case_split_flags_separates_positionals_from_flags _ =
   let (pos, fl) = Cli.split_flags [ "n1"; "handoff"; "--commit"; "abc"; "--reason"; "r" ] in
@@ -19,6 +27,42 @@ let case_split_flags_separates_positionals_from_flags _ =
   let (_, fl) = Cli.split_flags [ "--mechanical"; "--format"; "table" ] in
   assert_bool "mechanical" fl.Cli.mechanical;
   assert_equal ~printer:Fun.id "table" fl.Cli.fmt
+
+let case_split_flags_returns_every_positional_in_order_when_no_flag_follows _ =
+  let (pos, fl) = Cli.split_flags [ "quest-1"; "r"; "node-1" ] in
+  assert_equal [ "quest-1"; "r"; "node-1" ] pos;
+  assert_equal None fl.Cli.reason;
+  assert_equal ~printer:Fun.id "json" fl.Cli.fmt
+
+let case_parse_flags_stores_each_flag_in_its_own_field _ =
+  let fl = Cli.parse_flags [ "--reason"; "r"; "--commit"; "c"; "--verdict"; "ship"; "--target"; "t"; "--type"; "spike";
+                             "--depends-on"; "a,b"; "--format"; "tree"; "--verify-verdict"; "pass"; "--mechanical" ] in
+  assert_equal (Some "r") fl.Cli.reason; assert_equal (Some "c") fl.Cli.commit;
+  assert_equal (Some "ship") fl.Cli.verdict; assert_equal (Some "t") fl.Cli.target;
+  assert_equal (Some "spike") fl.Cli.typ; assert_equal (Some "a,b") fl.Cli.depends_on;
+  assert_equal ~printer:Fun.id "tree" fl.Cli.fmt; assert_equal (Some "pass") fl.Cli.verify_verdict;
+  assert_bool "mechanical" fl.Cli.mechanical
+
+let case_parse_flags_refuses_a_second_copy_of_every_valued_flag _ =
+  List.iter (fun f ->
+      assert_equal ~msg:f ~printer:Fun.id ("duplicate flag " ^ f) (detail (fun () -> Cli.parse_flags [ f; "x"; f; "y" ])))
+    [ "--reason"; "--commit"; "--verdict"; "--target"; "--type"; "--depends-on"; "--verify-verdict" ]
+
+let case_parse_flags_names_what_is_wrong_in_each_refusal _ =
+  List.iter (fun (args, want) ->
+      assert_equal ~msg:(String.concat " " args) ~printer:Fun.id want (detail (fun () -> Cli.parse_flags args)))
+    [ ([ "--reason" ], "flag needs a value"); ([ "--bogus"; "x" ], "unknown flag: --bogus");
+      ([ "--reason=a" ], "unknown flag form: --reason=a"); ([ "stray" ], "stray positional: stray");
+      ([ "--mode"; "self" ], Gitx.mode_flag_usage); ([ "--format"; "yaml" ], "--format must be json, table, or tree");
+      ([ "--format"; "json"; "--format"; "json" ], "duplicate flag --format");
+      ([ "--mechanical"; "--mechanical" ], "duplicate flag --mechanical") ]
+
+let case_thresholds_of_json_reads_nested_or_flat_keys_and_keeps_defaults_otherwise _ =
+  let t s = Config.thresholds_of_json (Yojson.Safe.from_string s) in
+  let show (x : Config.thresholds) = Printf.sprintf "%d/%d" x.Config.setup_slow_s x.Config.depth_cap in
+  List.iter (fun (s, want) -> assert_equal ~msg:s ~printer:Fun.id want (show (t s)))
+    [ ({|{"thresholds": {"setup_slow_s": 60, "depth_cap": 5}}|}, "60/5"); ({|{"setup_slow_s": 30}|}, "30/3");
+      ({|{"thresholds": {"depth_cap": "deep"}}|}, "180/3"); ({|{}|}, "180/3") ]
 
 let case_parse_flags_refuses_each_bad_form_with_E_USAGE _ =
   List.iter (fun args ->
@@ -59,6 +103,11 @@ let () =
   run_test_tt_main
     ("main" >::: [
        "case_split_flags_separates_positionals_from_flags" >:: case_split_flags_separates_positionals_from_flags;
+       "case_split_flags_returns_every_positional_in_order_when_no_flag_follows" >:: case_split_flags_returns_every_positional_in_order_when_no_flag_follows;
+       "case_parse_flags_stores_each_flag_in_its_own_field" >:: case_parse_flags_stores_each_flag_in_its_own_field;
+       "case_parse_flags_refuses_a_second_copy_of_every_valued_flag" >:: case_parse_flags_refuses_a_second_copy_of_every_valued_flag;
+       "case_parse_flags_names_what_is_wrong_in_each_refusal" >:: case_parse_flags_names_what_is_wrong_in_each_refusal;
+       "case_thresholds_of_json_reads_nested_or_flat_keys_and_keeps_defaults_otherwise" >:: case_thresholds_of_json_reads_nested_or_flat_keys_and_keeps_defaults_otherwise;
        "case_parse_flags_refuses_each_bad_form_with_E_USAGE" >:: case_parse_flags_refuses_each_bad_form_with_E_USAGE;
        "case_parse_dep_list_trims_names_and_drops_blanks" >:: case_parse_dep_list_trims_names_and_drops_blanks;
        "char_parse_dep_list_keeps_each_duplicate_at_its_last_position" >:: char_parse_dep_list_keeps_each_duplicate_at_its_last_position;

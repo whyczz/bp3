@@ -1,0 +1,27 @@
+%% generated from live state at 2026-11-19T00:00:00Z
+%% quest q2 rollup: active
+graph LR
+  node_a["node-a (landed, cycle 1, node_fin)"]
+  node_b["node-b (blocked, cycle 2)"]
+  node_c["node-c (todo, cycle 1)"]
+  node_d["node-d (todo, cycle 1)"]
+  node_e["node-e (todo, cycle 1)"]
+  node_f["node-f (todo, cycle 1)"]
+  node_g["node-g (todo, cycle ?)"]
+  node_h["node-h (todo, cycle 1)"]
+  node_a -->|dep| node_b
+  node_b -->|dep| node_c
+  node_a -->|dep| node_d
+  node_a -->|dep| node_e
+  node_d -->|dep| node_e
+  node_b -->|dep| node_f
+  node_g -->|dep| node_h
+  subgraph wave_1["wave 1"]
+    node_d
+    node_g
+  end
+  subgraph wave_2["wave 2"]
+    node_e
+    node_h
+  end
+  %% node-b starves: node-c, node-f

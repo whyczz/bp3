@@ -93,15 +93,18 @@ let jobj j key =
   try match Yojson.Safe.Util.member key j with `Assoc _ as o -> Some o | _ -> None
   with _ -> None
 
+(* Thresholds from a config document: under "thresholds" or at the
+   top level; a missing or non-int field keeps its default. *)
+let thresholds_of_json j =
+  let scope = match jobj j "thresholds" with Some t -> t | None -> j in
+  { setup_slow_s = jint scope "setup_slow_s" default_thresholds.setup_slow_s;
+    depth_cap = jint scope "depth_cap" default_thresholds.depth_cap }
+
 let load_thresholds dir =
   let path = config_file dir in
   if not (Sys.file_exists path) then default_thresholds
   else
-    try
-      let j = Yojson.Safe.from_string (read_file_or path "") in
-      let scope = match jobj j "thresholds" with Some t -> t | None -> j in
-      { setup_slow_s = jint scope "setup_slow_s" default_thresholds.setup_slow_s;
-        depth_cap = jint scope "depth_cap" default_thresholds.depth_cap }
+    try thresholds_of_json (Yojson.Safe.from_string (read_file_or path ""))
     with _ -> default_thresholds
 
 (* Zero setup: the first bp3 write on a fresh repo creates

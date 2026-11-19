@@ -1,0 +1,4 @@
+quest q1 [active] rollup: active ready: node-d, node-e
+node    state    cycle  commit   changes
+node-a  landed   1      e9c2ce3  +1 u1 -0
+node-b  blocked  2      -        ?

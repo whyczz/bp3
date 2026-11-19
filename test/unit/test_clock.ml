@@ -77,6 +77,16 @@ let law_stale_never_reverts_as_now_grows =
       (not (Clock.stale ~now ~last_seen ~stale_after_s))
       || Clock.stale ~now:(now +. later) ~last_seen ~stale_after_s)
 
+(* Once past, a deadline stays past as time moves forward. *)
+let law_past_deadline_never_reverts_as_now_grows =
+  QCheck2.Test.make ~count:300 ~name:"law_past_deadline_never_reverts_as_now_grows"
+    QCheck2.Gen.(triple (float_range 0. 1e9)
+                   (oneof [ float_range (-5.) 5.; map2 (fun neg u -> (if neg then -1. else 1.) *. (10. ** u)) bool (float_range (-1.) 7.) ])
+                   (map (fun u -> 10. ** u) (float_range (-1.) 7.)))
+    (fun (deadline, offset, later) ->
+      let now = deadline +. offset in
+      (not (Clock.past_deadline ~now ~deadline)) || Clock.past_deadline ~now:(now +. later) ~deadline)
+
 let () =
   run_test_tt_main
     ("clock" >::: [
@@ -93,4 +103,5 @@ let () =
        "case_stale_gate_keeps_a_binding_whose_last_seen_is_in_the_future" >:: case_stale_gate_keeps_a_binding_whose_last_seen_is_in_the_future;
        "case_with_fixed_restores_the_previous_clock_even_when_the_body_raises" >:: case_with_fixed_restores_the_previous_clock_even_when_the_body_raises;
        QCheck_ounit.to_ounit2_test law_stale_never_reverts_as_now_grows;
+       QCheck_ounit.to_ounit2_test law_past_deadline_never_reverts_as_now_grows;
      ])

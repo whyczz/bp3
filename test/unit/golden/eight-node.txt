@@ -1,0 +1,24 @@
+quest q2 diagram (generated from live state at 2026-11-19T00:00:00Z)
+rollup: active
+nodes:
+  node-a (landed, cycle 1, node_fin)
+  node-b (blocked, cycle 2)
+  node-c (todo, cycle 1)
+  node-d (todo, cycle 1)
+  node-e (todo, cycle 1)
+  node-f (todo, cycle 1)
+  node-g (todo, cycle ?)
+  node-h (todo, cycle 1)
+deps:
+  node-a ─dep─► node-b
+  node-b ─dep─► node-c
+  node-a ─dep─► node-d
+  node-a ─dep─► node-e
+  node-d ─dep─► node-e
+  node-b ─dep─► node-f
+  node-g ─dep─► node-h
+waves:
+  wave 1: node-d, node-g
+  wave 2: node-e, node-h
+starved:
+  node-b starves: node-c, node-f
