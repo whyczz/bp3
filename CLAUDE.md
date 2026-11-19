@@ -3,7 +3,8 @@
 bp3 is a quest state engine. Work moves as clean git commits;
 a small OCaml binary (the `bp3 q` door) is the only writer of
 quest state. Read this before touching anything under the
-goal storage tree (`docs/quests/`; the goal is the container, its DAG is the quest).
+quest storage tree (`docs/quests/`: one folder per quest; a
+quest is the DAG of nodes it plans).
 
 ## The one rule
 
