@@ -1,0 +1,110 @@
+#!/usr/bin/env node
+// record-transcripts (test-pyramid js.1): records the bp3 calls the
+// bp3-pi unit suite makes, by running that suite once with the fake
+// bp3 in record mode in front of the real binary. The transcripts are
+// what the fake replays (test/fake-bp3/transcripts.jsonl).
+//
+//   scripts/record-transcripts           re-record and write the file
+//   scripts/record-transcripts --check   re-record into a temp file and
+//                                        fail on any drift, naming the argv
+//
+// A call recorded twice with different results is not replayable and
+// fails either way. Needs the built binary (make check builds it).
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const real = path.join(root, "_build", "default", "src", "quest", "main.exe");
+const suite = path.join(root, "extensions", "bp3-pi", "test", "bp3-pi.test.mjs");
+// RECORD_TRANSCRIPTS_FILE: compare against another copy (test/transcripts.sh edits one)
+const checkedIn = process.env.RECORD_TRANSCRIPTS_FILE ?? path.join(root, "test", "fake-bp3", "transcripts.jsonl");
+const args = process.argv.slice(2);
+const check = args.includes("--check");
+if (args.some((a) => a !== "--check")) {
+  console.error("usage: scripts/record-transcripts [--check]");
+  process.exit(2);
+}
+if (!fs.existsSync(real)) {
+  console.error(`record-transcripts: build the binary first: dune build src/quest/main.exe`);
+  process.exit(2);
+}
+
+const keyOf = (row) => JSON.stringify([row.argv, row.env, row.run]);   // as test/fake-bp3/bp3 keys a call
+const show = (row) => row.argv.join(" ") + (Object.keys(row.env).length ? `  (env ${JSON.stringify(row.env)})` : "");
+const sameResult = (a, b) => JSON.stringify([a.exit, a.stdout, a.stderr, a.files]) === JSON.stringify([b.exit, b.stdout, b.stderr, b.files]);
+
+// where two results of one call part ways, for the author to normalize
+function firstDiff(a, b) {
+  for (const f of ["exit", "stdout", "stderr", "files"]) {
+    const x = JSON.stringify(a[f]), y = JSON.stringify(b[f]);
+    if (x === y) continue;
+    let i = 0;
+    while (i < x.length && x[i] === y[i]) i++;
+    return `${f} differs at: ...${x.slice(Math.max(0, i - 60), i + 40)}... vs ...${y.slice(Math.max(0, i - 60), i + 40)}...`;
+  }
+  return "";
+}
+
+function load(file) {
+  const rows = new Map();
+  for (const line of fs.readFileSync(file, "utf8").split("\n").filter(Boolean)) {
+    const row = JSON.parse(line);
+    rows.set(keyOf(row), row);
+  }
+  return rows;
+}
+
+const work = fs.mkdtempSync(path.join(os.tmpdir(), "bp3-transcripts-"));
+try {
+  const raw = path.join(work, "raw.jsonl");
+  fs.writeFileSync(raw, "");
+  // an empty HOME, so no recording depends on who ran it (~/.pi and the like)
+  const home = path.join(work, "home");
+  fs.mkdirSync(home);
+  const run = spawnSync(process.execPath, ["--test", suite], {
+    cwd: root, encoding: "utf8",
+    env: { ...process.env, HOME: home, FAKE_BP3_MODE: "record", FAKE_BP3_REAL: real, FAKE_BP3_RECORD: raw },
+  });
+  if (run.status !== 0) {
+    console.error(`record-transcripts: the suite failed in record mode (exit ${run.status}):\n${(run.stdout ?? "").slice(-3000)}${run.stderr ?? ""}`);
+    process.exit(1);
+  }
+  const fresh = new Map();
+  const problems = [];
+  for (const line of fs.readFileSync(raw, "utf8").split("\n").filter(Boolean)) {
+    const row = JSON.parse(line);
+    const seen = fresh.get(keyOf(row));
+    if (seen && !sameResult(seen, row)) problems.push(`not replayable: the same call gave two results: ${show(row)}\n  ${firstDiff(seen, row)}`);
+    fresh.set(keyOf(row), row);
+  }
+  if (problems.length) { for (const p of problems) console.error(`record-transcripts: ${p}`); process.exit(1); }
+  const sorted = [...fresh.keys()].sort().map((k) => JSON.stringify(fresh.get(k))).join("\n") + "\n";
+
+  if (!check) {
+    fs.writeFileSync(checkedIn, sorted);
+    console.log(`record-transcripts: ${fresh.size} calls recorded to ${path.relative(root, checkedIn)}`);
+    process.exit(0);
+  }
+  const old = fs.existsSync(checkedIn) ? load(checkedIn) : new Map();
+  const drift = [];
+  for (const [k, row] of fresh) {
+    const was = old.get(k);
+    if (!was) drift.push(`new call, not recorded: ${show(row)}`);
+    else if (!sameResult(was, row)) {
+      const fields = ["exit", "stdout", "stderr", "files"].filter((f) => JSON.stringify(was[f]) !== JSON.stringify(row[f]));
+      drift.push(`drift in ${fields.join(", ")}: ${show(row)}\n  ${firstDiff(was, row)}`);
+    }
+  }
+  for (const [k, row] of old) if (!fresh.has(k)) drift.push(`stale, no longer called: ${show(row)}`);
+  if (drift.length) {
+    for (const d of drift) console.error(`record-transcripts: ${d}`);
+    console.error(`record-transcripts: ${drift.length} drifted of ${fresh.size}; re-record with scripts/record-transcripts`);
+    process.exit(1);
+  }
+  console.log(`transcripts: ${fresh.size} re-recorded, drift 0`);
+} finally {
+  fs.rmSync(work, { recursive: true, force: true });
+}

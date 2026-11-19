@@ -16,7 +16,7 @@ check: lint
 	./test/ready.sh
 	./test/diagram.sh
 	./test/blocked.sh
-	node test/pi-tree.test.mjs
+	./test/js-unit.sh
 	./test/harness.sh
 	./test/run-suites.sh
 	./test/config.sh
@@ -25,7 +25,8 @@ check: lint
 	./test/dogfood-link.sh
 	./test/dogfood-parallel.sh
 	./test/context.sh
-	node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+	node --test extensions/bp3-pi/test/bp3-pi-real.test.mjs
+	./test/transcripts.sh
 	./test/worktree.sh
 	./test/tape.sh
 	./test/cleanliness.sh
@@ -36,8 +37,10 @@ check: lint
 	./test/install.sh
 
 lint:
-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/g.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/harness/*.sh test/run-suites.sh test/run-suites/*.sh scripts/run-suites test/config.sh test/link.sh test/mode.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/cleanliness.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/g.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/harness/*.sh test/run-suites.sh test/run-suites/*.sh scripts/run-suites test/js-unit.sh test/transcripts.sh test/config.sh test/link.sh test/mode.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/cleanliness.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
 	node --check test/pi-tree.test.mjs
+	node --check test/fake-bp3/bp3
+	node --check scripts/record-transcripts
 	node --check skills/induct/workflows/induct-node.js
 	node --check skills/induct/workflows/node-loop.js
 	node --check skills/induct/workflows/induct-grade.js
