@@ -22,7 +22,14 @@ expect_list() { # name expected... -- actual from stdin file
 "$sel" --list skills/induct/SKILL.md | expect_list skills-mapping check-skills skills induct
 "$sel" --list skills/induct/SKILL.md | grep -q harness && fail "skills-mapping ran harness" || checks=$((checks + 1))
 # 2. src/** -> build + binary suite, never skills suites.
-"$sel" --list src/quest/main.ml | expect_list src-mapping build g transcripts
+"$sel" --list src/quest/main.ml | expect_list src-mapping build g bp3-pi transcripts
+# 2b. js.1 routing: extensions and the fake select the JS unit tier, the
+# real-binary tests and the drift check; pi-tree only through run-suites
+"$sel" --list extensions/bp3-pi/src/dispatcher.ts | expect_list extensions-mapping build js-unit bp3-pi transcripts
+"$sel" --list test/fake-bp3/bp3 | expect_list fake-mapping build js-unit transcripts
+"$sel" --list test/pi-tree.test.mjs | expect_list pi-tree-mapping build pi-tree
+grep -q 'pi-tree) echo "scripts/run-suites --only pi-tree"' "$sel" || fail "pi-tree runs outside run-suites"
+checks=$((checks + 1))
 # 3. workflow renders -> skills check + matching test only.
 "$sel" --list .agents/workflows/induct-grade.js | expect_list render-mapping skills-check wf:induct-grade
 "$sel" --list skills/induct/workflows/node-loop.js | expect_list render-mapping-src skills-check wf:node-loop
@@ -35,6 +42,9 @@ checks=$((checks + 2))
 # 5. Fast tier: lint + skills + workflow/unit, no wall-clock suite.
 if ! grep -qx lint "$work/fast.txt" || ! grep -qx check-skills "$work/fast.txt" || ! grep -qx induct "$work/fast.txt"; then fail "fast tier missing lint/skills/workflow suites"; fi
 grep -qx harness "$work/fast.txt" && fail "fast tier contains harness.sh (wall-clock)" || checks=$((checks + 2))
+grep -qx pi-tree "$work/fast.txt" && fail "fast tier contains pi-tree (slow tier only)" || checks=$((checks + 1))
+grep -qx js-unit "$work/fast.txt" || fail "fast tier lacks the JS unit tier"
+checks=$((checks + 1))
 grep -q './test/harness.sh' "$repo/Makefile" || fail "full check lost harness.sh"
 checks=$((checks + 1))
 # 6. Planted stale term in a skills file fails the sweep in

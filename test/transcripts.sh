@@ -63,6 +63,40 @@ if [ "$rc" != 1 ] || ! grep -q 'drift in stdout: harness watch --run-id R-live-1
   fail "a changed pid in bp3's output did not drift (exit $rc): $(tail -5 "$work/pid.out")"
 fi; ok
 
+# a hand edit to a mint row's shape (what replay mints run ids in) drifts
+node -e '
+const fs = require("fs");
+const [src, dst] = process.argv.slice(1);
+const rows = fs.readFileSync(src, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+const row = rows.find((r) => r.shape && r.argv.includes("fake-model"));
+if (!row) process.exit(3);
+row.shape.run_id = row.shape.run_id.replace("-handoff-", "-HANDOFF-");
+fs.writeFileSync(dst, rows.map((r) => JSON.stringify(r)).join("\n") + "\n");
+' "$root/test/fake-bp3/transcripts.jsonl" "$work/shape.jsonl" || fail "no mint row with a shape to edit"
+rc=0; RECORD_TRANSCRIPTS_FILE="$work/shape.jsonl" "$rec" --check > "$work/shape.out" 2>&1 || rc=$?
+if [ "$rc" != 1 ] || ! grep -q 'drift in shape: harness link mint .*--model fake-model' "$work/shape.out"; then
+  fail "a hand-edited shape passed the check (exit $rc): $(tail -3 "$work/shape.out")"
+fi; ok
+
+# the real binary, wrapped so watch on R-live-1 reports R-live-2's pid:
+# a pid reported for the wrong run drifts
+cat > "$work/pid-swap-bp3" <<WRAP
+#!/bin/sh
+out=\$("$root/_build/default/src/quest/main.exe" "\$@"); rc=\$?
+case "\$*" in
+  *"--run-id R-live-1 --once"*)
+    other=\$(sed -n 's/.*"pid":\([0-9][0-9]*\).*/\1/p' "\$(git rev-parse --git-common-dir)/bp3/runs/R-live-2.json" | head -1)
+    out=\$(printf '%s\n' "\$out" | sed "s/\"pid\":[0-9][0-9]*/\"pid\":\$other/") ;;
+esac
+printf '%s\n' "\$out"
+exit \$rc
+WRAP
+chmod +x "$work/pid-swap-bp3"
+rc=0; RECORD_TRANSCRIPTS_REAL="$work/pid-swap-bp3" "$rec" --check > "$work/swap.out" 2>&1 || rc=$?
+if [ "$rc" != 1 ] || ! grep -q 'drift in stdout: harness watch --run-id R-live-1 --once' "$work/swap.out"; then
+  fail "a pid reported for the wrong run did not drift (exit $rc): $(tail -3 "$work/swap.out")"
+fi; ok
+
 # an argv with no transcript: exit 97, named, nothing guessed
 git init -q "$work/repo"
 rc=0; (cd "$work/repo" && "$root/test/fake-bp3/bp3" q r no-such-quest > "$work/unknown.out" 2> "$work/unknown.err") || rc=$?

@@ -19,8 +19,10 @@
 #   skills        ./test/skills.sh
 #   build         dune build src/quest/main.exe (Makefile SDK rule)
 #   g             ./test/g.sh
-#   pi-tree       node test/pi-tree.test.mjs
-#   bp3-pi        node --test extensions/bp3-pi/test/bp3-pi.test.mjs
+#   js-unit       ./test/js-unit.sh (JS unit tier: workflows + bp3-pi on the fake bp3)
+#   pi-tree       scripts/run-suites --only pi-tree (slow tier, through run-suites)
+#   bp3-pi        node --test extensions/bp3-pi/test/bp3-pi-real.test.mjs
+#   transcripts   ./test/transcripts.sh (fake bp3 drift check)
 #   induct          ./test/induct.sh (all workflow node tests)
 #   wf:<name>     node test/<name>.test.mjs (one workflow test)
 #   check-tiers   ./test/check-tiers.sh (selector fixtures)
@@ -28,7 +30,7 @@
 #
 # Fast tier (check-fast): lint + skills checks + unit/workflow
 # tests, zero wall-clock timer fixtures. Membership (one table):
-#   lint check-skills skills build induct pi-tree bp3-pi check-tiers
+#   lint check-skills skills build induct js-unit bp3-pi check-tiers
 # test/harness.sh is the wall-clock suite (sleep/watch cases)
 # and stays full-tier only; so do the integration drives
 # (g, ready, dogfood-*, worktree, tape, release, install),
@@ -39,9 +41,11 @@
 #       -> skills-check + the one matching wf:<name> test
 #   skills/**, .pi/skills/**, .agents/skills/**, .claude/skills/**
 #       -> check-skills skills induct        (never harness)
-#   src/**  -> build g                     (never skills suites)
+#   src/**  -> build g bp3-pi transcripts  (never skills suites)
+#   test/pi-tree.test.mjs -> build pi-tree (through run-suites)
+#   test/fake-bp3/**, scripts/record-transcripts -> build js-unit transcripts
 #   test/** -> build + the changed suite itself
-#   extensions/** -> bp3-pi
+#   extensions/** -> build js-unit bp3-pi transcripts
 #   bin/**, scripts/**, completions/**, Makefile -> fast tier
 #   anything else (docs/** included)        -> fast tier
 set -euo pipefail
@@ -108,7 +112,7 @@ else
         esac ;;
       skills/*|.pi/skills/*|.agents/skills/*|.claude/skills/*)
         add check-skills; add skills; add induct ;;
-      src/*) add build; add g; add transcripts ;;
+      src/*) add build; add g; add bp3-pi; add transcripts ;;
       test/pi-tree.test.mjs) add build; add pi-tree ;;
       test/fake-bp3/*|scripts/record-transcripts) add build; add js-unit; add transcripts ;;
       test/*) add build; add "test:$p" ;;

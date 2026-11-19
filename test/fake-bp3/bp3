@@ -88,7 +88,7 @@ const slugs = roots.map((r) => r.slice(1).split("/").join("_")).sort((a, b) => b
 // pid, and later calls on the run copy it): the run keeps the pids of
 // its earlier calls, in order, as <RUN_PID_i>; replay stands in for
 // each with its own pid at that call
-function normalize(text, run, bpPid = null) {
+function normalize(text, run, bpPid = null, priorPids = run?.pids ?? []) {
   let s = text;
   if (run) s = s.split(run.run_id).join("<RUN_ID>").split(run.token).join("<TOKEN>").split(sha256(run.token)).join("<TOKEN_HASH>");
   for (const r of slugs) s = s.split(r).join("<ROOT_SLUG>");
@@ -98,20 +98,28 @@ function normalize(text, run, bpPid = null) {
     .replace(/(?<![0-9A-Za-z])\d{8}T\d{6}Z/g, "<CTS>")
     .replace(/(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])/g, "<SHA>");
   if (bpPid) s = s.replace(pidRe(bpPid), "<BP3_PID>");
-  (run?.pids ?? []).forEach((pid, i) => { s = s.replace(pidRe(pid), `<RUN_PID_${i}>`); });
+  priorPids.forEach((pid, i) => { if (pid !== null) s = s.replace(pidRe(pid), `<RUN_PID_${i}>`); });
   s = s.replace(pidRe(process.pid), "<FAKE_PID>").replace(pidRe(process.ppid), "<CALLER_PID>");
   // pids the test itself wrote into bp3's files before the call (a live
-  // child it spawned): replay stands in a live one, the caller's. Any
-  // other pid stays literal, so a changed pid in bp3's own output drifts.
-  for (const pid of testPids) s = s.replace(pidRe(pid), "<OTHER_PID>");
+  // child it spawned) are named by the file that holds them; replay reads
+  // the pid back from that file, so a pid reported for the wrong run
+  // drifts. Any other pid stays literal, so a changed pid in bp3's own
+  // output drifts too.
+  for (const [pid, rel] of testPids) s = s.replace(pidRe(pid), `<TEST_PID:${rel}>`);
   return s;
 }
 
+// [pid, normalized path of the first file holding it], from the files
+// under <common>/bp3 before the call
 let testPids = [];
-function pidsIn(files) {
-  const out = new Set();
-  for (const v of Object.values(files)) for (const m of v.matchAll(/"pid":(\d+)/g)) out.add(m[1]);
-  return [...out].filter((p) => p !== String(process.pid) && p !== String(process.ppid));
+function pidsIn(files, run, skip) {
+  const out = new Map();
+  for (const p of Object.keys(files).sort()) {
+    for (const m of files[p].matchAll(/"pid":(\d+)/g)) {
+      if (!out.has(m[1]) && !skip.includes(m[1])) out.set(m[1], normalize(p, run));
+    }
+  }
+  return [...out];
 }
 
 function keyedEnv(run) {
@@ -139,7 +147,8 @@ function record() {
   const stateFile = common ? path.join(common, "fake-bp3-record-state.json") : null;
   const state = stateFile ? readState(stateFile) : { runs: [] };
   const before = common ? snapshot(path.join(common, "bp3")) : {};
-  testPids = pidsIn(before).filter((p) => !(state.runs.flatMap((r) => r.pids ?? []).map(String).includes(p)));
+  const known = [String(process.pid), String(process.ppid), ...state.runs.flatMap((r) => r.pids ?? []).map(String)];
+  testPids = pidsIn(before, runIn(state, [...argv, ...KEYED_ENV.map((k) => process.env[k] ?? "")]), known);
   const res = spawnSync(real, argv, { cwd, encoding: "utf8", env: process.env });
   if (res.error) die(`cannot run the real binary ${real}: ${res.error.message}`, 2);
   const after = common ? snapshot(path.join(common, "bp3")) : {};
@@ -166,12 +175,21 @@ function record() {
     ...KEYED_ENV.map((k) => process.env[k] ?? "")];
   const run = runIn(state, texts);
   const nfiles = {};
-  for (const [p, v] of Object.entries(files)) nfiles[normalize(p, run, res.pid)] = v === null ? null : normalize(v, run, res.pid);
+  // pids wrap: this call's bp3 may reuse the pid of an earlier call on
+  // the run. The value is stored data (named by its earlier call) when it
+  // already sits in bp3's files before the call, else it is this call's own.
+  let bpPid = res.pid, prior = [...(run?.pids ?? [])];
+  if (prior.includes(bpPid)) {
+    const stored = new RegExp(`(?<![0-9])${bpPid}(?![0-9])`).test(Object.values(before).join("\n"));
+    if (stored) bpPid = null;
+    else prior = prior.map((p) => (p === bpPid ? null : p));
+  }
+  for (const [p, v] of Object.entries(files)) nfiles[normalize(p, run, bpPid, prior)] = v === null ? null : normalize(v, run, bpPid, prior);
   const nargv = argv.map((a) => normalize(a, run));
   if (introduced) introduced.origin = JSON.stringify(nargv);
   const row = {
     argv: nargv, env: keyedEnv(run), run: run ? run.origin : null, ...(shape ? { shape } : {}), exit: res.status ?? 1,
-    stdout: normalize(res.stdout ?? "", run, res.pid), stderr: normalize(res.stderr ?? "", run, res.pid), files: nfiles,
+    stdout: normalize(res.stdout ?? "", run, bpPid, prior), stderr: normalize(res.stderr ?? "", run, bpPid, prior), files: nfiles,
   };
   if (run) run.pids = [...(run.pids ?? []), res.pid];
   if (run && stateFile) fs.writeFileSync(stateFile, JSON.stringify(state));
@@ -220,6 +238,15 @@ function replay() {
     if (stateFile) fs.writeFileSync(stateFile, JSON.stringify(state));
   }
   let sha = null;
+  // the pid the test wrote into one of bp3's files, read back for replay
+  const testPidFrom = (rel) => {
+    const file = path.join(common ?? cwd, "bp3", denorm(rel));
+    let text = "";
+    try { text = fs.readFileSync(file, "utf8"); } catch { die(`replay needs ${file}, which the test did not write`, 95); }
+    const m = text.match(/"pid":(\d+)/);
+    if (!m) die(`replay needs a pid in ${file}`, 95);
+    return m[1];
+  };
   const denorm = (s) => {
     let t = s;
     if (run) t = t.split("<RUN_ID>").join(run.run_id).split("<TOKEN_HASH>").join(sha256(run.token)).split("<TOKEN>").join(run.token);
@@ -237,7 +264,8 @@ function replay() {
       t = t.split("<SHA>").join(sha);
     }
     return t.split("<FAKE_PID>").join(String(process.pid)).split("<BP3_PID>").join(String(process.pid))
-      .split("<CALLER_PID>").join(String(process.ppid)).split("<OTHER_PID>").join(String(process.ppid));
+      .split("<CALLER_PID>").join(String(process.ppid))
+      .replace(/<TEST_PID:([^>]+)>/g, (_, rel) => testPidFrom(rel));
   };
   if (common) {
     for (const [p, v] of Object.entries(row.files)) {

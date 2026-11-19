@@ -21,16 +21,22 @@ shim="$work/counting-bp3"
 # shellcheck disable=SC2016  # $0 and $* belong to the shim, not this script
 printf '#!/bin/sh\necho "$0 $*" >> "%s"\nexit 99\n' "$work/launches" > "$shim"
 chmod +x "$shim"
-mkdir -p "$copy/_build/default/src/quest"
+mkdir -p "$copy/_build/default/src/quest" "$work/path"
 cp "$shim" "$copy/_build/default/src/quest/main.exe"
 cp "$shim" "$copy/bin/bp3"
+cp "$shim" "$work/path/bp3"      # the installed names, first on PATH
+cp "$shim" "$work/path/bp3-q"
 # every shim must count, or a 0 below proves nothing
-for s in "$shim" "$copy/_build/default/src/quest/main.exe" "$copy/bin/bp3"; do "$s" canary || true; done
-[ "$(wc -l < "$work/launches" | tr -d ' ')" = 3 ] || fail "the counting shims do not count"
+for s in "$shim" "$copy/_build/default/src/quest/main.exe" "$copy/bin/bp3" "$work/path/bp3" "$work/path/bp3-q"; do "$s" canary || true; done
+[ "$(wc -l < "$work/launches" | tr -d ' ')" = 5 ] || fail "the counting shims do not count"
 : > "$work/launches"
+# an absolute path back into the real repo would escape the copy's shims
+if grep -rlF "$root" "$copy/test" "$copy/extensions" > "$work/abs" 2>/dev/null; then
+  fail "the unit tier names the real repo by absolute path: $(cat "$work/abs")"
+fi
 
 rc=0
-(cd "$copy" && FAKE_BP3_MODE=replay FAKE_BP3_REAL="$shim" BP3_PI_REAL_BP3="$shim" BP3_Q_BIN="$shim" \
+(cd "$copy" && PATH="$work/path:$PATH" FAKE_BP3_MODE=replay FAKE_BP3_REAL="$shim" BP3_PI_REAL_BP3="$shim" BP3_Q_BIN="$shim" \
   BP3_PI_TEST_BP3="$copy/test/fake-bp3/bp3" node --test "${files[@]}") > "$work/out" 2>&1 || rc=$?
 # launches first: a leak also fails tests (the shims exit 99), and the
 # leak is the cause worth naming
