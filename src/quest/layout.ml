@@ -6,9 +6,12 @@
 (* ---------- repo tree ---------- *)
 let engine_src = "src/quest"
 let quests_root = "docs/quests"
-let legacy_quests_roots = ["docs/graphs"]
+(* Storage-branch trees were never rewritten by earlier renames:
+   a tip may hold its ledgers under any of these, in any era. *)
+let legacy_quests_roots = ["docs/graphs"; "docs/goals"]
 let quest_file = "QUEST.md"
 let nodes_dir = "nodes"
+let legacy_nodes_dirs = ["experiments"]
 let ledger_file = "ledger.jsonl"
 let state_file = "state.yaml"
 let runs_dir = "runs"

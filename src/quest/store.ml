@@ -268,39 +268,47 @@ let node_branch q e =
 
 let quest_dir q = Layout.quest_dir q
 let ledger_in dir = dir ^ "/" ^ Layout.ledger_file
-let node_dir_in root q id = Layout.quest_dir_in root q ^ "/" ^ Layout.nodes_dir ^ "/" ^ id
+let node_dir_under root dir q id = Layout.quest_dir_in root q ^ "/" ^ dir ^ "/" ^ id
+let node_dir_in root q id = node_dir_under root Layout.nodes_dir q id
 let quest_ledger_path q = ledger_in (quest_dir q)
 let node_dir q e = node_dir_in Layout.quests_root q (canon_node_id e)
 let node_ledger_path q e = ledger_in (node_dir q e)
 let node_state_path q e = node_dir q e ^ "/" ^ Layout.state_file
 
-(* Pre-rename ledger paths on the same branch: every legacy root,
-   and legacy node ids under each root; canonical path excluded. *)
+(* Pre-rename ledger paths on the same branch: every legacy root x
+   node folder name x node id spelling; canonical path excluded. *)
 let all_roots = Layout.quests_root :: Layout.legacy_quests_roots
 let legacy_quest_ledger_paths q =
   List.map (fun r -> ledger_in (Layout.quest_dir_in r q)) all_roots
   |> List.filter (fun p -> p <> quest_ledger_path q)
 let legacy_node_ledger_paths q e =
   List.concat_map (fun r ->
-      List.map (fun id -> ledger_in (node_dir_in r q id))
-        [canon_node_id e; legacy_node_id e]) all_roots
+      List.concat_map (fun dir ->
+          List.map (fun id -> ledger_in (node_dir_under r dir q id))
+            [canon_node_id e; legacy_node_id e])
+        (Layout.nodes_dir :: Layout.legacy_nodes_dirs)) all_roots
   |> List.filter (fun p -> p <> node_ledger_path q e)
 
-(* Read a ledger at its canonical path, falling back to the
-   pre-rename paths on the same branch; the third component
-   names the path the text was read from so appends write
-   back to the same path. *)
+(* Read a ledger at its canonical path or any pre-rename path on
+   the same branch. Renames never rewrote branch trees, so one tip
+   can hold a copy per era; ledgers are append-only, so the copy
+   with the most lines is the newest (ties: canonical first). The
+   third component names the path read, so appends write back to
+   the same path. *)
 let ledger_read branch canon legacy =
   match ref_tip branch with
   | None -> None
   | Some tip ->
-      let rec first = function
-        | [] -> Some (tip, "", canon)
-        | p :: rest ->
-            (match git_show tip p with
-             | Some t -> Some (tip, t, p)
-             | None -> first rest) in
-      first (canon :: legacy)
+      let lines t = List.length (String.split_on_char '\n' (String.trim t)) in
+      let found = List.filter_map (fun p ->
+          match git_show tip p with Some t -> Some (p, t) | None -> None)
+          (canon :: legacy) in
+      (match found with
+       | [] -> Some (tip, "", canon)
+       | first :: rest ->
+           let (p, t) = List.fold_left (fun (bp, bt) (p, t) ->
+               if lines t > lines bt then (p, t) else (bp, bt)) first rest in
+           Some (tip, t, p))
 
 (* Every bp3 prefix lives under refs/heads/bp3/: list that once
    per cache epoch and filter in memory, instead of one
