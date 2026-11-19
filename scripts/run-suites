@@ -135,10 +135,14 @@ launch() { # index now_ms
   mkdir -p "$dir/home" "$dir/home/t"
   # setpgrp gives the suite its own process group without job
   # control, so the runner stays where the terminal's Ctrl-C lands.
+  # Without job control bash starts `&` commands with INT and QUIT
+  # ignored, and an ignored signal stays ignored across exec; reset
+  # both so a suite sees the dispositions a normal launch gives it.
   # shellcheck disable=SC2016  # perl code, not shell
   ( exec env -i "${base_env[@]}" HOME="$dir/home" TMPDIR="$dir/home/t" \
       BP3_SUITE="${names[$i]}" GIT_CONFIG_NOSYSTEM=1 \
-      perl -e 'setpgrp(0, 0); exec { $ARGV[0] } @ARGV or die "run-suites: exec: $!\n"' \
+      perl -e '$SIG{INT} = $SIG{QUIT} = "DEFAULT"; setpgrp(0, 0);
+               exec { $ARGV[0] } @ARGV or die "run-suites: exec: $!\n"' \
       bash -c "${cmds[$i]}" ) > "$dir/log" 2>&1 < /dev/null &
   pids[i]=$!; start_ms[i]=$2; state[i]=running
 }

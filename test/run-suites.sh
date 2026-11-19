@@ -57,6 +57,12 @@ for n in 1 2 3; do
   "$rs" --table "$work/t.tsv" --only near > "$work/near.out" 2>&1 || fail "1.5s suite killed under a 2s budget (run $n): $(cat "$work/near.out")"
 done; ok
 
+# 2b'. suites start with default INT/QUIT (bash ignores them for `&`
+# commands when job control is off; the runner must undo that)
+printf '%s\n' "sigs${T}fixture${T}perl -e 'print \"INT=\", (\$SIG{INT} // \"DEFAULT\"), \"\\n\"' > $work/sigs.out${T}5${T}0${T}-${T}-" > "$work/sigs.tsv"
+"$rs" --table "$work/sigs.tsv" > /dev/null 2>&1 || fail "signal probe run"
+grep -q '^INT=DEFAULT$' "$work/sigs.out" || fail "suite started with INT not default: $(cat "$work/sigs.out")"; ok
+
 # 2c. a terminal Ctrl-C reaps every running suite and the runner's temp dir
 mkdir -p "$work/rt"
 cat > "$work/ctrlc.py" <<'PY'
