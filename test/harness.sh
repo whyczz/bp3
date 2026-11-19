@@ -413,9 +413,10 @@ printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-race\",\"harness\":\"pi\
 race_round=0
 while [ $race_round -lt 3 ]; do
   race_round=$((race_round + 1))
-  h supervisor toy --timeout-seconds 2 >/dev/null 2>&1 &
-  h supervisor toy --timeout-seconds 2 >/dev/null 2>&1 &
-  wait
+  h supervisor toy --timeout-seconds 2 >/dev/null 2>&1 & RACE_A=$!
+  h supervisor toy --timeout-seconds 2 >/dev/null 2>&1 & RACE_B=$!
+  # name the pids: a bare wait also waits out RACE_LIVE (60s)
+  wait "$RACE_A" "$RACE_B" 2>/dev/null || true
 done
 while IFS= read -r line; do echo "$line" | jq -e . >/dev/null || fail "followup.1 torn row in R-race: $line"; done < "$store/R-race.jsonl"
 jq -e '.run_id == "R-race"' "$store/R-race.json" >/dev/null || fail "followup.1 cache torn after race"
@@ -426,6 +427,7 @@ set +e; out=$(h supervisor toy --timeout-seconds 1); set -e
 echo "$out" | tail -1 | jq -e '.warnings | index("W_TORN_TAIL") != null' >/dev/null || fail "followup.1 torn tail not reported: $out"
 echo "$out" | tail -1 | jq -e '(.runs[] | select(.run_id == "R-race") | .lifecycle == "active")' >/dev/null || fail "followup.1 torn tail changed the fold: $out"
 kill $RACE_LIVE 2>/dev/null || true
+wait "$RACE_LIVE" 2>/dev/null || true
 
 # --- record-init retired (mvp.1): the run config replaces it ---
 out=$(h record-init -h) || fail "record-init -h exit"
