@@ -52,6 +52,16 @@ grep -q 'FAIL.*sleeper.*budget exceeded' "$work/budget.out" || fail "overrun not
 child=$(cat "$work/sleeper.pid")
 if kill -0 "$child" 2>/dev/null; then fail "sleeper's child survived the group kill"; fi; ok
 if grep -E -q 'Terminated|Killed|setpgid' "$work/budget.out"; then fail "job-control noise in runner output: $(cat "$work/budget.out")"; fi; ok
+if find "$work/kept" -path '*/sleeper/home' | grep -q .; then fail "a failed suite kept its HOME, not just its log"; fi; ok
+find "$work/kept" -path '*/sleeper/log' | grep -q . || fail "a failed suite lost its log"; ok
+
+# 2a'. a suite launched after kills in the same tick is not charged for them
+printf '%s\n' "hang1${T}fixture${T}sleep 999${T}1${T}0${T}-${T}-" "hang2${T}fixture${T}sleep 999${T}1${T}0${T}-${T}-" \
+  "honest${T}fixture${T}sleep 1.6${T}2${T}0${T}-${T}-" > "$work/honest.tsv"
+for n in 1 2; do
+  TMPDIR="$work/kept" "$rs" --table "$work/honest.tsv" --jobs 2 > "$work/honest.out" 2>&1 || true
+  grep -q '^  ok   honest' "$work/honest.out" || fail "a 1.6s suite failed its 2s budget after same-tick kills (run $n): $(cat "$work/honest.out")"
+done; ok
 
 # 2b. a budget fires only on a real overrun: 1.5s inside 2s passes, every time
 for n in 1 2 3; do
@@ -73,6 +83,7 @@ cat > "$work/ctrlc.py" <<'PY'
 # report cmd's exit code and whether that pid survived -- checked
 # while the pty is still open, since closing it would SIGHUP orphans
 import os, pty, select, sys, time
+seen = []
 ready, keys, cmd = sys.argv[1], sys.argv[2], sys.argv[3:]
 pid, fd = pty.fork()
 if pid == 0:
@@ -80,7 +91,9 @@ if pid == 0:
 def drain():  # never block: a blocking read would delay the Ctrl-C
     while select.select([fd], [], [], 0)[0]:
         try:
-            if not os.read(fd, 4096): return
+            chunk = os.read(fd, 4096)
+            if not chunk: return
+            seen.append(chunk.decode(errors="replace"))
         except OSError: return
 end = time.time() + 15
 while time.time() < end and not os.path.exists(ready):
@@ -100,6 +113,9 @@ while time.time() < end:
             os.kill(held, 0); print("suite alive")
         except ProcessLookupError:
             print("suite dead")
+        drain()
+        if any(w in "".join(seen) for w in ("Quit:", "Terminated", "Killed")):
+            print("noise: " + "".join(seen).replace("\r", "").replace("\n", " | "))
         sys.exit(0)
     drain(); time.sleep(0.05)
 print("hung"); sys.exit(1)
@@ -112,7 +128,21 @@ for probe in int:130 int3:130 quit:131; do
   grep -q "^$code\$" "$work/ctrlc.out" || fail "$keys exit code (want $code): $(cat "$work/ctrlc.out")"; ok
   grep -q '^suite dead$' "$work/ctrlc.out" || { kill "$(cat "$work/hold.pid")" 2>/dev/null; fail "$keys left a suite running: $(cat "$work/ctrlc.out")"; }; ok
   [ -z "$(ls "$work/rt")" ] || fail "$keys left the runner temp dir: $(ls "$work/rt")"; ok
+  if grep -q '^noise: ' "$work/ctrlc.out"; then fail "$keys printed shell notices: $(grep '^noise: ' "$work/ctrlc.out")"; fi; ok
 done
+
+# 2c'. a signal that lands between a suite's fork and its bookkeeping
+# still reaps it: an instrumented copy signals itself right after the
+# fork (the window the job table covers), then nothing may survive
+mkdir -p "$work/fw/scripts"
+awk '{ print } /bash -c "\$\{cmds\[\$i\]\}" \) > "\$dir\/log" 2>&1 < \/dev\/null &$/ { print "  kill -INT $$" }' "$rs" > "$work/fw/scripts/run-suites"
+chmod +x "$work/fw/scripts/run-suites"
+grep -q 'kill -INT \$\$' "$work/fw/scripts/run-suites" || fail "fork-window probe: could not instrument the runner"
+printf '%s\n' "forkwin${T}fixture${T}sleep 997${T}60${T}0${T}-${T}-" > "$work/forkwin.tsv"
+rc=0; TMPDIR="$work/rt" "$work/fw/scripts/run-suites" --table "$work/forkwin.tsv" > "$work/forkwin.out" 2>&1 || rc=$?
+[ "$rc" = 130 ] || fail "fork-window probe exit: $rc ($(cat "$work/forkwin.out"))"
+sleep 1.5
+if pgrep -f 'sleep 997' > /dev/null; then pkill -f 'sleep 997'; fail "a suite forked just before the signal survived"; fi; ok
 
 # 2d. SIGHUP (terminal closed) reaps, cleans up, and prints no job notices
 rm -f "$work/hold.pid"

@@ -125,8 +125,11 @@ kill_group() { # pid: the suite's group; the pid itself if setpgrp has not run y
 # was marked). TERM all at once, one pause, then KILL all; waiting
 # here (stderr silenced by callers) keeps bash's job notices quiet.
 reap_all() {
-  local p ps
-  ps=$( { for i in "${sel[@]}"; do [ "${state[$i]}" = running ] && echo "${pids[$i]}"; done; jobs -p; } | sort -u)
+  local p ps jp
+  # `jobs -p` must run at the top level of its own substitution: on
+  # bash 3.2 a pipeline's subshell has no job table and prints nothing.
+  jp=$(jobs -p)
+  ps=$( { for i in "${sel[@]}"; do [ "${state[$i]}" = running ] && echo "${pids[$i]}"; done; echo "$jp"; } | sed '/^$/d' | sort -u)
   [ -n "$ps" ] || return 0
   for p in $ps; do kill -TERM -- "-$p" 2>/dev/null || kill -TERM "$p" 2>/dev/null || true; done
   sleep 0.3
@@ -157,7 +160,7 @@ trap 'on_signal 129' HUP
 trap 'on_signal 131' QUIT
 trap on_exit EXIT   # any other abort (set -e included) still reaps and cleans up
 
-launch() { # index now_ms
+launch() { # index (start time stamped after the fork, so earlier kills this tick are not charged)
   local i=$1 dir="$tmpbase/${names[$1]}"
   mkdir -p "$dir/home" "$dir/home/t"
   # setpgrp gives the suite its own process group without job
@@ -171,7 +174,7 @@ launch() { # index now_ms
       perl -e '$SIG{INT} = $SIG{QUIT} = "DEFAULT"; setpgrp(0, 0);
                exec { $ARGV[0] } @ARGV or die "run-suites: exec: $!\n"' \
       bash -c "${cmds[$i]}" ) > "$dir/log" 2>&1 < /dev/null &
-  pids[i]=$!; start_ms[i]=$2; state[i]=running
+  pids[i]=$!; state[i]=running; start_ms[i]=$(ms)
 }
 finish() { # index rc now_ms
   local i=$1
@@ -188,7 +191,7 @@ t0=$(ms)
 echo "run-suites: ${#sel[@]} suites, $jobs jobs, HOME isolated"
 while :; do
   running=0; serial_busy=0; pending=0
-  now_ms=$(ms)
+  now_ms=$(ms 2>/dev/null) || now_ms=$(ms)
   for i in "${sel[@]}"; do
     if [ "${state[$i]}" = running ]; then
       if ! kill -0 "${pids[$i]}" 2>/dev/null; then
@@ -212,10 +215,10 @@ while :; do
       [ "$serial_busy" = 0 ] || continue
       serial_busy=1
     fi
-    launch "$i" "$now_ms"; running=$((running + 1)); pending=$((pending - 1))
+    launch "$i"; running=$((running + 1)); pending=$((pending - 1))
   done
   [ "$running" -gt 0 ] || [ "$pending" -gt 0 ] || break
-  sleep 0.1 || true
+  { sleep 0.1; } 2>/dev/null || true   # a killed sleep must not print 'Quit: 3'
 done
 wall=$(($(ms) - t0))
 
@@ -234,6 +237,7 @@ if [ "$report" = 1 ]; then
 fi
 for i in "${failed[@]:-}"; do
   [ -n "$i" ] || continue
+  rm -rf "${tmpbase:?}/${names[$i]}/home"   # keep the log, not the suite's HOME
   echo "--- ${names[$i]} (log: $tmpbase/${names[$i]}/log, last 20 lines)"
   tail -20 "$tmpbase/${names[$i]}/log"
 done
