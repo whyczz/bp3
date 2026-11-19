@@ -2149,14 +2149,14 @@ let mint_ts_of now rand_hex =
     t.Unix.tm_hour t.Unix.tm_min t.Unix.tm_sec ms rand_hex
 
 (* 4 hex digits from /dev/urandom; Random (self-seeded) if unreadable. *)
+let random_hex4_fallback () = Random.self_init (); Printf.sprintf "%04x" (Random.int 65536)
 let random_hex4 () =
   try
     let fd = Unix.openfile "/dev/urandom" [Unix.O_RDONLY] 0 in
     let b = Bytes.make 2 '\x00' in
-    let n = Unix.read fd b 0 2 in
-    Unix.close fd;
+    let n = Fun.protect ~finally:(fun () -> Unix.close fd) (fun () -> Unix.read fd b 0 2) in
     if n = 2 then link_hex_of_bytes (Bytes.to_string b) else raise Exit
-  with _ -> Random.self_init (); Printf.sprintf "%04x" (Random.int 65536)
+  with _ -> random_hex4_fallback ()
 
 (* Draw a fresh candidate until [claim] takes one; at most [tries]
    draws and never a sleep. None when every draw collided. *)
@@ -2180,6 +2180,25 @@ let slug_keep s =
     Buffer.add_char b (if ok then c else '-')) s;
   let v = Buffer.contents b in
   if v = "" then "unknown" else v
+
+(* The mint path (seam.1): draw <mint_ts>-<edge>-<harness>-<model>-c<n>
+   ids from the sub-second clock and claim the first one [write]
+   accepts (it raises Unix EEXIST on a taken id). E_EXISTS, naming
+   the last candidate, after [tries] draws; never a sleep. *)
+let mint_run_id ?(tries = 8) ~write ~edge_label ~harness ~model ~cycle () =
+  let last = ref "" in
+  let candidate () =
+    Printf.sprintf "%s-%s-%s-%s-c%d" (mint_ts_of (Clock.now ()) (random_hex4 ()))
+      edge_label (slug_keep harness) (slug_keep model) cycle in
+  let claim c =
+    last := c;
+    try write c; true
+    with Unix.Unix_error (Unix.EEXIST, _, _) -> false in
+  match mint_unique ~tries ~candidate ~claim with
+  | Some r -> r
+  | None ->
+      err "E_EXISTS" (`Assoc [("run_id", json_str !last)])
+        "Minted run-id collided; retry." 1
 
 let env_or flagv name =
   match flagv with
@@ -2356,19 +2375,8 @@ let do_link_mint args =
            err "E_EXISTS" (`Assoc [("run_id", json_str r)])
              "A run config already exists for that run-id." 1)
     | _ ->
-        let last = ref "" in
-        let candidate () =
-          Printf.sprintf "%s-%s-%s-%s-c%d" (mint_ts_of (Clock.now ()) (random_hex4 ()))
-            edge_label (slug_keep harness_v) (slug_keep model_v) fl.m_cycle in
-        let claim c =
-          last := c;
-          try write_minted c; true
-          with Unix.Unix_error (Unix.EEXIST, _, _) -> false in
-        (match mint_unique ~tries:8 ~candidate ~claim with
-         | Some r -> r
-         | None ->
-             err "E_EXISTS" (`Assoc [("run_id", json_str !last)])
-               "Minted run-id collided; retry." 1) in
+        mint_run_id ~write:write_minted ~edge_label ~harness:harness_v
+          ~model:model_v ~cycle:fl.m_cycle () in
   let hash_hex = sha256_hex token in
   Config.write_file_atomic
     (Filename.concat (Config.links_dir dir) hash_hex) (run_id ^ "\n");
