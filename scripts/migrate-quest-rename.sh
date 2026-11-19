@@ -51,14 +51,14 @@ if [ "$mode" = apply ]; then
   git ls-files -- 'docs/*.md' '*.md' | grep -v '/runs/' | grep -v 'ledger\.jsonl' \
     | grep -v 'migrate-' | while read -r f; do
       [ -f "$f" ] || continue
-      if grep -q 'docs/graphs/\|GRAPH\.md' "$f"; then
-        perl -pi -e 's#docs/graphs/#docs/quests/#g; s#\bGRAPH\.md\b#QUEST.md#g' "$f"
+      if grep -q 'graphs/\|GRAPH\.md' "$f"; then
+        perl -pi -e 's#docs/graphs/#docs/quests/#g; s#\(((?:\.\./)+)graphs/#($1quests/#g; s#\bGRAPH\.md\b#QUEST.md#g' "$f"
         echo "do: re-point $f"
       fi
     done
-  git add -A docs
+  git add -u docs
 else
-  plan "re-point docs/graphs/ -> docs/quests/, GRAPH.md -> QUEST.md in tracked .md outside runs/"
+  plan "re-point docs/graphs/ and ../graphs/ -> quests/, GRAPH.md -> QUEST.md in tracked .md outside runs/"
 fi
 
 # --- ref renames (tips preserved) ----------------------------------

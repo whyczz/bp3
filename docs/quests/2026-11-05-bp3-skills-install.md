@@ -92,7 +92,7 @@ Each exp is tiny: one output, one check, minutes not hours.
 - Lane: micro
 - Output: MVP Repository shape section states source location, installer
   command, spellings, generated-file rule, and the
-  `docs/graphs/<date>-<slug>.md` convention; this file exists as instance
+  `docs/quests/<date>-<slug>.md` convention; this file exists as instance
   one.
 - Acceptance: both statements present in
   `docs/designs/bp3-control-mvp.md`. Observed: done.
