@@ -15,6 +15,14 @@ let case_layout_derives_quest_node_ref_branch_and_desk_paths _ =
   eq "quest/q1" (Layout.work_branch "q1");
   eq ".bp3/worktrees/q1" (Layout.desk_dir "q1")
 
+let case_layout_names_the_legacy_ref_kinds_and_the_per_quest_files _ =
+  assert_equal [ "graph"; "goal" ] Layout.legacy_quest_ref_kinds;
+  assert_equal [ "exp" ] Layout.legacy_node_ref_kinds;
+  assert_equal [ "experiments" ] Layout.legacy_nodes_dirs;
+  List.iter (fun (got, want) -> assert_equal ~printer:Fun.id want got)
+    [ (Layout.state_file, "state.yaml"); (Layout.runs_dir, "runs"); (Layout.context_file, ".bp3-context.json");
+      (Layout.quest_file, "QUEST.md"); (Layout.ledger_file, "ledger.jsonl") ]
+
 let case_legacy_quest_ledger_paths_cover_the_graphs_and_goals_roots_only _ =
   assert_equal ~printer:(String.concat " ")
     [ "docs/graphs/q1/ledger.jsonl"; "docs/goals/q1/ledger.jsonl" ] (Store.legacy_quest_ledger_paths "q1")
@@ -46,6 +54,7 @@ let () =
   run_test_tt_main
     ("layout" >::: [
        "case_layout_derives_quest_node_ref_branch_and_desk_paths" >:: case_layout_derives_quest_node_ref_branch_and_desk_paths;
+       "case_layout_names_the_legacy_ref_kinds_and_the_per_quest_files" >:: case_layout_names_the_legacy_ref_kinds_and_the_per_quest_files;
        "case_legacy_quest_ledger_paths_cover_the_graphs_and_goals_roots_only" >:: case_legacy_quest_ledger_paths_cover_the_graphs_and_goals_roots_only;
        QCheck_ounit.to_ounit2_test law_every_legacy_node_path_folds_to_its_canonical_id;
      ])

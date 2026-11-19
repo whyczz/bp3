@@ -5,11 +5,13 @@
    it). case_ = named example, law_ = QCheck property, char_ = today's
    behavior pinned without blessing it.
    Not here, by decision (each needs git or the filesystem, so it
-   stays at the fixture tier, covered by g.sh / ready.sh / diagram.sh):
+   stays at the fixture tier):
    - fold_node, fold_quest: read the ledger through ledger_read (git
      show at a ref tip); their pure parts are fold_ledger and
-     pick_longest, both tested here.
-   - dep_satisfied: folds every node of another quest from git.
+     pick_longest, both tested here; g.sh / ready.sh exercise them.
+   - dep_satisfied: folds every node of another quest from git;
+     ready.sh's quest-level deps case pins it (handoff refused with
+     E_DEPENDENCY until the dependency quest lands).
    - effective_knobs, quest_knobs: read plans/ files from the repo
      root; their pure part is plan_knobs_from_text, tested here. *)
 open OUnit2
@@ -60,13 +62,32 @@ let case_fold_resets_both_verdicts_on_a_new_handoff _ =
   assert_equal (Some "c2") s.Store.bound
 
 let case_fold_clears_the_bound_commit_and_both_verdicts_on_resume _ =
-  let s = fold (text [ edge ~commit:"c1" "handoff" "todo" "handed_off";
-                       edge ~verdict:"needs_fix" ~verify:"fail" "grade" "handed_off" "blocked";
-                       edge ~cycle:2 "resume" "blocked" "todo" ]) in
+  (* approved first, so both verdicts are set when the block lands *)
+  let lines = [ edge ~commit:"c1" "handoff" "todo" "handed_off";
+                edge ~verdict:"ship" ~verify:"pass" "grade" "handed_off" "approved";
+                edge ~reason:"owner pause" "block" "approved" "blocked" ] in
+  let before = fold (text lines) in
+  assert_bool "verdicts still set while blocked" (before.Store.grade_ok && before.Store.verify_ok);
+  let s = fold (text (lines @ [ edge ~cycle:2 "resume" "blocked" "todo" ])) in
+  assert_bool "grade cleared on resume" (not s.Store.grade_ok);
+  assert_bool "verify cleared on resume" (not s.Store.verify_ok);
   assert_equal None s.Store.bound;
   assert_bool "has_bound cleared" (not s.Store.has_bound);
   assert_equal 2 s.Store.cycle;
   assert_equal (Some "c1") s.Store.last_commit
+
+let case_fold_clears_both_verdicts_on_needs_fix_even_with_a_passing_verify _ =
+  let s = fold (text [ edge ~commit:"c1" "handoff" "todo" "handed_off";
+                       edge ~cycle:2 ~verdict:"needs_fix" ~verify:"pass" "grade" "handed_off" "todo" ]) in
+  assert_bool "grade not ok" (not s.Store.grade_ok);
+  assert_bool "verify not ok" (not s.Store.verify_ok)
+
+let case_fold_lets_a_failed_verify_edge_void_an_earlier_ship _ =
+  let s = fold (text [ edge ~commit:"c1" "handoff" "todo" "handed_off";
+                       edge ~verdict:"ship" "grade" "handed_off" "handed_off";
+                       edge ~verdict:"fail" "verify" "handed_off" "handed_off" ]) in
+  assert_bool "ship voided" (not s.Store.grade_ok);
+  assert_bool "verify not ok" (not s.Store.verify_ok)
 
 let case_fold_captures_reason_checkpoint_and_since_on_blocked _ =
   let s = fold (text [ edge ~reason:"owed: pick a budget" ~checkpoint:"cp1" ~ts:"2026-11-19T01:02:03Z"
@@ -131,6 +152,41 @@ let observable (s : Store.node_state) =
   (s.st, s.bound, s.has_bound, s.grade_ok, s.verify_ok, s.blocked_reason,
    s.blocked_checkpoint, s.blocked_since, s.last_commit, s.node_type)
 
+(* Raw-text laws (the NODE's generator split): bad lines, not just
+   well-formed ones. A proper prefix of any JSON object line is never
+   valid JSON, so splicing one in anywhere must refuse the ledger. *)
+let law_fold_refuses_a_ledger_with_any_malformed_line_with_E_INVALID_PLAN =
+  QCheck2.Test.make ~count:200 ~name:"law_fold_refuses_a_ledger_with_any_malformed_line_with_E_INVALID_PLAN"
+    ~print:(fun (b, i, p) -> text b ^ Printf.sprintf "--- truncate line %d at %d" i p)
+    QCheck2.Gen.(triple fsm_walk nat nat)
+    (fun (base, i, p) ->
+      let src = List.nth base (i mod List.length base) in
+      let bad = String.sub src 0 (1 + p mod (String.length src - 1)) in
+      let at = i mod (List.length base + 1) in
+      let lines = List.filteri (fun k _ -> k < at) base @ [ bad ] @ List.filteri (fun k _ -> k >= at) base in
+      verdict_code (fun () -> fold (text lines)) = "E_INVALID_PLAN")
+
+(* A field of the wrong type reads exactly as if it were absent. *)
+let wrong_typed = [ ("edge", `Int 7); ("to", `List []); ("from", `Bool true); ("cycle", `String "seven");
+                    ("commit", `Int 1); ("verdict", `Assoc []); ("verify_verdict", `Int 0);
+                    ("reason", `Null); ("depends_on", `String "a") ]
+
+let law_fold_reads_a_wrong_typed_field_as_if_it_were_absent =
+  QCheck2.Test.make ~count:200 ~name:"law_fold_reads_a_wrong_typed_field_as_if_it_were_absent"
+    ~print:(fun (b, picks) -> text b ^ "--- corrupt " ^ String.concat "," (List.map string_of_int picks))
+    QCheck2.Gen.(pair fsm_walk (list_size (int_range 1 6) nat))
+    (fun (base, picks) ->
+      let rewrite f l = match Yojson.Safe.from_string l with
+        | `Assoc fs -> Yojson.Safe.to_string (`Assoc (f fs)) | j -> Yojson.Safe.to_string j in
+      let corrupt = ref base and absent = ref base in
+      List.iter (fun p ->
+          let i = p mod List.length base and (k, v) = List.nth wrong_typed (p mod List.length wrong_typed) in
+          let on f = List.mapi (fun n l -> if n = i then rewrite f l else l) in
+          corrupt := on (fun fs -> (k, v) :: List.remove_assoc k fs) !corrupt;
+          absent := on (fun fs -> List.remove_assoc k fs) !absent) picks;
+      let (a, qa, da) = Store.fold_ledger (text !corrupt) and (b, qb, db) = Store.fold_ledger (text !absent) in
+      observable a = observable b && a.Store.cycle = b.Store.cycle && qa = qb && da = db)
+
 let law_fold_ignores_event_lines_spliced_anywhere_in_a_ledger =
   QCheck2.Test.make ~count:200 ~name:"law_fold_ignores_event_lines_spliced_anywhere_in_a_ledger"
     ~print:(fun (b, e, _) -> text b ^ "--- events ---\n" ^ text e)
@@ -158,6 +214,12 @@ let case_ledger_line_writes_null_commit_and_verdict_when_absent _ =
   assert_equal (`String "2026-11-18T11:06:40Z") (field j "ts");
   assert_equal `Null (field j "run_id")
 
+(* Extra fields use keys the base line never writes. *)
+let gen_extra =
+  QCheck2.Gen.(list_size (int_range 0 3)
+                 (pair (map (fun s -> "x_" ^ s) (string_size ~gen:(char_range 'a' 'z') (int_range 1 6)))
+                       (string_size ~gen:printable (int_range 0 8))))
+
 let gen_ledger_fields =
   let open QCheck2.Gen in
   let any_string = string_size ~gen:(char_range '\000' '\255') (int_range 0 30) in
@@ -168,15 +230,17 @@ let gen_ledger_fields =
     (int_range (-3) 1000)
     (option (oneof [ hex; return ""; any_string ]))
     (option (pick [ "ship"; "needs_fix"; "pass"; "fail" ]))
-    any_string (pair any_string any_string) (option any_string)) (option any_string)
+    any_string (pair any_string any_string) (option any_string)) (pair (option any_string) gen_extra)
 
 let law_ledger_line_decodes_back_to_the_same_fields_it_encoded =
   QCheck2.Test.make ~count:300 ~name:"law_ledger_line_decodes_back_to_the_same_fields_it_encoded"
     gen_ledger_fields
-    (fun ((e, from, to_, cycle, commit, verdict, reason, (harness, model), run_id), checkpoint) ->
+    (fun ((e, from, to_, cycle, commit, verdict, reason, (harness, model), run_id), (checkpoint, extra)) ->
+      let extra = List.sort_uniq (fun (a, _) (b, _) -> compare a b) extra in
       let id = { Store.harness; model; decider_human = false; incomplete = false; run_id } in
       let l = Clock.with_fixed 1_795_000_000. (fun () ->
-          Store.ledger_line ~edge:e ~from ~to_ ~cycle ~commit ~verdict ~reason ~id ?checkpoint ()) in
+          Store.ledger_line ~edge:e ~from ~to_ ~cycle ~commit ~verdict ~reason ~id ?checkpoint
+            ~extra:(List.map (fun (k, v) -> (k, `String v)) extra) ()) in
       let j = decode l in
       let s k = match field j k with `String v -> Some v | _ -> None in
       not (String.contains l '\n')
@@ -184,6 +248,7 @@ let law_ledger_line_decodes_back_to_the_same_fields_it_encoded =
       && field j "cycle" = `Int cycle && s "commit" = commit && s "verdict" = verdict
       && s "reason" = Some reason && s "harness" = Some harness && s "model" = Some model
       && s "run_id" = run_id && s "checkpoint" = checkpoint && s "ts" = Some "2026-11-18T11:06:40Z"
+      && List.for_all (fun (k, v) -> s k = Some v) extra
       && s "bp3_version" = Some Gitx.bp3_version)
 
 (* ---------- legal edges, slugs, ids ---------- *)
@@ -310,6 +375,10 @@ let case_sched_waves_count_a_deleted_dep_as_done_and_hold_back_an_in_flight_one 
              node "b" "todo" [ "y" ]; node "c" "todo" [ "a"; "b" ] ] in
   assert_equal [ [ "a" ] ] (Store.sched_waves ns)
 
+let case_sched_waves_sort_each_wave_and_never_place_a_node_with_a_dangling_dep _ =
+  let ns = [ node "zeta" "todo" []; node "alpha" "todo" []; node "orphan" "todo" [ "ghost" ] ] in
+  assert_equal [ [ "alpha"; "zeta" ] ] (Store.sched_waves ns)
+
 let case_sched_starved_names_the_todo_dependents_of_a_blocked_node _ =
   let ns = [ node "a" "blocked" []; node "b" "todo" [ "a" ]; node "c" "todo" [ "b" ];
              node "d" "landed" [ "a" ]; node "e" "todo" []; node "f" "handed_off" [ "a" ] ] in
@@ -339,12 +408,22 @@ let case_ts_epoch_parses_utc_timestamps_and_refuses_other_shapes _ =
   assert_equal (Some 1_795_000_000) (Store.ts_epoch "2026-11-18T11:06:40Z");
   assert_equal (Some 1_795_046_399) (Store.ts_epoch "2026-11-18T23:59:59Z");
   List.iter (fun s -> assert_equal ~msg:s None (Store.ts_epoch s))
-    [ ""; "2026-11-18 11:06:40Z"; "2026-11-18T11:06:40"; "2026-11-18T11:06:40.5Z"; "yyyy-mm-ddThh:mm:ssZ" ]
+    [ ""; "2026-11-18 11:06:40Z"; "2026-11-18T11:06:40"; "2026-11-18T11:06:40.5Z"; "yyyy-mm-ddThh:mm:ssZ";
+      "2026/11/18T11:06:40Z"; "2026-11-18T11-06-40Z"; "2026-11-18T11:06:40+" ]
 
 let law_ts_epoch_reads_back_the_second_now_ts_wrote =
   QCheck2.Test.make ~count:300 ~name:"law_ts_epoch_reads_back_the_second_now_ts_wrote"
     ~print:string_of_float QCheck2.Gen.(float_range 0. 7.0e9)
     (fun t -> Store.ts_epoch (Clock.with_fixed t Gitx.now_ts) = Some (truncate t))
+
+let case_timing_of_text_counts_the_first_handoff_and_reads_a_legacy_submit_as_one _ =
+  let t = Store.timing_of_text (text [
+      edge ~ts:"2026-11-18T00:00:00Z" "create" "" "todo";
+      edge ~ts:"2026-11-18T00:02:00Z" ~commit:"c" "submit" "todo" "submitted";
+      edge ~ts:"2026-11-18T00:03:00Z" ~cycle:2 ~verdict:"needs_fix" "grade" "submitted" "todo";
+      edge ~ts:"2026-11-18T00:05:00Z" ~cycle:2 ~commit:"d" "handoff" "todo" "handed_off" ]) in
+  assert_equal ~msg:"wait counts to the first (legacy) handoff" (Some 120) t.Store.t_wait;
+  assert_equal None t.Store.t_wall
 
 let case_timing_of_text_derives_wall_wait_and_dwell_from_timestamps _ =
   let t = Store.timing_of_text (text [
@@ -388,6 +467,11 @@ let case_plan_knobs_read_the_default_plan_as_one_round_grade_and_verify_required
 let case_plan_knobs_refuse_stages_and_edges_keys_with_E_INVALID_PLAN _ =
   assert_equal ~printer:Fun.id "E_INVALID_PLAN" (verdict_code (fun () -> Store.plan_knobs_from_text "stages:\n  - a\n"));
   assert_equal ~printer:Fun.id "E_INVALID_PLAN" (verdict_code (fun () -> Store.plan_knobs_from_text "  edges: []\n"))
+
+let case_plan_knobs_default_to_one_round_and_read_verify_none_as_optional _ =
+  let k = Store.plan_knobs_from_text "grade:\n  required: true\nverify: none\n" in
+  assert_equal ~printer:string_of_int 1 k.Store.max_cycles;
+  assert_bool "verify none is optional" (not k.Store.verify_required)
 
 let char_plan_knobs_read_any_required_false_as_grade_optional_when_a_grade_key_exists _ =
   let k = Store.plan_knobs_from_text "grade:\n  required: true\nverify:\n  required: false\n" in
@@ -449,6 +533,10 @@ let () =
        "case_fold_clears_the_bound_commit_and_both_verdicts_on_resume" >:: case_fold_clears_the_bound_commit_and_both_verdicts_on_resume;
        "case_fold_captures_reason_checkpoint_and_since_on_blocked" >:: case_fold_captures_reason_checkpoint_and_since_on_blocked;
        "case_fold_resets_both_verdicts_on_a_legacy_submit_like_a_handoff" >:: case_fold_resets_both_verdicts_on_a_legacy_submit_like_a_handoff;
+       "case_fold_clears_both_verdicts_on_needs_fix_even_with_a_passing_verify" >:: case_fold_clears_both_verdicts_on_needs_fix_even_with_a_passing_verify;
+       "case_fold_lets_a_failed_verify_edge_void_an_earlier_ship" >:: case_fold_lets_a_failed_verify_edge_void_an_earlier_ship;
+       QCheck_ounit.to_ounit2_test law_fold_refuses_a_ledger_with_any_malformed_line_with_E_INVALID_PLAN;
+       QCheck_ounit.to_ounit2_test law_fold_reads_a_wrong_typed_field_as_if_it_were_absent;
        "case_fold_clears_both_verdicts_on_a_ship_cast_whose_verify_failed" >:: case_fold_clears_both_verdicts_on_a_ship_cast_whose_verify_failed;
        "case_fold_reads_plan_types_from_pre_rename_create_keys" >:: case_fold_reads_plan_types_from_pre_rename_create_keys;
        "case_fold_reads_depends_on_with_legacy_exp_ids_as_node_ids" >:: case_fold_reads_depends_on_with_legacy_exp_ids_as_node_ids;
@@ -472,6 +560,7 @@ let () =
        QCheck_ounit.to_ounit2_test law_sched_waves_place_every_dep_in_an_earlier_wave;
        "case_sched_waves_count_landed_deps_as_done" >:: case_sched_waves_count_landed_deps_as_done;
        "case_sched_waves_count_a_deleted_dep_as_done_and_hold_back_an_in_flight_one" >:: case_sched_waves_count_a_deleted_dep_as_done_and_hold_back_an_in_flight_one;
+       "case_sched_waves_sort_each_wave_and_never_place_a_node_with_a_dangling_dep" >:: case_sched_waves_sort_each_wave_and_never_place_a_node_with_a_dangling_dep;
        "case_sched_starved_names_the_todo_dependents_of_a_blocked_node" >:: case_sched_starved_names_the_todo_dependents_of_a_blocked_node;
        "case_dep_cycle_through_names_the_cycle_it_closes" >:: case_dep_cycle_through_names_the_cycle_it_closes;
        QCheck_ounit.to_ounit2_test law_dep_cycle_through_finds_no_cycle_in_a_dag;
@@ -479,10 +568,12 @@ let () =
        "case_ts_epoch_parses_utc_timestamps_and_refuses_other_shapes" >:: case_ts_epoch_parses_utc_timestamps_and_refuses_other_shapes;
        QCheck_ounit.to_ounit2_test law_ts_epoch_reads_back_the_second_now_ts_wrote;
        "case_timing_of_text_derives_wall_wait_and_dwell_from_timestamps" >:: case_timing_of_text_derives_wall_wait_and_dwell_from_timestamps;
+       "case_timing_of_text_counts_the_first_handoff_and_reads_a_legacy_submit_as_one" >:: case_timing_of_text_counts_the_first_handoff_and_reads_a_legacy_submit_as_one;
        "case_parse_icebox_entry_reads_frontmatter_title_and_treats_null_promoted_as_none" >:: case_parse_icebox_entry_reads_frontmatter_title_and_treats_null_promoted_as_none;
        "case_icebox_matches_needs_every_term_case_insensitively" >:: case_icebox_matches_needs_every_term_case_insensitively;
        "case_plan_knobs_read_the_default_plan_as_one_round_grade_and_verify_required" >:: case_plan_knobs_read_the_default_plan_as_one_round_grade_and_verify_required;
        "case_plan_knobs_refuse_stages_and_edges_keys_with_E_INVALID_PLAN" >:: case_plan_knobs_refuse_stages_and_edges_keys_with_E_INVALID_PLAN;
+       "case_plan_knobs_default_to_one_round_and_read_verify_none_as_optional" >:: case_plan_knobs_default_to_one_round_and_read_verify_none_as_optional;
        "char_plan_knobs_read_any_required_false_as_grade_optional_when_a_grade_key_exists" >:: char_plan_knobs_read_any_required_false_as_grade_optional_when_a_grade_key_exists;
        "case_pick_longest_keeps_the_copy_with_the_most_lines" >:: case_pick_longest_keeps_the_copy_with_the_most_lines;
        "case_pick_longest_breaks_a_tie_in_favor_of_the_earlier_canonical_copy" >:: case_pick_longest_breaks_a_tie_in_favor_of_the_earlier_canonical_copy;

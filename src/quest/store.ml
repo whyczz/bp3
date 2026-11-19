@@ -289,16 +289,12 @@ let legacy_node_ledger_paths q e =
         (Layout.nodes_dir :: Layout.legacy_nodes_dirs)) all_roots
   |> List.filter (fun p -> p <> node_ledger_path q e)
 
-(* Read a ledger at its canonical path or any pre-rename path on
-   the same branch. Renames never rewrote branch trees, so one tip
-   can hold a copy per era; ledgers are append-only, so the copy
-   with the most lines is the newest (ties: canonical first). The
-   third component names the path read, so appends write back to
-   the same path. *)
-(* The longest-copy rule, pure (test-pyramid unit.3): among the
-   (path, text) copies found, canonical first, the one with the most
-   lines wins; a tie keeps the earlier copy; no copy reads as empty
-   at the canonical path. Returns (text, path). *)
+(* Renames never rewrote branch trees, so one tip can hold a ledger
+   copy per era; ledgers are append-only, so the copy with the most
+   lines is the newest. pick_longest is that rule, pure: among the
+   (path, text) copies found, canonical first, most lines wins, a tie
+   keeps the earlier copy, and no copy reads as empty at the
+   canonical path. Returns (text, path). *)
 let pick_longest canon found =
   let lines t = List.length (String.split_on_char '\n' (String.trim t)) in
   match found with
@@ -308,6 +304,9 @@ let pick_longest canon found =
           if lines t > lines bt then (p, t) else (bp, bt)) first rest in
       (t, p)
 
+(* Read a ledger at its canonical path or any pre-rename path on the
+   same branch. The third component names the path read, so appends
+   write back to the same path. *)
 let ledger_read branch canon legacy =
   match ref_tip branch with
   | None -> None
