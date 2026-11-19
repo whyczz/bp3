@@ -33,7 +33,7 @@ dispatcher: await, release, and roles.
   exit into the run config (1 tape <> 1 run-id). A missing
   extension refuses `E_SETUP` before any spawn. Repo root
   resolves via git common dir, so a
-  nested subdir binds the same graph as the root.
+  nested subdir binds the same quest as the root.
   `await_runs` is a thin relay over `bp3 harness watch` —
   watch's verdict verbatim (settled / watchdog_killed /
   timeout), no polling loop, no second watchdog, no
@@ -55,7 +55,7 @@ node --test extensions/bp3-pi/test/bp3-pi.test.mjs
 
 Fake-pi + real-bp3 suite: load/fail-open, four-tool
 surface, hostile refusals by key name, spawn trivial
-child -> `finished`, nested-subdir spawn -> same graph,
+child -> `finished`, nested-subdir spawn -> same quest,
 role routing (override > role > conductor) observed in
 child env + run config, await verbatim on a finished Run,
 hung child killed by watch alone -> `orphaned`,

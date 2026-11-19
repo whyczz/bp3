@@ -5,7 +5,9 @@
 # term costs seconds, not a grade cycle.
 #
 # Retired spellings (single source; post-rename vocabulary):
-#   GOAL.md QUEST.md EXPERIMENT.md   (now GRAPH.md / NODE.md)
+#   GOAL.md GRAPH.md EXPERIMENT.md   (now QUEST.md / NODE.md)
+#   bp3g (skill family, now induct / quest / induct-yolo / trial)
+#   docs/graphs (now docs/quests)
 #
 # Live surfaces swept: skills/, src/, bin/, scripts/,
 # extensions/, the rendered skill copies (.pi/skills/,
@@ -19,6 +21,9 @@
 # No blanket per-file exemption for live files.
 #   scripts/migrate-graph-rename.sh | migration rename table:
 #     quotes the retired spellings in order to rename them
+#   scripts/migrate-quest-rename.sh | migration rename table (rename-back)
+#   src/quest/layout.ml             | declares legacy spellings it folds on read
+#   bin/bp3 RETIRED_WORKFLOWS= line | names the retired renders it prunes
 #   scripts/check-retired-terms.sh  | declares the retired list
 #
 # shellcheck disable=SC2086 # $scope is a word list by design.
@@ -34,7 +39,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 cd "$root"
-retired="GOAL.md QUEST.md EXPERIMENT.md"
+retired="GOAL.md GRAPH.md EXPERIMENT.md bp3g docs/graphs"
 scope="skills src bin scripts extensions .pi/skills .agents/skills .claude/skills .agents/workflows"
 hits=$(mktemp)
 trap 'rm -f "$hits"' EXIT
@@ -55,8 +60,11 @@ trap 'rm -f "$hits" "$filtered"' EXIT
 while IFS= read -r line; do
   path=${line%%:*}
   case "$path" in
-    scripts/migrate-graph-rename.sh|scripts/check-retired-terms.sh) continue ;;
+    scripts/migrate-graph-rename.sh|scripts/migrate-quest-rename.sh|scripts/check-retired-terms.sh|src/quest/layout.ml) continue ;;
   esac
+  # bin/bp3 declares the retired workflow names it prunes; that one
+  # line only, never the whole live file.
+  case "$line" in bin/bp3:*:RETIRED_WORKFLOWS=*) continue ;; esac
   printf '%s\n' "$line" >> "$filtered"
 done < "$hits"
 if [ -s "$filtered" ]; then

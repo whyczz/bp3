@@ -5,9 +5,9 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-mkdir -p "$work/repo/scripts" "$work/repo/src/graph"
+mkdir -p "$work/repo/scripts" "$work/repo/src/quest"
 cp "$root/scripts/release-check" "$work/repo/scripts/"
-printf 'let bp3_version = "0.2.0"\n' > "$work/repo/src/graph/gitx.ml"
+printf 'let bp3_version = "0.2.0"\n' > "$work/repo/src/quest/gitx.ml"
 cd "$work/repo"
 git init -q -b master
 git config user.email t@t.t; git config user.name t
@@ -36,8 +36,8 @@ echo "$out" | grep -q "HEAD is" || fail "stale-tag message: $out"
 # --version prints exactly the constant
 mkdir -p bin plans
 cp "$root/bin/bp3" bin/
-cp "$root/_build/default/src/graph/main.exe" g-bin
-out=$(BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g --version)
+cp "$root/_build/default/src/quest/main.exe" g-bin
+out=$(BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q --version)
 [ "$out" = "0.2.0" ] || fail "--version: $out"
 
 echo "release tests: ok"

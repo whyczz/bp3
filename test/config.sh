@@ -5,7 +5,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/src/graph/main.exe" "$work/repo/g-bin"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
 cd "$work/repo"
 git init -q -b master
@@ -13,9 +13,9 @@ git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
-q() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
-h() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness "$@"; }
-c() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 config "$@"; }
+q() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q "$@"; }
+h() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness "$@"; }
+c() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 config "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 store="$work/repo/.git/bp3"
 
@@ -38,14 +38,14 @@ if out=$(c --format xml 2>&1); then fail "bad --format value accepted"; fi
 # --- outside a git repo: no store, typed refusal; help still works ---
 mkdir -p "$work/nogit/bin"
 cp "$root/bin/bp3" "$work/nogit/bin/"
-if out=$(BP3_G_BIN="$work/repo/g-bin" "$work/nogit/bin/bp3" config 2>&1); then fail "config outside git accepted"; fi
+if out=$(BP3_Q_BIN="$work/repo/g-bin" "$work/nogit/bin/bp3" config 2>&1); then fail "config outside git accepted"; fi
 echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "outside-git code: $out"
-BP3_G_BIN="$work/repo/g-bin" "$work/nogit/bin/bp3" config -h >/dev/null || fail "config -h outside git"
+BP3_Q_BIN="$work/repo/g-bin" "$work/nogit/bin/bp3" config -h >/dev/null || fail "config -h outside git"
 
 # --- first write creates the tree (zero setup) ---
-out=$(h link mint --kind edge --graph demo --node node-1 --edge handoff --run-id R0 --harness muse-code --model test-model)
+out=$(h link mint --kind edge --quest demo --node node-1 --edge handoff --run-id R0 --harness muse-code --model test-model)
 echo "$out" | jq -e '.ok == true' >/dev/null || fail "link mint: $out"
-BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness link cleanup --graph demo >/dev/null
+BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness link cleanup --quest demo >/dev/null
 [ -f "$store/config.json" ] || fail "first write did not create config.json"
 for d in runs links claims by-session desks run-lifecycle-derivations; do
   [ -d "$store/$d" ] || fail "first write did not create $d/"
@@ -66,10 +66,10 @@ echo "$out" | grep -q "contexts" || fail "table view names contexts: $out"
 
 # --- run configs fold into contexts; provenance per context ---
 cat > "$store/runs/run-a.json" <<'JSON'
-{"run_id":"run-a","kind":"edge","graph":"g1","node":"n1","edge":"handoff","state":"minted","desk":".bp3/worktrees/g1/n1/run-a","creator":{"run_id":"root-1","depth":2,"harness":"muse-code","model":"m","minted_at":"2026-11-16T00:00:00Z","token_hash":"sha256:x"}}
+{"run_id":"run-a","kind":"edge","quest":"g1","node":"n1","edge":"handoff","state":"minted","desk":".bp3/worktrees/g1/n1/run-a","creator":{"run_id":"root-1","depth":2,"harness":"muse-code","model":"m","minted_at":"2026-11-16T00:00:00Z","token_hash":"sha256:x"}}
 JSON
 cat > "$store/runs/run-b.json" <<'JSON'
-{"run_id":"run-b","kind":"edge","graph":"g1","node":"n2","edge":"grade","state":"claimed","desk":".bp3/worktrees/g1/n2/run-b","creator":{"run_id":"root-1","depth":2,"harness":"muse-code","model":"m","minted_at":"2026-11-16T00:00:30Z","token_hash":"sha256:y"},"claim":{"session_id":"sess-b","pid":48151,"cwd":"/tmp/desk-b","claimed_at":"2026-11-16T00:01:00Z"}}
+{"run_id":"run-b","kind":"edge","quest":"g1","node":"n2","edge":"grade","state":"claimed","desk":".bp3/worktrees/g1/n2/run-b","creator":{"run_id":"root-1","depth":2,"harness":"muse-code","model":"m","minted_at":"2026-11-16T00:00:30Z","token_hash":"sha256:y"},"claim":{"session_id":"sess-b","pid":48151,"cwd":"/tmp/desk-b","claimed_at":"2026-11-16T00:01:00Z"}}
 JSON
 out=$(c)
 echo "$out" | jq -e '(.contexts | length) == 2
@@ -112,8 +112,8 @@ cd "$work/repo2"
 git init -q -b master
 git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
-BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g c demo >/dev/null
-out=$(BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness desk prepare demo node-1 --run D1)
+BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q c demo >/dev/null
+out=$(BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness desk prepare demo node-1 --run D1)
 echo "$out" | jq -e '.ok == true' >/dev/null || fail "desk prepare repo2: $out"
 [ -f "$work/repo2/.git/bp3/config.json" ] || fail "desk prepare did not create the config tree"
 cd "$work/repo"
@@ -123,15 +123,15 @@ git worktree add -q "$work/wt2" -b wt2
 mkdir -p "$work/wt2/bin"
 cp "$root/bin/bp3" "$work/wt2/bin/"
 main_dir=$(c | jq -r .config_dir)
-wt_dir=$(BP3_G_BIN="$work/repo/g-bin" "$work/wt2/bin/bp3" config | jq -r .config_dir)
+wt_dir=$(BP3_Q_BIN="$work/repo/g-bin" "$work/wt2/bin/bp3" config | jq -r .config_dir)
 [ "$main_dir" = "$wt_dir" ] || fail "worktree config_dir differs: $main_dir vs $wt_dir"
-out=$(BP3_G_BIN="$work/repo/g-bin" "$work/wt2/bin/bp3" config)
+out=$(BP3_Q_BIN="$work/repo/g-bin" "$work/wt2/bin/bp3" config)
 echo "$out" | jq -e '(.contexts | length) == 2' >/dev/null || fail "worktree view contexts: $out"
 
 # --- legacy doors fail open: no config required, no new warnings ---
 out=$(q c demo)
 echo "$out" | jq -e '.ok == true and (has("warnings") | not)' >/dev/null || fail "legacy create changed: $out"
-if out=$(q c config 2>&1); then fail "graph named config accepted"; fi
+if out=$(q c config 2>&1); then fail "quest named config accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved config slug code: $out"
 
 # --- mkdir failure is attributed at its site, not swallowed ---

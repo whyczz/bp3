@@ -9,6 +9,11 @@
     "!**/.agents/skills/bp3g/SKILL.md",
     "!**/.agents/skills/bp3g-frame/SKILL.md",
     "!**/.agents/skills/bp3g-landing-demo/SKILL.md",
-    "!**/.agents/skills/bp3g-no-human/SKILL.md"
+    "!**/.agents/skills/bp3g-no-human/SKILL.md",
+    "!**/.agents/skills/induct/SKILL.md",
+    "!**/.agents/skills/induct-yolo/SKILL.md",
+    "!**/.agents/skills/quest/SKILL.md",
+    "!**/.agents/skills/trial/SKILL.md",
+    "!**/.agents/skills/induct-inline/SKILL.md"
   ]
 }

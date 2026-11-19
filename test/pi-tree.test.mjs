@@ -14,7 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
-const qBin = path.join(repoRoot, "_build", "default", "src", "graph", "main.exe");
+const qBin = path.join(repoRoot, "_build", "default", "src", "quest", "main.exe");
 let failures = 0;
 function assert(cond, msg) {
   if (!cond) { console.error("FAIL: " + msg); failures++; }
@@ -48,7 +48,7 @@ fs.writeFileSync(path.join(repo, ".gitignore"), ".bp3-context.json\n");
 execFileSync("git", ["-C", repo, "add", "."]);
 execFileSync("git", ["-C", repo, "commit", "-qm", "base"]);
 
-const env = { ...process.env, BP3_HARNESS: "muse-code", BP3_MODEL: "test-model", BP3_G_BIN: path.join(repo, "g-bin") };
+const env = { ...process.env, BP3_HARNESS: "muse-code", BP3_MODEL: "test-model", BP3_Q_BIN: path.join(repo, "g-bin") };
 function bp3(args, extraEnv = {}) {
   const out = execFileSync(path.join(repo, "bin", "bp3"), args, { cwd: repo, encoding: "utf8", env: { ...env, ...extraEnv } });
   return JSON.parse(out.trim().split("\n").pop() ?? "{}");
@@ -72,33 +72,33 @@ const nodeWorker = path.join(work, "node-worker.mjs");
 fs.writeFileSync(nodeWorker, `
 import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
-const [mode, graph, node, token, bubblePath, scratch] = process.argv.slice(2);
+const [mode, quest, node, token, bubblePath, scratch] = process.argv.slice(2);
 const bp3 = (args, extra = {}) => JSON.parse(execFileSync("./bin/bp3", args, { encoding: "utf8", env: { ...process.env, ...extra } }).trim().split("\\n").pop());
 bp3(["harness", "link", "claim", token]);
 const myCfg = JSON.parse(fs.readFileSync(process.env.BP3_RUN_CFG, "utf8"));
 const myRun = myCfg.run_id;
 if (mode === "orphan-parent") {
-  const minted = bp3(["harness", "link", "mint", "--kind", "edge", "--graph", graph, "--node", node, "--edge", "handoff", "--harness", "pi", "--model", "test-model", "--cycle", "1", "--desk", process.cwd(), "--parent-run-id", myRun]);
-  const child = spawn(process.execPath, [process.env.EDGE_WORKER, "sleep", graph, node, minted.token, scratch], { stdio: "ignore", detached: false });
+  const minted = bp3(["harness", "link", "mint", "--kind", "edge", "--quest", quest, "--node", node, "--edge", "handoff", "--harness", "pi", "--model", "test-model", "--cycle", "1", "--desk", process.cwd(), "--parent-run-id", myRun]);
+  const child = spawn(process.execPath, [process.env.EDGE_WORKER, "sleep", quest, node, minted.token, scratch], { stdio: "ignore", detached: false });
   fs.writeFileSync(scratch, JSON.stringify({ grandchild_pid: child.pid, grandchild_run: minted.run_id, node_run: myRun }));
   process.exit(0); // die without reaping: grandchild is unreaped
 }
-const minted = bp3(["harness", "link", "mint", "--kind", "edge", "--graph", graph, "--node", node, "--edge", "handoff", "--harness", "pi", "--model", "test-model", "--cycle", "1", "--desk", process.cwd(), "--parent-run-id", myRun]);
+const minted = bp3(["harness", "link", "mint", "--kind", "edge", "--quest", quest, "--node", node, "--edge", "handoff", "--harness", "pi", "--model", "test-model", "--cycle", "1", "--desk", process.cwd(), "--parent-run-id", myRun]);
 const resultFile = scratch + ".edge.json";
-const child = spawn(process.execPath, [process.env.EDGE_WORKER, mode, graph, node, minted.token, resultFile], { stdio: "inherit" });
+const child = spawn(process.execPath, [process.env.EDGE_WORKER, mode, quest, node, minted.token, resultFile], { stdio: "inherit" });
 fs.writeFileSync(scratch + ".edge.pid", String(child.pid));
 const code = await new Promise((r) => child.once("exit", r));
 let edgeResult = null;
 try { edgeResult = JSON.parse(fs.readFileSync(resultFile, "utf8")); } catch {}
 const chain = [myRun, minted.run_id];
 if (edgeResult && edgeResult.ok === false) {
-  bp3(["g", graph, "u", node, "block", "--reason", edgeResult.reason]);
-  const bubble = { graph, node, state: "blocked", reason: edgeResult.reason, last_edge: "handoff", run_chain: chain, desk: process.cwd(), inbox_key: graph + "/" + node };
+  bp3(["q", quest, "u", node, "block", "--reason", edgeResult.reason]);
+  const bubble = { quest, node, state: "blocked", reason: edgeResult.reason, last_edge: "handoff", run_chain: chain, desk: process.cwd(), inbox_key: quest + "/" + node };
   fs.appendFileSync(bubblePath, JSON.stringify(bubble) + "\\n");
   process.exit(0);
 }
-const after = bp3(["g", graph, "r", node]);
-const bubble = { graph, node, state: after.state, reason: null, last_edge: "handoff", run_chain: chain, desk: process.cwd(), inbox_key: graph + "/" + node };
+const after = bp3(["q", quest, "r", node]);
+const bubble = { quest, node, state: after.state, reason: null, last_edge: "handoff", run_chain: chain, desk: process.cwd(), inbox_key: quest + "/" + node };
 fs.appendFileSync(bubblePath, JSON.stringify(bubble) + "\\n");
 process.exit(0);
 `);
@@ -106,7 +106,7 @@ const edgeWorker = path.join(work, "edge-worker.mjs");
 fs.writeFileSync(edgeWorker, `
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-const [mode, graph, node, token, resultFile] = process.argv.slice(2);
+const [mode, quest, node, token, resultFile] = process.argv.slice(2);
 const bp3 = (args, extra = {}) => JSON.parse(execFileSync("./bin/bp3", args, { encoding: "utf8", env: { ...process.env, ...extra } }).trim().split("\\n").pop());
 bp3(["harness", "link", "claim", token]);
 if (mode === "sleep") {
@@ -121,16 +121,16 @@ else if (mode === "block-fail") {
   execFileSync("git", ["add", "a.txt"]);
   execFileSync("git", ["commit", "-qm", "fresh tree work"]);
   const commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  bp3(["g", graph, "u", node, "handoff", "--commit", commit, "--reason", "fresh tree work"]);
+  bp3(["q", quest, "u", node, "handoff", "--commit", commit, "--reason", "fresh tree work"]);
   fs.writeFileSync(resultFile, JSON.stringify({ ok: true }));
 }
 `);
 
-function spawnNode(mode, graph, node, bubblePath, scratch) {
-  const minted = bp3(["harness", "link", "mint", "--kind", "node", "--graph", graph, "--node", node,
+function spawnNode(mode, quest, node, bubblePath, scratch) {
+  const minted = bp3(["harness", "link", "mint", "--kind", "node", "--quest", quest, "--node", node,
     "--harness", "pi", "--model", "test-model", "--cycle", "1", "--desk", repo]);
   const cfgPath = path.join(runsDir, minted.run_id + ".json");
-  const child = spawn(process.execPath, [nodeWorker, mode, graph, node, minted.token, bubblePath, scratch], {
+  const child = spawn(process.execPath, [nodeWorker, mode, quest, node, minted.token, bubblePath, scratch], {
     cwd: repo,
     env: { ...env, BP3_RUN_ID: minted.run_id, BP3_RUN_CFG: cfgPath, EDGE_WORKER: edgeWorker },
     stdio: "inherit",
@@ -140,8 +140,8 @@ function spawnNode(mode, graph, node, bubblePath, scratch) {
 const exitOf = (child) => new Promise((r) => child.once("exit", r));
 
 try {
-  bp3(["g", "c", "demo"]);
-  bp3(["g", "demo", "c", "pinode"]);
+  bp3(["q", "c", "demo"]);
+  bp3(["q", "demo", "c", "pinode"]);
 
   // --- bubble exactly once, facts only; whole tree dies ---
   const bubblePath = path.join(work, "bubbles.jsonl");
@@ -151,7 +151,7 @@ try {
   const bubbles = fs.readFileSync(bubblePath, "utf8").trim().split("\n").map((l) => JSON.parse(l));
   assert(bubbles.length === 1, "exactly one terminal bubble, got " + bubbles.length);
   const b = bubbles[0];
-  assert(b.graph === "demo" && b.node === "pinode" && b.state === "blocked" && b.reason === "choose storage shape"
+  assert(b.quest === "demo" && b.node === "pinode" && b.state === "blocked" && b.reason === "choose storage shape"
     && b.last_edge === "handoff" && b.inbox_key === "demo/pinode" && typeof b.desk === "string"
     && Array.isArray(b.run_chain) && b.run_chain.length === 2 && !("pid" in b), "bubble carries facts only: " + JSON.stringify(b));
   const edgeCfg = runCfg(b.run_chain[1]);
@@ -159,24 +159,24 @@ try {
   assert(await waitDead(first.pid), "node worker pid dead after bubble");
   const edgePid = Number(fs.readFileSync(scratch + ".edge.pid", "utf8"));
   assert(await waitDead(edgePid), "edge worker pid dead after bubble (process table)");
-  let read = bp3(["g", "demo", "r", "pinode"]);
+  let read = bp3(["q", "demo", "r", "pinode"]);
   assert(read.state === "blocked" && read.blocked.reason === "choose storage shape", "node rests blocked");
-  let rollup = bp3(["g", "r", "demo"]);
+  let rollup = bp3(["q", "r", "demo"]);
   assert(rollup.inbox.filter((i) => i.node === "pinode").length === 1, "exactly one inbox entry");
 
   // --- revival is a fresh tree: new claim/run chain, no reuse ---
-  const resumed = bp3(["g", "demo", "u", "pinode", "resume", "--reason", "use localStorage"], { BP3_DECIDER: "human" });
+  const resumed = bp3(["q", "demo", "u", "pinode", "resume", "--reason", "use localStorage"], { BP3_DECIDER: "human" });
   assert(resumed.ok === true && resumed.state === "todo", "resume revives to todo");
   const second = spawnNode("handoff", "demo", "pinode", bubblePath, path.join(work, "s2"));
   assert((await exitOf(second.child)) === 0, "revived node worker exits 0");
   assert(second.runId !== first.runId && second.pid !== first.pid, "fresh run-id and pid, no reuse");
   const secondCfg = runCfg(second.runId);
   assert(secondCfg.claim.session_id !== runCfg(first.runId).claim.session_id || secondCfg.claim.pid !== runCfg(first.runId).claim.pid, "fresh claim identity");
-  read = bp3(["g", "demo", "r", "pinode"]);
+  read = bp3(["q", "demo", "r", "pinode"]);
   assert(read.state === "handed_off", "fresh tree drives node to handed_off, got " + read.state);
 
   // --- unreaped grandchild: root follows parent_run_id, watch dispositions ---
-  bp3(["g", "demo", "c", "orphanode"]);
+  bp3(["q", "demo", "c", "orphanode"]);
   const orphanScratch = path.join(work, "orphan.json");
   const parent = spawnNode("orphan-parent", "demo", "orphanode", bubblePath, orphanScratch);
   assert((await exitOf(parent.child)) === 0, "orphan-parent node worker dies first");
@@ -195,7 +195,7 @@ try {
   assert(await waitDead(orphan.grandchild_pid), "grandchild dead after disposition; tree dead");
 
   // --- root dies: a new root process revives from rollup + inbox alone ---
-  bp3(["g", "demo", "c", "rootnode"]);
+  bp3(["q", "demo", "c", "rootnode"]);
   const rootBubble = path.join(work, "root-bubbles.jsonl");
   const dying = spawnNode("block-fail", "demo", "rootnode", rootBubble, path.join(work, "s3"));
   await exitOf(dying.child);
@@ -203,16 +203,16 @@ try {
   fs.writeFileSync(newRoot, `
 import { execFileSync, spawn } from "node:child_process";
 const bp3 = (args, extra = {}) => JSON.parse(execFileSync("./bin/bp3", args, { encoding: "utf8", env: { ...process.env, ...extra } }).trim().split("\\n").pop());
-const rollup = bp3(["g", "r", "demo"]);
+const rollup = bp3(["q", "r", "demo"]);
 const hit = rollup.inbox.find((i) => i.node === "rootnode");
 if (!hit || hit.reason !== "choose storage shape") process.exit(2);
-bp3(["g", "demo", "u", "rootnode", "resume", "--reason", "use localStorage"], { BP3_DECIDER: "human" });
-const minted = bp3(["harness", "link", "mint", "--kind", "node", "--graph", "demo", "--node", "rootnode", "--harness", "pi", "--model", "test-model", "--cycle", "1", "--desk", process.cwd()]);
+bp3(["q", "demo", "u", "rootnode", "resume", "--reason", "use localStorage"], { BP3_DECIDER: "human" });
+const minted = bp3(["harness", "link", "mint", "--kind", "node", "--quest", "demo", "--node", "rootnode", "--harness", "pi", "--model", "test-model", "--cycle", "1", "--desk", process.cwd()]);
 console.log(JSON.stringify({ run_id: minted.run_id, token: minted.token }));
 `);
   const fresh = JSON.parse(execFileSync(process.execPath, [newRoot], { cwd: repo, encoding: "utf8", env }).trim().split("\n").pop());
   assert(fresh.run_id !== dying.runId, "new root mints a fresh node run");
-  read = bp3(["g", "demo", "r", "rootnode"]);
+  read = bp3(["q", "demo", "r", "rootnode"]);
   assert(read.state === "todo", "rootnode revived to todo by new root, got " + read.state);
 } finally {
   try { fs.rmSync(work, { recursive: true, force: true }); } catch {}

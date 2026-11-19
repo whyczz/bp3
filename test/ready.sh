@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # mvp.3: node deps, ready-set waves, starved sets, derived
-# timing, setup gate, serial land. Fixture graphs are built
-# through bp3 g itself; timing fixtures write ledger lines
+# timing, setup gate, serial land. Fixture quests are built
+# through bp3 q itself; timing fixtures write ledger lines
 # with fixed timestamps through git plumbing.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -9,7 +9,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
-cp "$root/_build/default/src/graph/main.exe" "$work/repo/g-bin"
+cp "$root/_build/default/src/quest/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
 cd "$work/repo"
 git init -q -b master
@@ -17,11 +17,11 @@ git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
-q() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 g "$@"; }
-lk() { BP3_G_BIN="$work/repo/g-bin" ./bin/bp3 harness link "$@"; }
+q() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q "$@"; }
+lk() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness link "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-commit_on_node() { # $1 graph $2 node $3 path $4 content -> new tip
+commit_on_node() { # $1 quest $2 node $3 path $4 content -> new tip
   local branch="refs/heads/bp3/node/$1/$2" tip blob tree new_tip idx="$work/idx-$1-$2"
   tip=$(git rev-parse "$branch"); rm -f "$idx"
   blob=$(printf '%s' "$4" | git hash-object -w --stdin)
@@ -32,14 +32,14 @@ commit_on_node() { # $1 graph $2 node $3 path $4 content -> new tip
   git update-ref "$branch" "$new_tip" "$tip"; rm -f "$idx"
   printf '%s' "$new_tip"
 }
-land_node() { # $1 graph $2 node $3 path
+land_node() { # $1 quest $2 node $3 path
   local c; c=$(commit_on_node "$1" "$2" "$3" "content-$2")
   q "$1" u "$2" handoff --commit "$c" --reason work >/dev/null
   q "$1" u "$2" grade --verdict ship --reason ok >/dev/null
   q "$1" u "$2" verify --verdict pass --reason ok >/dev/null
   q "$1" u "$2" land --reason ship >/dev/null
 }
-node_ledger() { git show "bp3/node/$1/$2:docs/graphs/$1/nodes/$2/ledger.jsonl"; }
+node_ledger() { git show "bp3/node/$1/$2:docs/quests/$1/nodes/$2/ledger.jsonl"; }
 
 # --- diamond: deps declared, waves, ready, handoff gate ---
 q c sched >/dev/null
@@ -101,7 +101,7 @@ cat > "$work/tm-ledger.jsonl" <<EOF
 EOF
 blob=$(git hash-object -w "$work/tm-ledger.jsonl")
 GIT_INDEX_FILE="$idx" git read-tree "$tip"
-GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,docs/graphs/timing/nodes/tm/ledger.jsonl"
+GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,docs/quests/timing/nodes/tm/ledger.jsonl"
 tree=$(GIT_INDEX_FILE="$idx" git write-tree)
 nt=$(git commit-tree "$tree" -p "$tip" -m "timing fixture")
 git update-ref refs/heads/bp3/node/timing/tm "$nt" "$tip"; rm -f "$idx"
@@ -123,14 +123,14 @@ tracked_state=$(git ls-files | grep -c -E 'ledger\.jsonl|state\.yaml' || true)
 echo "tracked ledger/state files on fixture tip: $tracked_state"
 
 # --- setup measured per Run; slow fixture fires locally only ---
-out=$(lk mint --kind edge --graph sched --node na --edge handoff --desk "$work/repo")
+out=$(lk mint --kind edge --quest sched --node na --edge handoff --desk "$work/repo")
 RID=$(echo "$out" | jq -r .run_id); TOK=$(echo "$out" | jq -r .token)
 out=$(MUSE_SESSION_ID=sess-fast lk claim "$TOK")
 echo "$out" | jq -e '.ok == true and .state == "claimed"' >/dev/null || fail "fast claim: $out"
 rm -f .bp3-context.json
 out=$(q r sched)
 echo "$out" | jq -e --arg r "$RID" '(.setup[] | select(.run_id == $r) | .setup_wall_s >= 0 and .setup_wall_s < 180) and (has("warnings") | not or (.warnings | index("W_SETUP_SLOW") == null))' >/dev/null || fail "fast setup: $out"
-out=$(lk mint --kind edge --graph sched --node nb --edge handoff --desk "$work/repo")
+out=$(lk mint --kind edge --quest sched --node nb --edge handoff --desk "$work/repo")
 SRID=$(echo "$out" | jq -r .run_id)
 jq '.state = "claimed" | .creator.minted_at = "2026-01-01T00:00:00Z" | .claim = {"session_id":"sess-slow","pid":1,"cwd":"/tmp","claimed_at":"2026-01-01T00:10:00Z"}' ".git/bp3/runs/$SRID.json" > "$work/slow.json"
 cp "$work/slow.json" ".git/bp3/runs/$SRID.json"
@@ -151,14 +151,14 @@ for e in sl-a sl-b; do
 done
 out=$(q serial u sl-a land --reason first)
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "first land: $out"
-tip1=$(git rev-parse bp3/graph/serial)
+tip1=$(git rev-parse bp3/quest/serial)
 out=$(q serial r sl-b)
 echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "second still approved: $out"
 out=$(q serial u sl-b land --reason second)
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "second land: $out"
-git merge-base --is-ancestor "$tip1" bp3/graph/serial || fail "second land did not build on first tip"
-git merge-base --is-ancestor "$CB" bp3/graph/serial || fail "second reviewed commit not in graph tip"
-[ "$(git show bp3/graph/serial:sa.txt)" = "A" ] && [ "$(git show bp3/graph/serial:sb.txt)" = "B" ] || fail "serial merge lost files"
+git merge-base --is-ancestor "$tip1" bp3/quest/serial || fail "second land did not build on first tip"
+git merge-base --is-ancestor "$CB" bp3/quest/serial || fail "second reviewed commit not in quest tip"
+[ "$(git show bp3/quest/serial:sa.txt)" = "A" ] && [ "$(git show bp3/quest/serial:sb.txt)" = "B" ] || fail "serial merge lost files"
 
 # --- help: dep verb and flags documented at their doors ---
 out=$(q sched dep -h) || fail "dep -h exit"

@@ -22,9 +22,9 @@ calls, one per graph, from the version scan.
 Owner question, verbatim: "use sqlite for everything" instead
 of "putting any state across git worktrees". Two recorded
 decisions stand against SQLite as the record:
-[engine-core GRAPH.md:195](../graphs/2026-11-07-bp3-mvp-engine-core/GRAPH.md)
+[engine-core QUEST.md:195](../quests/2026-11-07-bp3-mvp-engine-core/QUEST.md)
 ("no SQLite Board") and
-[supervisor GRAPH.md:279](../graphs/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/GRAPH.md)
+[supervisor QUEST.md:279](../quests/2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement/QUEST.md)
 ("SQLite/Redis as truth" out of scope, rebuildable index later).
 
 State today has two homes:

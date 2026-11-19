@@ -79,7 +79,7 @@ function gitTopLevel(cwd: string): string {
 // The repo root is the worktree the caller sits in, never
 // the caller's cwd and never the main checkout behind the
 // common dir: the worktree's bin/bp3 and desks are the ones
-// the dispatcher serves. Shared graph state still resolves
+// the dispatcher serves. Shared quest state still resolves
 // via the common dir (derivationsDir, pi-sessions).
 export function resolveRepoRoot(cwd: string): string {
   return gitTopLevel(cwd);
@@ -197,7 +197,7 @@ export class Dispatcher {
     // Mint before spawn: the run config exists before the
     // child does, and the run-id arrives via the claim.
     const mintArgs = ["harness", "link", "mint", "--kind", "edge",
-      "--graph", req.graph, "--node", req.node, "--edge", req.edge,
+      "--quest", req.quest, "--node", req.node, "--edge", req.edge,
       "--harness", "pi", "--model", model, "--cycle", String(cycle),
       "--desk", this.root];
     if (thinking) mintArgs.push("--thinking", thinking);
@@ -205,7 +205,7 @@ export class Dispatcher {
     if (parentRunId) mintArgs.push("--parent-run-id", parentRunId);
     const minted = this.bp3Json(mintArgs);
     if (minted.ok !== true) {
-      throw new TypedRefusal("E_LINK_MINT", `link mint refused for ${req.graph}/${req.node}`, { verdict: minted });
+      throw new TypedRefusal("E_LINK_MINT", `link mint refused for ${req.quest}/${req.node}`, { verdict: minted });
     }
     const runId = String(minted.run_id);
     const token = String(minted.token);
@@ -222,7 +222,7 @@ export class Dispatcher {
     const childEnv: NodeJS.ProcessEnv = {
       ...this.env,
       BP3_LINK_TOKEN: token,
-      BP3_GRAPH: req.graph,
+      BP3_QUEST: req.quest,
       BP3_NODE: req.node,
       BP3_HARNESS: "pi",
       BP3_MODEL: model,
@@ -299,7 +299,7 @@ export class Dispatcher {
 
   // Lifecycle words come only from bp3: a watch verdict
   // over the run config. This process folds nothing itself.
-  listRuns(graph?: string): Record<string, unknown>[] {
+  listRuns(quest?: string): Record<string, unknown>[] {
     this.requireBp3();
     const dir = runsDir(this.cwd);
     if (!fs.existsSync(dir)) return [];
@@ -311,10 +311,10 @@ export class Dispatcher {
       } catch { continue; /* torn config: bp3's word, not ours */ }
       const creator = (cfg.creator ?? {}) as Record<string, unknown>;
       if (creator.harness !== "pi") continue;
-      if (graph !== undefined && cfg.graph !== graph) continue;
+      if (quest !== undefined && cfg.quest !== quest) continue;
       const runId = String(cfg.run_id ?? name.slice(0, -".json".length));
       const [verdict] = this.awaitRuns([runId], { timeoutSeconds: 5 });
-      rows.push({ run_id: runId, lifecycle: verdict.lifecycle ?? null, harness: "pi", graph: cfg.graph ?? null });
+      rows.push({ run_id: runId, lifecycle: verdict.lifecycle ?? null, harness: "pi", quest: cfg.quest ?? null });
     }
     return rows;
   }

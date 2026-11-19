@@ -2,7 +2,7 @@
 # bp3 project tooling (pre-binary). The OCaml CLI absorbs these subcommands
 # later; the interface stays: bp3 skills install --harness=<name|all>.
 # Mode (dogfood.3) is derived from the target repo, never passed as a
-# flag: self = tracked src/graph + bin/bp3 (bp3 is the product), host =
+# flag: self = tracked src/quest + bin/bp3 (bp3 is the product), host =
 # neither tracked (bp3 is a tool). Core skills install everywhere; the
 # bp3-dev overlay installs only in self mode.
 set -euo pipefail
@@ -33,8 +33,18 @@ fi
 # Skill sets (dogfood.3): one spelling, named here only. A source
 # skill in neither list installs nowhere (fail-closed for hosts);
 # test/mode.sh asserts every source skill is listed exactly once.
-CORE_SKILLS="bp3g bp3g-frame bp3g-no-human icebox naming red-ink"
-DEV_SKILLS="add-bp3-skill add-yap-skill bp3g-landing-demo using-bp3"
+CORE_SKILLS="induct induct-inline quest induct-yolo icebox naming red-ink"
+DEV_SKILLS="add-bp3-skill add-yap-skill trial using-bp3"
+
+# Layout: every path and name this script spells, named here only
+# (the engine's twin is src/quest/layout.ml). A rename edits these.
+ENGINE_SRC="src/quest"
+WORKFLOW_SKILL="induct"
+WORKFLOW_NAMES="node-loop induct-grade induct-land induct-node"
+WORKFLOWS_DIR=".agents/workflows"
+# Workflow renders are plain copies (no notice to key on), so renamed
+# ones are pruned by explicit name.
+RETIRED_WORKFLOWS="bp3g-grade bp3g-land bp3g-node"
 
 # Target repo: BP3_TARGET wins; else the cwd repo when it is not
 # this script's own repo; else this script's repo (self conduct
@@ -56,7 +66,7 @@ target_root() {
 }
 
 repo_mode() {
-  if git -C "$1" ls-files --error-unmatch -- src/graph bin/bp3 >/dev/null 2>&1; then
+  if git -C "$1" ls-files --error-unmatch -- "$ENGINE_SRC" bin/bp3 >/dev/null 2>&1; then
     echo "self"
   else
     echo "host"
@@ -64,7 +74,7 @@ repo_mode() {
 }
 
 mode_flag_error() {
-  echo "mode is derived from the repo (tracked src/graph + bin/bp3), never passed as a flag: $1" >&2
+  echo "mode is derived from the repo (tracked $ENGINE_SRC + bin/bp3), never passed as a flag: $1" >&2
   exit 2
 }
 
@@ -89,6 +99,22 @@ install_one() {
     /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
     { print }' "$src_dir/$skill/SKILL.md" > "$dest/SKILL.md"
   echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness)"
+}
+
+# A rename leaves the old render behind, still triggerable. Remove
+# renders this script generated (the GENERATED notice) whose skill
+# is no longer in the set; hand-written skills carry no notice.
+prune_stale() {
+  local harness="$1" target="$2" skills="$3" target_dir dir name
+  target_dir="$(harness_target "$harness")"
+  for dir in "$target/$target_dir"/*/; do
+    [ -f "$dir/SKILL.md" ] || continue
+    name="$(basename "$dir")"
+    case " $skills " in *" $name "*) continue ;; esac
+    grep -q '^<!-- GENERATED from skills/' "$dir/SKILL.md" || continue
+    rm -rf "$dir"
+    echo "pruned $name -> $target_dir/$name (no longer in the skill set)"
+  done
 }
 
 skills_install() {
@@ -117,7 +143,7 @@ skills_install() {
   if [ "$mode" = "self" ]; then
     skills="$CORE_SKILLS $DEV_SKILLS"
   fi
-  echo "mode: $mode (derived from $target: tracked src/graph + bin/bp3)"
+  echo "mode: $mode (derived from $target: tracked $ENGINE_SRC + bin/bp3)"
 
   # Preflight every source and the selected harness before writing any render.
   "$check_skills_bin" "$src_dir"
@@ -144,11 +170,11 @@ skills_install() {
       ;;
   esac
 
-  # The bp3g saved workflows ship with the bp3g skill (core, both
+  # The induct saved workflows ship with the induct skill (core, both
   # modes). They are plain copies (no render notice); the target is
   # the project workflows dir every harness discovers. Absent source
   # means nothing to copy.
-  local workflow_names="node-loop bp3g-grade bp3g-land bp3g-node"
+  local workflow_names="$WORKFLOW_NAMES"
 
   local skill
   for skill in $skills; do
@@ -157,25 +183,36 @@ skills_install() {
       install_one "$skill" "$h" "$target"
     done
   done
+  for h in $harnesses; do
+    prune_stale "$h" "$target" "$skills"
+  done
   if [ -n "$settings_plan" ]; then
     mkdir -p "$target/.pi"
     printf '%s\n' "$settings_plan" | jq . > "$target/.pi/settings.json"
   fi
   local workflow_name
   for workflow_name in $workflow_names; do
-    if [ -f "$src_dir/bp3g/workflows/$workflow_name.js" ]; then
-      mkdir -p "$target/.agents/workflows"
-      cp "$src_dir/bp3g/workflows/$workflow_name.js" "$target/.agents/workflows/$workflow_name.js"
-      echo "installed $workflow_name -> .agents/workflows/$workflow_name.js"
+    if [ -f "$src_dir/$WORKFLOW_SKILL/workflows/$workflow_name.js" ]; then
+      mkdir -p "$target/$WORKFLOWS_DIR"
+      cp "$src_dir/$WORKFLOW_SKILL/workflows/$workflow_name.js" "$target/$WORKFLOWS_DIR/$workflow_name.js"
+      echo "installed $workflow_name -> $WORKFLOWS_DIR/$workflow_name.js"
+    fi
+  done
+  for workflow_name in $RETIRED_WORKFLOWS; do
+    if [ -f "$target/$WORKFLOWS_DIR/$workflow_name.js" ]; then
+      rm -f "$target/$WORKFLOWS_DIR/$workflow_name.js"
+      echo "pruned $workflow_name -> $WORKFLOWS_DIR/$workflow_name.js (retired workflow)"
     fi
   done
   # Muse hook registration: one fail-open emitter command for
   # every event. Repos without this file never fire hooks. The
   # command is mode-aware (dogfood.3): self reads via the desk
-  # script, host reads call bp3 on PATH.
-  local hook_cmd="./bin/bp3 g hooks"
+  # script, host reads call bp3 on PATH. `|| true` makes fail-open
+  # hold outside the script too: harnesses read exit 2 as "block",
+  # so a broken wrapper (or a missing bp3 on PATH) must still exit 0.
+  local hook_cmd="./bin/bp3 q hooks || true"
   if [ "$mode" = "host" ]; then
-    hook_cmd="bp3 g hooks"
+    hook_cmd="bp3 q hooks || true"
   fi
   mkdir -p "$target/.claude"
   {
@@ -249,7 +286,7 @@ skills_install() {
 # Render freshness (followup.2, workflow-birth): a dispatch
 # must never launch a render older than its source. Workflow
 # renders are plain copies, so freshness is byte equality
-# between skills/bp3g/workflows/<name>.js (source) and
+# between skills/induct/workflows/<name>.js (source) and
 # .agents/workflows/<name>.js (render). Fresh is silent JSON
 # ok; stale refuses E_RENDER_STALE naming render and source.
 skills_check() {
@@ -263,16 +300,16 @@ skills_check() {
   local target mode
   target="$(target_root)"
   mode="$(repo_mode "$target")"
-  local workflow_names="node-loop bp3g-grade bp3g-land bp3g-node"
   local workflow_name src_file render_file
-  local stale_json="" stale_count=0
-  for workflow_name in $workflow_names; do
-    src_file="$src_dir/bp3g/workflows/$workflow_name.js"
+  local stale_json="" stale_count=0 fresh_json=""
+  for workflow_name in $WORKFLOW_NAMES; do
+    fresh_json="${fresh_json}\"$workflow_name\","
+    src_file="$src_dir/$WORKFLOW_SKILL/workflows/$workflow_name.js"
     [ -f "$src_file" ] || continue
-    render_file="$target/.agents/workflows/$workflow_name.js"
+    render_file="$target/$WORKFLOWS_DIR/$workflow_name.js"
     if [ ! -f "$render_file" ] || ! cmp -s "$src_file" "$render_file"; then
       stale_count=$((stale_count + 1))
-      stale_json="${stale_json}{\"workflow\":\"$workflow_name\",\"render\":\".agents/workflows/$workflow_name.js\",\"source\":\"skills/bp3g/workflows/$workflow_name.js\"},"
+      stale_json="${stale_json}{\"workflow\":\"$workflow_name\",\"render\":\"$WORKFLOWS_DIR/$workflow_name.js\",\"source\":\"skills/$WORKFLOW_SKILL/workflows/$workflow_name.js\"},"
     fi
   done
   if [ "$stale_count" -gt 0 ]; then
@@ -283,38 +320,46 @@ skills_check() {
     fi
     exit 1
   fi
-  printf '{"ok":true,"fresh":["node-loop","bp3g-grade","bp3g-land","bp3g-node"]}\n'
+  printf '{"ok":true,"fresh":[%s]}\n' "${fresh_json%,}"
 }
 
-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 init-repo | bp3 skills install [...] | bp3 skills check | bp3 g ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
-g_bin() { echo "${BP3_G_BIN:-$root/_build/default/src/graph/main.exe}"; }
-run_g() {
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 init-repo | bp3 skills install [...] | bp3 skills check | bp3 q ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+q_bin() { echo "${BP3_Q_BIN:-$root/_build/default/$ENGINE_SRC/main.exe}"; }
+run_q() {
   local door="$1"; shift
   local gb
-  gb="$(g_bin)"
+  gb="$(q_bin)"
   if [[ -x $gb ]]; then
     BP3_ROOT="$root" exec "$gb" "$door" "$@"
-  elif command -v bp3-g >/dev/null 2>&1; then
+  elif command -v bp3-q >/dev/null 2>&1; then
     # Installed tool (host mode): the binary roots at the caller's repo.
-    BP3_ROOT="$(target_root)" exec bp3-g "$door" "$@"
-  elif [[ $door == g && ${1:-} == hooks ]]; then
+    BP3_ROOT="$(target_root)" exec bp3-q "$door" "$@"
+  elif [[ $door == q && ${1:-} == hooks ]]; then
     # Hooks fail open (hooks.ml): exit 2 would block every tool,
     # including the build that fixes this. Drain the payload.
     [[ -t 0 ]] || cat >/dev/null
-    echo 'bp3 g hooks: no g binary, event not recorded; dune build src/graph/main.exe' >&2; exit 0
+    echo "bp3 q hooks: no q binary, event not recorded; dune build $ENGINE_SRC/main.exe" >&2; exit 0
   else
-    echo 'build the g binary first: dune build src/graph/main.exe' >&2; exit 2
+    echo "build the q binary first: dune build $ENGINE_SRC/main.exe" >&2; exit 2
   fi
 }
 case "${1:-}" in
-  -h|--help) printf '%s\n' "$usage_text"; printf '%s\n' '  bp3 g -h for graph/node doors'; exit 0 ;;
-  g) shift; run_g g "$@" ;;
-  n) shift; run_g n "$@" ;;
-  e) shift; run_g e "$@" ;;
-  harness) shift; run_g harness "$@" ;;
-  config) shift; run_g config "$@" ;;
-  worktree) shift; run_g worktree "$@" ;;
-  init-repo) shift; run_g init-repo "$@" ;;
+  -h|--help) printf '%s\n' "$usage_text"; printf '%s\n' '  bp3 q -h for quest/node doors'; exit 0 ;;
+  g)
+    # Retired door (quest rename-back). Hooks registered before the
+    # rename still call `g hooks`: fail open, never run the engine.
+    if [ "${2:-}" = hooks ]; then
+      [[ -t 0 ]] || cat >/dev/null
+      echo "bp3 g was renamed to bp3 q; re-run bp3 skills install" >&2; exit 0
+    fi
+    echo "bp3 g was renamed to bp3 q" >&2; exit 2 ;;
+  q) shift; run_q q "$@" ;;
+  n) shift; run_q n "$@" ;;
+  e) shift; run_q e "$@" ;;
+  harness) shift; run_q harness "$@" ;;
+  config) shift; run_q config "$@" ;;
+  worktree) shift; run_q worktree "$@" ;;
+  init-repo) shift; run_q init-repo "$@" ;;
   init) shift; skills_install "$@" ;;
   skills)
     shift
