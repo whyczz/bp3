@@ -114,6 +114,7 @@ let exit_of_outcome = function
   | "watchdog_killed" -> 1
   | "timeout" -> 3
   | "human_gate" -> 4
+  | "snapshot" -> 0
   | _ -> 1
 
 (* A settle row named in tape text is a fact of its own
@@ -1476,14 +1477,14 @@ type wt_flags = {
   mutable wt_run : string option; mutable wt_session : string option;
   mutable wt_silence : int; mutable wt_timeout : int; mutable wt_grace : int;
   mutable wt_silence_set : bool; mutable wt_timeout_set : bool;
-  mutable wt_grace_set : bool;
+  mutable wt_grace_set : bool; mutable wt_once : bool;
 }
 
 let parse_wt_flags args =
   let fl = { wt_run = None; wt_session = None;
              wt_silence = 600; wt_timeout = 1800; wt_grace = 1;
              wt_silence_set = false; wt_timeout_set = false;
-             wt_grace_set = false } in
+             wt_grace_set = false; wt_once = false } in
   let rec loop = function
     | [] -> fl
     | "--run-id" :: v :: rest ->
@@ -1504,6 +1505,9 @@ let parse_wt_flags args =
         if fl.wt_grace_set then usage "duplicate flag --grace-seconds";
         fl.wt_grace <- positive_seconds "--grace-seconds" v;
         fl.wt_grace_set <- true; loop rest
+    | "--once" :: rest ->
+        if fl.wt_once then usage "duplicate flag --once";
+        fl.wt_once <- true; loop rest
     | ["--run-id"] | ["--session-id"] | ["--silence-seconds"]
     | ["--timeout-seconds"] | ["--grace-seconds"] ->
         usage "flag needs a value"
@@ -1695,7 +1699,7 @@ let do_watch args =
     let fresh = now -. !last_growth <= float_of_int fl.wt_silence in
     let lifecycle = watch_lifecycle ~alive ~exit_obs:!exit_obs
       ~evidence:!evidence ~settle:!settle ~tape_seen:!tape_seen ~fresh in
-    if lifecycle <> !last_key then begin
+    if lifecycle <> !last_key && not fl.wt_once then begin
       last_key := lifecycle;
       let row = `Assoc [
         ("kind", json_str "lifecycle_change");
@@ -1722,12 +1726,16 @@ let do_watch args =
         ("lifecycle", json_str fin_lifecycle);
         ("last_growth_seconds_ago", `Int (int_of_float (now -. !last_growth)));
       ] in
+      let fields = if fl.wt_once then fields @ [("once", `Bool true)] else fields in
       let fields = if warnings = [] then fields
         else fields @ [("warnings", `List (List.map json_str warnings))] in
       print_endline (Yojson.Safe.to_string (`Assoc fields));
       exit_of_outcome outcome in
     if (!exit_obs || !settle) && !evidence && alive <> Some true then
       finish "settled" "finished"
+    else if fl.wt_once then
+      (* seam.2: one read-only fold; never TERM, KILL, or wait *)
+      finish "snapshot" lifecycle
     else if alive = Some true && not !evidence && not !settle
             && now -. !last_growth > float_of_int fl.wt_silence then begin
       (* sole killer: silence past budget, no settling grace *)
@@ -2640,7 +2648,7 @@ let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]   passive loop: tell -> watch -> judge -> finalize\n\
   bp3 harness init-check [--engine muse-code|pi]   probe tape sources; blindness is W_SUPERVISOR_BLIND, never blocking\n\
   bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]   InitRecord-first run-id -> tape; --session-id <id> is a reverse lookup\n\
-  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]   blocking watch: sole TERM/KILL owner\n\
+  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>] [--once]   blocking watch: sole TERM/KILL owner; --once folds once and never signals\n\
   bp3 harness desk <verb> ...                      machine-local desks: derive, create, inspect, remove, prepare, check, exit, release, list\n\
   bp3 harness link mint|claim|lookup|cleanup ...   one-time link binding: mint a link, the child claims it once (E_LINK_SPENT, E_DEPTH)\n\
   bp3 harness record-init ...                      retired (E_RETIRED): use link mint/claim; the run config is the InitRecord-equivalent\n\
@@ -2670,12 +2678,13 @@ let help_find_tape = "bp3 harness find-tape - InitRecord-first tape lookup:\n\
 Example: bp3 harness find-tape --run-id 20261115T000000Z-handoff-pi-model-c1\n"
 
 let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
-  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
-  bp3 harness watch --session-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
+  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>] [--once]\n\
+  bp3 harness watch --session-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>] [--once]\n\
+  --once: one read-only fold of the Run as it is now, then exit 0. It never sends TERM or KILL and never waits: a finished Run reports outcome settled; anything else reports outcome snapshot with the current lifecycle word and once: true. The blocking watch stays the sole killer.\n\
   Engine is derived from the Run InitRecord, never stated. Finds the tape like find-tape, then blocks in code: streams NDJSON lifecycle_change rows and ends with one verdict {ok, run_id, harness, session_id, wal, pid, outcome, settled, lifecycle}.\n\
   Finish evidence is per harness, read off the tape tail: muse-code scans whole entries from the end, skipping task entries, and the first non-task entry decides — a session.end entry closes the tape, and a runtime terminal entry is a child tape's exit entry (child tapes carry no close marker and end with task entries after it); pi never closes, so only its last whole entry counts (a session_closed entry or a final assistant entry that stopped is its clean end). Exit plus finish evidence (or settle plus finish evidence) with no live pid is settled; a live pid is never finished. A torn final tape entry finishes nothing and warns W_TORN_TAIL. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. Finish evidence or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
   Identity flags follow find-tape: both, neither, or disagreeing flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS. Tape resolution is shared with find-tape, including the own engine-fsm-edge start-order rule for scanned tapes. Durations are bare positive integers; 0, negatives, and suffixed values are E_USAGE.\n\
-  Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
+  Outcomes and exit classes: settled=0, snapshot=0 (--once only), watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
 Example: bp3 harness watch --run-id 20261115T000000Z-handoff-pi-model-c1 --silence-seconds 600\n"
 
 let help_desk = "bp3 harness desk - machine-local desks, never ledgered (same Worktree store as the retired bp3 worktree door, which remains its documented alias):\n\

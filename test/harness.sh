@@ -270,6 +270,23 @@ wait "$CLEANPID" 2>/dev/null || true
 out=$(h w --session-id S-watch-clean --timeout-seconds 5) || fail "watch alias reverse exit: $out"
 echo "$out" | tail -1 | jq -e '.outcome == "settled" and .run_id == "R-watch-clean"' >/dev/null || fail "watch alias reverse verdict: $out"
 
+# watch --once (seam.2): one read-only fold; never waits, never signals.
+out=$(h watch --run-id R-watch-clean --once) || fail "watch once finished exit: $out"
+[ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 1 ] || fail "watch once printed more than one line: $out"
+echo "$out" | jq -e '.outcome == "settled" and .lifecycle == "finished" and .once == true' >/dev/null || fail "watch once finished verdict: $out"
+if out=$(h watch --run-id R-watch-clean --once --once 2>&1); then fail "watch duplicate --once accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "watch duplicate --once code: $out"
+printf '%s\n' '{"type":"message","id":"o1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-once work"}}' > fixtures/watch/once.log
+sleep 30 & ONCEPID=$!
+printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-once\",\"harness\":\"pi\",\"pid\":$ONCEPID,\"tape_path\":\"$work/repo/fixtures/watch/once.log\",\"quest\":\"toy\"}" > "$store/R-watch-once.jsonl"
+once_start=$(date +%s)
+out=$(h watch --run-id R-watch-once --once) || fail "watch once live exit: $out"
+[ $(( $(date +%s) - once_start )) -le 1 ] || fail "watch once waited on a live run"
+echo "$out" | jq -e '.outcome == "snapshot" and .lifecycle == "active" and .settled == false and .once == true' >/dev/null || fail "watch once live verdict: $out"
+kill -0 "$ONCEPID" 2>/dev/null || fail "watch --once signalled a live run"
+kill "$ONCEPID" 2>/dev/null || true; wait "$ONCEPID" 2>/dev/null || true
+h watch -h | grep -q -- '--once' || fail "watch help does not document --once"
+
 printf '%s\n' '{"type":"message","id":"h1","message":{"role":"user","content":"BP3_RUN_ID=R-watch-hung work"}}' > fixtures/watch/hung.log
 sleep 30 & HUNGPID=$!
 printf '%s\n' "{\"kind\":\"init_record\",\"run_id\":\"R-watch-hung\",\"harness\":\"pi\",\"pid\":$HUNGPID,\"tape_path\":\"$work/repo/fixtures/watch/hung.log\",\"quest\":\"toy\"}" > "$store/R-watch-hung.jsonl"

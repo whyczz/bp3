@@ -342,3 +342,33 @@ test("missing bp3-pi extension refuses E_SETUP before any spawn", async () => {
     (e) => e.code === "E_SETUP",
   );
 });
+
+test("listRuns: live runs answer at once and are never signalled (seam.2)", () => {
+  const repo = makeRepo();
+  execFileSync("git", ["-C", repo, "commit", "-q", "--allow-empty", "-m", "init"]);
+  fs.mkdirSync(runsDir(repo), { recursive: true });
+  const live = [];
+  try {
+    for (const n of [1, 2, 3]) {
+      const runId = `R-live-${n}`;
+      const child = spawn("sleep", ["30"], { stdio: "ignore" });
+      live.push(child);
+      const tape = path.join(repo, `live-${n}.log`);
+      fs.writeFileSync(tape, JSON.stringify({ type: "message", id: `l${n}`, message: { role: "user", content: `BP3_RUN_ID=${runId} work` } }) + "\n");
+      fs.writeFileSync(path.join(runsDir(repo), `${runId}.json`), JSON.stringify({
+        run_id: runId, quest: "toy", state: "claimed", tape_path: tape,
+        creator: { harness: "pi" }, claim: { pid: child.pid, session_id: `S-live-${n}` },
+      }));
+    }
+    const dispatcher = new Dispatcher({ cwd: repo, bp3Bin, piBin: "/nonexistent/pi" });
+    const t0 = Date.now();
+    const runs = dispatcher.listRuns("toy");
+    const ms = Date.now() - t0;
+    assert.equal(runs.length, 3);
+    for (const r of runs) assert.equal(r.lifecycle, "active", `lifecycle for ${r.run_id}`);
+    assert.ok(ms < 1000, `listRuns took ${ms}ms over 3 live runs`);
+    for (const c of live) assert.equal(c.exitCode, null, "a live run was signalled");
+  } finally {
+    for (const c of live) c.kill("SIGKILL");
+  }
+});
