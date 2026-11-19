@@ -56,8 +56,11 @@ if grep -E -q 'Terminated|Killed|setpgid' "$work/budget.out"; then fail "job-con
 if find "$work/kept" -path '*/sleeper/home' | grep -q .; then fail "a failed suite kept its HOME, not just its log"; fi; ok
 find "$work/kept" -path '*/sleeper/log' | grep -q . || fail "a failed suite lost its log"; ok
 
-# 2a'. a suite launched after kills in the same tick is not charged for them
-printf '%s\n' "hang1${T}fixture${T}sleep 999${T}1${T}0${T}-${T}-" "hang2${T}fixture${T}sleep 999${T}1${T}0${T}-${T}-" \
+# 2a'. a suite launched after kills in the same tick is not charged for
+# them. The hangs carry the larger budget so they launch first (largest
+# budget first) and fill both jobs; honest starts only after both are
+# killed, 0.6s of kill pauses into that tick
+printf '%s\n' "hang1${T}fixture${T}sleep 999${T}3${T}0${T}-${T}-" "hang2${T}fixture${T}sleep 999${T}3${T}0${T}-${T}-" \
   "honest${T}fixture${T}sleep 1.6${T}2${T}0${T}-${T}-" > "$work/honest.tsv"
 for n in 1 2; do
   TMPDIR="$work/kept" "$rs" --table "$work/honest.tsv" --jobs 2 > "$work/honest.out" 2>&1 || true
@@ -72,10 +75,14 @@ done; ok
 # 2b'. suites start with default INT and QUIT, even when the runner
 # inherited them ignored (bash ignores both for `&` commands when job
 # control is off, as here): a suite signalled directly dies of it
-# (128 + N) instead of riding out its budget
-for sig in INT QUIT; do
-  printf '%s\n' "sig-$sig${T}fixture${T}echo \$\$ > $work/sig-$sig.pid; exec sleep 30${T}5${T}0${T}-${T}-"
-done > "$work/sigs.tsv"
+# (128 + N) instead of riding out its budget. SIGPIPE too: the runner
+# ignores it for itself, and a suite must not inherit that
+{
+  for sig in INT QUIT; do
+    printf '%s\n' "sig-$sig${T}fixture${T}echo \$\$ > $work/sig-$sig.pid; exec sleep 30${T}5${T}0${T}-${T}-"
+  done
+  printf '%s\n' "sig-PIPE${T}fixture${T}kill -PIPE \$\$; exit 0${T}5${T}0${T}-${T}-"
+} > "$work/sigs.tsv"
 "$rs" --table "$work/sigs.tsv" > "$work/sigs.out" 2>&1 &
 rsp=$!
 for sig in INT QUIT; do
@@ -86,6 +93,7 @@ rc=0; wait "$rsp" || rc=$?
 [ "$rc" = 1 ] || fail "signal probe exit: $rc ($(cat "$work/sigs.out"))"
 grep -Eq 'FAIL sig-INT .*rc=130$' "$work/sigs.out" || fail "suite did not die of INT: $(cat "$work/sigs.out")"; ok
 grep -Eq 'FAIL sig-QUIT .*rc=131$' "$work/sigs.out" || fail "suite did not die of QUIT: $(cat "$work/sigs.out")"; ok
+grep -Eq 'FAIL sig-PIPE .*rc=141$' "$work/sigs.out" || fail "suite started with SIGPIPE ignored: $(cat "$work/sigs.out")"; ok
 
 # 2c. a terminal Ctrl-C reaps every running suite and the runner's temp dir
 mkdir -p "$work/rt"
@@ -162,18 +170,35 @@ sleep 1.5
 if pgrep -f "$work/forkwin-sleep" > /dev/null; then pkill -f "$work/forkwin-sleep"; fail "a suite forked just before the signal survived"; fi; ok
 [ -z "$(ls "$work/rt")" ] || fail "fork-window probe left the runner temp dir"; ok
 
-# 2d. SIGHUP (terminal closed) reaps, cleans up, and prints no job notices
-rm -f "$work/hold.pid"
-TMPDIR="$work/rt" "$rs" --table "$work/t.tsv" --only hold > "$work/hup.out" 2>&1 &
-rpid=$!
-n=0; while [ ! -s "$work/hold.pid" ] && [ $n -lt 150 ]; do sleep 0.1; n=$((n + 1)); done
-[ -s "$work/hold.pid" ] || fail "HUP probe: the held suite never started"
-kill -HUP "$rpid"
-rc=0; wait "$rpid" || rc=$?
-[ "$rc" = 129 ] || fail "HUP exit code: $rc"; ok
-if kill -0 "$(cat "$work/hold.pid")" 2>/dev/null; then kill "$(cat "$work/hold.pid")"; fail "HUP left a suite running"; fi; ok
-[ -z "$(ls "$work/rt")" ] || fail "HUP left the runner temp dir: $(ls "$work/rt")"; ok
-if grep -E -q 'Terminated|Killed' "$work/hup.out"; then fail "job notices on the interrupt path: $(cat "$work/hup.out")"; fi; ok
+# 2d. SIGHUP (terminal closed) and SIGTERM reap, clean up, and print no
+# job notices. Suites run in their own sessions, so a signal the runner
+# misses would orphan every one of them
+for sig in HUP:129 TERM:143; do
+  name=${sig%%:*} want=${sig##*:}
+  rm -f "$work/hold.pid"
+  TMPDIR="$work/rt" "$rs" --table "$work/t.tsv" --only hold > "$work/hup.out" 2>&1 &
+  rpid=$!
+  n=0; while [ ! -s "$work/hold.pid" ] && [ $n -lt 150 ]; do sleep 0.1; n=$((n + 1)); done
+  [ -s "$work/hold.pid" ] || fail "$name probe: the held suite never started"
+  kill -"$name" "$rpid"
+  rc=0; wait "$rpid" || rc=$?
+  [ "$rc" = "$want" ] || fail "$name exit code: $rc"; ok
+  if kill -0 "$(cat "$work/hold.pid")" 2>/dev/null; then kill "$(cat "$work/hold.pid")"; fail "$name left a suite running"; fi; ok
+  [ -z "$(ls "$work/rt")" ] || fail "$name left the runner temp dir: $(ls "$work/rt")"; ok
+  if grep -E -q 'Terminated|Killed' "$work/hup.out"; then fail "job notices on the $name path: $(cat "$work/hup.out")"; fi; ok
+done
+
+# 2d'. a closed reader (`run-suites | head -1`) reaps the running suites,
+# removes the temp dir and exits 2 with one line, no crash report
+ln -s "$(command -v sleep)" "$work/pipe-sleep"
+printf '%s\n' "quick${T}fixture${T}sleep 0.5${T}5${T}0${T}-${T}-" \
+  "held${T}fixture${T}echo \$\$ > $work/pipe.pid; exec $work/pipe-sleep 30${T}60${T}0${T}-${T}-" > "$work/pipe.tsv"
+mkdir -p "$work/rp"
+{ rc=0; TMPDIR="$work/rp" "$rs" --table "$work/pipe.tsv" 2> "$work/pipe.err" || rc=$?; echo "$rc" > "$work/pipe.rc"; } | head -1 > /dev/null
+[ "$(cat "$work/pipe.rc")" = 2 ] || fail "closed reader exit: $(cat "$work/pipe.rc") ($(cat "$work/pipe.err"))"; ok
+if pgrep -f "$work/pipe-sleep" > /dev/null; then pkill -f "$work/pipe-sleep"; fail "a closed reader left a suite running"; fi; ok
+[ -z "$(ls "$work/rp")" ] || fail "a closed reader left the runner temp dir"; ok
+if ! grep -q 'Broken pipe' "$work/pipe.err" || grep -q 'Fatal error' "$work/pipe.err"; then fail "closed reader stderr: $(cat "$work/pipe.err")"; fi; ok
 
 # 2e. launch order: the largest budget starts first, whatever its row
 printf '%s\n' "short1${T}fixture${T}true${T}5${T}0${T}-${T}-" "short2${T}fixture${T}true${T}5${T}0${T}-${T}-" \
@@ -181,6 +206,14 @@ printf '%s\n' "short1${T}fixture${T}true${T}5${T}0${T}-${T}-" "short2${T}fixture
 "$rs" --table "$work/order.tsv" --jobs 1 > "$work/order.out" 2>&1 || fail "order run: $(cat "$work/order.out")"
 [ "$(grep -E '^  ok ' "$work/order.out" | awk '{print $2}' | tr '\n' ' ')" = "long short1 short2 " ] || fail "launch order not largest budget first: $(cat "$work/order.out")"; ok
 [ "$("$rs" --table "$work/order.tsv" --list | tr '\n' ' ')" = "short1 short2 long " ] || fail "--list must keep table order"; ok
+
+# 2f. a passing suite's background children die with it
+ln -s "$(command -v sleep)" "$work/strag-sleep"
+printf '%s\n' "strag${T}fixture${T}$work/strag-sleep 30 & echo \$! > $work/strag.pid; exit 0${T}5${T}0${T}-${T}-" > "$work/strag.tsv"
+"$rs" --table "$work/strag.tsv" > "$work/strag.out" 2>&1 || fail "straggler probe run: $(cat "$work/strag.out")"
+[ -s "$work/strag.pid" ] || fail "straggler probe: no child pid recorded"
+n=0; while pgrep -f "$work/strag-sleep" > /dev/null && [ $n -lt 20 ]; do sleep 0.1; n=$((n + 1)); done
+if pgrep -f "$work/strag-sleep" > /dev/null; then pkill -f "$work/strag-sleep"; fail "a passing suite's background child survived it"; fi; ok
 
 # 3. serial rows never overlap; the same rows without the flag do
 "$rs" --table "$work/t.tsv" --only serial-a,serial-b --jobs 4 > "$work/serial.out" 2>&1 || fail "serial rows overlapped: $(cat "$work/serial.out")"; ok

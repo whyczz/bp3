@@ -36,6 +36,15 @@ let case_a_row_with_six_or_eight_fields_is_refused_with_the_count _ =
 let case_an_empty_field_is_refused_and_points_at_the_dash _ =
   refuses ~substr:"use '-'" (fun () -> Suites.parse_row ~where:"t:1" (line [ "a"; "fixture"; "true"; "5"; "0"; ""; "-" ]))
 
+let case_a_suite_name_never_escapes_the_run_dir _ =
+  List.iter (fun n ->
+      refuses ~substr:"suite name" (fun () ->
+          Suites.parse_row ~where:"t:1" (line [ n; "fixture"; "true"; "5"; "0"; "-"; "-" ])))
+    [ ".."; "."; ".hidden"; "a/b"; "/abs"; "../x"; "a b"; "a*" ];
+  List.iter (fun n ->
+      assert_equal ~printer:Fun.id n (Suites.parse_row ~where:"t:1" (line [ n; "fixture"; "true"; "5"; "0"; "-"; "-" ])).name)
+    [ "harness-cli"; "run_suites"; "a.b"; "x1" ]
+
 let case_budget_must_be_a_positive_decimal_integer _ =
   List.iter (fun b ->
       refuses ~substr:"budget_s" (fun () ->
@@ -140,6 +149,7 @@ let law_a_printed_row_parses_back_to_itself =
   let gen = QCheck2.Gen.(tup6 field field (int_range 1 9999) bool (oneof [ return "fixture"; return "slow" ]) field) in
   QCheck2.Test.make ~name:"law_a_printed_row_parses_back_to_itself" ~count:500 gen
     (fun (name, cmd, budget, serial, tier, why) ->
+      let name = "n" ^ String.map (fun c -> if c = ' ' || c = '/' then '_' else c) name in
       let why = if tier = "slow" && why = "-" then "w" else why in
       let text = line [ name; tier; cmd; string_of_int budget; (if serial then "1" else "0"); why; "-" ] in
       let r = Suites.parse_row ~where:"t" text in
@@ -158,6 +168,7 @@ let () =
        "case_a_well_formed_row_parses_every_field" >:: case_a_well_formed_row_parses_every_field;
        "case_a_row_with_six_or_eight_fields_is_refused_with_the_count" >:: case_a_row_with_six_or_eight_fields_is_refused_with_the_count;
        "case_an_empty_field_is_refused_and_points_at_the_dash" >:: case_an_empty_field_is_refused_and_points_at_the_dash;
+       "case_a_suite_name_never_escapes_the_run_dir" >:: case_a_suite_name_never_escapes_the_run_dir;
        "case_budget_must_be_a_positive_decimal_integer" >:: case_budget_must_be_a_positive_decimal_integer;
        "case_serial_is_0_or_1_only" >:: case_serial_is_0_or_1_only;
        "case_tier_is_fixture_or_slow_and_a_slow_row_needs_a_why" >:: case_tier_is_fixture_or_slow_and_a_slow_row_needs_a_why;

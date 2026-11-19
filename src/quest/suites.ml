@@ -23,6 +23,12 @@ let parse_row ~where line =
   if List.mem "" fields then fail "%s: empty field (use '-')" where;
   match fields with
   | [ name; tier; cmd; budget; serial; why; paths ] ->
+      (* the name becomes a directory under the run's temp dir, removed
+         when the suite passes: no '/', no leading dot, no '..' *)
+      let name_ok = name.[0] <> '.' && String.for_all (fun c ->
+          (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+          || c = '-' || c = '_' || c = '.') name in
+      if not name_ok then fail "%s: suite name must be letters, digits, '-', '_' or '.', not starting with '.': %s" where name;
       if tier <> "fixture" && tier <> "slow" then fail "%s: tier must be fixture or slow: %s" where tier;
       let budget_s = match int_of_string_opt budget with
         | Some b when all_digits budget && b > 0 -> b

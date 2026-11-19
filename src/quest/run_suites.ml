@@ -8,10 +8,12 @@
 
    Each suite runs in a new session (setsid), so it leads its own
    process group and the terminal's Ctrl-C reaches only the runner.
-   Signals: INT, TERM, HUP and QUIT are blocked across every fork and
-   its bookkeeping, so no suite can be forked and then missed; any of
-   them reaps every suite group, removes the temp dir, and exits
-   128 + the signal number. Further signals are ignored while it reaps.
+   Signals: the handlers for INT, TERM, HUP and QUIT only record the
+   signal. The loop acts on it at its own checkpoints, and by then
+   every forked suite is in the running list, so none is missed. It
+   reaps every suite group, removes the temp dir, and exits 128 + the
+   signal number; further signals are ignored while it reaps. SIGPIPE
+   is ignored, so a closed reader ends in the same cleanup (exit 2).
 
    The pure parts (table, selection, order, budgets, output lines)
    live in Suites and are unit-tested; this file is the I/O. *)
@@ -117,8 +119,8 @@ let () =
   let caught = ref None in
   List.iter (fun s -> Sys.set_signal s (Sys.Signal_handle (fun s -> if !caught = None then caught := Some s))) watched;
   (* a closed reader (`run-suites | head`) must not kill the runner
-     before it reaps: the write fails instead, and the handler below
-     cleans up *)
+     before it reaps: the write fails instead, and the handler at the
+     end cleans up *)
   Sys.set_signal Sys.sigpipe Sys.Signal_ignore;
   let tmp_parent = match Sys.getenv_opt "TMPDIR" with Some t when t <> "" -> t | _ -> "/tmp" in
   let tmpbase = Filename.temp_dir ~temp_dir:tmp_parent "run-suites." "" in
@@ -128,6 +130,8 @@ let () =
     (try Unix.kill (- pid) Sys.sigterm with _ -> (try Unix.kill pid Sys.sigterm with _ -> ())) in
   let kill_group_hard pid =
     (try Unix.kill (- pid) Sys.sigkill with _ -> (try Unix.kill pid Sys.sigkill with _ -> ())) in
+  (* after the leader is reaped its pid may be reused: signal the group only *)
+  let kill_stragglers pid = (try Unix.kill (- pid) Sys.sigkill with _ -> ()) in
   let reap_all () =
     List.iter (fun s -> Sys.set_signal s Sys.Signal_ignore) watched;
     let pids = List.map (fun r -> r.pid) !running in
@@ -147,7 +151,6 @@ let () =
     let home = Filename.concat dir "home" in
     mkdir_p (Filename.concat home "t");
     let env = Array.of_list (Suites.suite_env ~caller:caller_env ~home ~name:r.name) in
-    ignore (Unix.sigprocmask Unix.SIG_BLOCK watched);
     match Unix.fork () with
     | 0 ->
         (* a new session gives the suite its own process group (OCaml's
@@ -155,7 +158,6 @@ let () =
            no terminal *)
         (try ignore (Unix.setsid ()) with _ -> ());
         List.iter (fun s -> Sys.set_signal s Sys.Signal_default) (Sys.sigpipe :: watched);
-        ignore (Unix.sigprocmask Unix.SIG_UNBLOCK watched);
         (try
            let devnull = Unix.openfile "/dev/null" [ Unix.O_RDONLY ] 0 in
            let log = Unix.openfile (Filename.concat dir "log") [ Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC ] 0o644 in
@@ -163,22 +165,21 @@ let () =
            Unix.execvpe "bash" [| "bash"; "-c"; r.cmd |] env
          with _ -> Unix._exit 127)
     | pid ->
-        (* test hook: signal ourselves inside the fork window (masked), as a
-           test probe; the signal must still reap this suite *)
+        (* test hook (test/run-suites.sh 2c'): a signal between the fork
+           and the bookkeeping below must still reap this suite *)
         (match Sys.getenv_opt "RUN_SUITES_SIGNAL_AFTER_FORK" with
          | Some "INT" -> Unix.kill (Unix.getpid ()) Sys.sigint
          | _ -> ());
-        running := { row = r; pid; start = now_ms () } :: !running;
-        ignore (Unix.sigprocmask Unix.SIG_UNBLOCK watched) in
+        running := { row = r; pid; start = now_ms () } :: !running in
 
   let finish (x : running) outcome ~now =
     let took = now - x.start in
     done_ := (x.row, took, outcome) :: !done_;
-    kill_group_hard x.pid;   (* stragglers left in the group *)
+    kill_stragglers x.pid;   (* background children the suite left *)
     print_endline (Suites.result_line x.row ~took_ms:took outcome) in
 
   let t0 = now_ms () in
-  (try
+  let run () =
      Printf.printf "run-suites: %d suites, %d jobs, HOME isolated\n%!" (List.length sel) jobs;
      let continue = ref true in
      while !continue do
@@ -210,10 +211,7 @@ let () =
        pending := fill !pending;
        if !running = [] && !pending = [] then continue := false
        else (try Unix.sleepf 0.1 with Unix.Unix_error (Unix.EINTR, _, _) -> ())
-     done
-   with
-   | Sys_error m -> reap_all (); rm_rf tmpbase; (try prerr_endline ("run-suites: " ^ m) with _ -> ()); exit 2
-   | e -> reap_all (); rm_rf tmpbase; raise e);
+     done;
   let wall = now_ms () - t0 in
   let results = List.rev !done_ in
   let failed = List.filter (fun (_, _, o) -> o <> Suites.Passed) results in
@@ -235,4 +233,8 @@ let () =
   end;
   print_endline (Suites.summary_fail ~failed:(List.map (fun ((r : Suites.row), _, _) -> r.name) failed)
                    ~count:(List.length sel) ~wall_ms:wall);
-  exit 1
+  exit 1 in
+  (* every write, during the run or after it, can meet a closed reader *)
+  try run () with
+  | Sys_error m -> reap_all (); rm_rf tmpbase; (try prerr_endline ("run-suites: " ^ m) with _ -> ()); exit 2
+  | e -> reap_all (); rm_rf tmpbase; raise e
