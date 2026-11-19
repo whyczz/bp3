@@ -51,9 +51,11 @@ recovery—not just parallelism.
 ## Project skill checks
 
 Install the tooling dependencies with `brew bundle` (Mike Farah yq v4, jq,
-and ShellCheck), then run `make check`. This validates the YAML frontmatter
-of canonical and installed skills and runs the installer regression tests.
-No OCaml toolchain is required for these checks.
+and ShellCheck), plus an OCaml toolchain with dune and Node, then run
+`make check`: lint, the OCaml unit tests and the unit tier, in seconds.
+`make check-full` adds every fixture and slow suite (test/suites.tsv,
+through scripts/run-suites) and is the grade/land gate. Both validate the
+YAML frontmatter of canonical and installed skills.
 Descriptions containing a colon followed by a space must be quoted or use
 a YAML block scalar; the installer validates every source before writing
 any generated copies.

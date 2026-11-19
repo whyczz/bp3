@@ -22,7 +22,7 @@ docs/quests/<quest>/     one folder per quest, flat, never moved
   state.yaml             GENERATED: stage, commit, cycle (a cache)
   ledger.jsonl           GENERATED: every move, append-only (truth)
   runs/<id>/             tape.log (verbatim), notes.md (lessons)
-plans/<type>.yaml        goal_type plans (default: one review round)
+plans/<type>.yaml        goal_type plans (default: up to three review rounds)
 src/quest/main.ml        the state engine (OCaml, yojson + unix)
 docs/dossiers/           research records; they inform, never decide
 nodes/ inside each quest folder: one record per node
@@ -46,7 +46,8 @@ other repos point at it.
 ./bin/bp3 e                            # claimed edge door: resolved context
 ./bin/bp3 n r                          # claimed node door: read own node
 dune build src/quest/main.exe          # (make check does this)
-make check                             # lint, skills, CLI fixture tests
+make check                             # inner loop: lint, dune test, unit tier (seconds)
+make check-full                        # grade/land gate: check + fixture and slow tiers
 ```
 
 Two independent dimensions: `goal_type` is the plan (stages and
@@ -60,8 +61,9 @@ to the exact commit reviewed.
 - Teach before building: when a quest or design is new, teach the
   concepts back to the human (concept, before, change, after,
   bites, transfer cues) and get the nod before implementation.
-- One review round by default (`max_cycles: 1`): a second
-  `fix_first` escalates to the human instead of looping.
+- Up to three review rounds by default (`max_cycles: 3`, owner
+  2026-11-19): a `needs_fix` below the cap returns the node to
+  todo for another round; one at the cap escalates to the human.
 - Ledger is truth; `state.yaml` is its cache. Refused moves are
   ledgered too. Only clean commits move — dirty worktrees are
   never state.
@@ -70,5 +72,6 @@ to the exact commit reviewed.
 - Integration branch is `master`. Quest work lives on
   `quest/<slug>` branches until the human promotes it. Commits
   use the bp3 format (TL;DR, For humans, For LLMs) via `/commit`.
-- Verify with `make check` and say plainly what was not run.
+- Verify with `make check` while working and `make check-full`
+  before handoff (the grade/land gate); say plainly what was not run.
   Never claim a gate passed that was dropped or skipped.

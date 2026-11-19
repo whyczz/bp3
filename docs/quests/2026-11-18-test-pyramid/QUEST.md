@@ -46,15 +46,15 @@ accepted a 24.6s `make check`; today it is 170.40s.
 | `make check-full` | grade/land gate: `make check` plus the fixture and slow tiers through `run-suites`; target 60s or less |
 | `run-suites` | `scripts/run-suites`: the parallel runner; reads the suite table, gives each suite its own HOME and TMPDIR, enforces its budget |
 | suite table | `test/suites.tsv`: one row per suite (name, tier, cmd, budget_s, serial, why, paths); `paths` holds the globs that select the suite for a changed file (red-ink R3, reopened). The single source for `run-suites`, `check-changed.sh`, and lint |
-| budget | a suite's wall-time limit: a hand-set integer `budget_s`, about 2x its measured time, rounded up; an overrun fails the suite by name; `run-suites --report` prints actual vs budget, so tightening is a reviewed diff (red-ink R2) |
+| budget | a suite's hang guard: a hand-set integer `budget_s`, max(60, 6x its time under the runner on a quiet machine), rounded up to 30s; an overrun fails the suite by name. It catches hangs, not slowness: slowness is read from `run-suites --report`, never failed (red-ink R2, amended R2' by the owner 2026-11-19 after a busy laptop ran suites 2.5-5x slower and failed 29 of 31 on 2x budgets) |
 | serial | suite-table flag for a suite that touches the real repo tree; the runner never runs two serial suites at once |
 | suite env | what a suite inherits (red-ink R5): `env -i` plus a named allowlist (`PATH`, `LANG`/`LC_*`, `SDKROOT`, opam vars `OPAM_SWITCH_PREFIX` `CAML_LD_LIBRARY_PATH` `OCAMLPATH`, node vars), then `HOME`, `TMPDIR`, `BP3_SUITE`, `GIT_CONFIG_NOSYSTEM=1`; no `GIT_*` or `BP3_*` leaks; a missing var fails loudly |
 | hermetic_fn | a function a unit test calls with every input passed in: no git, process, wall clock, env, or filesystem (carried from 11-14; re-decided: adopted) |
-| `Clock` | `src/quest/clock.ml`, the only module that reads the wall clock. Hybrid (red-ink R4): time decisions are pure predicates taking `~now` (`stale`, `silent`, `past_deadline`), tested with literal times; effectful code calls `Clock.now ()`, a swappable ref defaulting to `Unix.gettimeofday`, which tests pin with `Clock.with_fixed`. The binary honors no time env var |
+| `Clock` | `src/quest/clock.ml`, the only module that reads the wall clock. Hybrid (red-ink R4): time decisions are pure predicates taking `~now` (`stale`, `silent`, `past_deadline`), tested with literal times; effectful code reads a swappable source (default `Unix.gettimeofday`) that tests pin with `Clock.with_fixed`: `Clock.time ()` gives whole seconds exactly as `Unix.time` did, so every pre-seam site reads it and behavior is unchanged; `Clock.now ()` gives sub-second time for new readers (seam.1's run-id mint). The binary honors no time env var |
 | law | a QCheck property that must hold for all generated inputs; test names start `law_` |
 | case | a named example or boundary; a table of cases is the "parameter test"; test names start `case_` |
 | char | a characterization: pins today's behavior without blessing it; test names start `char_` (kinds carried from 11-14; re-decided: adopted) |
-| sample | a real ledger copied from a `bp3/quest/*` storage ref, sanitized (no home paths or session ids), frozen under `test/unit/samples/`, and replayed through the fold by a `case_` test (red-ink R8). Renamed from the 11-14 "Tape" because a run's `tape.log` is verbatim evidence, never parsed; a sample is deliberately adopted test input |
+| sample | a real ledger copied from a `bp3/quest/*` or `bp3/node/*` storage ref, sanitized (no home paths or session ids), frozen under `test/unit/samples/`, and replayed through the fold by a `case_` test (red-ink R8). Renamed from the 11-14 "Tape" because a run's `tape.log` is verbatim evidence, never parsed; a sample is deliberately adopted test input |
 | fake bp3 | `test/fake-bp3/`: a stand-in executable for JS tests that replays transcripts instead of running the engine |
 | transcript | a recorded `(argv, stdin, stdout, exit)` row captured from the real binary; `check-full` re-records and diffs them |
 | coverage map | `test/COVERAGE.md`: one row per old-suite assertion cluster, naming its new home or the reason it is kept |
@@ -198,8 +198,9 @@ its first `dune test` stanza. Depends on: none.
 
 ### unit.2 - clock-seam
 `Clock` owns the wall clock; all 20 `Unix.time` sites go through it.
-Hybrid shape (R4): decisions become pure `~now` predicates; loops call
-`Clock.now ()`; no `BP3_NOW` knob. Depends on: unit.1.
+Hybrid shape (R4): decisions become pure `~now` predicates; loops read
+`Clock.time ()` (whole seconds, as before); no `BP3_NOW` knob.
+Depends on: unit.1.
 [record](nodes/node-unit-2-clock-seam/NODE.md)
 
 ### unit.3 - store-laws
@@ -323,6 +324,7 @@ Also survived: fake-bp3 drift. Unknown argvs exit 97 and
 | R8 | Concepts | 11-14 "Tapes" undecided; name collides with run `tape.log` | "Now, named samples": unit.3 freezes one real ledger per era under `test/unit/samples/` |
 | R1' | Output (reopened) | split assumed independent sections | "Shared lib": `test/harness/lib.sh` (prelude + `fixture_children`), sourced per piece |
 | R3' | Data (reopened) | `check-changed.sh` keeps its own path table beside the suite table | "paths column": globs in `test/suites.tsv`; one list |
+| R2' | Inputs (amended in build, owner 2026-11-19) | budgets about 2x measured fail a busy machine (29/31 red on load ~10) | "hangs only": budget_s = max(60, 6x quiet time), rounded to 30s; slowness reported by --report, never failed |
 
 ## Deliberately open
 
@@ -338,7 +340,7 @@ Also survived: fake-bp3 drift. Unknown argvs exit 97 and
 |---|---|---|
 | 1 | ~~`Clock` shape~~ Settled R4: hybrid (pure `~now` predicates; `Clock.now ()` ref in loops; no env knob). | owner (settled) |
 | 2 | ~~Run-id shape~~ Settled R3: `20261118T110640.123a7f3Z-<edge>-<harness>-<model>-c<n>` (ms + 4 hex in field 1). | owner (settled) |
-| 3 | ~~Budgets: fixed per suite, or a multiple of a recorded median?~~ Settled R2: fixed, about 2x measured; no stored history. | owner (settled) |
+| 3 | ~~Budgets: fixed per suite, or a multiple of a recorded median?~~ Settled R2: fixed, no stored history; amended R2': hang guards, not 2x. | owner (settled) |
 | 4 | ~~Which suites are slow tier?~~ Settled R7: the real-process rule (see Terms, slow tier). | owner (settled) |
 | 5 | ~~Do Tapes ride in unit.3?~~ Settled R8: yes, renamed **samples**, one per era. | owner (settled) |
 

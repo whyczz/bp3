@@ -44,7 +44,9 @@ General coding in this repo does not need this skill.
    session, `bp3 q r <quest>` rebuilds state from
    `ledger.jsonl`. Transcripts and tapes are evidence, never
    state, and tape is never parsed into facts.
-7. Verify with `make check` and report exactly what ran.
+7. Verify with `make check` while working and with
+   `make check-full` before handoff, grade or land (the
+   gate); report exactly what ran.
 
 ## Rules
 

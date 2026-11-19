@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# run-suites — runs the suite table (test/suites.tsv) in parallel
+# (test-pyramid tier.1). The runner is OCaml: src/quest/run_suites.ml,
+# its pure core src/quest/suites.ml. This wrapper execs the built
+# binary with the repo root (make check builds it), so flags, table
+# format and exit codes are the binary's own: scripts/run-suites -h.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+exe="$root/_build/default/src/quest/run_suites.exe"
+[ -x "$exe" ] || { echo "build the runner first: dune build src/quest/run_suites.exe" >&2; exit 2; }
+RUN_SUITES_ROOT="$root" exec "$exe" "$@"

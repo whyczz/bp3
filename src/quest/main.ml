@@ -4,80 +4,7 @@
 open Gitx
 open Store
 open Render
-
-(* ---------- argv parsing ---------- *)
-type flags = {
-  reason : string option; commit : string option; verdict : string option;
-  target : string option; typ : string option; depends_on : string option;
-  fmt : string; verify_verdict : string option; mechanical : bool;
-}
-
-let parse_flags args =
-  let rec loop acc = function
-    | [] -> acc
-    | "--reason" :: v :: rest -> add acc "reason" v rest
-    | "--commit" :: v :: rest -> add acc "commit" v rest
-    | "--verdict" :: v :: rest -> add acc "verdict" v rest
-    | "--target" :: v :: rest -> add acc "target" v rest
-    | "--type" :: v :: rest -> add acc "type" v rest
-    | "--depends-on" :: v :: rest -> add acc "depends-on" v rest
-    | "--format" :: v :: rest -> add acc "format" v rest
-    | "--verify-verdict" :: v :: rest -> add acc "verify-verdict" v rest
-    | "--mechanical" :: rest ->
-        if acc.mechanical then usage "duplicate flag --mechanical"
-        else loop { acc with mechanical = true } rest
-    | "--reason" :: [] | "--commit" :: [] | "--verdict" :: [] | "--target" :: []
-    | "--type" :: [] | "--depends-on" :: [] | "--format" :: []
-    | "--verify-verdict" :: [] ->
-        usage "flag needs a value"
-    | "--mode" :: _ -> usage mode_flag_usage
-    | f :: _ when String.length f >= 7 && String.sub f 0 7 = "--mode=" ->
-        usage mode_flag_usage
-    | f :: _ when String.length f >= 2 && f.[0] = '-' && f.[1] = '-' ->
-        (match String.index_opt f '=' with
-         | Some _ -> usage ("unknown flag form: " ^ f)
-         | None -> usage ("unknown flag: " ^ f))
-    | stray :: _ -> usage ("stray positional: " ^ stray)
-  and add acc name v rest =
-    let has = match name with
-      | "reason" -> acc.reason <> None | "commit" -> acc.commit <> None
-      | "verdict" -> acc.verdict <> None | "target" -> acc.target <> None
-      | "type" -> acc.typ <> None | "depends-on" -> acc.depends_on <> None
-      | "verify-verdict" -> acc.verify_verdict <> None
-      | "format" -> acc.fmt <> "json" || List.mem "--format" [] | _ -> false in
-    (* duplicate detection for format needs explicit tracking; handled below *)
-    ignore has;
-    match name with
-    | "reason" -> if acc.reason <> None then usage "duplicate flag --reason" else loop { acc with reason = Some v } rest
-    | "commit" -> if acc.commit <> None then usage "duplicate flag --commit" else loop { acc with commit = Some v } rest
-    | "verdict" -> if acc.verdict <> None then usage "duplicate flag --verdict" else loop { acc with verdict = Some v } rest
-    | "target" -> if acc.target <> None then usage "duplicate flag --target" else loop { acc with target = Some v } rest
-    | "type" -> if acc.typ <> None then usage "duplicate flag --type" else loop { acc with typ = Some v } rest
-    | "depends-on" -> if acc.depends_on <> None then usage "duplicate flag --depends-on" else loop { acc with depends_on = Some v } rest
-    | "verify-verdict" -> if acc.verify_verdict <> None then usage "duplicate flag --verify-verdict" else loop { acc with verify_verdict = Some v } rest
-    | "format" ->
-        if v <> "json" && v <> "table" && v <> "tree" then usage "--format must be json, table, or tree";
-        loop { acc with fmt = v } rest
-    | _ -> usage ("unknown flag --" ^ name)
-  in
-  (* pre-scan for duplicate --format *)
-  let rec count n = function
-    | [] -> n | "--format" :: _ :: r -> count (n + 1) r | _ :: r -> count n r in
-  if count 0 args > 1 then usage "duplicate flag --format";
-  loop { reason = None; commit = None; verdict = None; target = None;
-         typ = None; depends_on = None; fmt = "json";
-         verify_verdict = None; mechanical = false } args
-
-let split_flags args =
-  (* separate positionals (before first --flag) from flags; any positional
-     after a flag value that is not consumed is stray -> caught in parse *)
-  let rec go pos flags = function
-    | [] -> (List.rev pos, flags)
-    | a :: rest when String.length a >= 2 && a.[0] = '-' && a.[1] = '-' ->
-        (List.rev pos, a :: rest @ flags)
-    | a :: rest -> go (a :: pos) flags rest in
-  let (pos, fl) = go [] [] args in
-  (pos, parse_flags fl)
+include Cli
 
 let require_reason fl =
   match fl.reason with Some r when r <> "" -> r | _ -> usage "--reason is required"
@@ -166,13 +93,6 @@ let do_quest_delete quest fl id =
    through the dep verb, always read back from ledger
    records. A dep cycle refuses at write time naming
    the cycle; deps stay mutable-but-logged. *)
-let parse_dep_list = function
-  | Some s when s <> "" ->
-      List.fold_right (fun d acc ->
-        let d = String.trim d in if d = "" || List.mem d acc then acc else d :: acc)
-        (String.split_on_char ',' s) []
-  | _ -> []
-
 let dep_quest quest =
   List.map (fun e ->
     match fold_node quest e with
@@ -558,13 +478,6 @@ let do_n ctx_rc ctx_source ctx_amb = function
   | _ -> usage "node door verbs are r"
 
 (* ---------- main dispatch ---------- *)
-let normalize_verb = function
-  | "c" | "create" -> "c" | "r" | "read" -> "r"
-  | "u" | "update" -> "u" | "d" | "delete" -> "d"
-  | other -> other
-
-let is_verb = function "c" | "create" | "r" | "read" | "u" | "update" | "d" | "delete" -> true | _ -> false
-
 (* icebox door: bp3 q icebox r [term...] | r <slug> (read-only) *)
 let do_icebox = function
   | verb_raw :: rest when is_verb verb_raw ->
@@ -661,8 +574,6 @@ let help_config = "bp3 config - view the machine-local bp3 config store (<git-co
   config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. The depth cap is enforced at link mint (mvp.1, E_DEPTH); W_SETUP_SLOW fires on the quest rollup when a claimed Run's setup_wall_s exceeds setup_slow_s (mvp.3, local only). First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
 Example: bp3 config --source\n"
 
-let is_help = function "-h" | "--help" -> true | _ -> false
-
 (* Node 5 guard: an older-MAJOR binary never writes in a newer repo.
    Newer MINOR/PATCH only warns (warnings_of carries W_VERSION_AHEAD). *)
 let guard_write argv =
@@ -746,7 +657,7 @@ let rec run argv =
       print_verdict ~fmt:"json" (Worktree.run rest); 0
   | "init-repo" :: _ ->
       (* Node 6: scaffold plans/ into the caller's repo; never clobber differing plans *)
-      let plans = [("plans/default.yaml", "goal_type: default\nmax_cycles: 1\ngrade:\n  required: true\nverify: required\n");
+      let plans = [("plans/default.yaml", "goal_type: default\nmax_cycles: 3\ngrade:\n  required: true\nverify: required\n");
                    ("plans/direct.yaml", "goal_type: direct\nmax_cycles: 0\ngrade:\n  required: false\nverify: required\n")] in
       (try Unix.mkdir (Filename.concat root "plans") 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
       List.iter (fun (rel, content) ->

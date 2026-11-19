@@ -88,17 +88,17 @@ print_lines(results); exit(0 if all(r.ok for r in results) else 1)
 |---|---|
 | Intent | cut make check wall time by running suites at once, safely |
 | Lane | standard |
-| Output | `scripts/run-suites`, `test/suites.tsv`, `test/harness/lib.sh` plus the split harness pieces, the five-run timing log |
+| Output | `scripts/run-suites`, `test/suites.tsv`, `test/harness/lib.sh` plus the split harness pieces, the five-run timing log. The runner is OCaml (`src/quest/run_suites.ml`, pure core `src/quest/suites.ml` unit-tested in `test/unit/test_suites.ml`), linking `unix` and the engine library (`bp3_quest`, with yojson and str) and no new dependency; `scripts/run-suites` execs it (owner, 2026-11-19: no perl, fewer deps) |
 | Acceptance | goal block above; fails today (`scripts/run-suites` does not exist) |
 | Depends on | none |
-| Tests | known cases: planted suites under `test/run-suites/` (HOME leak, env leak, budget overrun, serial lock); property-based: none, by decision: the runner orchestrates processes and has no pure function to generate over |
+| Tests | known cases: planted suites under `test/run-suites/` (HOME leak, env leak, budget overrun, serial lock) and the black-box self-test `test/run-suites.sh` (signals, closed reader, stragglers, launch order); unit cases and property-based laws over the pure core in `test/unit/test_suites.ml` (launch order is a stable permutation, a printed row parses back, a budget never un-fires) |
 
 | Suite-table column | Meaning |
 |---|---|
 | name | short id used in output and by `check-changed.sh` |
 | tier | `fixture` or `slow`; slow iff the suite proves what no fake can: a real process tree, signals, real wall-clock waits, or concurrent writers (the unit tier runs through dune and node, not here) |
 | cmd | the command line, run from the repo root |
-| budget_s | hand-set integer seconds, about 2x measured, rounded up; `run-suites --report` prints actual vs budget |
+| budget_s | hang guard (red-ink R2'): hand-set integer seconds, max(60, 6x the suite's time under the runner on a quiet machine), rounded up to 30s; `run-suites --report` prints actual vs budget, and slowness is never failed |
 | serial | `1` if the suite touches the real repo tree |
 | why | one line, required on slow rows: what the suite proves that no fake can |
 | paths | globs that select the suite for a changed file; `check-changed.sh` reads them |
@@ -108,9 +108,12 @@ print_lines(results); exit(0 if all(r.ok for r in results) else 1)
 The 2026-11-18 profile shows 170.40s of serial time, with five
 suites making up 120s. Running them at once is the boring fix the
 quest's red chair named first, so it lands before any test is
-rewritten. Bash is enough for the runner: background jobs, `wait`,
-and `set -m` for process groups. If the runner needs a job-control
-helper, a small portable script is fine, but it adds no dependency.
+rewritten. The runner began in bash with perl one-liners for
+process groups, a millisecond clock and signal resets; six grading
+rounds went to bash job-control edge cases. On the owner's call
+(2026-11-19) it is OCaml like the engine: fork, setsid and signal
+handlers that only set a flag, so a suite forked just before a
+signal is still reaped, and no helper language is needed.
 
 HOME isolation also fixes a red-chair finding: suites share the
 real `~/.bp3` and git config today. The budget turns a hung suite

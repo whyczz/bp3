@@ -11,6 +11,7 @@ mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
 cp "$root/_build/default/src/quest/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
+perl -pi -e 's/^max_cycles: .*/max_cycles: 1/' "$work/repo/plans/default.yaml"  # fixtures assert one review round
 cd "$work/repo"
 git init -q -b master
 git config user.email t@t.t; git config user.name t
@@ -167,5 +168,27 @@ echo "$out" | grep -q "E_DEP_CYCLE" || fail "dep help cycle: $out"
 out=$(q sched -h) || fail "node door -h exit"
 echo "$out" | grep -q "dep" || fail "node door help dep: $out"
 echo "$out" | grep -q -- "--depends-on" || fail "node door help depends-on: $out"
+
+# --- quest-level deps (Store.dep_satisfied): a handoff waits until
+# every node of each dependency quest is landed or deleted; a node in
+# flight (approved, not landed) still holds it back ---
+q c qdep-a >/dev/null; q qdep-a c e1 >/dev/null; q qdep-a c e2 >/dev/null; q qdep-a c e3 >/dev/null
+q c qdep-b --depends-on qdep-a >/dev/null; q qdep-b c e1 >/dev/null
+echo qdep > qdep.txt; git add qdep.txt; git commit -qm qdep; QD=$(git rev-parse HEAD)
+qdep_refused() { # why
+  if out=$(q qdep-b u e1 handoff --commit "$QD" --reason w 2>&1); then fail "handoff accepted: $1"; fi
+  echo "$out" | jq -e '.error.code == "E_DEPENDENCY" and .error.facts.blocked_by == ["qdep-a"]' >/dev/null || fail "quest-dep refusal ($1): $out"
+}
+qdep_refused "every dependency node todo"
+q qdep-a u e2 handoff --commit "$QD" --reason w >/dev/null
+q qdep-a u e2 grade --verdict ship --verify-verdict pass --reason ok >/dev/null
+q qdep-a u e2 land --reason "landed" >/dev/null
+q qdep-a d e3 --reason "dropped" >/dev/null
+q qdep-a u e1 handoff --commit "$QD" --reason w >/dev/null
+q qdep-a u e1 grade --verdict ship --verify-verdict pass --reason ok >/dev/null
+qdep_refused "one dependency node approved but not landed"
+q qdep-a u e1 land --reason "landed" >/dev/null
+out=$(q qdep-b u e1 handoff --commit "$QD" --reason w) || fail "handoff refused once every dependency node was landed or deleted: $out"
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "quest-dep handoff state: $out"
 
 echo "ready tests: ok"

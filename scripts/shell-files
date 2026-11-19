@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# shell-files (test-pyramid tier.2): the shellcheck targets for make
+# lint, derived, never listed by hand. Every shell script a suite in
+# test/suites.tsv runs (the cmd column's script), plus every other
+# shell script in the repo: a .sh or .bash file, or a file whose first
+# line is a sh/bash shebang. Tracked and untracked-but-not-ignored
+# files count; docs/ (quest records, run notes) does not. Sorted,
+# one path per line.
+#   scripts/shell-files          shell scripts (shellcheck targets)
+#   scripts/shell-files --node   JS for `node --check`: .js and .mjs files
+#                                and node-shebang scripts
+set -euo pipefail
+mode=${1:-shell}
+root=$(cd "$(dirname "$0")/.." && pwd)
+cd "$root"
+is_shell() {
+  case "$1" in *.sh|*.bash) return 0 ;; esac
+  local first
+  first=$(head -c 64 "$1" 2>/dev/null | head -1) || return 1
+  # '#!/bin/sh', '#! /bin/bash', '#!/usr/bin/bash', '#!/usr/bin/env bash -e'...
+  [[ $first =~ ^#\![[:space:]]*(/usr)?(/local)?/bin/(ba)?sh([[:space:]]|$) ]] && return 0
+  [[ $first =~ ^#\![[:space:]]*/usr/bin/env[[:space:]]+(ba)?sh([[:space:]]|$) ]] && return 0
+  return 1
+}
+is_node() {
+  case "$1" in *.js|*.mjs) return 0 ;; esac
+  local first
+  first=$(head -c 64 "$1" 2>/dev/null | head -1) || return 1
+  [[ $first =~ ^#\![[:space:]]*/usr/bin/env[[:space:]]+node([[:space:]]|$) ]]
+}
+if [ "$mode" = --node ]; then
+  git ls-files --cached --others --exclude-standard | while IFS= read -r f; do
+    case "$f" in docs/*) continue ;; esac
+    if [ -f "$f" ] && is_node "$f"; then echo "$f"; fi
+  done | LC_ALL=C sort -u
+  exit 0
+fi
+[ "$mode" = shell ] || { echo "shell-files: unknown mode: $mode" >&2; exit 2; }
+{
+  # the suites' own scripts: the first path-like word of each cmd
+  while IFS=$'\t' read -r name _tier cmd _rest; do
+    case "$name" in ''|'#'*) continue ;; esac
+    for word in $cmd; do
+      w=${word#./}
+      if [ -f "$w" ]; then if is_shell "$w"; then echo "$w"; fi; break; fi
+    done
+  done < test/suites.tsv
+  git ls-files --cached --others --exclude-standard | while IFS= read -r f; do
+    case "$f" in docs/*) continue ;; esac
+    if [ -f "$f" ] && is_shell "$f"; then echo "$f"; fi
+  done
+} | LC_ALL=C sort -u

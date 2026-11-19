@@ -275,12 +275,15 @@ export class Dispatcher {
     return { ok: true, run_id: runId, pid, tape_path: tapePath, exit_code: exitCode, model, thinking: thinking ?? null, role: req.role ?? null };
   }
 
-  awaitRuns(runIds: string[], opts: { timeoutSeconds?: number; silenceSeconds?: number } = {}): Record<string, unknown>[] {
+  awaitRuns(runIds: string[], opts: { timeoutSeconds?: number; silenceSeconds?: number; once?: boolean } = {}): Record<string, unknown>[] {
     this.requireBp3();
     return runIds.map((runId) => {
-      const args = ["harness", "watch", "--run-id", runId,
-        "--timeout-seconds", String(opts.timeoutSeconds ?? 1800),
-        "--silence-seconds", String(opts.silenceSeconds ?? 600)];
+      // once: bp3's read-only snapshot fold, which never waits or signals.
+      const args = opts.once
+        ? ["harness", "watch", "--run-id", runId, "--once"]
+        : ["harness", "watch", "--run-id", runId,
+          "--timeout-seconds", String(opts.timeoutSeconds ?? 1800),
+          "--silence-seconds", String(opts.silenceSeconds ?? 600)];
       try {
         const out = execFileSync(this.bp3Bin, args, { cwd: this.root, encoding: "utf8" });
         const verdict = JSON.parse(out.trim().split("\n").pop() ?? "{}") as Record<string, unknown>;
@@ -313,7 +316,7 @@ export class Dispatcher {
       if (creator.harness !== "pi") continue;
       if (quest !== undefined && cfg.quest !== quest) continue;
       const runId = String(cfg.run_id ?? name.slice(0, -".json".length));
-      const [verdict] = this.awaitRuns([runId], { timeoutSeconds: 5 });
+      const [verdict] = this.awaitRuns([runId], { once: true });
       rows.push({ run_id: runId, lifecycle: verdict.lifecycle ?? null, harness: "pi", quest: cfg.quest ?? null });
     }
     return rows;

@@ -289,26 +289,33 @@ let legacy_node_ledger_paths q e =
         (Layout.nodes_dir :: Layout.legacy_nodes_dirs)) all_roots
   |> List.filter (fun p -> p <> node_ledger_path q e)
 
-(* Read a ledger at its canonical path or any pre-rename path on
-   the same branch. Renames never rewrote branch trees, so one tip
-   can hold a copy per era; ledgers are append-only, so the copy
-   with the most lines is the newest (ties: canonical first). The
-   third component names the path read, so appends write back to
-   the same path. *)
+(* Renames never rewrote branch trees, so one tip can hold a ledger
+   copy per era; ledgers are append-only, so the copy with the most
+   lines is the newest. pick_longest is that rule, pure: among the
+   (path, text) copies found, canonical first, most lines wins, a tie
+   keeps the earlier copy, and no copy reads as empty at the
+   canonical path. Returns (text, path). *)
+let pick_longest canon found =
+  let lines t = List.length (String.split_on_char '\n' (String.trim t)) in
+  match found with
+  | [] -> ("", canon)
+  | first :: rest ->
+      let (p, t) = List.fold_left (fun (bp, bt) (p, t) ->
+          if lines t > lines bt then (p, t) else (bp, bt)) first rest in
+      (t, p)
+
+(* Read a ledger at its canonical path or any pre-rename path on the
+   same branch. The third component names the path read, so appends
+   write back to the same path. *)
 let ledger_read branch canon legacy =
   match ref_tip branch with
   | None -> None
   | Some tip ->
-      let lines t = List.length (String.split_on_char '\n' (String.trim t)) in
       let found = List.filter_map (fun p ->
           match git_show tip p with Some t -> Some (p, t) | None -> None)
           (canon :: legacy) in
-      (match found with
-       | [] -> Some (tip, "", canon)
-       | first :: rest ->
-           let (p, t) = List.fold_left (fun (bp, bt) (p, t) ->
-               if lines t > lines bt then (p, t) else (bp, bt)) first rest in
-           Some (tip, t, p))
+      let (t, p) = pick_longest canon found in
+      Some (tip, t, p)
 
 (* Every bp3 prefix lives under refs/heads/bp3/: list that once
    per cache epoch and filter in memory, instead of one

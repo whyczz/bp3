@@ -7,6 +7,7 @@ mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
 cp "$root/_build/default/src/quest/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
+perl -pi -e 's/^max_cycles: .*/max_cycles: 1/' "$work/repo/plans/default.yaml"  # fixtures assert one review round
 cd "$work/repo"
 git init -q -b master
 git config user.email t@t.t; git config user.name t
@@ -205,5 +206,24 @@ echo "$out" | jq -e --arg r "$RIDCAP" '.ok == true and (.removed | index($r) != 
 [ "$(shasum -a 256 "$store/runs/$RID2.json" | cut -d' ' -f1)" = "$h2" ] || fail "cleanup touched claimed node"
 out=$(lk cleanup --quest g1) || fail "cleanup rerun exit: $out"
 echo "$out" | jq -e '.removed == [] and .count == 0' >/dev/null || fail "cleanup rerun: $out"
+
+# --- seam.1: identical mints in one burst never collide and never sleep.
+# About 1s on a quiet machine; the 10s bound leaves load headroom (red-ink
+# R2': slowness is not failed) and still catches a sleep per mint. ---
+q c burst >/dev/null; q burst c n1 >/dev/null
+burst_start=$(date +%s)
+for _ in $(seq 50); do lk mint --kind edge --quest burst --node n1 --edge handoff | jq -r .run_id; done > "$work/burst.ids"
+burst_secs=$(( $(date +%s) - burst_start ))
+[ "$(sort -u "$work/burst.ids" | wc -l | tr -d ' ')" = 50 ] || fail "50 identical mints gave duplicate run-ids: $(sort "$work/burst.ids" | uniq -d)"
+[ "$burst_secs" -lt 10 ] || fail "50 identical mints took ${burst_secs}s (a 1s collision sleep would take about 50s)"
+grep -q -E '^[0-9]{8}T[0-9]{6}\.[0-9]{3}[0-9a-f]{4}Z-handoff-muse-code-test-model-c1$' "$work/burst.ids" || fail "minted run-id shape: $(head -1 "$work/burst.ids")"
+# no sleep anywhere on the mint path (done-when: no Unix.select or sleep)
+for f in mint_ts_of random_hex4 random_hex4_fallback mint_unique mint_run_id; do
+  body=$(awk -v f="$f" '$0 ~ "^let "f"( |$)" {on=1; print; next} on && /^let / {exit} on {print}' "$root/src/quest/harness.ml")
+  [ -n "$body" ] || fail "mint path function $f not found in harness.ml"
+  if echo "$body" | grep -E -q 'Unix\.select|Unix\.sleepf?|Thread\.delay'; then fail "$f sleeps on the mint path"; fi
+done
+# real milliseconds: 50 mints all on .000 means the mint read a whole-second clock
+grep -q -v -E '^[0-9]{8}T[0-9]{6}\.000' "$work/burst.ids" || fail "every minted run-id is on .000: whole-second clock"
 
 echo "link tests: ok"

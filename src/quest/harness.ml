@@ -114,6 +114,7 @@ let exit_of_outcome = function
   | "watchdog_killed" -> 1
   | "timeout" -> 3
   | "human_gate" -> 4
+  | "snapshot" -> 0
   | _ -> 1
 
 (* A settle row named in tape text is a fact of its own
@@ -358,8 +359,8 @@ let fold_run_file ~silence_seconds path =
          | Some tp ->
              (try
                 let st = Unix.stat tp in
-                (true, Unix.time () -. st.Unix.st_mtime
-                        <= float_of_int silence_seconds)
+                (true, not (Clock.silent ~now:(Clock.time ()) ~last:st.Unix.st_mtime
+                              ~silence_s:(float_of_int silence_seconds)))
               with _ -> blind := true; (o.tape_seen, o.fresh)) in
        (* the tape tail itself is folded live, so a Run
           derives finished from files + pid alone, with no
@@ -454,7 +455,8 @@ let read_cache dir run_id silence_seconds =
           else
             let fresh = match tape_path with
               | Some _ when tsz >= 0 ->
-                  Unix.time () -. float_of_int tmt <= float_of_int silence_seconds
+                  not (Clock.silent ~now:(Clock.time ()) ~last:(float_of_int tmt)
+                         ~silence_s:(float_of_int silence_seconds))
               | _ -> false in
             if fresh <> get_bool j "fresh" then None
             else
@@ -494,8 +496,8 @@ let fold_run_config ~silence_seconds (rc : Config.run_config) =
       | None -> (false, false, true)
       | Some tp ->
           (try let st = Unix.stat tp in
-               (true, Unix.time () -. st.Unix.st_mtime
-                       <= float_of_int silence_seconds, false)
+               (true, not (Clock.silent ~now:(Clock.time ()) ~last:st.Unix.st_mtime
+                             ~silence_s:(float_of_int silence_seconds)), false)
            with _ -> (false, false, true)) in
     let (fin, exit_e, torn_t) = match rec_.tape_path with
       | Some tp -> tape_evidence rec_.harness (read_file_or tp "")
@@ -589,7 +591,8 @@ let probe_observation ~silence_seconds (rec_ : init_record) prior =
     || (match rec_.tape_path with Some tp -> Sys.file_exists tp | None -> false) in
   let fresh = match rec_.tape_path with
     | Some tp -> (match stat_fp tp with
-        | Some (_, mt) -> Unix.time () -. float_of_int mt <= float_of_int silence_seconds
+        | Some (_, mt) -> not (Clock.silent ~now:(Clock.time ()) ~last:(float_of_int mt)
+                                 ~silence_s:(float_of_int silence_seconds))
         | None -> prior.fresh)
     | None -> prior.fresh in
   let blind = match rec_.tape_path with
@@ -715,7 +718,7 @@ let do_supervisor quest args =
        if List.exists (fun v -> v.rv_harness <> "" && v.rv_harness <> e) runs0 then
          usage "--engine contradicts a Run InitRecord"
    | None -> ());
-  let deadline = Unix.time () +. float_of_int fl.timeout_seconds in
+  let deadline = Clock.time () +. float_of_int fl.timeout_seconds in
   let last_key = ref "" in
   let streamed = ref [] in
   let rec tick () =
@@ -770,7 +773,7 @@ let do_supervisor quest args =
       exit_of_outcome outcome in
     if rollup = "landed" then finish "settled"
     else if inbox <> [] then finish "human_gate"
-    else if Unix.time () >= deadline then finish "timeout"
+    else if Clock.past_deadline ~now:(Clock.time ()) ~deadline then finish "timeout"
     else begin
       ignore (Unix.select [] [] [] 1.0);
       tick ()
@@ -1476,14 +1479,14 @@ type wt_flags = {
   mutable wt_run : string option; mutable wt_session : string option;
   mutable wt_silence : int; mutable wt_timeout : int; mutable wt_grace : int;
   mutable wt_silence_set : bool; mutable wt_timeout_set : bool;
-  mutable wt_grace_set : bool;
+  mutable wt_grace_set : bool; mutable wt_once : bool;
 }
 
 let parse_wt_flags args =
   let fl = { wt_run = None; wt_session = None;
              wt_silence = 600; wt_timeout = 1800; wt_grace = 1;
              wt_silence_set = false; wt_timeout_set = false;
-             wt_grace_set = false } in
+             wt_grace_set = false; wt_once = false } in
   let rec loop = function
     | [] -> fl
     | "--run-id" :: v :: rest ->
@@ -1504,6 +1507,9 @@ let parse_wt_flags args =
         if fl.wt_grace_set then usage "duplicate flag --grace-seconds";
         fl.wt_grace <- positive_seconds "--grace-seconds" v;
         fl.wt_grace_set <- true; loop rest
+    | "--once" :: rest ->
+        if fl.wt_once then usage "duplicate flag --once";
+        fl.wt_once <- true; loop rest
     | ["--run-id"] | ["--session-id"] | ["--silence-seconds"]
     | ["--timeout-seconds"] | ["--grace-seconds"] ->
         usage "flag needs a value"
@@ -1636,7 +1642,7 @@ let watch_lifecycle ~alive ~exit_obs ~evidence ~settle ~tape_seen ~fresh =
 let do_watch args =
   let fl = parse_wt_flags args in
   let (wal, harness, session_id, pid, run_id, blind0) = resolve_watch fl in
-  let start = Unix.time () in
+  let start = Clock.time () in
   let deadline = start +. float_of_int fl.wt_timeout in
   let last_growth = ref start in
   let last_size = ref (-1) in
@@ -1648,15 +1654,15 @@ let do_watch args =
   let blind = ref blind0 in
   let last_key = ref "" in
   let wait_dead secs =
-    let until = Unix.time () +. secs in
+    let until = Clock.time () +. secs in
     let rec go () =
       match pid with
-      | Some p when pid_alive p && Unix.time () < until ->
+      | Some p when pid_alive p && not (Clock.past_deadline ~now:(Clock.time ()) ~deadline:until) ->
           ignore (Unix.select [] [] [] 0.05); go ()
       | _ -> () in
     go () in
   let rec loop () =
-    let now = Unix.time () in
+    let now = Clock.time () in
     (* derivation fold for this Run: sticky mechanical facts *)
     (match derivations_dir () with
      | Some dir ->
@@ -1692,10 +1698,11 @@ let do_watch args =
      | None -> blind := true);
     let alive = match pid with Some p -> Some (pid_alive p) | None -> None in
     if alive = Some false then exit_obs := true;
-    let fresh = now -. !last_growth <= float_of_int fl.wt_silence in
+    let fresh = not (Clock.silent ~now ~last:!last_growth
+                       ~silence_s:(float_of_int fl.wt_silence)) in
     let lifecycle = watch_lifecycle ~alive ~exit_obs:!exit_obs
       ~evidence:!evidence ~settle:!settle ~tape_seen:!tape_seen ~fresh in
-    if lifecycle <> !last_key then begin
+    if lifecycle <> !last_key && not fl.wt_once then begin
       last_key := lifecycle;
       let row = `Assoc [
         ("kind", json_str "lifecycle_change");
@@ -1722,14 +1729,19 @@ let do_watch args =
         ("lifecycle", json_str fin_lifecycle);
         ("last_growth_seconds_ago", `Int (int_of_float (now -. !last_growth)));
       ] in
+      let fields = if fl.wt_once then fields @ [("once", `Bool true)] else fields in
       let fields = if warnings = [] then fields
         else fields @ [("warnings", `List (List.map json_str warnings))] in
       print_endline (Yojson.Safe.to_string (`Assoc fields));
       exit_of_outcome outcome in
     if (!exit_obs || !settle) && !evidence && alive <> Some true then
       finish "settled" "finished"
+    else if fl.wt_once then
+      (* seam.2: one read-only fold; never TERM, KILL, or wait *)
+      finish "snapshot" lifecycle
     else if alive = Some true && not !evidence && not !settle
-            && now -. !last_growth > float_of_int fl.wt_silence then begin
+            && Clock.silent ~now ~last:!last_growth
+                 ~silence_s:(float_of_int fl.wt_silence) then begin
       (* sole killer: silence past budget, no settling grace *)
       (match pid with
        | Some p ->
@@ -1742,7 +1754,7 @@ let do_watch args =
        | None -> ());
       finish "watchdog_killed" "orphaned"
     end
-    else if now >= deadline then
+    else if Clock.past_deadline ~now ~deadline then
       finish "timeout" lifecycle
     else begin
       ignore (Unix.select [] [] [] 0.05);
@@ -2120,13 +2132,42 @@ let mint_token () =
       Unix.close fd;
       if n = 16 then Bytes.to_string b else raise Exit
     with _ ->
-      let seed = Printf.sprintf "%d-%f-%d" (Unix.getpid ()) (Unix.time ())
+      let seed = Printf.sprintf "%d-%f-%d" (Unix.getpid ()) (Clock.time ())
         (Random.int 1_000_000_000) in
       String.sub (sha256_hex seed ^ sha256_hex (seed ^ "!")) 0 16 in
   "bp3link_" ^ link_hex_of_bytes raw
 
+(* Run-id first field (seam.1, red-ink R3): UTC to the millisecond
+   plus 4 hex of randomness in one dash-free token, so ids sort by
+   time, parse_edge_cycle still reads the edge (field 2) and the
+   cycle (last field), and mints in the same second do not collide. *)
+let mint_ts_of now rand_hex =
+  let t = Unix.gmtime now in
+  let ms = min 999 (max 0 (truncate (Float.round ((now -. Float.of_int (truncate now)) *. 1000.)))) in
+  Printf.sprintf "%04d%02d%02dT%02d%02d%02d.%03d%sZ"
+    (t.Unix.tm_year + 1900) (t.Unix.tm_mon + 1) t.Unix.tm_mday
+    t.Unix.tm_hour t.Unix.tm_min t.Unix.tm_sec ms rand_hex
+
+(* 4 hex digits from /dev/urandom; Random (self-seeded) if unreadable. *)
+let random_hex4_fallback () = Random.self_init (); Printf.sprintf "%04x" (Random.int 65536)
+let random_hex4 () =
+  try
+    let fd = Unix.openfile "/dev/urandom" [Unix.O_RDONLY] 0 in
+    let b = Bytes.make 2 '\x00' in
+    let n = Fun.protect ~finally:(fun () -> Unix.close fd) (fun () -> Unix.read fd b 0 2) in
+    if n = 2 then link_hex_of_bytes (Bytes.to_string b) else raise Exit
+  with _ -> random_hex4_fallback ()
+
+(* Draw a fresh candidate until [claim] takes one; at most [tries]
+   draws and never a sleep. None when every draw collided. *)
+let mint_unique ~tries ~candidate ~claim =
+  let rec go k =
+    let c = candidate () in
+    if claim c then Some c else if k <= 1 then None else go (k - 1) in
+  go tries
+
 let compact_ts () =
-  let t = Unix.gmtime (Unix.time ()) in
+  let t = Unix.gmtime (Clock.time ()) in
   Printf.sprintf "%04d%02d%02dT%02d%02d%02dZ"
     (t.Unix.tm_year + 1900) (t.Unix.tm_mon + 1) t.Unix.tm_mday
     t.Unix.tm_hour t.Unix.tm_min t.Unix.tm_sec
@@ -2139,6 +2180,25 @@ let slug_keep s =
     Buffer.add_char b (if ok then c else '-')) s;
   let v = Buffer.contents b in
   if v = "" then "unknown" else v
+
+(* The mint path (seam.1): draw <mint_ts>-<edge>-<harness>-<model>-c<n>
+   ids from the sub-second clock and claim the first one [write]
+   accepts (it raises Unix EEXIST on a taken id). E_EXISTS, naming
+   the last candidate, after [tries] draws; never a sleep. *)
+let mint_run_id ?(tries = 8) ~write ~edge_label ~harness ~model ~cycle () =
+  let last = ref "" in
+  let candidate () =
+    Printf.sprintf "%s-%s-%s-%s-c%d" (mint_ts_of (Clock.now ()) (random_hex4 ()))
+      edge_label (slug_keep harness) (slug_keep model) cycle in
+  let claim c =
+    last := c;
+    try write c; true
+    with Unix.Unix_error (Unix.EEXIST, _, _) -> false in
+  match mint_unique ~tries ~candidate ~claim with
+  | Some r -> r
+  | None ->
+      err "E_EXISTS" (`Assoc [("run_id", json_str !last)])
+        "Minted run-id collided; retry." 1
 
 let env_or flagv name =
   match flagv with
@@ -2315,16 +2375,8 @@ let do_link_mint args =
            err "E_EXISTS" (`Assoc [("run_id", json_str r)])
              "A run config already exists for that run-id." 1)
     | _ ->
-        let rec gen tries =
-          let cand = Printf.sprintf "%s-%s-%s-%s-c%d" (compact_ts ())
-            edge_label (slug_keep harness_v) (slug_keep model_v) fl.m_cycle in
-          try write_minted cand; cand
-          with Unix.Unix_error (Unix.EEXIST, _, _) ->
-            if tries <= 0 then
-              err "E_EXISTS" (`Assoc [("run_id", json_str cand)])
-                "Minted run-id collided; retry." 1
-            else begin ignore (Unix.select [] [] [] 1.0); gen (tries - 1) end in
-        gen 5 in
+        mint_run_id ~write:write_minted ~edge_label ~harness:harness_v
+          ~model:model_v ~cycle:fl.m_cycle () in
   let hash_hex = sha256_hex token in
   Config.write_file_atomic
     (Filename.concat (Config.links_dir dir) hash_hex) (run_id ^ "\n");
@@ -2640,7 +2692,7 @@ let help_harness = "bp3 harness - harness machinery door. Verbs:\n\
   bp3 harness supervisor <quest> [--engine muse-code|pi] [--timeout-seconds <n>] [--silence-seconds <n>] [--grace-seconds <n>]   passive loop: tell -> watch -> judge -> finalize\n\
   bp3 harness init-check [--engine muse-code|pi]   probe tape sources; blindness is W_SUPERVISOR_BLIND, never blocking\n\
   bp3 harness find-tape --run-id <id> [--entry <id>] [--before-entries <n>] [--after-entries <n>]   InitRecord-first run-id -> tape; --session-id <id> is a reverse lookup\n\
-  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]   blocking watch: sole TERM/KILL owner\n\
+  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>] [--once]   blocking watch: sole TERM/KILL owner; --once folds once and never signals\n\
   bp3 harness desk <verb> ...                      machine-local desks: derive, create, inspect, remove, prepare, check, exit, release, list\n\
   bp3 harness link mint|claim|lookup|cleanup ...   one-time link binding: mint a link, the child claims it once (E_LINK_SPENT, E_DEPTH)\n\
   bp3 harness record-init ...                      retired (E_RETIRED): use link mint/claim; the run config is the InitRecord-equivalent\n\
@@ -2670,12 +2722,13 @@ let help_find_tape = "bp3 harness find-tape - InitRecord-first tape lookup:\n\
 Example: bp3 harness find-tape --run-id 20261115T000000Z-handoff-pi-model-c1\n"
 
 let help_watch = "bp3 harness watch - blocking watch on one Run:\n\
-  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
-  bp3 harness watch --session-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>]\n\
+  bp3 harness watch --run-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>] [--once]\n\
+  bp3 harness watch --session-id <id> [--silence-seconds <n>] [--timeout-seconds <n>] [--grace-seconds <n>] [--once]\n\
+  --once: one read-only fold of the Run as it is now, then exit 0. It never sends TERM or KILL and never waits: a finished Run reports outcome settled; anything else reports outcome snapshot with the current lifecycle word and once: true. The blocking watch stays the sole killer.\n\
   Engine is derived from the Run InitRecord, never stated. Finds the tape like find-tape, then blocks in code: streams NDJSON lifecycle_change rows and ends with one verdict {ok, run_id, harness, session_id, wal, pid, outcome, settled, lifecycle}.\n\
   Finish evidence is per harness, read off the tape tail: muse-code scans whole entries from the end, skipping task entries, and the first non-task entry decides — a session.end entry closes the tape, and a runtime terminal entry is a child tape's exit entry (child tapes carry no close marker and end with task entries after it); pi never closes, so only its last whole entry counts (a session_closed entry or a final assistant entry that stopped is its clean end). Exit plus finish evidence (or settle plus finish evidence) with no live pid is settled; a live pid is never finished. A torn final tape entry finishes nothing and warns W_TORN_TAIL. Silence past --silence-seconds (default 600) sends SIGTERM, waits --grace-seconds (default 1), then SIGKILL: outcome watchdog_killed, lifecycle orphaned, settled false. Finish evidence or a settle row suspends the silence kill; the overall timeout (--timeout-seconds, default 1800) still applies and leaves the pid alone. A missing tape is blindness: W_SUPERVISOR_BLIND in warnings, the pid is still watched, and blindness is never an outcome.\n\
   Identity flags follow find-tape: both, neither, or disagreeing flags are E_USAGE; misses are E_NOT_FOUND; ambiguity is E_AMBIGUOUS. Tape resolution is shared with find-tape, including the own engine-fsm-edge start-order rule for scanned tapes. Durations are bare positive integers; 0, negatives, and suffixed values are E_USAGE.\n\
-  Outcomes and exit classes: settled=0, watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
+  Outcomes and exit classes: settled=0, snapshot=0 (--once only), watchdog_killed=1 (terminal), timeout=3 (retryable), human_gate=4 (needs-human).\n\
 Example: bp3 harness watch --run-id 20261115T000000Z-handoff-pi-model-c1 --silence-seconds 600\n"
 
 let help_desk = "bp3 harness desk - machine-local desks, never ledgered (same Worktree store as the retired bp3 worktree door, which remains its documented alias):\n\

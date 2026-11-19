@@ -1,0 +1,289 @@
+#!/usr/bin/env node
+// fake-bp3 (test-pyramid js.1): a stand-in for the bp3 binary that
+// replays transcripts recorded from the real one, so the JS unit tier
+// launches no real bp3.
+//
+// replay (default): normalize argv, look it up in transcripts.jsonl,
+//   print the recorded stdout/stderr, write the recorded files under
+//   <git-common-dir>/bp3, exit with the recorded code. An argv with no
+//   transcript exits 97 naming it: a fake that guesses would hide drift.
+// record (FAKE_BP3_MODE=record): run the real binary (FAKE_BP3_REAL)
+//   with the same argv, pass its output through, and append the
+//   normalized call to FAKE_BP3_RECORD.
+//
+// Normalizing: the values a call shares with earlier calls (a run's
+// run_id and token, learned from mint's verdict) are replaced by
+// literal value, never by pattern, then the repo root, timestamps,
+// SHAs and this process's pids. A call is keyed by its argv, the env
+// bp3 reads, and the origin of the run it names (the normalized argv
+// of the call that introduced the run), since bp3 answers from the
+// run's state as well as from argv. Replay maps values back: a known
+// run_id or token in argv names its run; a verdict that introduces a
+// run gets a fresh one. State: <git-common-dir>/fake-bp3-state.json.
+import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const transcriptsPath = process.env.FAKE_BP3_TRANSCRIPTS ?? path.join(here, "transcripts.jsonl");
+const mode = process.env.FAKE_BP3_MODE ?? "replay";
+const argv = process.argv.slice(2);
+const cwd = process.cwd();
+// macOS reaches temp dirs as both /var/... and /private/var/...
+const roots = [...new Set([cwd, fs.realpathSync(cwd)].flatMap((r) =>
+  r.startsWith("/private/") ? [r, r.slice("/private".length)] : [r, "/private" + r]))]
+  .sort((a, b) => b.length - a.length);
+const KEYED_ENV = ["PI_SESSION_FILE"];   // env bp3 reads that the caller sets per call
+
+function commonDir() {
+  try {
+    const out = execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return path.resolve(cwd, out);
+  } catch { return null; }
+}
+
+function readState(file) {
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return { runs: [] }; }
+}
+
+// every file under <common>/bp3 but the session dirs the dispatcher writes itself
+function snapshot(dir) {
+  const out = {};
+  const walk = (d) => {
+    let names;
+    try { names = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of names) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) { if (e.name !== "pi-sessions") walk(p); }
+      else if (e.isFile()) out[path.relative(dir, p)] = fs.readFileSync(p, "utf8");
+    }
+  };
+  walk(dir);
+  return out;
+}
+
+const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const pidRe = (pid) => new RegExp(`(?<![0-9])${pid}(?![0-9])`, "g");
+
+// The run this call names: one known run whose run_id or token occurs
+// in any of the texts. Two would be ambiguous, so they are refused.
+function runIn(state, texts) {
+  const hits = state.runs.filter((r) => texts.some((t) => t.includes(r.run_id) || t.includes(r.token)));
+  if (hits.length > 1) die(`a call naming two runs is not supported: ${argv.join(" ")}`, 98);
+  return hits[0] ?? null;
+}
+
+const sha256 = (s) => createHash("sha256").update(s).digest("hex");
+
+// HOME: bp3 reports paths under it (init-check's tape source); after
+// the roots, which may sit under it (run-suites puts TMPDIR in HOME)
+const homes = process.env.HOME ? [...new Set([process.env.HOME, (() => { try { return fs.realpathSync(process.env.HOME); } catch { return process.env.HOME; } })()])] : [];
+
+// bp3 also names files after the root with '/' turned into '_'
+const slugs = roots.map((r) => r.slice(1).split("/").join("_")).sort((a, b) => b.length - a.length);
+
+// bpPid: the real binary's pid in record mode (a claim records its own
+// pid, and later calls on the run copy it): the run keeps the pids of
+// its earlier calls, in order, as <RUN_PID_i>; replay stands in for
+// each with its own pid at that call
+function normalize(text, run, bpPid = null, priorPids = run?.pids ?? []) {
+  let s = text;
+  if (run) s = s.split(run.run_id).join("<RUN_ID>").split(run.token).join("<TOKEN>").split(sha256(run.token)).join("<TOKEN_HASH>");
+  for (const r of slugs) s = s.split(r).join("<ROOT_SLUG>");
+  for (const r of roots) s = s.split(r).join("<ROOT>");
+  for (const h of homes) s = s.split(h).join("<HOME>");
+  s = s.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z/g, "<TS>")
+    .replace(/(?<![0-9A-Za-z])\d{8}T\d{6}Z/g, "<CTS>")
+    .replace(/(?<![0-9a-f])[0-9a-f]{40}(?![0-9a-f])/g, "<SHA>");
+  if (bpPid) s = s.replace(pidRe(bpPid), "<BP3_PID>");
+  priorPids.forEach((pid, i) => { if (pid !== null) s = s.replace(pidRe(pid), `<RUN_PID_${i}>`); });
+  s = s.replace(pidRe(process.pid), "<FAKE_PID>").replace(pidRe(process.ppid), "<CALLER_PID>");
+  // pids the test itself wrote into bp3's files before the call (a live
+  // child it spawned) are named by the file that holds them; replay reads
+  // the pid back from that file, so a pid reported for the wrong run
+  // drifts. Any other pid stays literal, so a changed pid in bp3's own
+  // output drifts too.
+  for (const [pid, rel] of testPids) s = s.replace(pidRe(pid), `<TEST_PID:${rel}>`);
+  return s;
+}
+
+// [pid, normalized path of the first file holding it], from the files
+// under <common>/bp3 before the call
+let testPids = [];
+function pidsIn(files, run, skip) {
+  const out = new Map();
+  for (const p of Object.keys(files).sort()) {
+    for (const m of files[p].matchAll(/"pid":(\d+)/g)) {
+      if (!out.has(m[1]) && !skip.includes(m[1])) out.set(m[1], normalize(p, run));
+    }
+  }
+  return [...out];
+}
+
+function keyedEnv(run) {
+  const env = {};
+  for (const k of KEYED_ENV) if (process.env[k] !== undefined) env[k] = normalize(process.env[k], run);
+  return env;
+}
+
+const keyOf = (row) => JSON.stringify([row.argv, row.env, row.run]);
+
+function die(msg, code) {
+  process.stderr.write(`fake-bp3: ${msg}\n`);
+  process.exit(code);
+}
+
+function lastJson(stdout) {
+  try { return JSON.parse(stdout.trim().split("\n").pop() ?? ""); } catch { return null; }
+}
+
+function record() {
+  const real = process.env.FAKE_BP3_REAL;
+  const out = process.env.FAKE_BP3_RECORD;
+  if (!real || !out) die("record mode needs FAKE_BP3_REAL and FAKE_BP3_RECORD", 2);
+  const common = commonDir();
+  const stateFile = common ? path.join(common, "fake-bp3-record-state.json") : null;
+  const state = stateFile ? readState(stateFile) : { runs: [] };
+  const before = common ? snapshot(path.join(common, "bp3")) : {};
+  const known = [String(process.pid), String(process.ppid), ...state.runs.flatMap((r) => r.pids ?? []).map(String)];
+  testPids = pidsIn(before, runIn(state, [...argv, ...KEYED_ENV.map((k) => process.env[k] ?? "")]), known);
+  const res = spawnSync(real, argv, { cwd, encoding: "utf8", env: process.env });
+  if (res.error) die(`cannot run the real binary ${real}: ${res.error.message}`, 2);
+  const after = common ? snapshot(path.join(common, "bp3")) : {};
+  const files = {};
+  for (const p of new Set([...Object.keys(before), ...Object.keys(after)])) {
+    if (before[p] !== after[p]) files[p] = after[p] ?? null;
+  }
+  // a verdict that names a run nobody knew yet introduces it
+  const verdict = lastJson(res.stdout ?? "");
+  let introduced = null;
+  if (verdict && typeof verdict.run_id === "string" && typeof verdict.token === "string"
+      && !state.runs.some((r) => r.run_id === verdict.run_id)) {
+    introduced = { run_id: verdict.run_id, token: verdict.token, origin: null };
+    state.runs.push(introduced);
+  }
+  // the shape replay mints in: the run_id with its timestamp and random
+  // part blanked, the token with its random tail measured
+  const shape = introduced ? {
+    run_id: introduced.run_id.replace(/^\d{8}T\d{6}(\.\d{3}[0-9a-f]{4})?Z/, "<RUN_TS>"),
+    token_prefix: (introduced.token.match(/^[A-Za-z0-9]+_/) ?? [""])[0],
+    token_len: introduced.token.length,
+  } : null;
+  const texts = [...argv, res.stdout ?? "", res.stderr ?? "", ...Object.keys(files), ...Object.values(files).filter((v) => v !== null),
+    ...KEYED_ENV.map((k) => process.env[k] ?? "")];
+  const run = runIn(state, texts);
+  const nfiles = {};
+  // pids wrap: this call's bp3 may reuse the pid of an earlier call on
+  // the run. The value is stored data (named by its earlier call) when it
+  // already sits in bp3's files before the call, else it is this call's own.
+  let bpPid = res.pid, prior = [...(run?.pids ?? [])];
+  if (prior.includes(bpPid)) {
+    const stored = new RegExp(`(?<![0-9])${bpPid}(?![0-9])`).test(Object.values(before).join("\n"));
+    if (stored) bpPid = null;
+    else prior = prior.map((p) => (p === bpPid ? null : p));
+  }
+  for (const [p, v] of Object.entries(files)) nfiles[normalize(p, run, bpPid, prior)] = v === null ? null : normalize(v, run, bpPid, prior);
+  const nargv = argv.map((a) => normalize(a, run));
+  if (introduced) introduced.origin = JSON.stringify(nargv);
+  const row = {
+    argv: nargv, env: keyedEnv(run), run: run ? run.origin : null, ...(shape ? { shape } : {}), exit: res.status ?? 1,
+    stdout: normalize(res.stdout ?? "", run, bpPid, prior), stderr: normalize(res.stderr ?? "", run, bpPid, prior), files: nfiles,
+  };
+  if (run) run.pids = [...(run.pids ?? []), res.pid];
+  if (run && stateFile) fs.writeFileSync(stateFile, JSON.stringify(state));
+  fs.appendFileSync(out, JSON.stringify(row) + "\n");
+  process.stdout.write(res.stdout ?? "");
+  process.stderr.write(res.stderr ?? "");
+  process.exit(res.status ?? 1);
+}
+
+function hex(n) {
+  let s = "";
+  while (s.length < n) s += Math.floor(Math.random() * 16).toString(16);
+  return s;
+}
+
+function replay() {
+  const common = commonDir();
+  const stateFile = common ? path.join(common, "fake-bp3-state.json") : null;
+  const state = stateFile ? readState(stateFile) : { runs: [] };
+  let run = runIn(state, [...argv, ...KEYED_ENV.map((k) => process.env[k] ?? "")]);
+  const nargv = argv.map((a) => normalize(a, run));
+  // a call naming no known run may introduce one: then its own argv is the origin
+  const key = keyOf({ argv: nargv, env: keyedEnv(run), run: run ? run.origin : JSON.stringify(nargv) });
+  const keyNoRun = keyOf({ argv: nargv, env: keyedEnv(run), run: null });
+  let rows;
+  try {
+    rows = fs.readFileSync(transcriptsPath, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  } catch (e) { die(`cannot read transcripts ${transcriptsPath}: ${e.message}`, 97); }
+  const matches = (k) => rows.filter((r) => keyOf(r) === k);
+  let hits = matches(key);
+  if (hits.length === 0 && !run) hits = matches(keyNoRun);
+  if (hits.length > 1) die(`duplicate transcripts for argv ${JSON.stringify(argv)}: one call, one row`, 96);
+  const row = hits[0];
+  if (!row) die(`no transcript for argv ${JSON.stringify(argv)}; record one with scripts/record-transcripts`, 97);
+  const recorded = [row.stdout, row.stderr, ...Object.keys(row.files), ...Object.values(row.files).filter((v) => v !== null)];
+  if (!run && recorded.some((t) => t.includes("<RUN_ID>") || t.includes("<TOKEN>"))) {
+    const now = new Date();
+    const cts = now.toISOString().replace(/[-:]/g, "").replace(/\.(\d{3})Z$/, ".$1");
+    const shape = row.shape ?? { run_id: "<RUN_TS>-fake-c1", token_prefix: "bp3link_", token_len: 40 };
+    run = {
+      run_id: shape.run_id.replace("<RUN_TS>", `${cts}${hex(4)}Z`),
+      token: shape.token_prefix + hex(Math.max(8, shape.token_len - shape.token_prefix.length)),
+      origin: JSON.stringify(nargv),
+    };
+    state.runs.push(run);
+    if (stateFile) fs.writeFileSync(stateFile, JSON.stringify(state));
+  }
+  let sha = null;
+  // the pid the test wrote into one of bp3's files, read back for replay
+  const testPidFrom = (rel) => {
+    const file = path.join(common ?? cwd, "bp3", denorm(rel));
+    let text = "";
+    try { text = fs.readFileSync(file, "utf8"); } catch { die(`replay needs ${file}, which the test did not write`, 95); }
+    const m = text.match(/"pid":(\d+)/);
+    if (!m) die(`replay needs a pid in ${file}`, 95);
+    return m[1];
+  };
+  const denorm = (s) => {
+    let t = s;
+    if (run) t = t.split("<RUN_ID>").join(run.run_id).split("<TOKEN_HASH>").join(sha256(run.token)).split("<TOKEN>").join(run.token);
+    t = t.split("<ROOT_SLUG>").join(cwd.slice(1).split("/").join("_")).split("<ROOT>").join(cwd)
+      .split("<HOME>").join(process.env.HOME ?? "");
+    (run?.pids ?? []).forEach((pid, i) => { t = t.split(`<RUN_PID_${i}>`).join(String(pid)); });
+    const now = new Date();
+    t = t.split("<TS>").join(now.toISOString().replace(/\.\d{3}Z$/, "Z"))
+      .split("<CTS>").join(now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z"));
+    if (t.includes("<SHA>")) {
+      if (sha === null) {
+        try { sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
+        catch { sha = "0".repeat(40); }
+      }
+      t = t.split("<SHA>").join(sha);
+    }
+    return t.split("<FAKE_PID>").join(String(process.pid)).split("<BP3_PID>").join(String(process.pid))
+      .split("<CALLER_PID>").join(String(process.ppid))
+      .replace(/<TEST_PID:([^>]+)>/g, (_, rel) => testPidFrom(rel));
+  };
+  if (common) {
+    for (const [p, v] of Object.entries(row.files)) {
+      const file = path.join(common, "bp3", denorm(p));
+      if (v === null) fs.rmSync(file, { force: true });
+      else { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, denorm(v)); }
+    }
+  }
+  const stdout = denorm(row.stdout), stderr = denorm(row.stderr);
+  if (run) {
+    run.pids = [...(run.pids ?? []), process.pid];
+    if (stateFile) fs.writeFileSync(stateFile, JSON.stringify(state));
+  }
+  process.stdout.write(stdout);
+  process.stderr.write(stderr);
+  process.exit(row.exit);
+}
+
+if (mode === "record") record();
+else if (mode === "replay") replay();
+else die(`unknown FAKE_BP3_MODE: ${mode}`, 2);

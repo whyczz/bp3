@@ -1,5 +1,6 @@
 // Optional integration check against the real installed Pi resource loader.
 // PI_PACKAGE_ROOT=/path/to/@earendil-works/pi-coding-agent node test/pi-discovery.mjs [project]
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -7,7 +8,8 @@ import path from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {execFileSync} from 'node:child_process';
 
-assert.ok(process.env.PI_PACKAGE_ROOT, 'set PI_PACKAGE_ROOT to an installed Pi package');
+// Opt-in: without an installed Pi package the test is skipped, never failed.
+test('pi discovers every project skill with zero diagnostics', {skip: !process.env.PI_PACKAGE_ROOT && 'set PI_PACKAGE_ROOT to an installed Pi package'}, async () => {
 const repo = fileURLToPath(new URL('..', import.meta.url));
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'bp3-pi-skills-'));
 const previousHome = process.env.HOME;
@@ -53,3 +55,4 @@ try {
   process.env.HOME = previousHome;
   fs.rmSync(scratch, {recursive: true, force: true});
 }
+});
