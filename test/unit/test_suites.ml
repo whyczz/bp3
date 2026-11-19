@@ -57,8 +57,12 @@ let case_serial_is_0_or_1_only _ =
           Suites.parse_row ~where:"t:1" (line [ "a"; "fixture"; "true"; "5"; v; "-"; "-" ])))
     [ "2"; "yes"; "true"; "-" ]
 
-let case_tier_is_fixture_or_slow_and_a_slow_row_needs_a_why _ =
-  refuses ~substr:"tier must be" (fun () -> Suites.parse_row ~where:"t:1" (line [ "a"; "unit"; "true"; "5"; "0"; "-"; "-" ]));
+let case_tier_is_unit_fixture_or_slow_and_a_slow_row_needs_a_why _ =
+  List.iter (fun t -> assert_equal ~printer:Fun.id t (Suites.parse_row ~where:"t:1" (line [ "a"; t; "true"; "5"; "0"; "-"; "-" ])).tier)
+    [ "unit"; "fixture" ];
+  List.iter (fun t -> refuses ~substr:"tier must be unit, fixture or slow" (fun () ->
+      Suites.parse_row ~where:"t:1" (line [ "a"; t; "true"; "5"; "0"; "-"; "-" ])))
+    [ "contract"; "Unit"; "fast" ];
   refuses ~substr:"needs a why" (fun () -> Suites.parse_row ~where:"t:1" (line [ "a"; "slow"; "true"; "5"; "0"; "-"; "-" ]))
 
 let case_the_table_skips_comments_and_blanks_and_names_the_line_it_refuses _ =
@@ -171,7 +175,7 @@ let () =
        "case_a_suite_name_never_escapes_the_run_dir" >:: case_a_suite_name_never_escapes_the_run_dir;
        "case_budget_must_be_a_positive_decimal_integer" >:: case_budget_must_be_a_positive_decimal_integer;
        "case_serial_is_0_or_1_only" >:: case_serial_is_0_or_1_only;
-       "case_tier_is_fixture_or_slow_and_a_slow_row_needs_a_why" >:: case_tier_is_fixture_or_slow_and_a_slow_row_needs_a_why;
+       "case_tier_is_unit_fixture_or_slow_and_a_slow_row_needs_a_why" >:: case_tier_is_unit_fixture_or_slow_and_a_slow_row_needs_a_why;
        "case_the_table_skips_comments_and_blanks_and_names_the_line_it_refuses" >:: case_the_table_skips_comments_and_blanks_and_names_the_line_it_refuses;
        "case_a_duplicate_name_and_an_empty_table_are_refused" >:: case_a_duplicate_name_and_an_empty_table_are_refused;
        "case_select_keeps_table_order_and_refuses_an_unknown_only_name" >:: case_select_keeps_table_order_and_refuses_an_unknown_only_name;

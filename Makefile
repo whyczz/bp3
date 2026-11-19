@@ -1,4 +1,4 @@
-.PHONY: check check-fast check-changed test lint release publish install
+.PHONY: check check-full check-fast check-changed test lint release publish install
 
 # This host's default MacOSX27.2 SDK ships a libpthread.tbd the linker
 # cannot parse ("unknown architecture"); the 26.5 SDK links cleanly.
@@ -7,37 +7,22 @@ MAC_SDK := $(shell if [ -d /Library/Developer/CommandLineTools/SDKs/MacOSX26.5.s
 DUNE_BUILD = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune build$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
 DUNE_TEST = $(if $(MAC_SDK),SDKROOT=$(MAC_SDK) ,)dune test$(if $(findstring /.bp3/worktrees/,$(CURDIR)), --root=.,)
 
+# Gates (test-pyramid tier.2). Every suite lives in test/suites.tsv,
+# tagged unit, fixture or slow; the gates pick tiers, never suites.
+#   check       the inner loop: lint, dune test, the unit tier (seconds)
+#   check-full  the grade/land gate: check plus the fixture and slow tiers
 check: lint
-	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
-	./test/skills.sh
 	$(DUNE_BUILD) src/quest/main.exe src/quest/run_suites.exe
 	$(DUNE_TEST)
-	./test/g.sh
-	./test/ready.sh
-	./test/diagram.sh
-	./test/blocked.sh
-	./test/js-unit.sh
-	./test/harness.sh
-	./test/run-suites.sh
-	./test/config.sh
-	./test/link.sh
-	./test/mode.sh
-	./test/dogfood-link.sh
-	./test/dogfood-parallel.sh
-	./test/context.sh
-	node --test extensions/bp3-pi/test/bp3-pi-real.test.mjs
-	./test/transcripts.sh
-	./test/worktree.sh
-	./test/tape.sh
-	./test/cleanliness.sh
-	./test/hooks.sh
-	./test/induct.sh
-	./test/completion.sh
-	./test/release.sh
-	./test/install.sh
+	./scripts/run-suites --tier unit
 
+check-full: check
+	./scripts/run-suites --tier fixture,slow
+
+# shellcheck targets are derived (every suite's script, every shell
+# script in the repo), never listed: scripts/shell-files
 lint:
-	shellcheck bin/bp3 scripts/check-skills test/skills.sh test/g.sh test/ready.sh test/diagram.sh test/blocked.sh test/harness.sh test/harness/*.sh test/run-suites.sh test/run-suites/*.sh scripts/run-suites test/js-unit.sh test/transcripts.sh test/config.sh test/link.sh test/mode.sh test/dogfood-link.sh test/dogfood-parallel.sh test/context.sh test/worktree.sh test/tape.sh test/cleanliness.sh test/hooks.sh test/induct.sh test/completion.sh test/release.sh test/install.sh completions/bp3.bash scripts/release-check scripts/install-bp3.sh scripts/bp3-shim scripts/release-publish
+	shellcheck $$(./scripts/shell-files)
 	node --check test/pi-tree.test.mjs
 	node --check test/fake-bp3/bp3
 	node --check scripts/record-transcripts
@@ -46,15 +31,11 @@ lint:
 	node --check skills/induct/workflows/induct-grade.js
 	node --check skills/induct/workflows/induct-land.js
 
-test:
-	./test/skills.sh
+# aliases kept for muscle memory: both are the inner loop
+check-fast: check
+test: check
 
-# --- check tiers (node-followup-6-check-tiers): per-cycle fast and
-# change-scoped verification. Full `check` above is unchanged and
-# stays the grade/land gate. Suite table: scripts/check-changed.sh.
-check-fast:
-	./scripts/check-changed.sh --fast
-
+# change-scoped: the sweep, check, then the suites whose paths match
 check-changed:
 	./scripts/check-changed.sh
 

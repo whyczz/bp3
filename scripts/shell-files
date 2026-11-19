@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# shell-files (test-pyramid tier.2): the shellcheck targets for make
+# lint, derived, never listed by hand. Every shell script a suite in
+# test/suites.tsv runs (the cmd column's script), plus every other
+# shell script in the repo: a .sh or .bash file, or a file whose first
+# line is a sh/bash shebang. Tracked and untracked-but-not-ignored
+# files count; docs/ (quest records, run notes) does not. Sorted,
+# one path per line.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+cd "$root"
+is_shell() {
+  case "$1" in *.sh|*.bash) return 0 ;; esac
+  local first
+  first=$(head -c 64 "$1" 2>/dev/null | head -1) || return 1
+  case "$first" in '#!/bin/sh'*|'#!/bin/bash'*|'#!/usr/bin/env sh'*|'#!/usr/bin/env bash'*) return 0 ;; esac
+  return 1
+}
+{
+  # the suites' own scripts: the first path-like word of each cmd
+  while IFS=$'\t' read -r name _tier cmd _rest; do
+    case "$name" in ''|'#'*) continue ;; esac
+    for word in $cmd; do
+      w=${word#./}
+      if [ -f "$w" ]; then is_shell "$w" && echo "$w"; break; fi
+    done
+  done < test/suites.tsv
+  git ls-files --cached --others --exclude-standard | while IFS= read -r f; do
+    case "$f" in docs/*) continue ;; esac
+    [ -f "$f" ] && is_shell "$f" && echo "$f"
+  done
+} | LC_ALL=C sort -u

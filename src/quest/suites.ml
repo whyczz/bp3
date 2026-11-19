@@ -15,6 +15,10 @@ let fail fmt = Printf.ksprintf (fun s -> raise (Table_error s)) fmt
 
 let all_digits s = s <> "" && String.for_all (fun c -> c >= '0' && c <= '9') s
 
+(* The tiers, fastest first: unit runs in `make check`, fixture and slow
+   join it in `make check-full` (test-pyramid tier.2). *)
+let tiers = [ "unit"; "fixture"; "slow" ]
+
 (* One row: exactly 7 tab-separated fields, '-' for an empty one. *)
 let parse_row ~where line =
   let fields = String.split_on_char '\t' line in
@@ -29,7 +33,7 @@ let parse_row ~where line =
           (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
           || c = '-' || c = '_' || c = '.') name in
       if not name_ok then fail "%s: suite name must be letters, digits, '-', '_' or '.', not starting with '.': %s" where name;
-      if tier <> "fixture" && tier <> "slow" then fail "%s: tier must be fixture or slow: %s" where tier;
+      if not (List.mem tier tiers) then fail "%s: tier must be unit, fixture or slow: %s" where tier;
       let budget_s = match int_of_string_opt budget with
         | Some b when all_digits budget && b > 0 -> b
         | _ -> fail "%s: budget_s must be a positive integer: %s" where budget in
@@ -54,7 +58,7 @@ let parse_table ~file text =
   if !rows = [] then fail "empty suite table: %s" file;
   List.rev !rows
 
-let valid_tier t = t = "fixture" || t = "slow"
+let valid_tier t = List.mem t tiers
 
 (* Rows in table order whose tier is listed and, when [only] is given,
    whose name is in it; an unknown [only] name is an error. *)

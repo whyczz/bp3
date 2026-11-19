@@ -23,11 +23,11 @@ let usage msg = prerr_endline ("run-suites: " ^ msg); exit 2
 let help = {|run-suites — parallel suite runner (test-pyramid tier.1).
 Table: one row per suite, tab-separated, '#' starts a comment,
 '-' marks an empty field:
-  name  tier(fixture|slow)  cmd  budget_s  serial(0|1)  why  paths
+  name  tier(unit|fixture|slow)  cmd  budget_s  serial(0|1)  why  paths
 A slow row must carry a why. Budgets are hand-set integers (hang
 guards). A relative --table is read from the caller's directory.
 Usage:
-  scripts/run-suites [--tier fixture,slow] [--only a,b] [--table f]
+  scripts/run-suites [--tier unit,fixture,slow] [--only a,b] [--table f]
                      [--jobs n] [--list] [--report]
 --list prints the selected names in table order and runs nothing.
 --report adds an actual-vs-budget table after the run.
@@ -76,7 +76,7 @@ let () =
   let caller_cwd = Sys.getcwd () in
   let root = match Sys.getenv_opt "RUN_SUITES_ROOT" with Some r when r <> "" -> r | _ -> caller_cwd in
   let table = ref (Filename.concat root "test/suites.tsv") in
-  let tiers = ref "fixture,slow" and only = ref None and jobs = ref None in
+  let tiers = ref (String.concat "," Suites.tiers) and only = ref None and jobs = ref None in
   let list = ref false and report = ref false in
   let rec args = function
     | [] -> ()
@@ -93,7 +93,7 @@ let () =
   args (List.tl (Array.to_list Sys.argv));
   if !tiers = "" then usage "--tier needs a value";
   let tier_list = String.split_on_char ',' !tiers in
-  List.iter (fun t -> if not (Suites.valid_tier t) then usage ("unknown tier: " ^ t ^ " (fixture or slow)")) tier_list;
+  List.iter (fun t -> if not (Suites.valid_tier t) then usage ("unknown tier: " ^ t ^ " (unit, fixture or slow)")) tier_list;
   if !only = Some "" then usage "--only needs a value";
   if not (Sys.file_exists !table) then usage ("no suite table: " ^ !table);
   let jobs = match !jobs with

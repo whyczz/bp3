@@ -46,7 +46,8 @@ other repos point at it.
 ./bin/bp3 e                            # claimed edge door: resolved context
 ./bin/bp3 n r                          # claimed node door: read own node
 dune build src/quest/main.exe          # (make check does this)
-make check                             # lint, skills, CLI fixture tests
+make check                             # inner loop: lint, dune test, unit tier (seconds)
+make check-full                        # grade/land gate: check + fixture and slow tiers
 ```
 
 Two independent dimensions: `goal_type` is the plan (stages and
@@ -71,5 +72,6 @@ to the exact commit reviewed.
 - Integration branch is `master`. Quest work lives on
   `quest/<slug>` branches until the human promotes it. Commits
   use the bp3 format (TL;DR, For humans, For LLMs) via `/commit`.
-- Verify with `make check` and say plainly what was not run.
+- Verify with `make check` while working and `make check-full`
+  before handoff (the grade/land gate); say plainly what was not run.
   Never claim a gate passed that was dropped or skipped.
