@@ -52,26 +52,37 @@ checks=$((checks + 1))
 make -C "$repo" -s -n lint | grep -qx './scripts/check-gates' || fail "make lint does not run scripts/check-gates"
 "$repo/scripts/check-gates" > /dev/null || fail "check-gates fails on the real Makefile"
 checks=$((checks + 2))
-gates_break() { # name sed-script expected-message
-  sed "$2" "$repo/Makefile" > "$work/Makefile.$1"
+# Planted Makefiles, built with awk (no sed newline quirks): each break
+# must fail check-gates, naming the reason.
+plant_swap()   { awk -v o="$2" -v n="$3" '{ if ($0 == o) print n; else print }' "$repo/Makefile" > "$work/Makefile.$1"; }
+plant_after()  { awk -v o="$2" -v n="$3" '{ print; if ($0 == o) print n }' "$repo/Makefile" > "$work/Makefile.$1"; }
+plant_drop()   { awk -v o="$2" '$0 != o' "$repo/Makefile" > "$work/Makefile.$1"; }
+plant_append() { { cat "$repo/Makefile"; printf '%s\n' "$2"; } > "$work/Makefile.$1"; }
+gates_fail() { # name expected-message
   cmp -s "$repo/Makefile" "$work/Makefile.$1" && fail "gates-$1: the planted break changed nothing"
   if "$repo/scripts/check-gates" --makefile "$work/Makefile.$1" > "$work/gates-$1.out" 2>&1; then fail "gates-$1: a broken Makefile passed check-gates"; fi
-  grep -qF -- "$3" "$work/gates-$1.out" || fail "gates-$1: wrong reason: $(cat "$work/gates-$1.out")"
+  grep -qF -- "$2" "$work/gates-$1.out" || fail "gates-$1: wrong reason: $(cat "$work/gates-$1.out")"
   checks=$((checks + 1))
 }
-gates_break no-unit '/run-suites --tier unit$/d' 'make check does not run: ./scripts/run-suites --tier unit'
-gates_break full-no-tiers 's|^\t\./scripts/run-suites$|\t./scripts/run-suites --tier slow|' 'make check-full does not run every tier'
-gates_break full-no-lint 's/^check-full: lint ocaml$/check-full: ocaml/' 'make check-full does not run: shellcheck'
-gates_break full-no-dune 's/^check-full: lint ocaml$/check-full: lint/' 'make check-full does not run: dune test'
-gates_break fast-differs 's/^check-fast: check$/check-fast: lint/' 'make check-fast is not make check'
-gates_break suite-in-makefile 's|^\t\./scripts/run-suites --tier unit$|&\n\tbash test/g.sh|' "suite g's script test/g.sh is named outside test/suites.tsv"
+unit=$'\t./scripts/run-suites --tier unit'; every=$'\t./scripts/run-suites'
+plant_drop no-unit "$unit";                                   gates_fail no-unit 'make check stops after 6 of 7 steps'
+plant_swap unit-or-true "$unit" "$unit || true";              gates_fail unit-or-true 'the Makefile ignores errors'
+plant_swap full-ignore "$every" $'\t-./scripts/run-suites';  gates_fail full-ignore "ignores errors ('-' prefix)"
+plant_append dot-ignore '.IGNORE:';                           gates_fail dot-ignore 'the Makefile ignores errors'
+plant_swap full-one-tier "$every" "$every --tier slow";       gates_fail full-one-tier 'make check-full step 7 is not the'
+plant_swap full-no-lint 'check-full: lint ocaml' 'check-full: ocaml';  gates_fail full-no-lint 'make check-full step 1 is not the'
+plant_swap full-no-dune 'check-full: lint ocaml' 'check-full: lint';   gates_fail full-no-dune 'make check-full step 5 is not the'
+plant_swap fast-differs 'check-fast: check' 'check-fast: lint';        gates_fail fast-differs 'make check-fast is not make check'
+plant_after suite-bash "$unit" $'\tbash test/g.sh';           gates_fail suite-bash 'make check has an extra step: bash test/g.sh'
+plant_after suite-dot "$unit" $'\t./test/./g.sh';             gates_fail suite-dot 'make check has an extra step: ./test/./g.sh'
+plant_swap check-only "$unit" $'\t./scripts/check-retired-terms.sh';   gates_fail check-only 'make check step 7 is not the'
 # 5. Lint's targets are derived and cover every suite's script.
 "$repo/scripts/shell-files" > "$work/shell.txt"
 while IFS= read -r f; do
   grep -qx "$f" "$work/shell.txt" || fail "lint misses suite script $f"
 done < <(awk -F'\t' '$1 !~ /^#/ && $1 != "" { n = split($3, w, " "); for (i = 1; i <= n; i++) if (w[i] ~ /\.sh$/) print w[i] }' "$repo/test/suites.tsv" | sed 's|^\./||' | sort -u)
 # shellcheck disable=SC2016  # the Makefile's literal $$
-grep -q 'shellcheck \$\$(./scripts/shell-files)' "$repo/Makefile" || fail "make lint does not derive its shellcheck targets"
+grep -qF 'files=$$(./scripts/shell-files) && [ -n "$$files" ] && shellcheck $$files' "$repo/Makefile" || fail "make lint does not derive its shellcheck targets"
 checks=$((checks + 2))
 # 5b. check-changed's run half, end to end, with make and run-suites
 # stubbed: the sweep, then make check, then run-suites on exactly the

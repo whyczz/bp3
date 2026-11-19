@@ -1,38 +1,72 @@
 #!/usr/bin/env bash
-# check-gates (test-pyramid tier.2): the gates' wiring, checked from
-# lint, which both gates run first, so a broken gate fails in itself
-# rather than silently proving less. Read with `make -n`:
-#   check       runs lint, dune test and the unit tier
-#   check-full  runs lint, dune test and every tier (all of check)
-#   check-fast and test are check
-# and no suite's script is named in the Makefile or check-changed.sh:
-# test/suites.tsv is the only list. test/check-tiers.sh (fixture tier)
-# plants each break and checks that lint still runs this script.
+# check-gates (test-pyramid tier.2): the gates' exact shape, checked
+# from lint, which both gates run first, so a broken gate fails in
+# itself rather than silently proving less. An allowlist, not a
+# denylist: `make -n check` must be exactly these steps, in order,
+#   ./scripts/check-gates
+#   the shellcheck run over scripts/shell-files (refusing an empty list)
+#   ./scripts/check-skills over the four skill trees
+#   node --check over scripts/shell-files --node (refusing an empty list)
+#   dune build of both binaries (SDKROOT= and --root=. allowed)
+#   dune test
+#   ./scripts/run-suites --tier unit
+# and `make -n check-full` must be the same plan with the last step
+# `./scripts/run-suites` (every tier), so check-full runs all of check.
+# check-fast and test are check. The Makefile may not ignore errors
+# anywhere: no '-' recipe prefix, no .IGNORE, no MAKEFLAGS, no
+# '|| true'. Any other line (a suite run by hand, however spelled) fails:
+# test/suites.tsv is the only list of suites. check-changed.sh names no
+# test path but the table. Changing a gate means changing this file.
+# test/check-tiers.sh (fixture tier) plants each break and checks that
+# lint still runs this script.
 #   scripts/check-gates [--makefile f]
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mk="$root/Makefile"
-[ "${1:-}" = --makefile ] && { mk=$2; }
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --makefile) [ $# -ge 2 ] || { echo "check-gates: --makefile needs a value" >&2; exit 2; }
+      case "$2" in /*) mk=$2 ;; *) mk="$PWD/$2" ;; esac; shift ;;
+    *) echo "check-gates: unknown argument: $1" >&2; exit 2 ;;
+  esac
+  shift
+done
 fail() { echo "check-gates: FAIL: $*" >&2; exit 1; }
 plan() { make -s -C "$root" -f "$mk" -n "$1" 2>/dev/null || fail "make -n $1 failed"; }
-check=$(plan check); full=$(plan check-full)
-for need in 'shellcheck ' 'dune test' './scripts/run-suites --tier unit'; do
-  grep -qF -- "$need" <<< "$check" || fail "make check does not run: $need"
-done
-for need in 'shellcheck ' 'dune test'; do
-  grep -qF -- "$need" <<< "$full" || fail "make check-full does not run: $need"
-done
-grep -qx './scripts/run-suites' <<< "$full" || fail "make check-full does not run every tier (./scripts/run-suites)"
-[ "$(plan check-fast)" = "$check" ] || fail "make check-fast is not make check"
-[ "$(plan test)" = "$check" ] || fail "make test is not make check"
-# a suite's script, however it is spelled, never appears outside the table
-while IFS=$'\t' read -r name _tier cmd _; do
-  case "$name" in ''|'#'*) continue ;; esac
-  for word in $cmd; do
-    w=${word#./}
-    [ -f "$root/$w" ] || continue
-    if grep -qF -- "$w" "$mk" "$root/scripts/check-changed.sh"; then fail "suite $name's script $w is named outside test/suites.tsv"; fi
-    break
-  done
-done < "$root/test/suites.tsv"
+
+# ignore-errors hides a red gate, and make -n does not print it
+if grep -nE $'^\t[@+]*-' "$mk" > /dev/null; then fail "a recipe line ignores errors ('-' prefix): $(grep -nE $'^\t[@+]*-' "$mk" | head -1)"; fi
+if grep -nE '^\.IGNORE|^[[:space:]]*MAKEFLAGS|\|\|[[:space:]]*(true|:)([[:space:]]|$)' "$mk" > /dev/null; then
+  fail "the Makefile ignores errors: $(grep -nE '^\.IGNORE|^[[:space:]]*MAKEFLAGS|\|\|[[:space:]]*(true|:)([[:space:]]|$)' "$mk" | head -1)"
+fi
+
+dune='(SDKROOT=[^ ]+ )?dune'
+# shellcheck disable=SC2016  # regexes matched against make -n output, not expansions
+steps=(
+  '\./scripts/check-gates'
+  'files=\$\(\./scripts/shell-files\) && \[ -n "\$files" \] && shellcheck \$files'
+  '\./scripts/check-skills skills \.pi/skills \.agents/skills \.claude/skills'
+  'files=\$\(\./scripts/shell-files --node\) && \[ -n "\$files" \] && for f in \$files; do node --check "\$f" \|\| exit 1; done'
+  "$dune build( --root=\\.)? src/quest/main\\.exe src/quest/run_suites\\.exe"
+  "$dune test( --root=\\.)?"
+)
+match_plan() { # gate last-step-regex
+  local gate=$1 last=$2 i=0 line
+  local want=("${steps[@]}" "$last")
+  while IFS= read -r line; do
+    [ $i -lt ${#want[@]} ] || fail "make $gate has an extra step: $line"
+    [[ $line =~ ^${want[$i]}$ ]] || fail "make $gate step $((i + 1)) is not the gate's: $line"
+    i=$((i + 1))
+  done < <(plan "$gate")
+  [ $i = ${#want[@]} ] || fail "make $gate stops after $i of ${#want[@]} steps"
+}
+match_plan check '\./scripts/run-suites --tier unit'
+match_plan check-full '\./scripts/run-suites'
+[ "$(plan check-full | sed '$d')" = "$(plan check | sed '$d')" ] || fail "make check-full does not run all of check"
+[ "$(plan check-fast)" = "$(plan check)" ] || fail "make check-fast is not make check"
+[ "$(plan test)" = "$(plan check)" ] || fail "make test is not make check"
+# the selector reads the table and names no suite itself
+if grep -n 'test/' "$root/scripts/check-changed.sh" | grep -v 'test/suites\.tsv' > /dev/null; then
+  fail "check-changed.sh names a test path besides the table: $(grep -n 'test/' "$root/scripts/check-changed.sh" | grep -v 'test/suites\.tsv' | head -1)"
+fi
 echo "check-gates: ok"

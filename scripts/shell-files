@@ -31,7 +31,7 @@ is_node() {
 if [ "$mode" = --node ]; then
   git ls-files --cached --others --exclude-standard | while IFS= read -r f; do
     case "$f" in docs/*) continue ;; esac
-    [ -f "$f" ] && is_node "$f" && echo "$f"
+    if [ -f "$f" ] && is_node "$f"; then echo "$f"; fi
   done | LC_ALL=C sort -u
   exit 0
 fi
@@ -42,11 +42,11 @@ fi
     case "$name" in ''|'#'*) continue ;; esac
     for word in $cmd; do
       w=${word#./}
-      if [ -f "$w" ]; then is_shell "$w" && echo "$w"; break; fi
+      if [ -f "$w" ]; then if is_shell "$w"; then echo "$w"; fi; break; fi
     done
   done < test/suites.tsv
   git ls-files --cached --others --exclude-standard | while IFS= read -r f; do
     case "$f" in docs/*) continue ;; esac
-    [ -f "$f" ] && is_shell "$f" && echo "$f"
+    if [ -f "$f" ] && is_shell "$f"; then echo "$f"; fi
   done
 } | LC_ALL=C sort -u
