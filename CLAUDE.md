@@ -22,7 +22,7 @@ docs/quests/<quest>/     one folder per quest, flat, never moved
   state.yaml             GENERATED: stage, commit, cycle (a cache)
   ledger.jsonl           GENERATED: every move, append-only (truth)
   runs/<id>/             tape.log (verbatim), notes.md (lessons)
-plans/<type>.yaml        goal_type plans (default: one review round)
+plans/<type>.yaml        goal_type plans (default: up to three review rounds)
 src/quest/main.ml        the state engine (OCaml, yojson + unix)
 docs/dossiers/           research records; they inform, never decide
 nodes/ inside each quest folder: one record per node
@@ -60,8 +60,9 @@ to the exact commit reviewed.
 - Teach before building: when a quest or design is new, teach the
   concepts back to the human (concept, before, change, after,
   bites, transfer cues) and get the nod before implementation.
-- One review round by default (`max_cycles: 1`): a second
-  `fix_first` escalates to the human instead of looping.
+- Up to three review rounds by default (`max_cycles: 3`, owner
+  2026-11-19): a `needs_fix` below the cap returns the node to
+  todo for another round; one at the cap escalates to the human.
 - Ledger is truth; `state.yaml` is its cache. Refused moves are
   ledgered too. Only clean commits move — dirty worktrees are
   never state.

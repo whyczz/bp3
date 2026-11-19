@@ -40,6 +40,9 @@ fs.copyFileSync(qBin, path.join(repo, "g-bin"));
 for (const f of fs.readdirSync(path.join(repoRoot, "plans"))) {
   if (f.endsWith(".yaml")) fs.copyFileSync(path.join(repoRoot, "plans", f), path.join(repo, "plans", f));
 }
+// fixtures assert one review round, whatever the shipped default says
+const defaultPlan = path.join(repo, "plans", "default.yaml");
+fs.writeFileSync(defaultPlan, fs.readFileSync(defaultPlan, "utf8").replace(/^max_cycles: .*$/m, "max_cycles: 1"));
 execFileSync("git", ["init", "-q", "-b", "master", repo]);
 execFileSync("git", ["-C", repo, "config", "user.email", "t@t.t"]);
 execFileSync("git", ["-C", repo, "config", "user.name", "t"]);

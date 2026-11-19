@@ -746,7 +746,7 @@ let rec run argv =
       print_verdict ~fmt:"json" (Worktree.run rest); 0
   | "init-repo" :: _ ->
       (* Node 6: scaffold plans/ into the caller's repo; never clobber differing plans *)
-      let plans = [("plans/default.yaml", "goal_type: default\nmax_cycles: 1\ngrade:\n  required: true\nverify: required\n");
+      let plans = [("plans/default.yaml", "goal_type: default\nmax_cycles: 3\ngrade:\n  required: true\nverify: required\n");
                    ("plans/direct.yaml", "goal_type: direct\nmax_cycles: 0\ngrade:\n  required: false\nverify: required\n")] in
       (try Unix.mkdir (Filename.concat root "plans") 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
       List.iter (fun (rel, content) ->

@@ -11,6 +11,7 @@ mkdir -p "$work/repo/bin" "$work/repo/plans"
 cp "$root/bin/bp3" "$work/repo/bin/"
 cp "$root/_build/default/src/quest/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"
+perl -pi -e 's/^max_cycles: .*/max_cycles: 1/' "$work/repo/plans/default.yaml"  # fixtures assert one review round
 cd "$work/repo"
 git init -q -b master
 git config user.email t@t.t; git config user.name t
