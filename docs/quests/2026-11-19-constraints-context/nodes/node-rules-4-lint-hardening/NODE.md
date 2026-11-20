@@ -78,7 +78,7 @@ shebang = parse("#!/usr/bin/env -S node --x")  # -> node, not -S
 |---|---|
 | Intent | the lint stays trusted: no false alarms on ordinary shell, no easy smuggling |
 | Lane | standard (changes a lint step that gates both gates) |
-| Output | `scripts/check-constraints`, `test/check-constraints.sh` |
+| Output | `scripts/check-constraints`, `test/check-constraints.sh`, `CONSTRAINTS.md` (the zsh `runs-in` and its sign-off row) |
 | Acceptance | the planted rows below; fail today on c8c5a99's script |
 | Depends on | rules.2 - constraints-lint |
 
@@ -86,7 +86,7 @@ shebang = parse("#!/usr/bin/env -S node --x")  # -> node, not -S
 |---|---|---|
 | missing CONSTRAINTS.md | bug | exit 2, `no constraints block` |
 | comment-skip unpinned | bug | `# old: git log \| python3 x` passes; the mutant without the skip fails |
-| zsh allowed everywhere | bug | `zsh -c true` in a bash script fails `interpreter zsh` |
+| zsh allowed everywhere | bug | `zsh -c true` in a bash script fails `interpreter zsh`; a planted `runs-in` file passes (owner, 2026-11-20: "The file and its test": CONSTRAINTS.md's zsh line gains `runs-in test/completion.sh` with a sign-off row) |
 | trailing comment with `;` `(` `\|` | false positive | `git status  # was (perl -pi) once` passes |
 | heredoc body | false positive | a `<<'EOF'` body line starting `perl` passes |
 | case arm alternatives | false positive | `ruby\|python3) echo ;;` passes |

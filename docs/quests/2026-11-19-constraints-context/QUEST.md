@@ -63,6 +63,7 @@ about perl and python; see the correction):
 | where the purge lives | its own node, rules.3 stack-purge (follow-up); rules.2 depends on it, so the lint lands on a clean repo |
 | base-system utilities (grep, head, tr, sort, ...) for bash | "Add a `posix` word": the bash libs line gains `posix`, with a sign-off row (rides with read.1) |
 | the rules.2 grader's lint holes | "rules.4 follow-up node": three bugs, four false positives and the missed command positions, each a planted row |
+| what zsh's grandfathering covers | "The file and its test": the zsh line gains `runs-in test/completion.sh`; zsh runs nowhere else (rules.4) |
 
 Census on master, 2026-11-19 (`git ls-files`, shebangs, imports):
 
