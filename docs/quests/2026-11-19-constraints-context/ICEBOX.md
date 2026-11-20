@@ -1,7 +1,7 @@
 ---
 status: frozen
 date: 2026-11-19
-promoted: null
+promoted: docs/quests/2026-11-19-constraints-context/
 ---
 
 # CONSTRAINTS.md and CONTEXT.md: plans and reviews check against them
