@@ -61,6 +61,8 @@ about perl and python; see the correction):
 | 12 perl one-liners in 11 test files | "Replace with sed" |
 | `scripts/migrate-quest-rename.sh` (done migration, perl) | "Delete it": the check-tiers fossil case moves to `scripts/migrate-graph-rename.sh` |
 | where the purge lives | its own node, rules.3 stack-purge (follow-up); rules.2 depends on it, so the lint lands on a clean repo |
+| base-system utilities (grep, head, tr, sort, ...) for bash | "Add a `posix` word": the bash libs line gains `posix`, with a sign-off row (rides with read.1) |
+| the rules.2 grader's lint holes | "rules.4 follow-up node": three bugs, four false positives and the missed command positions, each a planted row |
 
 Census on master, 2026-11-19 (`git ls-files`, shebangs, imports):
 
@@ -207,6 +209,7 @@ data        ext .md .json .jsonl .yaml .tsv .txt .mmd .conf  files Makefile Brew
 | [rules.1 - constraints-file](nodes/node-rules-1-constraints-file/NODE.md) | CONSTRAINTS.md: the signed stack, one block, a sign-off log |
 | [rules.2 - constraints-lint](nodes/node-rules-2-constraints-lint/NODE.md) | `scripts/check-constraints` in `make lint`: unlisted language, interpreter or library is red |
 | [rules.3 - stack-purge (follow-up)](nodes/node-rules-3-stack-purge/NODE.md) | remove the perl and python the census missed, so rules.2 lands green: sed for perl, the Ctrl-C probe without a pty, the done migration deleted |
+| [rules.4 - lint-hardening (follow-up)](nodes/node-rules-4-lint-hardening/NODE.md) | the lint stops crying wolf on trailing comments, heredocs and case arms, catches interpreters after if/then/do/xargs/& and make's @, scopes zsh to its one file |
 
 ### Milestone: ctx
 
@@ -286,5 +289,6 @@ None open. Settled at approval, 2026-11-20:
 rules.1 constraints-file ──┐
 rules.3 stack-purge ───────┴──► rules.2 constraints-lint ──┐
 dossier (framing) ──► ctx.1 context-file ──────────────────┼──► read.1 readers
+rules.2 constraints-lint ──► rules.4 lint-hardening (follow-up, after read.1)
                      (rules.* and ctx.1 share no files; run alongside)
 ```
