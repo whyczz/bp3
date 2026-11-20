@@ -213,4 +213,20 @@ for s in induct induct-inline induct-yolo using-bp3; do
   assert grep -q 'make check-full' "$repo/skills/$s/SKILL.md"
 done
 
+# constraints-context read.1: plans and grades read CONSTRAINTS.md and
+# CONTEXT.md, in the sources and in every harness render. One rule each.
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  q="$repo/$dir/quest/SKILL.md" r="$repo/$dir/red-ink/SKILL.md" i="$repo/$dir/induct-inline/SKILL.md"
+  assert grep -q '^| 2 | Research the ground.*`CONSTRAINTS.md`.*`CONTEXT.md`' "$q"
+  assert grep -q '^| 7 | .*\*\*constraints pass\*\*.*`/teach` pitch and the owner.s words before approval' "$q"
+  assert grep -q '^| 7 | .*\*\*common-sense pass\*\*.*older than 90 days' "$q"
+  assert grep -q 'step 7.s two fixed passes: the \*\*constraints pass\*\*' "$r"
+  assert grep -q 'is `needs_fix`, \*\*owner class\*\*: never' "$i"
+  assert grep -q 'new dated \*\*owner-words row\*\* in its Sign-off log is' "$i"
+done
+# CLAUDE.md and AGENTS.md stay identical and link both files.
+assert cmp -s "$repo/CLAUDE.md" "$repo/AGENTS.md"
+assert grep -q '\[CONSTRAINTS.md\](CONSTRAINTS.md)' "$repo/CLAUDE.md"
+assert grep -q '\[CONTEXT.md\](CONTEXT.md)' "$repo/CLAUDE.md"
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"

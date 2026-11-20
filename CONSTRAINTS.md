@@ -17,7 +17,7 @@ lang"). The `data` line lists the files that are not code.
 
 ```constraints
 lang ocaml  ext .ml .mli  files dune dune-project    libs stdlib unix str yojson ounit2 qcheck-core qcheck-ounit
-lang bash   ext .sh .bash  shebang bash sh           libs git jq yq sed awk find mktemp make gh shellcheck yamllint
+lang bash   ext .sh .bash  shebang bash sh           libs posix git jq yq sed awk find mktemp make gh shellcheck yamllint
 lang zsh    files completions/_bp3                    libs (completion builtins only)
 lang node   ext .mjs .js .ts  shebang node           libs node:* @earendil-works/pi-coding-agent
 data        ext .md .json .jsonl .yaml .tsv .txt .mmd .conf  files Makefile Brewfile .gitignore
@@ -32,7 +32,10 @@ Why some lines look the way they do:
   not an invitation to write zsh elsewhere.
 - **node** has no npm dependencies: builtins, plus type imports from
   the pi package the extension runs inside.
-- **bash** `libs` are the tools scripts run. The lint checks Brewfile
+- **bash** `libs` are the tools scripts run. `posix` means the POSIX
+  and macOS base-system utilities (grep, head, tr, sort, cut, wc, cat,
+  kill, ps, date, sleep, tar, ...); anything outside the base system
+  (fzf, rg, expect) still needs a pitch. The lint checks Brewfile
   entries against this line; a script calling an unlisted tool with
   no Brewfile entry is for the grader to catch.
 
@@ -75,3 +78,4 @@ Removing something works the same way.
 | Date | Who | Owner's words | What it signed |
 |---|---|---|---|
 | 2026-11-20 | owner | "Approve as-is" (approval of `docs/quests/2026-11-19-constraints-context/`) | the Languages block and the Surfaces table as written; zsh grandfathered for `completions/_bp3` |
+| 2026-11-20 | owner | "Add a `posix` word" (asked whether base-system utilities need listing one by one) | `posix` in the bash libs line: POSIX and macOS base-system utilities |

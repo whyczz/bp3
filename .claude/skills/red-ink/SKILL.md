@@ -168,7 +168,12 @@ walk itself is the middle):
   concerns go to Deliberately open. A critical/major
   concern with neither a reopened slice nor an node
   blocks the exit pack: do not present a clean settle
-  over it.
+  over it. The closing red chair always runs `quest`
+  step 7's two fixed passes: the **constraints pass**
+  against `CONSTRAINTS.md` (an addition outside it is
+  at least major, and only the owner's words settle
+  it) and the **common-sense pass** against
+  `CONTEXT.md`.
 
 ## Nodes
 

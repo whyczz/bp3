@@ -68,14 +68,14 @@ because a gate that starts green certifies nothing.
 | # | Step | Gate before moving on |
 |---|---|---|
 | 1 | Sync: play the intent back (iiuc) when it can be read two ways | human confirms the read |
-| 2 | Research the ground: MVP doc, home repo state, prior Quests in `docs/quests/` | every claim traces to a file read this session |
+| 2 | Research the ground: MVP doc, home repo state, prior Quests in `docs/quests/`, and the root `CONSTRAINTS.md` (the owner-signed stack) and `CONTEXT.md` (how others build this, sourced and dated) | every claim traces to a file read this session |
 | 3 | Ask questions whose answers change the shape: home repo, success picture, lane, first node | the rest become assumptions or open questions in the file |
 | 4 | Names first, under a Concepts/Terms header, with `naming` | every term defined in one line before any node spends it |
 | 5 | Draft `docs/quests/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) | one Quest per file |
 | 6 | Break into nodes with failing-today acceptance | a check that cannot fail gets rewritten |
 | 6.5 | Diligence gate per node: design settled (no open questions), acceptance fails today, acceptance gates defined up front | an node with open design questions is not ready for `induct`; settle it with `red-ink` first — Node 4 of the MVP quest shipped unsettled design and the landing review caught it late |
 | 6.6 | Skill changes ride as their own node | if the Quest's changes touch any skill (bp3 `skills/`, yap skills, installed copies), name a skill-change node with its own acceptance (skill tests, render/install assertions); never edit a skill inline during framing, and never fold a skill change into a code node — skills are how children behave, so they get the same gate as code |
-| 7 | Red-chair passes on goal, scope, node order | strongest attack + what it changed, recorded |
+| 7 | Red-chair passes on goal, scope, node order, plus two fixed passes. The **constraints pass**: does the plan add a language, library or surface outside `CONSTRAINTS.md`? Each addition needs a `/teach` pitch and the owner's words before approval. The **common-sense pass**: how would another team build this (`CONTEXT.md`), and why do we differ? Re-run a claim's saved search first when it is older than 90 days | strongest attack + what it changed, recorded; both passes recorded, "none" allowed |
 | 7.5 | Red-chair the source itself: the icebox entry or the owner's prompt (its assumptions, wrong problem, boring alternative), before approving the draft built on it | every **critical or major** concern ends in exactly one of two places: settled by a recorded change to the design it attacked, or appended as a **follow-up node** (next numbers on the railway, labeled `(follow-up)`) whose acceptance proves the design addressed it. A critical/major concern left as prose in Risks, or with neither settlement nor node, blocks approval |
 | 8 | Stage fat nodes as substeps inside their milestone (`mvp.1.1`, `mvp.1.2`, ...) | each substep passes on its own |
 
