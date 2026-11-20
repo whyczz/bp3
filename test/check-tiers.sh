@@ -132,7 +132,7 @@ done
 # migration rename table quoting retired spellings pass.
 mkdir -p "$work/fossil/scripts" "$work/fossil/skills/demo" "$work/fossil/docs/quests/g/nodes/n/runs/r1"
 cp "$sweep" "$work/fossil/scripts/"
-cp "$repo/scripts/migrate-quest-rename.sh" "$work/fossil/scripts/"
+cp "$repo/scripts/migrate-graph-rename.sh" "$work/fossil/scripts/"
 printf -- '---\nname: demo\ndescription: demo\n---\nClean.\n' > "$work/fossil/skills/demo/SKILL.md"
 printf '{"old":"docs/goals/g/GOAL.md"}\n' > "$work/fossil/docs/quests/g/ledger.jsonl"
 printf 'quoted EXPERIMENT.md in run notes\n' > "$work/fossil/docs/quests/g/nodes/n/runs/r1/notes.md"

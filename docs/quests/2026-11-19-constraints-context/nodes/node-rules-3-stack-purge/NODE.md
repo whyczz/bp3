@@ -10,7 +10,7 @@ status: proposed
 ## TL;DR
 
 The signed stack has no perl or python, but the repo still runs both:
-perl one-liners in 13 test files and in a finished migration script,
+13 perl one-liners in 12 test files and one in a finished migration script,
 and a python3 pty driver behind the Ctrl-C probes in
 `test/run-suites.sh`. This node removes them by the owner's three
 calls (2026-11-20). The perl lines become sed. The migration script
@@ -26,7 +26,7 @@ Observed today:
 $ git ls-files | grep -v '^docs/' | grep -v '\.md$' | xargs grep -l -E '(^|[;&|(]|=[^ ]* )[[:space:]]*(perl|python3?)[[:space:]]'
 scripts/migrate-quest-rename.sh
 test/blocked.sh
-... (13 test files)
+... (12 test files)
 test/run-suites.sh
 ```
 
@@ -59,7 +59,7 @@ done when:
 ## Diagram
 
 ```text
-13 tests: perl -pi -e 's/^max_cycles…/'  ──► sed 's/^max_cycles…/' f > f.tmp && mv f.tmp f
+12 tests: perl -pi -e 's/^max_cycles…/'  ──► sed 's/^max_cycles…/' f > f.tmp; mv f.tmp f
 migrate-quest-rename.sh (done 2026-11-18)  ──► git rm; check-tiers fossil ──► migrate-graph-rename.sh
 run-suites.sh 2c: python3 pty.fork, type ^C ──► set -m; runner & (own pgid); kill -INT -- -pgid
                                                  (a terminal sends ^C to its foreground process group)
@@ -70,7 +70,7 @@ run-suites.sh 2c: python3 pty.fork, type ^C ──► set -m; runner & (own pgid
 ```python
 for f in thirteen_tests:
     replace(f, "perl -pi -e 's/^max_cycles: .*/max_cycles: 1/' P",
-               "sed 's/^max_cycles: .*/max_cycles: 1/' P > P.tmp && mv P.tmp P")
+               "sed 's/^max_cycles: .*/max_cycles: 1/' P > P.tmp; mv P.tmp P")   # `;` not `&&`: set -e skips a failure left of &&
 git_rm("scripts/migrate-quest-rename.sh"); drop_exemption_row(sweep); fossil_case.use("migrate-graph-rename.sh")
 for keys, code in [("int", 130), ("int3", 130), ("quit", 131)]:
     rpid = start_in_own_process_group(runner, only="hold")   # set -m; & ; set +m
@@ -86,7 +86,7 @@ for keys, code in [("int", 130), ("int3", 130), ("quit", 131)]:
 |---|---|
 | Intent | the repo matches the stack the owner signed, before the lint enforces it |
 | Lane | standard (edits the runner's signal probes, where tier.1 spent six rounds) |
-| Output | 13 test files, `test/run-suites.sh`, `test/check-tiers.sh`, `scripts/check-retired-terms.sh`; `scripts/migrate-quest-rename.sh` deleted |
+| Output | 12 test files, `test/run-suites.sh`, `test/check-tiers.sh`, `scripts/check-retired-terms.sh`; `scripts/migrate-quest-rename.sh` deleted |
 | Acceptance | the grep returns nothing; run-suites probes pass and fail on a planted non-reaping runner; check-full green |
 | Depends on | none (rules.2 depends on this) |
 
