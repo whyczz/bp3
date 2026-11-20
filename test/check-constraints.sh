@@ -32,8 +32,9 @@ printf '{"name": "x"}\n' > "$clean/ext/package.json"
 printf 'brew "jq"\n' > "$clean/Brewfile"
 printf 'notes\n' > "$clean/notes.txt"
 mkdir -p "$clean/docs" && printf 'print(1)\n' > "$clean/docs/sketch.py"   # docs/ is prose
-# rules.4: near misses that must pass (comments, heredoc bodies, case
-# arms, a lookup), a lang with no shebang, an env -S shebang, a Makefile
+# rules.4: near misses that must pass (comments, case arms, lookups,
+# quotes nested in $( ) and ${ }), a lang with no shebang, an env -S
+# shebang, a Makefile. Heredoc bodies are read as code (a row below).
 mkdir -p "$clean/completions"
 printf '#compdef x\n' > "$clean/completions/_x"
 printf '#!/usr/bin/env bash\nzsh -c true\n' > "$clean/scripts/zt"   # runs-in: zsh may run here
@@ -43,17 +44,14 @@ cat > "$clean/scripts/near" <<'EOF'
 #!/usr/bin/env bash
 # old: git log | python3 x
 git status  # was (perl -pi) once
-cat <<'DOC'
-perl is only named here; python3 | ruby too
-DOC
 case "$1" in
   ruby|python3) echo "named, not run" ;;
 esac
 command -v python3 > /dev/null
 command -pv python3 > /dev/null
-cat <<\DOC
-perl is only named in a backslash heredoc
-DOC
+echo "$(printf "%s" "it's")"
+echo "${MSG:-"it's unset"}"
+true;# it's fine
 x=$((1 << 2)); y=$(( x<<1 ))
 IFS=$'\t' read -r a b <<< "$x"
 EOF
@@ -131,9 +129,29 @@ want dashdoc 1 'check-constraints: FAIL scripts/tool:8: interpreter perl not in 
 plant quotedlt;  printf 'echo "<<X" ; cat <<EOF\nbody\nEOF\npython3 real\n' >> "$work/quotedlt/scripts/tool"
 want quotedlt 1 'check-constraints: FAIL scripts/tool:8: interpreter python3 not in CONSTRAINTS.md'
 plant unclosed;  printf 'cat <<EOF\nperl x\n' >> "$work/unclosed/scripts/tool"
-want unclosed 1 'check-constraints: FAIL scripts/tool:5: heredoc <<EOF never closes, so the rest of the file goes unread'
+want unclosed 1 'check-constraints: FAIL scripts/tool:6: interpreter perl not in CONSTRAINTS.md'
 plant openq;     printf 'echo "never closed\nperl x\n' >> "$work/openq/scripts/tool"
-want openq 1 'check-constraints: FAIL scripts/tool:5: a quote opened here never closes, so the rest of the file goes unread'
+want openq 1 'check-constraints: FAIL scripts/tool:6: interpreter perl not in CONSTRAINTS.md'
+# rules.4 round 3 (grader at 61420a4; owner: "Never skip a line"): no
+# line is skipped, so nothing can hide a call that runs
+plant heredocfp; printf "cat <<'EOF'\nperl is named here\nEOF\n" >> "$work/heredocfp/scripts/tool"
+want heredocfp 1 'check-constraints: FAIL scripts/tool:6: interpreter perl not in CONSTRAINTS.md'   # stated false positive: a heredoc body is read as code
+plant mlsubst
+# shellcheck disable=SC2016  # a literal $( planted into the script
+printf 'out="$(\n  perl -e 1\n)"\n' >> "$work/mlsubst/scripts/tool"
+want mlsubst 1 'check-constraints: FAIL scripts/tool:6: interpreter perl not in CONSTRAINTS.md'
+plant nestedq
+# shellcheck disable=SC2016  # literal $( planted into the script
+printf 'msg="$(printf "%%s" "it'"'"'s")"\nperl real\nmsg2="$(printf "%%s" "that'"'"'s")"\n' >> "$work/nestedq/scripts/tool"
+want nestedq 1 'check-constraints: FAIL scripts/tool:6: interpreter perl not in CONSTRAINTS.md'
+plant makewarn
+# shellcheck disable=SC2016  # literal make $( planted into the Makefile
+printf '$(warning X isn'"'"'t set)\nall2:\n\tperl x\n$(info that'"'"'s it)\n' >> "$work/makewarn/Makefile"
+want makewarn 1 'check-constraints: FAIL Makefile:5: interpreter perl not in CONSTRAINTS.md'
+plant makespace; printf '\t- @perl x\n' >> "$work/makespace/Makefile"
+want makespace 1 'check-constraints: FAIL Makefile:3: interpreter perl not in CONSTRAINTS.md'
+plant envq;      printf "env 'X=1' perl x\n" >> "$work/envq/scripts/tool"
+want envq 1 'check-constraints: FAIL scripts/tool:5: interpreter perl not in CONSTRAINTS.md'
 plant nohup;     printf 'nohup ruby x &\n' >> "$work/nohup/scripts/tool"
 want nohup 1 'check-constraints: FAIL scripts/tool:5: interpreter ruby not in CONSTRAINTS.md'
 plant crlf;      printf '#!/bin/bash\r\necho hi\r\n' > "$work/crlf/scripts/crlf"
