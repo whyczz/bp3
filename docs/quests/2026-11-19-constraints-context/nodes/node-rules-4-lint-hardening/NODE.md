@@ -88,7 +88,7 @@ shebang = parse("#!/usr/bin/env -S node --x")  # -> node, not -S
 | comment-skip unpinned | bug | `# old: git log \| python3 x` passes; the mutant without the skip fails |
 | zsh allowed everywhere | bug | `zsh -c true` in a bash script fails `interpreter zsh`; a planted `runs-in` file passes (owner, 2026-11-20: "The file and its test": CONSTRAINTS.md's zsh line gains `runs-in test/completion.sh` with a sign-off row) |
 | trailing comment with `;` `(` `\|` | false positive | `git status  # was (perl -pi) once` passes |
-| heredoc body | false positive | a `<<'EOF'` body line starting `perl` passes |
+| heredoc body | stated false positive (round 3) | a `<<'EOF'` body line starting `perl` FAILs: no line is skipped (owner, 2026-11-20: "Never skip a line") |
 | case arm alternatives | false positive | `ruby\|python3) echo ;;` passes |
 | `env -S` shebang | false positive | `#!/usr/bin/env -S node --no-warnings` passes as node |
 | `if` `then` `do` `!` `{` `time` | false negative | `if python3 x; then :; fi` fails |
@@ -96,7 +96,9 @@ shebang = parse("#!/usr/bin/env -S node --x")  # -> node, not -S
 | Makefile `@` `-` `+` | false negative | `\t@python3 x` in a Makefile fails |
 | make prefix stripped from every word (round 1) | fail open | `\tenv -i python3 x` and `\tgit ls-files \| xargs -0 perl -pi` in a Makefile fail |
 | false heredoc start hid the file (round 1) | fail open | `x=$((1 << n))`, `<<END-OF`, `echo "<<X" ; cat <<EOF` each followed by a real `perl`/`python3` that fails |
-| a heredoc or quote that never closes | fail closed | FAIL naming the line, never a silent blind spot |
+| a heredoc or quote that never closes | never blind (round 3) | the next line's real call still FAILs: no state crosses lines |
+| multi-line `"$(` ... `)"`, nested quotes in `"$( )"` / `${ }`, `;#`, make apostrophes (round 2) | fail open / cry wolf | `out="$(\n perl -e 1\n)"` and a `perl` between two `"$(printf "%s" "it's")"` lines FAIL; the nested-quote lines alone pass |
+| `env 'X=1' perl`, make `\t- @perl` (round 2) | fail open | both FAIL |
 | deleted or directory-symlink paths (round 1) | fail open | a tracked .sh deleted from disk is skipped and later files are still scanned; a dir symlink is skipped |
 | CRLF shebang, `command -pv`, `<<\EOF`, `nohup` | follow-up | planted near misses and a nohup row |
 

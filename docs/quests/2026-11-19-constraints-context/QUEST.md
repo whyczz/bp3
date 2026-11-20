@@ -64,6 +64,7 @@ about perl and python; see the correction):
 | base-system utilities (grep, head, tr, sort, ...) for bash | "Add a `posix` word": the bash libs line gains `posix`, with a sign-off row (rides with read.1) |
 | the rules.2 grader's lint holes | "rules.4 follow-up node": three bugs, four false positives and the missed command positions, each a planted row |
 | what zsh's grandfathering covers | "The file and its test": the zsh line gains `runs-in test/completion.sh`; zsh runs nowhere else (rules.4) |
+| rules.4 round 3, after two needs_fix rounds on a growing shell parser | "Never skip a line": per-line scan, no state across lines, no heredoc skipping; heredoc bodies are a stated false positive |
 
 Census on master, 2026-11-19 (`git ls-files`, shebangs, imports):
 
