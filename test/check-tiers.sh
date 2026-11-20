@@ -48,8 +48,9 @@ while IFS= read -r u; do units+=("$u"); done < <(awk -F'\t' '$2 == "unit" { prin
 # both gates run first; lint must keep running it, and each planted
 # break must fail it by name.
 make -C "$repo" -s -n lint | grep -qx './scripts/check-gates' || fail "make lint does not run scripts/check-gates"
+make -C "$repo" -s -n lint | grep -qx './scripts/check-constraints' || fail "make lint does not run scripts/check-constraints"
 "$repo/scripts/check-gates" > /dev/null || fail "check-gates fails on the real Makefile"
-checks=$((checks + 2))
+checks=$((checks + 3))
 # Planted Makefiles, built with awk (no sed newline quirks): each break
 # must fail check-gates, naming the reason.
 plant_swap()   { awk -v o="$2" -v n="$3" '{ if ($0 == o) print n; else print }' "$repo/Makefile" > "$work/Makefile.$1"; }
@@ -63,17 +64,18 @@ gates_fail() { # name expected-message
   checks=$((checks + 1))
 }
 unit=$'\t./scripts/run-suites --tier unit'; every=$'\t./scripts/run-suites'
-plant_drop no-unit "$unit";                                   gates_fail no-unit 'make check stops after 6 of 7 steps'
+plant_drop no-unit "$unit";                                   gates_fail no-unit 'make check stops after 7 of 8 steps'
 plant_swap unit-or-true "$unit" "$unit || true";              gates_fail unit-or-true 'the Makefile ignores errors'
 plant_swap full-ignore "$every" $'\t-./scripts/run-suites';  gates_fail full-ignore "ignores errors ('-' prefix)"
 plant_append dot-ignore '.IGNORE:';                           gates_fail dot-ignore 'the Makefile ignores errors'
-plant_swap full-one-tier "$every" "$every --tier slow";       gates_fail full-one-tier 'make check-full step 7 is not the'
+plant_swap full-one-tier "$every" "$every --tier slow";       gates_fail full-one-tier 'make check-full step 8 is not the'
 plant_swap full-no-lint 'check-full: lint ocaml' 'check-full: ocaml';  gates_fail full-no-lint 'make check-full step 1 is not the'
-plant_swap full-no-dune 'check-full: lint ocaml' 'check-full: lint';   gates_fail full-no-dune 'make check-full step 5 is not the'
+plant_swap full-no-dune 'check-full: lint ocaml' 'check-full: lint';   gates_fail full-no-dune 'make check-full step 6 is not the'
 plant_swap fast-differs 'check-fast: check' 'check-fast: lint';        gates_fail fast-differs 'make check-fast is not make check'
 plant_after suite-bash "$unit" $'\tbash test/g.sh';           gates_fail suite-bash 'make check has an extra step: bash test/g.sh'
 plant_after suite-dot "$unit" $'\t./test/./g.sh';             gates_fail suite-dot 'make check has an extra step: ./test/./g.sh'
-plant_swap check-only "$unit" $'\t./scripts/check-retired-terms.sh';   gates_fail check-only 'make check step 7 is not the'
+plant_swap check-only "$unit" $'\t./scripts/check-retired-terms.sh';   gates_fail check-only 'make check step 8 is not the'
+plant_drop no-stack $'\t./scripts/check-constraints';           gates_fail no-stack 'make check step 2 is not the'
 # 5. Lint's targets are derived and cover every suite's script.
 "$repo/scripts/shell-files" > "$work/shell.txt"
 while IFS= read -r f; do

@@ -4,6 +4,7 @@
 # itself rather than silently proving less. An allowlist, not a
 # denylist: `make -n check` must be exactly these steps, in order,
 #   ./scripts/check-gates
+#   ./scripts/check-constraints (the owner-signed stack, CONSTRAINTS.md)
 #   the shellcheck run over scripts/shell-files (refusing an empty list)
 #   ./scripts/check-skills over the four skill trees
 #   node --check over scripts/shell-files --node (refusing an empty list)
@@ -44,6 +45,7 @@ dune='(SDKROOT=[^ ]+ )?dune'
 # shellcheck disable=SC2016  # regexes matched against make -n output, not expansions
 steps=(
   '\./scripts/check-gates'
+  '\./scripts/check-constraints'
   'files=\$\(\./scripts/shell-files\) && \[ -n "\$files" \] && shellcheck \$files'
   '\./scripts/check-skills skills \.pi/skills \.agents/skills \.claude/skills'
   'files=\$\(\./scripts/shell-files --node\) && \[ -n "\$files" \] && for f in \$files; do node --check "\$f" \|\| exit 1; done'
