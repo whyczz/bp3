@@ -58,7 +58,7 @@ about perl and python; see the correction):
 | Question | Call |
 |---|---|
 | python3 pty driver in `test/run-suites.sh` | "Rewrite without a pty": SIGINT and SIGQUIT go to the runner's process group, as a terminal sends them |
-| 13 perl one-liners in 12 test files | "Replace with sed" |
+| 12 perl one-liners in 11 test files | "Replace with sed" |
 | `scripts/migrate-quest-rename.sh` (done migration, perl) | "Delete it": the check-tiers fossil case moves to `scripts/migrate-graph-rename.sh` |
 | where the purge lives | its own node, rules.3 stack-purge (follow-up); rules.2 depends on it, so the lint lands on a clean repo |
 
@@ -69,7 +69,7 @@ Census on master, 2026-11-19 (`git ls-files`, shebangs, imports):
   shebangs), and zsh (`completions/_bp3`).
 - **No perl or python.** The test-pyramid deletion and the OCaml
   runner removed them. **Wrong** (corrected 2026-11-20, while building
-  rules.2): perl runs in 12 test files (13 lines) and in
+  rules.2): perl runs in 11 test files (12 lines) and in
   `scripts/migrate-quest-rename.sh`, and `test/run-suites.sh` runs a
   python3 pty driver. The census grep failed on `\b` and missed
   interpreters after a `VAR=value` prefix. rules.3 removes them.
