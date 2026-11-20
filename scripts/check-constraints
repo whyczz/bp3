@@ -47,7 +47,9 @@ lib_ok() { # lang name: a libs word matches it exactly or as a glob (node:*)
 }
 fails=0
 fail() { echo "check-constraints: FAIL $1: $2 not in CONSTRAINTS.md"; fails=$((fails + 1)); }
-files=$(git ls-files | grep -v -E '^docs/|\.md$')
+# tracked code; docs/ and *.md are prose. A path that is not a file on
+# disk (deleted and unstaged, a symlink to a directory) is skipped.
+files=$(git ls-files | grep -v -E '^docs/|\.md$' | while IFS= read -r f; do if [ -f "$f" ]; then echo "$f"; fi; done)
 # one pass: each file's language, or its FAIL reason
 langmap=$(awk '
   NR == FNR { m[$1 SUBSEP $2] = $3; next }   # the rows, then the file list
@@ -56,13 +58,14 @@ langmap=$(awk '
     else if (("files" SUBSEP base) in m) lang = m["files" SUBSEP base]
     else if (base ~ /\./) { ext = base; sub(/^[^.]*/, "", ext); sub(/^.*\./, ".", ext)
       if (("ext" SUBSEP ext) in m) lang = m["ext" SUBSEP ext]; else { print "?\t" f "\tlanguage " ext; next } }
-    else { first = ""; getline first < f; close(f)
+    else { first = ""; getline first < f; close(f); sub(/\r$/, "", first)
       if (first !~ /^#!/) { print "?\t" f "\tlanguage (no extension, no shebang)"; next }
       sub(/^#![ \t]*/, "", first); k = split(first, W, /[ \t]+/); interp = W[1]; sub(/^.*\//, "", interp)
       if (interp == "env") { for (j = 2; j <= k && W[j] ~ /^-/; j++); interp = W[j] }
       if (("shebang" SUBSEP interp) in m) lang = m["shebang" SUBSEP interp]
       else { print "?\t" f "\tlanguage " interp " (shebang)"; next } }
-    print lang "\t" f }' <(printf '%s\n' "$rows") - <<< "$files")
+    print lang "\t" f }' <(printf '%s\n' "$rows") - <<< "$files") ||
+  { echo "check-constraints: FAIL: the language pass failed" >&2; exit 1; }
 while IFS=$'\t' read -r lang f why; do
   if [ "$lang" = "?" ]; then fail "$f" "$why"; fi
 done <<< "$langmap"
@@ -71,40 +74,71 @@ while IFS=$'\t' read -r lang f; do
   case "$lang" in bash) shells+=("$f") ;; node) nodes+=("$f") ;; esac
   if [ "$f" = Makefile ]; then shells+=("$f"); fi
 done <<< "$(grep -v '^?' <<< "$langmap" || true)"
-# interpreters in command position
+# interpreters in command position; a scan that cannot read a file fails
 allowed=$(awk '$1 == "shebang" { print $2 }' <<< "$rows" | tr '\n' ' ')
 runs_in=$(awk '$1 == "runs-in" { print $2 ":" $3 }' <<< "$rows" | tr '\n' ' ')
 known="python python2 python3 perl ruby php lua tclsh osascript Rscript deno bun fish zsh node bash sh ocaml"
+hits=
 if [ ${#shells[@]} -gt 0 ]; then
-  while IFS= read -r hit; do fail "${hit% *}" "interpreter ${hit##* }"; done < <(
-    awk -v known="$known" -v allowed="$allowed" -v runs_in="$runs_in" '
-      BEGIN { n = split(known, K, " "); for (i = 1; i <= n; i++) isk[K[i]] = 1
-              n = split(allowed, A, " "); for (i = 1; i <= n; i++) ok[A[i]] = 1
-              n = split(runs_in, A, " "); for (i = 1; i <= n; i++) { split(A[i], p, ":"); here[p[1] SUBSEP p[2]] = 1 }
-              n = split("if then do else elif while until ! { } time", X, " "); for (i = 1; i <= n; i++) rsv[X[i]] = 1
-              n = split("env exec command xargs nohup", X, " "); for (i = 1; i <= n; i++) wrp[X[i]] = 1 }
-      FNR == 1 { doc = "" }
-      doc != "" { t = $0; sub(/^\t+/, "", t); if (t == doc) doc = ""; next }   # heredoc body
-      { line = $0
-        gsub(/"([^"\\]|\\.)*"/, "\"\"", line); gsub(/\047[^\047]*\047/, "", line)   # strings are words
-        sub(/(^|[ \t])#.*$/, "", line)                                               # comments, whole-line or trailing
-        # a heredoc starts where << survives the blanking; its word comes from the raw line
-        if (index(line, "<<") && !index(line, "<<<") && match($0, /<<-?[ \t]*["\047]?[A-Za-z_][A-Za-z0-9_]*/)) {
-          doc = substr($0, RSTART, RLENGTH); gsub(/^<<-?[ \t]*["\047]?/, "", doc) }
-        sub(/^[ \t]*\(?[^()[:space:]]*\)/, "", line)                                 # case arm pattern
-        gsub(/\$\(|`|\|\||&&|[|;(&]/, "\n", line); s = split(line, seg, "\n")
-        for (j = 1; j <= s; j++) {
-          w = split(seg[j], W, /[[:space:]]+/); wrap = ""
-          for (k = 1; k <= w; k++) {
-            t = W[k]
-            if (FILENAME ~ /(^|\/)Makefile$/) sub(/^[@+-]+/, "", t)
-            if (t == "" || t ~ /^[A-Za-z_][A-Za-z0-9_]*=/ || (t in rsv)) continue
-            if (wrap != "" && t ~ /^-/) { if (wrap == "command" && t ~ /^-[vV]$/) break; continue }
-            if (t in wrp) { wrap = t; continue }
-            sub(/^.*\//, "", t)
-            if ((t in isk) && !(t in ok) && !((FILENAME SUBSEP t) in here)) print FILENAME ":" FNR " " t
-            break } } }' "${shells[@]}")
+  hits=$(awk -v known="$known" -v allowed="$allowed" -v runs_in="$runs_in" '
+    # code(l): the line with strings as "" and comments cut. q (the open
+    # quote) carries across lines. A heredoc word after << (not <<<, not
+    # inside (( ))) goes to hd; quotes and backslashes around it drop.
+    function code(l,   out, i, j, c, n, w) {
+      out = ""; n = length(l)
+      for (i = 1; i <= n; i++) {
+        c = substr(l, i, 1)
+        if (q == "s") { if (c == "\047") { q = ""; out = out "\"\"" } continue }
+        if (q != "") { if (c == "\\") i++; else if ((q == "d" && c == "\"") || (q == "a" && c == "\047")) { q = ""; out = out "\"\"" } continue }
+        if (c == "\\") { out = out substr(l, i, 2); i++; continue }
+        if (c == "$" && substr(l, i + 1, 1) == "\047") { q = "a"; qat = FILENAME ":" FNR; i++; continue }   # ANSI-C quoting
+        if (c == "\047") { q = "s"; qat = FILENAME ":" FNR; continue }
+        if (c == "\"") { q = "d"; qat = FILENAME ":" FNR; continue }
+        if (c == "#" && (i == 1 || substr(l, i - 1, 1) ~ /[ \t]/)) break
+        if (c == "<" && substr(l, i + 1, 1) == "<") {
+          if (substr(l, i + 2, 1) == "<") { out = out "<<<"; i += 2; continue }
+          if (gsub(/\(\(/, "&", out) > gsub(/\)\)/, "&", out)) { out = out "<<"; i++; continue }   # a shift
+          j = i + 2; if (substr(l, j, 1) == "-") j++
+          while (substr(l, j, 1) ~ /[ \t]/) j++
+          w = ""; for (; j <= n && substr(l, j, 1) !~ /[ \t;|&<>()]/; j++) if (substr(l, j, 1) !~ /["\047\\]/) w = w substr(l, j, 1)
+          if (w != "") hd = w
+          out = out "<<" w; i = j - 1; continue }
+        out = out c }
+      return out }
+    function unclosed() { if (doc != "") print docat " heredoc " doc; if (q != "") print qat " quote " q }   # fail closed, never blind
+    BEGIN { n = split(known, K, " "); for (i = 1; i <= n; i++) isk[K[i]] = 1
+            n = split(allowed, A, " "); for (i = 1; i <= n; i++) ok[A[i]] = 1
+            n = split(runs_in, A, " "); for (i = 1; i <= n; i++) { split(A[i], p, ":"); here[p[1] SUBSEP p[2]] = 1 }
+            n = split("if then do else elif while until ! { } time", X, " "); for (i = 1; i <= n; i++) rsv[X[i]] = 1
+            n = split("env exec command xargs nohup", X, " "); for (i = 1; i <= n; i++) wrp[X[i]] = 1 }
+    FNR == 1 { unclosed(); doc = ""; q = "" }
+    END { unclosed() }
+    doc != "" { t = $0; sub(/^\t+/, "", t); if (t == doc) doc = ""; next }   # heredoc body
+    { hd = ""; line = code($0)
+      if (hd != "") { doc = hd; docat = FILENAME ":" FNR }                         # skip its body
+      if (FILENAME ~ /(^|\/)Makefile$/) sub(/^\t[@+-]+/, "\t", line)              # make prefixes, recipe start only
+      sub(/^[ \t]*\(?[^()[:space:]]*\)/, "", line)                                 # case arm pattern
+      gsub(/\$\(|`|\|\||&&|[|;(&]/, "\n", line); s = split(line, seg, "\n")
+      for (j = 1; j <= s; j++) {
+        w = split(seg[j], W, /[[:space:]]+/); wrap = ""
+        for (k = 1; k <= w; k++) {
+          t = W[k]
+          if (t == "" || t ~ /^[A-Za-z_][A-Za-z0-9_]*=/ || (t in rsv)) continue
+          if (wrap != "" && t ~ /^-/) { if (wrap == "command" && t ~ /^-[A-Za-z]*[vV]/) break; continue }
+          if (t in wrp) { wrap = t; continue }
+          sub(/^.*\//, "", t)
+          if ((t in isk) && !(t in ok) && !((FILENAME SUBSEP t) in here)) print FILENAME ":" FNR " " t
+          break } } }' "${shells[@]}") ||
+    { echo "check-constraints: FAIL: the interpreter scan could not read every file" >&2; exit 1; }
 fi
+while IFS= read -r hit; do
+  case "$hit" in
+    '') ;;
+    *" heredoc "*) echo "check-constraints: FAIL ${hit%% *}: heredoc <<${hit##* } never closes, so the rest of the file goes unread"; fails=$((fails + 1)) ;;
+    *" quote "*) echo "check-constraints: FAIL ${hit%% *}: a quote opened here never closes, so the rest of the file goes unread"; fails=$((fails + 1)) ;;
+    *) fail "${hit% *}" "interpreter ${hit##* }" ;;
+  esac
+done <<< "$hits"
 # declared libraries, per language; a library this repo defines is not one
 dunes=$(grep -E '(^|/)dune$' <<< "$files" || true)
 internal=$(for f in $dunes; do tr '\n' ' ' < "$f"; done | { grep -o -E '\((public_)?name [^)]+\)' || true; } | awk '{ print $2 }' | tr -d ')')

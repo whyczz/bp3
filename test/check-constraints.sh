@@ -50,6 +50,12 @@ case "$1" in
   ruby|python3) echo "named, not run" ;;
 esac
 command -v python3 > /dev/null
+command -pv python3 > /dev/null
+cat <<\DOC
+perl is only named in a backslash heredoc
+DOC
+x=$((1 << 2)); y=$(( x<<1 ))
+IFS=$'\t' read -r a b <<< "$x"
 EOF
 (cd "$clean" && git init -q && git add -A)
 run() { # case-dir -> rc, output in $work/<case>.out
@@ -110,6 +116,36 @@ want makeat 1 'check-constraints: FAIL Makefile:3: interpreter python3 not in CO
 # a language with no shebang runs only where runs-in says (scripts/zt), not here
 plant zsh;       printf 'zsh -c true\n' >> "$work/zsh/scripts/tool"
 want zsh 1 'check-constraints: FAIL scripts/tool:5: interpreter zsh not in CONSTRAINTS.md'
+# rules.4 round 2 (grader at 0ccf25d): make prefixes only at a recipe's
+# start, a heredoc never blinds the scan, unreadable paths fail closed
+plant makeenv;   printf '\tenv -i python3 x\n' >> "$work/makeenv/Makefile"
+want makeenv 1 'check-constraints: FAIL Makefile:3: interpreter python3 not in CONSTRAINTS.md'
+plant makexargs; printf '\tgit ls-files | xargs -0 perl -pi\n' >> "$work/makexargs/Makefile"
+want makexargs 1 'check-constraints: FAIL Makefile:3: interpreter perl not in CONSTRAINTS.md'
+plant arith
+# shellcheck disable=SC2016  # a literal $(( planted into the script
+printf 'x=$((1 << n))\nperl real\n' >> "$work/arith/scripts/tool"
+want arith 1 'check-constraints: FAIL scripts/tool:6: interpreter perl not in CONSTRAINTS.md'
+plant dashdoc;   printf 'cat <<END-OF\nperl only named\nEND-OF\nperl real\n' >> "$work/dashdoc/scripts/tool"
+want dashdoc 1 'check-constraints: FAIL scripts/tool:8: interpreter perl not in CONSTRAINTS.md'
+plant quotedlt;  printf 'echo "<<X" ; cat <<EOF\nbody\nEOF\npython3 real\n' >> "$work/quotedlt/scripts/tool"
+want quotedlt 1 'check-constraints: FAIL scripts/tool:8: interpreter python3 not in CONSTRAINTS.md'
+plant unclosed;  printf 'cat <<EOF\nperl x\n' >> "$work/unclosed/scripts/tool"
+want unclosed 1 'check-constraints: FAIL scripts/tool:5: heredoc <<EOF never closes, so the rest of the file goes unread'
+plant openq;     printf 'echo "never closed\nperl x\n' >> "$work/openq/scripts/tool"
+want openq 1 'check-constraints: FAIL scripts/tool:5: a quote opened here never closes, so the rest of the file goes unread'
+plant nohup;     printf 'nohup ruby x &\n' >> "$work/nohup/scripts/tool"
+want nohup 1 'check-constraints: FAIL scripts/tool:5: interpreter ruby not in CONSTRAINTS.md'
+plant crlf;      printf '#!/bin/bash\r\necho hi\r\n' > "$work/crlf/scripts/crlf"
+want crlf 0 'check-constraints: ok (4 languages, 13 files)'
+plant dirlink;   ln -s scripts "$work/dirlink/linkdir"
+want dirlink 0 'check-constraints: ok (4 languages, 12 files)'
+# a tracked file deleted from disk (unstaged) is skipped, never a blind spot
+plant deleted;   printf '#!/usr/bin/env bash\ntrue\n' > "$work/deleted/scripts/a.sh"; printf '#!/usr/bin/env bash\nperl x\n' > "$work/deleted/scripts/z.sh"
+(cd "$work/deleted" && git add -A) && rm "$work/deleted/scripts/a.sh"
+[ "$(run "$work/deleted")" = 1 ] || fail "deleted: want exit 1: $(cat "$work/deleted.out")"
+grep -qxF 'check-constraints: FAIL scripts/z.sh:2: interpreter perl not in CONSTRAINTS.md' "$work/deleted.out" || fail "deleted: $(cat "$work/deleted.out")"
+checks=$((checks + 2))
 # deleting one library from the block names its use
 plant dropped;   sed 's/ libs unix yojson$/ libs unix/' "$clean/CONSTRAINTS.md" > "$work/dropped/CONSTRAINTS.md"
 want dropped 1 'check-constraints: FAIL src/dune: library yojson (ocaml) not in CONSTRAINTS.md'
