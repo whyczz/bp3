@@ -47,8 +47,10 @@ while IFS= read -r u; do units+=("$u"); done < <(awk -F'\t' '$2 == "unit" { prin
 # 4. The gates' wiring is checked from lint (scripts/check-gates), which
 # both gates run first; lint must keep running it, and each planted
 # break must fail it by name.
-make -C "$repo" -s -n lint | grep -qx './scripts/check-gates' || fail "make lint does not run scripts/check-gates"
-make -C "$repo" -s -n lint | grep -qx './scripts/check-constraints' || fail "make lint does not run scripts/check-constraints"
+# read the plan once: grep -q under pipefail can SIGPIPE make (a flake)
+lint_plan=$(make -C "$repo" -s -n lint)
+grep -qx './scripts/check-gates' <<< "$lint_plan" || fail "make lint does not run scripts/check-gates"
+grep -qx './scripts/check-constraints' <<< "$lint_plan" || fail "make lint does not run scripts/check-constraints"
 "$repo/scripts/check-gates" > /dev/null || fail "check-gates fails on the real Makefile"
 checks=$((checks + 3))
 # Planted Makefiles, built with awk (no sed newline quirks): each break
