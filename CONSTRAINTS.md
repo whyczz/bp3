@@ -8,17 +8,19 @@ files. Adding anything takes the owner's sign-off (How to change).
 ## Languages
 
 Each `lang` line names a language, how its files are recognized
-(`ext`, `files`, `shebang`), and its libraries (`libs`). A library is
-anything a language pulls in: an OCaml library, a node import, or a
-tool a bash script runs (owner, 2026-11-19: "they are tools, call
-them libraries, e.g. we pick langs, but also libraries within the
-lang"). The `data` line lists the files that are not code.
+(`ext`, `files`, `shebang`), where else it may run as an interpreter
+(`runs-in`; only shebang words run anywhere), and its libraries
+(`libs`). A library is anything a language pulls in: an OCaml
+library, a node import, or a tool a bash script runs (owner,
+2026-11-19: "they are tools, call them libraries, e.g. we pick
+langs, but also libraries within the lang"). The `data` line lists
+the files that are not code.
 `docs/**` and `*.md` are prose: pseudocode in them is not a language.
 
 ```constraints
 lang ocaml  ext .ml .mli  files dune dune-project    libs stdlib unix str yojson ounit2 qcheck-core qcheck-ounit
 lang bash   ext .sh .bash  shebang bash sh           libs posix git jq yq sed awk find mktemp make gh shellcheck yamllint
-lang zsh    files completions/_bp3                    libs (completion builtins only)
+lang zsh    files completions/_bp3  runs-in test/completion.sh  libs (completion builtins only)
 lang node   ext .mjs .js .ts  shebang node           libs node:* @earendil-works/pi-coding-agent
 data        ext .md .json .jsonl .yaml .tsv .txt .mmd .conf  files Makefile Brewfile .gitignore
 ```
@@ -28,8 +30,9 @@ where; it never restates the list, so the two cannot drift.
 
 Why some lines look the way they do:
 
-- **zsh** is grandfathered for one file, the shell completion. It is
-  not an invitation to write zsh elsewhere.
+- **zsh** is grandfathered for one file, the shell completion, and runs
+  only in the test that checks it (`runs-in`). It is not an
+  invitation to write zsh elsewhere.
 - **node** has no npm dependencies: builtins, plus type imports from
   the pi package the extension runs inside.
 - **bash** `libs` are the tools scripts run. `posix` means the POSIX
@@ -79,3 +82,4 @@ Removing something works the same way.
 |---|---|---|---|
 | 2026-11-20 | owner | "Approve as-is" (approval of `docs/quests/2026-11-19-constraints-context/`) | the Languages block and the Surfaces table as written; zsh grandfathered for `completions/_bp3` |
 | 2026-11-20 | owner | "Add a `posix` word" (asked whether base-system utilities need listing one by one) | `posix` in the bash libs line: POSIX and macOS base-system utilities |
+| 2026-11-20 | owner | "The file and its test" (asked what zsh's grandfathering covers) | `runs-in test/completion.sh` on the zsh line: zsh runs there and nowhere else |

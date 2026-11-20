@@ -20,7 +20,8 @@ cat > "$clean/CONSTRAINTS.md" <<'EOF'
 lang ocaml  ext .ml  files dune  libs unix yojson
 lang bash   ext .sh  shebang bash sh  libs git jq
 lang node   ext .mjs  shebang node  libs node:* @scope/pkg
-data        ext .md .json .txt  files Brewfile
+lang zsh    files completions/_x  runs-in scripts/zt  libs (builtins)
+data        ext .md .json .txt  files Brewfile Makefile
 ```
 EOF
 printf 'let () = ()\n' > "$clean/src/a.ml"
@@ -31,6 +32,25 @@ printf '{"name": "x"}\n' > "$clean/ext/package.json"
 printf 'brew "jq"\n' > "$clean/Brewfile"
 printf 'notes\n' > "$clean/notes.txt"
 mkdir -p "$clean/docs" && printf 'print(1)\n' > "$clean/docs/sketch.py"   # docs/ is prose
+# rules.4: near misses that must pass (comments, heredoc bodies, case
+# arms, a lookup), a lang with no shebang, an env -S shebang, a Makefile
+mkdir -p "$clean/completions"
+printf '#compdef x\n' > "$clean/completions/_x"
+printf '#!/usr/bin/env bash\nzsh -c true\n' > "$clean/scripts/zt"   # runs-in: zsh may run here
+printf '#!/usr/bin/env -S node --no-warnings\nconsole.log(1)\n' > "$clean/scripts/envs"
+printf 'all:\n\techo ok\n' > "$clean/Makefile"
+cat > "$clean/scripts/near" <<'EOF'
+#!/usr/bin/env bash
+# old: git log | python3 x
+git status  # was (perl -pi) once
+cat <<'DOC'
+perl is only named here; python3 | ruby too
+DOC
+case "$1" in
+  ruby|python3) echo "named, not run" ;;
+esac
+command -v python3 > /dev/null
+EOF
 (cd "$clean" && git init -q && git add -A)
 run() { # case-dir -> rc, output in $work/<case>.out
   local rc=0
@@ -38,7 +58,7 @@ run() { # case-dir -> rc, output in $work/<case>.out
   echo "$rc"
 }
 [ "$(run "$clean")" = 0 ] || fail "clean repo failed: $(cat "$clean.out")"
-grep -qx 'check-constraints: ok (3 languages, 7 files)' "$clean.out" || fail "clean ok line: $(cat "$clean.out")"
+grep -qx 'check-constraints: ok (4 languages, 12 files)' "$clean.out" || fail "clean ok line: $(cat "$clean.out")"
 checks=$((checks + 2))
 plant() { # name: a fresh copy of the clean repo at $work/<name>
   rm -rf "${work:?}/$1"; cp -R "$clean" "$work/$1"
@@ -76,6 +96,20 @@ plant oddext;    printf 'x\n' > "$work/oddext/data.toml"
 want oddext 1 'check-constraints: FAIL data.toml: language .toml not in CONSTRAINTS.md'
 plant noblock;   printf '# no block here\n' > "$work/noblock/CONSTRAINTS.md"
 want noblock 2 'check-constraints: no constraints block in CONSTRAINTS.md'
+plant nofile;    rm "$work/nofile/CONSTRAINTS.md"
+want nofile 2 'check-constraints: no constraints block in CONSTRAINTS.md'
+# rules.4: command positions past reserved words, wrappers and make prefixes
+plant ifthen;    printf 'if python3 x; then :; fi\n' >> "$work/ifthen/scripts/tool"
+want ifthen 1 'check-constraints: FAIL scripts/tool:5: interpreter python3 not in CONSTRAINTS.md'
+plant xargs;     printf 'git ls-files | xargs -0 perl -pi -e 1\n' >> "$work/xargs/scripts/tool"
+want xargs 1 'check-constraints: FAIL scripts/tool:5: interpreter perl not in CONSTRAINTS.md'
+plant bg;        printf 'git fetch & ruby x\n' >> "$work/bg/scripts/tool"
+want bg 1 'check-constraints: FAIL scripts/tool:5: interpreter ruby not in CONSTRAINTS.md'
+plant makeat;    printf '\t@python3 x\n' >> "$work/makeat/Makefile"
+want makeat 1 'check-constraints: FAIL Makefile:3: interpreter python3 not in CONSTRAINTS.md'
+# a language with no shebang runs only where runs-in says (scripts/zt), not here
+plant zsh;       printf 'zsh -c true\n' >> "$work/zsh/scripts/tool"
+want zsh 1 'check-constraints: FAIL scripts/tool:5: interpreter zsh not in CONSTRAINTS.md'
 # deleting one library from the block names its use
 plant dropped;   sed 's/ libs unix yojson$/ libs unix/' "$clean/CONSTRAINTS.md" > "$work/dropped/CONSTRAINTS.md"
 want dropped 1 'check-constraints: FAIL src/dune: library yojson (ocaml) not in CONSTRAINTS.md'
