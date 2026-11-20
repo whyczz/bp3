@@ -94,6 +94,11 @@ shebang = parse("#!/usr/bin/env -S node --x")  # -> node, not -S
 | `if` `then` `do` `!` `{` `time` | false negative | `if python3 x; then :; fi` fails |
 | `xargs`, `nohup`, single `&` | false negative | `git ls-files \| xargs perl -pi` fails |
 | Makefile `@` `-` `+` | false negative | `\t@python3 x` in a Makefile fails |
+| make prefix stripped from every word (round 1) | fail open | `\tenv -i python3 x` and `\tgit ls-files \| xargs -0 perl -pi` in a Makefile fail |
+| false heredoc start hid the file (round 1) | fail open | `x=$((1 << n))`, `<<END-OF`, `echo "<<X" ; cat <<EOF` each followed by a real `perl`/`python3` that fails |
+| a heredoc or quote that never closes | fail closed | FAIL naming the line, never a silent blind spot |
+| deleted or directory-symlink paths (round 1) | fail open | a tracked .sh deleted from disk is skipped and later files are still scanned; a dir symlink is skipped |
+| CRLF shebang, `command -pv`, `<<\EOF`, `nohup` | follow-up | planted near misses and a nohup row |
 
 ## Prose
 
