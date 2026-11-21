@@ -447,10 +447,35 @@ let law_rollup_ignores_sample_order =
   QCheck2.Test.make ~count:300 ~name:"law_rollup_ignores_sample_order"
     QCheck2.Gen.(pair (list_size (int_range 0 20) gen_sample) (int_range 0 1000))
     (fun (samples, seed) ->
+      (* real walls carry milliseconds: a float sum must not depend on order *)
+      let samples = List.map (fun (s : Metrics.sample) ->
+          if s.metric = "grade.wall_s" then { s with value = s.value /. 1000. } else s) samples in
       let shuffled = List.map snd (List.sort compare
           (List.mapi (fun i s -> ((i * 7919 + seed) mod 1009, s)) samples)) in
       let edges = Metrics.edges_of_text rules4 in
       Metrics.rollup_json (Metrics.rollup ~edges samples) = Metrics.rollup_json (Metrics.rollup ~edges shuffled))
+
+(* node roll-ups add up to the quest's: spend is integer tokens, so the
+   sums are exact *)
+let law_node_spend_adds_up_to_the_quest =
+  QCheck2.Test.make ~count:300 ~name:"law_node_spend_adds_up_to_the_quest"
+    (QCheck2.Gen.list_size (QCheck2.Gen.int_range 0 30) gen_sample)
+    (fun samples ->
+      let nodes = List.sort_uniq compare (List.map (fun (s : Metrics.sample) -> s.node) samples) in
+      let spend ss = (Metrics.rollup ~edges:[] ss).r_grade_spend in
+      let per_node = List.map (fun n -> spend (List.filter (fun (s : Metrics.sample) -> s.node = n) samples)) nodes in
+      List.for_all (fun (k, total) ->
+          List.fold_left (fun acc sp -> acc +. List.assoc k sp) 0. per_node = total) (spend samples))
+
+(* a re-scrape appends nothing, so no roll-up moves *)
+let law_a_rescrape_changes_no_rollup =
+  QCheck2.Test.make ~count:300 ~name:"law_a_rescrape_changes_no_rollup"
+    (QCheck2.Gen.list_size (QCheck2.Gen.int_range 0 20) gen_sample)
+    (fun samples ->
+      let stored, _ = Metrics.dedupe ~existing:[] samples in
+      let again, _ = Metrics.dedupe ~existing:stored samples in
+      let edges = Metrics.edges_of_text rules4 in
+      Metrics.rollup_json (Metrics.rollup ~edges (stored @ again)) = Metrics.rollup_json (Metrics.rollup ~edges stored))
 
 let case_rollup_reports_median_grade_wall_and_spend _ =
   let s m v c = sample ~metric:m ~value:v ~cycle:c () in
@@ -497,6 +522,8 @@ let () =
        "case_rollup_reports_median_grade_wall_and_spend" >:: case_rollup_reports_median_grade_wall_and_spend;
        QCheck_ounit.to_ounit2_test law_cycle_dwell_sums_to_the_rollup_dwell;
        QCheck_ounit.to_ounit2_test law_rollup_ignores_sample_order;
+       QCheck_ounit.to_ounit2_test law_node_spend_adds_up_to_the_quest;
+       QCheck_ounit.to_ounit2_test law_a_rescrape_changes_no_rollup;
        "case_assign_counts_each_message_once_and_never_a_subagents" >:: case_assign_counts_each_message_once_and_never_a_subagents;
        "case_a_usage_line_missing_a_count_is_skipped_and_fails_the_check" >:: case_a_usage_line_missing_a_count_is_skipped_and_fails_the_check;
        "case_agrees_allows_a_small_context_undercount_and_nothing_else" >:: case_agrees_allows_a_small_context_undercount_and_nothing_else;

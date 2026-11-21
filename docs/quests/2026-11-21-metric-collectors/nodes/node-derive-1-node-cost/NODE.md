@@ -92,7 +92,12 @@ def derive(edges, samples):
 | measured vs not | constraints-context 7 of 10 grades (3 owner-graded), test-pyramid 23 of 24 (1 owner-graded), metric-collectors 7 of 7; every handoff measured |
 | spend, cache reads | constraints-context grade 19.8M, author 52.3M; test-pyramid grade 101.1M, author 173.3M; metric-collectors grade 12.4M, author 77.0M |
 
-The roll-up lives in `metrics r` (`rollup` per node and per quest).
+The roll-up lives in `metrics r` (`rollup` per node and per quest);
+it supersedes the design trace's `.quest` and `unmatched` names: the
+gap is `grades` minus `grades_measured`. Round 2 (grader): the wall
+`sum` adds in sorted order, since fractional walls made it depend on
+sample order; the order law now draws millisecond walls, and the
+node-sum and re-scrape laws are tests.
 Grades and handoffs counted there come from the ledger, so an
 owner-graded or unmeasured cycle shows up as a gap
 (`grades` > `grades_measured`), never as zero cost.

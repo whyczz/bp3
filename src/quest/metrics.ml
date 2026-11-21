@@ -262,7 +262,7 @@ let rollup_json r =
   let walls = match r.r_grade_walls with
     | [] -> `Null
     | ws -> `Assoc [ ("median", f (Option.get (median ws))); ("min", f (List.fold_left min infinity ws));
-                     ("max", f (List.fold_left max neg_infinity ws)); ("sum", f (List.fold_left ( +. ) 0. ws)) ] in
+                     ("max", f (List.fold_left max neg_infinity ws)); ("sum", f (List.fold_left ( +. ) 0. (List.sort compare ws))) ] in
   `Assoc [ ("grades", `Int r.r_grades); ("grades_measured", `Int r.r_grades_measured);
            ("handoffs", `Int r.r_handoffs); ("handoffs_measured", `Int r.r_handoffs_measured);
            ("grade_wall_s", walls);
