@@ -364,6 +364,22 @@ let case_casts_handoff_by_the_result_commit_or_a_command_prefix_inside_the_windo
   assert_bool "cut inside our commit" (casts (head_c "bb") "b" sha);
   (* test-pyramid unit.2 cycle 2: cut mid-commit, then the next output line *)
   assert_bool "cut, then another line" (casts (head_c "bbbbbbb1c0\nbbbbbbb") "b" sha);
+  assert_bool "cut after one hex is too little" (not (casts (head_c "b") "b" sha));
+  (* grader probe C (round 3): a sibling's cast names b in its reason *)
+  assert_bool "a sibling's cast that names b"
+    (not (casts (other "bp3 q quest1 n a e handoff --commit \"$C\" --reason 'unblocks b' | jq -c '{ok,state}'"
+                   "{\"ok\":true,\"state\":\"handed_off\"}") "b" sha));
+  (* grader probe F3: another quest's b cast, then a read of ours *)
+  assert_bool "another quest's cast plus a read of ours"
+    (not (casts (other "bp3 q other-quest n b e handoff --commit \"$S\" | jq -c '{ok,quest,node,state}'; bp3 q quest1 n b r | jq -c '{quest,node,state}'"
+                   "{\"ok\":true,\"quest\":\"other-quest\",\"node\":\"b\",\"state\":\"handed_off\"}\n{\"quest\":\"quest1\",\"node\":\"b\",\"state\":\"handed_off\"}") "b" sha));
+  (* real casts set the quest in a variable first *)
+  assert_bool "Q=quest1 && bp3 q $Q n b e handoff"
+    (casts (other "Q=quest1 && ./bin/bp3 q $Q n b e handoff --commit \"$SHA\" | jq -c '{ok, state}'"
+              "{\"ok\":true,\"state\":\"handed_off\"}") "b" sha);
+  assert_bool "a variable set to another quest"
+    (not (casts (other "Q=other-quest && ./bin/bp3 q \"$Q\" n b e handoff | jq -c '{ok, state}'"
+                   "{\"ok\":true,\"state\":\"handed_off\"}") "b" sha));
   assert_bool "cut inside another commit" (not (casts (head_c "cc") "b" sha))
 
 (* A queue-operation line quoting "tool_result" and "handed_off" passes

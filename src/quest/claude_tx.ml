@@ -315,33 +315,53 @@ let shown t key =
       from 0)
     [ "\"" ^ key ^ "\":\""; "\"" ^ key ^ "\": \"" ]
 
-(* The session that cast a handoff made a Bash call naming handoff and
-   the node as words, inside that handoff's window [from, upto + 1)
-   (a later read that greps the same words is not the cast), with one
-   more piece of evidence: the command holds the commit's first 7, or
-   the result holds the full commit, or the command names the quest
-   and the result is a successful move to handed_off. Commands often
-   pass "$(git ...)" and results are often cut to {ok, state}
-   (test-pyramid tier.2). If a result shows a quest, node or commit, at
-   least one of them must be ours: equal, or a prefix when the result
-   was cut. Node ids repeat across quests, so a commit-less move needs
-   the quest named. *)
+(* The command casts this quest's node: it holds `q <Q> n <node> e
+   handoff` or `q <Q> u|update <node> handoff`, and <Q> is the quest,
+   or a shell variable ($Q, "$Q", ${Q}) the same command sets to it.
+   A node named anywhere else (a --reason, a read) is not the cast. *)
+let casts_node command ~quest ~node =
+  let n = Str.quote node in
+  let re = Str.regexp ("\\(^\\|[ \t;&|(]\\)q[ \t]+\\([^ \t;&|]+\\)[ \t]+\\(n[ \t]+" ^ n ^ "[ \t]+e\\|u[ \t]+" ^ n
+                       ^ "\\|update[ \t]+" ^ n ^ "\\)[ \t]+handoff\\($\\|[ \t;&|)]\\)") in
+  let names_quest tok =
+    tok = quest
+    || (let strip = List.fold_left (fun s (p, q) ->
+            if String.length s >= String.length p + String.length q && String.starts_with ~prefix:p s
+               && String.ends_with ~suffix:q s
+            then String.sub s (String.length p) (String.length s - String.length p - String.length q) else s) in
+        let var = strip tok [ ("\"", "\""); ("$", ""); ("{", "}") ] in
+        var <> tok && var <> "" && String.for_all (function 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' -> true | _ -> false) var
+        && List.exists (fun v -> has_word command (var ^ "=" ^ v)) [ quest; "\"" ^ quest ^ "\""; "'" ^ quest ^ "'" ]) in
+  let rec from i = match (try Some (Str.search_forward re command i) with Not_found -> None) with
+    | None -> false
+    | Some k -> names_quest (Str.matched_group 2 command) || from (k + 1) in
+  from 0
+
+(* The session that cast a handoff made a Bash call that casts this
+   quest's node (casts_node), inside that handoff's window
+   [from, upto + 1) (a later read is not the cast), with one more piece
+   of evidence: the command holds the commit's first 7, or the result
+   holds the full commit, or the result is a successful move to
+   handed_off. Commands often pass "$(git ...)" and results are often
+   cut to {ok, state} (test-pyramid tier.2). If a result shows a quest,
+   node or commit, at least one of each must be ours: equal, or a
+   prefix of at least 2 when the result was cut. *)
 let casts_handoff s ~quest ~node ~commit ~from ~upto =
   let in_window ts = match seconds ts with Some t -> t >= from && t < upto +. 1. | None -> false in
   let ours t key v = match shown t key with
     | [] -> true
     | xs -> List.exists (fun (x, closed) ->
         if closed then x = v
-        else x <> "" && String.length x <= String.length v && String.sub v 0 (String.length x) = x) xs in
+        else String.length x >= 2 && String.length x <= String.length v && String.sub v 0 (String.length x) = x) xs in
   let consistent t = ours t "quest" quest && ours t "node" node && ours t "commit" commit in
   let moved t = (contains t "\"state\":\"handed_off\"" || contains t "\"state\": \"handed_off\"")
                 && not (contains t "\"ok\":false" || contains t "\"ok\": false") in
   String.length commit >= 7
   && List.exists (fun c ->
-         in_window c.call_ts && has_word c.command "handoff" && has_word c.command node
+         in_window c.call_ts && casts_node c.command ~quest ~node
          && (contains c.command (String.sub commit 0 7)
              || (match List.assoc_opt c.call_id s.s_results with
-                 | Some t -> consistent t && (contains t commit || (moved t && has_word c.command quest))
+                 | Some t -> consistent t && (contains t commit || moved t)
                  | None -> false)))
        s.s_bash
 

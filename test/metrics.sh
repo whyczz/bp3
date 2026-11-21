@@ -117,6 +117,16 @@ printf '{"type":"user","timestamp":"%s.950Z","isSidechain":false,"message":{"con
 printf '{"type":"assistant","timestamp":"%s.600Z","isSidechain":false,"sessionId":"s4","message":{"id":"o1","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"to1","name":"Bash","input":{"command":"bp3 q some-other-quest n nb e handoff --commit \\"$SHA\\" | jq -c ."}}],"usage":{"input_tokens":1,"output_tokens":3,"cache_read_input_tokens":1,"cache_creation_input_tokens":1}}}\n' "$nb_sec" > "$claude/s4.jsonl"
 printf '{"type":"user","timestamp":"%s.700Z","isSidechain":false,"message":{"content":[{"type":"tool_result","tool_use_id":"to1","content":"{\\"ok\\":true,\\"state\\":\\"handed_off\\"}"}]}}\n' "$nb_sec" >> "$claude/s4.jsonl"
 
+# s5 (grader probe C, round 3): inside nb's window a cast of another node in
+# q1 names nb in its --reason; s6 (probe F3): another quest's nb cast and
+# a read of ours in one command. Neither casts q1's nb.
+# shellcheck disable=SC2016  # the command text is data; nothing expands
+printf '{"type":"assistant","timestamp":"%s.650Z","isSidechain":false,"sessionId":"s5","message":{"id":"c1","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"tc1","name":"Bash","input":{"command":"bp3 q q1 n nz e handoff --commit \\"$C\\" --reason unblocks-nb | jq -c ."}}],"usage":{"input_tokens":1,"output_tokens":3,"cache_read_input_tokens":1,"cache_creation_input_tokens":1}}}\n' "$nb_sec" > "$claude/s5.jsonl"
+printf '{"type":"user","timestamp":"%s.660Z","isSidechain":false,"message":{"content":[{"type":"tool_result","tool_use_id":"tc1","content":"{\\"ok\\":true,\\"state\\":\\"handed_off\\"}"}]}}\n' "$nb_sec" >> "$claude/s5.jsonl"
+# shellcheck disable=SC2016  # the command text is data; nothing expands
+printf '{"type":"assistant","timestamp":"%s.670Z","isSidechain":false,"sessionId":"s6","message":{"id":"f1","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"tf1","name":"Bash","input":{"command":"bp3 q other-quest n nb e handoff --commit \\"$S\\" | jq -c .; bp3 q q1 n nb r | jq -c ."}}],"usage":{"input_tokens":1,"output_tokens":3,"cache_read_input_tokens":1,"cache_creation_input_tokens":1}}}\n' "$nb_sec" > "$claude/s6.jsonl"
+printf '{"type":"user","timestamp":"%s.680Z","isSidechain":false,"message":{"content":[{"type":"tool_result","tool_use_id":"tf1","content":"{\\"ok\\":true,\\"quest\\":\\"other-quest\\",\\"node\\":\\"nb\\",\\"state\\":\\"handed_off\\"}\\n{\\"quest\\":\\"q1\\",\\"node\\":\\"nb\\",\\"state\\":\\"handed_off\\"}"}]}}\n' "$nb_sec" >> "$claude/s6.jsonl"
+
 # q2/nd: the harness report counts 4 tool calls, the transcript 3
 q c q2 >/dev/null; q q2 c nd >/dev/null
 sha=$(new_commit q2 nd)
