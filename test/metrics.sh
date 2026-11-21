@@ -109,6 +109,14 @@ printf '{"type":"assistant","timestamp":"%s.500Z","isSidechain":false,"sessionId
 printf '{"type":"assistant","timestamp":"%s.900Z","isSidechain":false,"sessionId":"s3","message":{"id":"r1","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"tr1","name":"Bash","input":{"command":"./bin/bp3 q q1 n nb r | jq .ledger[] | grep handoff"}}],"usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":1,"cache_creation_input_tokens":1}}}\n' "$rsec" >> "$claude/s3.jsonl"
 printf '{"type":"user","timestamp":"%s.950Z","isSidechain":false,"message":{"content":[{"type":"tool_result","tool_use_id":"tr1","content":"{\\"edge\\":\\"handoff\\",\\"to\\":\\"handed_off\\",\\"commit\\":\\"%s\\"}"}]}}\n' "$rsec" "$nb_sha" >> "$claude/s3.jsonl"
 
+# s4: inside nb's window, another session hands off ANOTHER quest's
+# node nb (ids repeat across quests) and gets a result cut to
+# {ok, state}; it never names q1, so it is not nb's cast (grader,
+# scrape.2 round 2)
+# shellcheck disable=SC2016  # the command text is data; nothing expands
+printf '{"type":"assistant","timestamp":"%s.600Z","isSidechain":false,"sessionId":"s4","message":{"id":"o1","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"to1","name":"Bash","input":{"command":"bp3 q some-other-quest n nb e handoff --commit \\"$SHA\\" | jq -c ."}}],"usage":{"input_tokens":1,"output_tokens":3,"cache_read_input_tokens":1,"cache_creation_input_tokens":1}}}\n' "$nb_sec" > "$claude/s4.jsonl"
+printf '{"type":"user","timestamp":"%s.700Z","isSidechain":false,"message":{"content":[{"type":"tool_result","tool_use_id":"to1","content":"{\\"ok\\":true,\\"state\\":\\"handed_off\\"}"}]}}\n' "$nb_sec" >> "$claude/s4.jsonl"
+
 # q2/nd: the harness report counts 4 tool calls, the transcript 3
 q c q2 >/dev/null; q q2 c nd >/dev/null
 sha=$(new_commit q2 nd)

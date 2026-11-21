@@ -297,27 +297,51 @@ let has_word s w =
         ((j = 0 || not (id_char s.[j - 1])) && (j + n = m || not (id_char s.[j + n]))) || from (j + 1) in
   n > 0 && from 0
 
+(* Every value a result shows for a JSON key, each with whether it
+   closed: a result cut mid-value (head -c, a display limit) shows a
+   prefix. A result may hold several (a handoff, then a rollup). *)
+let shown t key =
+  List.concat_map (fun o ->
+      let rec from i = match find_from t i o with
+        | None -> []
+        | Some k ->
+            let start = k + String.length o in
+            (* a cut value ends at the line's end, not at the next line *)
+            let rec stop j = if j >= String.length t || t.[j] = '"' || t.[j] = '\n' then j else stop (j + 1) in
+            let j = stop start in
+            let v = String.sub t start (j - start) in
+            if j < String.length t && t.[j] = '"' then (v, true) :: from (j + 1)
+            else (v, false) :: from j in
+      from 0)
+    [ "\"" ^ key ^ "\":\""; "\"" ^ key ^ "\": \"" ]
+
 (* The session that cast a handoff made a Bash call naming handoff and
    the node as words, inside that handoff's window [from, upto + 1)
    (a later read that greps the same words is not the cast), with one
    more piece of evidence: the command holds the commit's first 7, or
-   the result holds the full commit, or the result is a successful
-   move to handed_off. Commands often pass "$(git ...)" and results
-   are often cut by jq to {ok, state} (test-pyramid tier.2). *)
-let casts_handoff s ~node ~commit ~from ~upto =
+   the result holds the full commit, or the command names the quest
+   and the result is a successful move to handed_off. Commands often
+   pass "$(git ...)" and results are often cut to {ok, state}
+   (test-pyramid tier.2). If a result shows a quest, node or commit, at
+   least one of them must be ours: equal, or a prefix when the result
+   was cut. Node ids repeat across quests, so a commit-less move needs
+   the quest named. *)
+let casts_handoff s ~quest ~node ~commit ~from ~upto =
   let in_window ts = match seconds ts with Some t -> t >= from && t < upto +. 1. | None -> false in
-  (* a result that shows a commit must show ours; 6 hex because one real
-     result was cut after six (dc314a) *)
-  let ours t = let p = String.sub commit 0 6 in
-    not (contains t "\"commit\":") || contains t ("\"commit\":\"" ^ p) || contains t ("\"commit\": \"" ^ p) in
+  let ours t key v = match shown t key with
+    | [] -> true
+    | xs -> List.exists (fun (x, closed) ->
+        if closed then x = v
+        else x <> "" && String.length x <= String.length v && String.sub v 0 (String.length x) = x) xs in
+  let consistent t = ours t "quest" quest && ours t "node" node && ours t "commit" commit in
   let moved t = (contains t "\"state\":\"handed_off\"" || contains t "\"state\": \"handed_off\"")
-                && not (contains t "\"ok\":false" || contains t "\"ok\": false") && ours t in
+                && not (contains t "\"ok\":false" || contains t "\"ok\": false") in
   String.length commit >= 7
   && List.exists (fun c ->
          in_window c.call_ts && has_word c.command "handoff" && has_word c.command node
          && (contains c.command (String.sub commit 0 7)
              || (match List.assoc_opt c.call_id s.s_results with
-                 | Some t -> contains t commit || moved t
+                 | Some t -> consistent t && (contains t commit || (moved t && has_word c.command quest))
                  | None -> false)))
        s.s_bash
 

@@ -328,7 +328,8 @@ let b_upto = Option.get (Claude_tx.seconds "2026-11-21T13:00:00Z")
 
 let case_casts_handoff_by_the_result_commit_or_a_command_prefix_inside_the_window _ =
   let s = Claude_tx.parse_session main_session in
-  let casts ?(from = b_from) ?(upto = b_upto) s node commit = Claude_tx.casts_handoff s ~node ~commit ~from ~upto in
+  let casts ?(from = b_from) ?(upto = b_upto) s node commit =
+    Claude_tx.casts_handoff s ~quest:"quest1" ~node ~commit ~from ~upto in
   assert_bool "result holds the full commit" (casts s "b" sha);
   assert_bool "another node" (not (casts s "a" sha));
   assert_bool "another commit" (not (casts s "b" "cccccccccccccccc"));
@@ -346,7 +347,24 @@ let case_casts_handoff_by_the_result_commit_or_a_command_prefix_inside_the_windo
       session_line ~ts:"2026-11-21T12:59:59.000Z" ~id:"w8" ~tools:[ ("t8", "bp3 q quest1 u b handoff --commit \"$SHA\" | jq -c '{ok, state}'") ] (1, 1, 1, 1);
       tool_result ~ts:"2026-11-21T13:00:00.200Z" "t8" ok_text ]) in
   assert_bool "a successful move, commit cut away" (casts (cut "{\"ok\":true,\"state\":\"handed_off\"}") "b" sha);
-  assert_bool "a refusal that names handed_off" (not (casts (cut "{\"ok\":false,\"error\":{\"facts\":{\"state\":\"handed_off\"}}}") "b" sha))
+  assert_bool "a refusal that names handed_off" (not (casts (cut "{\"ok\":false,\"error\":{\"facts\":{\"state\":\"handed_off\"}}}") "b" sha));
+  (* grader probe (round 2): node ids repeat across quests *)
+  let other cmd text = Claude_tx.parse_session (Gen.text [
+      session_line ~ts:"2026-11-21T12:59:59.000Z" ~id:"w7" ~tools:[ ("t7", cmd) ] (1, 1, 1, 1);
+      tool_result ~ts:"2026-11-21T13:00:00.200Z" "t7" text ]) in
+  assert_bool "another quest's node with the same id"
+    (not (casts (other "bp3 q other-quest n b e handoff --commit \"$SHA\" | jq -c '{ok, state}'"
+                   "{\"ok\":true,\"state\":\"handed_off\"}") "b" sha));
+  assert_bool "a result that shows another quest"
+    (not (casts (other "bp3 q quest1 n b e handoff --commit \"$SHA\""
+                   "{\"ok\":true,\"quest\":\"other-quest\",\"node\":\"b\",\"state\":\"handed_off\"}") "b" sha));
+  (* test-pyramid tier.2 cycle 1: the result was cut two hex into the commit *)
+  let head_c v = other "bp3 q quest1 n b e handoff --commit \"$SHA\" | head -c 120"
+      ("{\"ok\":true,\"quest\":\"quest1\",\"node\":\"b\",\"state\":\"handed_off\",\"cycle\":1,\"commit\":\"" ^ v) in
+  assert_bool "cut inside our commit" (casts (head_c "bb") "b" sha);
+  (* test-pyramid unit.2 cycle 2: cut mid-commit, then the next output line *)
+  assert_bool "cut, then another line" (casts (head_c "bbbbbbb1c0\nbbbbbbb") "b" sha);
+  assert_bool "cut inside another commit" (not (casts (head_c "cc") "b" sha))
 
 (* A queue-operation line quoting "tool_result" and "handed_off" passes
    the cheap filter and has no message: it must read as nothing. *)

@@ -106,13 +106,16 @@ These supersede the Diagram and Pseudocode above where they differ.
 | Ledger stamps are whole seconds, so adjacent windows share a second | design | `Claude_tx.assign` counts each message and tool call in the first window that holds it |
 | Session files are big | this session: 45 MB, 20k lines | only assistant lines and tool results naming `handed_off` are parsed; `find_from` compares in place (scrape 2.2 s down to 1.2 s) |
 | A later read can look like the cast (round 1, grader) | a session dated 2099 that greps nb's ledger turned nb authored, with five zero samples | the casting call must run inside the handoff's own window; a window with no messages of its own is `author_missing`, never zero |
-| Results are often cut to `{ok, state}` | test-pyramid tier.2: `--commit "$SHA"` and a result without the commit; before the window check, a later read made these look authored | inside the window, a successful move to `handed_off` is evidence too; a result that shows a commit must show ours (first 6, one real result was cut after 6) |
+| Results are often cut to `{ok, state}` | test-pyramid tier.2: `--commit "$SHA"` and a result without the commit; before the window check, a later read made these look authored | inside the window, a successful move to `handed_off` is evidence too, but only when the command names the quest (round 2, grader: node ids repeat across quests, `node-1-hello` x7) |
+| A result shows other values, or is cut mid-value | handoffs followed by a rollup print other nodes; `head -c` cut tier.2 c1 at `"commit":"c4` and unit.2 c2 mid-commit, the next output line running on | `shown` reads every value of a key, a cut value ending at the line's end; if a result shows a quest, node or commit, one of each must be ours (equal, or a prefix when cut) |
 | A line of an unexpected shape stopped the whole scrape | dogfood, this quest: a `queue-operation` line quoting "tool_result" and "handed_off" passed the cheap filter with no `message`; `member` raised | `Claude_tx.member` is total: a null message reads as absent fields |
 
-On a scratch clone (round 2): constraints-context 10 of 10 handoffs
-authored, test-pyramid 24 of 25 (1 `author_missing`), metric-collectors
-4 of 4, 0 ambiguous. Round 1's 23 of 25 on test-pyramid held 3
-authored only by later reads.
+On a scratch clone (round 3): constraints-context 10 of 10 handoffs
+authored, test-pyramid 25 of 25, metric-collectors 5 of 5, 0
+ambiguous. Round 1's 23 of 25 on test-pyramid held 3 authored only by
+later reads; round 2's 24 missed tier.2 c1 (a cut commit, a false
+negative), and an intermediate round-3 build missed 11 by reading
+only the first value a result showed.
 What the lifecycle shows: sink.1's authoring took 68 tool calls and
 15.1M cache-read tokens, while its grade took 25 and 1.6M. A
 long-lived main session re-reads its whole context on every call.

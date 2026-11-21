@@ -168,10 +168,14 @@ let author_pass q all sessions =
     List.sort_uniq compare (List.map fst all)
     |> List.concat_map (fun n -> List.map (fun s -> (n, s)) (Metrics.author_spans ~node:n all))
     |> List.stable_sort (fun (_, (a : Metrics.author_span)) (_, b) -> compare a.a_upto b.a_upto) in
+  (* a window whose stamps do not parse has no session: missing, never
+     a window that starts at the epoch *)
   let found = List.map (fun (n, (sp : Metrics.author_span)) ->
-      (n, sp, List.filter (fun (s : Claude_tx.session) ->
-           Claude_tx.casts_handoff s ~node:n ~commit:sp.a_commit ~from:(secs sp.a_from) ~upto:(secs sp.a_upto)) sessions))
-      spans in
+      match Claude_tx.seconds sp.a_from, Claude_tx.seconds sp.a_upto with
+      | Some from, Some upto ->
+          (n, sp, List.filter (fun (s : Claude_tx.session) ->
+               Claude_tx.casts_handoff s ~quest:q ~node:n ~commit:sp.a_commit ~from ~upto) sessions)
+      | _ -> (n, sp, [])) spans in
   let per_session = Hashtbl.create 4 in
   List.iter (fun (n, (sp : Metrics.author_span), ss) -> match ss with
       | [ (s : Claude_tx.session) ] ->
