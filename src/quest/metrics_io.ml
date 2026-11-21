@@ -169,7 +169,8 @@ let author_pass q all sessions =
     |> List.concat_map (fun n -> List.map (fun s -> (n, s)) (Metrics.author_spans ~node:n all))
     |> List.stable_sort (fun (_, (a : Metrics.author_span)) (_, b) -> compare a.a_upto b.a_upto) in
   let found = List.map (fun (n, (sp : Metrics.author_span)) ->
-      (n, sp, List.filter (fun (s : Claude_tx.session) -> Claude_tx.casts_handoff s ~node:n ~commit:sp.a_commit) sessions))
+      (n, sp, List.filter (fun (s : Claude_tx.session) ->
+           Claude_tx.casts_handoff s ~node:n ~commit:sp.a_commit ~from:(secs sp.a_from) ~upto:(secs sp.a_upto)) sessions))
       spans in
   let per_session = Hashtbl.create 4 in
   List.iter (fun (n, (sp : Metrics.author_span), ss) -> match ss with
@@ -196,6 +197,8 @@ let author_pass q all sessions =
       | [ _ ] ->
           let key = n ^ "|" ^ string_of_int sp.a_cycle ^ "|" ^ sp.a_upto in
           let ((s : Claude_tx.session), msgs, tools) = Hashtbl.find assigned key in
+          (* a window with no messages of its own measured nothing: missing, never zero *)
+          if msgs = [] then add n ([], { one with author_missing = 1 }) else
           let c = Claude_tx.author_cost msgs tools in
           let mk m v = { Metrics.metric = "author." ^ m; quest = q; node = n; cycle = sp.a_cycle;
                          run = "claude:" ^ s.s_id; model = c.model; value = float_of_int v; at = sp.a_upto;

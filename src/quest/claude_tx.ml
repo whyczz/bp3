@@ -34,7 +34,11 @@ let seconds ts =
            | None -> None)
         else None
 
-let str k j = match Yojson.Safe.Util.member k j with `String s -> s | _ -> ""
+(* Total field access: a line of an unexpected shape (a null message, a
+   list) reads as absent fields, never as an exception that kills the
+   whole scrape. *)
+let member k j = match j with `Assoc fs -> (match List.assoc_opt k fs with Some v -> v | None -> `Null) | _ -> `Null
+let str k j = match member k j with `String s -> s | _ -> ""
 
 (* All four counts or nothing: a renamed or missing key is never read
    as 0, or a format change would pass as a cheap grade (QUEST.md R1). *)
@@ -51,7 +55,7 @@ let prompt_text content =
   match content with
   | `String s -> s
   | `List blocks ->
-      String.concat "\n" (List.filter_map (fun b -> match Yojson.Safe.Util.member "text" b with
+      String.concat "\n" (List.filter_map (fun b -> match member "text" b with
           | `String s -> Some s | _ -> None) blocks)
   | _ -> ""
 
@@ -75,21 +79,21 @@ let parse ?until text =
             end;
             if !session = "" then session := str "sessionId" j;
             if !agent = "" then agent := str "agentId" j;
-            let message = Yojson.Safe.Util.member "message" j in
+            let message = member "message" j in
             (match str "type" j with
              | "user" when !prompt = None ->
-                 prompt := Some (prompt_text (Yojson.Safe.Util.member "content" message))
+                 prompt := Some (prompt_text (member "content" message))
              | "assistant" ->
                  let id = str "id" message in
-                 let usage = usage_of (Yojson.Safe.Util.member "usage" message) in
+                 let usage = usage_of (member "usage" message) in
                  if id = "" then incr skipped
                  else if usage = None then begin incr skipped; incr bad_usage end
                  else begin
                    if not (Hashtbl.mem by_id id) then order := id :: !order;
                    Hashtbl.replace by_id id
                      { id; ts; model = str "model" message; usage = Option.get usage;
-                       sidechain = (match Yojson.Safe.Util.member "isSidechain" j with `Bool b -> b | _ -> false) };
-                   (match Yojson.Safe.Util.member "content" message with
+                       sidechain = (match member "isSidechain" j with `Bool b -> b | _ -> false) };
+                   (match member "content" message with
                     | `List blocks ->
                         List.iter (fun b ->
                             if str "type" b = "tool_use" then
@@ -237,7 +241,7 @@ type session = {
 let result_text content =
   match content with
   | `String s -> s
-  | `List blocks -> String.concat "" (List.filter_map (fun b -> match Yojson.Safe.Util.member "text" b with
+  | `List blocks -> String.concat "" (List.filter_map (fun b -> match member "text" b with
       | `String s -> Some s | _ -> None) blocks)
   | _ -> ""
 
@@ -247,16 +251,16 @@ let parse_session text =
   List.iter (fun line ->
       if contains line "\"type\":\"assistant\"" || (contains line "handed_off" && contains line "tool_result") then
         match (try Some (Yojson.Safe.from_string line) with _ -> None) with
-        | Some (`Assoc _ as j) when (match Yojson.Safe.Util.member "isSidechain" j with `Bool b -> b | _ -> false) -> ()
+        | Some (`Assoc _ as j) when (match member "isSidechain" j with `Bool b -> b | _ -> false) -> ()
         | Some (`Assoc _ as j) ->
             let ts = str "timestamp" j in
             if !sid = "" then sid := str "sessionId" j;
-            let message = Yojson.Safe.Util.member "message" j in
-            let blocks = match Yojson.Safe.Util.member "content" message with `List bs -> bs | _ -> [] in
+            let message = member "message" j in
+            let blocks = match member "content" message with `List bs -> bs | _ -> [] in
             (match str "type" j with
              | "assistant" ->
                  let id = str "id" message in
-                 (match usage_of (Yojson.Safe.Util.member "usage" message) with
+                 (match usage_of (member "usage" message) with
                   | _ when id = "" -> ()
                   | None -> incr bad
                   | Some usage ->
@@ -269,12 +273,12 @@ let parse_session text =
                          Hashtbl.replace tools tid (); tool_order := (tid, ts) :: !tool_order end;
                        if str "name" b = "Bash" then
                          bash := { call_id = tid; call_ts = ts;
-                                   command = str "command" (Yojson.Safe.Util.member "input" b) } :: !bash
+                                   command = str "command" (member "input" b) } :: !bash
                      end) blocks
              | "user" ->
                  List.iter (fun b ->
                      if str "type" b = "tool_result" then
-                       let t = result_text (Yojson.Safe.Util.member "content" b) in
+                       let t = result_text (member "content" b) in
                        if contains t "handed_off" then results := (str "tool_use_id" b, t) :: !results) blocks
              | _ -> ())
         | _ -> ())
@@ -294,15 +298,27 @@ let has_word s w =
   n > 0 && from 0
 
 (* The session that cast a handoff made a Bash call naming handoff and
-   the node as words, and either the command holds the commit's first 7
-   or the result holds the full commit (commands often pass
-   "$(git ...)"). *)
-let casts_handoff s ~node ~commit =
+   the node as words, inside that handoff's window [from, upto + 1)
+   (a later read that greps the same words is not the cast), with one
+   more piece of evidence: the command holds the commit's first 7, or
+   the result holds the full commit, or the result is a successful
+   move to handed_off. Commands often pass "$(git ...)" and results
+   are often cut by jq to {ok, state} (test-pyramid tier.2). *)
+let casts_handoff s ~node ~commit ~from ~upto =
+  let in_window ts = match seconds ts with Some t -> t >= from && t < upto +. 1. | None -> false in
+  (* a result that shows a commit must show ours; 6 hex because one real
+     result was cut after six (dc314a) *)
+  let ours t = let p = String.sub commit 0 6 in
+    not (contains t "\"commit\":") || contains t ("\"commit\":\"" ^ p) || contains t ("\"commit\": \"" ^ p) in
+  let moved t = (contains t "\"state\":\"handed_off\"" || contains t "\"state\": \"handed_off\"")
+                && not (contains t "\"ok\":false" || contains t "\"ok\": false") && ours t in
   String.length commit >= 7
   && List.exists (fun c ->
-         has_word c.command "handoff" && has_word c.command node
+         in_window c.call_ts && has_word c.command "handoff" && has_word c.command node
          && (contains c.command (String.sub commit 0 7)
-             || (match List.assoc_opt c.call_id s.s_results with Some t -> contains t commit | None -> false)))
+             || (match List.assoc_opt c.call_id s.s_results with
+                 | Some t -> contains t commit || moved t
+                 | None -> false)))
        s.s_bash
 
 (* Author windows of one session, in time order: each message and tool

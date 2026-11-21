@@ -322,14 +322,42 @@ let case_parse_session_keeps_the_main_thread_and_handoff_results _ =
   assert_equal [ "t1"; "t2" ] (List.map fst s.s_tools);
   assert_equal [ "t2" ] (List.map fst s.s_results)
 
-let case_casts_handoff_by_the_result_commit_or_a_command_prefix _ =
+(* b's window (two_nodes): from a's land to b's handoff *)
+let b_from = Option.get (Claude_tx.seconds "2026-11-21T12:10:05Z")
+let b_upto = Option.get (Claude_tx.seconds "2026-11-21T13:00:00Z")
+
+let case_casts_handoff_by_the_result_commit_or_a_command_prefix_inside_the_window _ =
   let s = Claude_tx.parse_session main_session in
-  assert_bool "result holds the full commit" (Claude_tx.casts_handoff s ~node:"b" ~commit:sha);
-  assert_bool "another node" (not (Claude_tx.casts_handoff s ~node:"a" ~commit:sha));
-  assert_bool "another commit" (not (Claude_tx.casts_handoff s ~node:"b" ~commit:"cccccccccccccccc"));
+  let casts ?(from = b_from) ?(upto = b_upto) s node commit = Claude_tx.casts_handoff s ~node ~commit ~from ~upto in
+  assert_bool "result holds the full commit" (casts s "b" sha);
+  assert_bool "another node" (not (casts s "a" sha));
+  assert_bool "another commit" (not (casts s "b" "cccccccccccccccc"));
+  assert_bool "the call ran before the window" (not (casts ~from:(b_upto +. 10.) ~upto:(b_upto +. 100.) s "b" sha));
   let literal = Claude_tx.parse_session (Gen.text [
       session_line ~ts:"2026-11-21T12:59:59.000Z" ~id:"w9" ~tools:[ ("t9", "bp3 q quest1 u b handoff --commit bbbbbbb1") ] (1, 1, 1, 1) ]) in
-  assert_bool "command names the commit" (Claude_tx.casts_handoff literal ~node:"b" ~commit:sha)
+  assert_bool "command names the commit" (casts literal "b" sha);
+  (* grader probe (round 1): a later read that greps the same words *)
+  let later = Claude_tx.parse_session (Gen.text [
+      session_line ~ts:"2026-11-21T14:00:00.000Z" ~id:"r1" ~tools:[ ("r1t", "./bin/bp3 q quest1 n b r | grep handoff") ] (1, 1, 1, 1);
+      tool_result ~ts:"2026-11-21T14:00:01.000Z" "r1t" ("{\"edge\":\"handoff\",\"to\":\"handed_off\",\"commit\":\"" ^ sha ^ "\"}") ]) in
+  assert_bool "a later read is not the cast" (not (casts later "b" sha));
+  (* test-pyramid tier.2: --commit "$SHA" and a result cut to {ok, state} *)
+  let cut ok_text = Claude_tx.parse_session (Gen.text [
+      session_line ~ts:"2026-11-21T12:59:59.000Z" ~id:"w8" ~tools:[ ("t8", "bp3 q quest1 u b handoff --commit \"$SHA\" | jq -c '{ok, state}'") ] (1, 1, 1, 1);
+      tool_result ~ts:"2026-11-21T13:00:00.200Z" "t8" ok_text ]) in
+  assert_bool "a successful move, commit cut away" (casts (cut "{\"ok\":true,\"state\":\"handed_off\"}") "b" sha);
+  assert_bool "a refusal that names handed_off" (not (casts (cut "{\"ok\":false,\"error\":{\"facts\":{\"state\":\"handed_off\"}}}") "b" sha))
+
+(* A queue-operation line quoting "tool_result" and "handed_off" passes
+   the cheap filter and has no message: it must read as nothing. *)
+let case_a_line_without_a_message_never_stops_the_reader _ =
+  let odd = jline [ ("type", `String "queue-operation"); ("operation", `String "enqueue");
+                    ("timestamp", `String "2026-11-21T12:40:00.000Z");
+                    ("content", `String "a tool_result said handed_off"); ("message", `Null) ] in
+  let s = Claude_tx.parse_session (main_session ^ Gen.text [ odd; "[1,2]"; "{\"type\":\"assistant\",\"message\":[1]}" ]) in
+  assert_equal [ "w1"; "w2" ] (List.map (fun (m : Claude_tx.msg) -> m.id) s.s_msgs);
+  let tx = Claude_tx.parse (tx_text ^ Gen.text [ odd; "{\"type\":\"assistant\",\"message\":null}" ]) in
+  assert_equal ~printer:string_of_int 3 (List.length tx.msgs)
 
 let case_assign_counts_each_message_once_and_never_a_subagents _ =
   let s = Claude_tx.parse_session main_session in
@@ -377,7 +405,8 @@ let () =
        "case_a_resumed_agents_later_report_wins_under_its_task_id" >:: case_a_resumed_agents_later_report_wins_under_its_task_id;
        "case_author_spans_start_at_the_previous_quest_edge_but_never_a_resume" >:: case_author_spans_start_at_the_previous_quest_edge_but_never_a_resume;
        "case_parse_session_keeps_the_main_thread_and_handoff_results" >:: case_parse_session_keeps_the_main_thread_and_handoff_results;
-       "case_casts_handoff_by_the_result_commit_or_a_command_prefix" >:: case_casts_handoff_by_the_result_commit_or_a_command_prefix;
+       "case_casts_handoff_by_the_result_commit_or_a_command_prefix_inside_the_window" >:: case_casts_handoff_by_the_result_commit_or_a_command_prefix_inside_the_window;
+       "case_a_line_without_a_message_never_stops_the_reader" >:: case_a_line_without_a_message_never_stops_the_reader;
        "case_assign_counts_each_message_once_and_never_a_subagents" >:: case_assign_counts_each_message_once_and_never_a_subagents;
        "case_a_usage_line_missing_a_count_is_skipped_and_fails_the_check" >:: case_a_usage_line_missing_a_count_is_skipped_and_fails_the_check;
        "case_agrees_allows_a_small_context_undercount_and_nothing_else" >:: case_agrees_allows_a_small_context_undercount_and_nothing_else;

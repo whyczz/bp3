@@ -105,9 +105,14 @@ These supersede the Diagram and Pseudocode above where they differ.
 | A cycle's authoring can happen before the owner's resume | rules.4 round 4 was written while blocked; resume to handoff was 8 s | a window starts at the quest's previous edge, never a `resume` (`Metrics.author_spans`) |
 | Ledger stamps are whole seconds, so adjacent windows share a second | design | `Claude_tx.assign` counts each message and tool call in the first window that holds it |
 | Session files are big | this session: 45 MB, 20k lines | only assistant lines and tool results naming `handed_off` are parsed; `find_from` compares in place (scrape 2.2 s down to 1.2 s) |
+| A later read can look like the cast (round 1, grader) | a session dated 2099 that greps nb's ledger turned nb authored, with five zero samples | the casting call must run inside the handoff's own window; a window with no messages of its own is `author_missing`, never zero |
+| Results are often cut to `{ok, state}` | test-pyramid tier.2: `--commit "$SHA"` and a result without the commit; before the window check, a later read made these look authored | inside the window, a successful move to `handed_off` is evidence too; a result that shows a commit must show ours (first 6, one real result was cut after 6) |
+| A line of an unexpected shape stopped the whole scrape | dogfood, this quest: a `queue-operation` line quoting "tool_result" and "handed_off" passed the cheap filter with no `message`; `member` raised | `Claude_tx.member` is total: a null message reads as absent fields |
 
-On a scratch clone: constraints-context 10 of 10 handoffs authored,
-test-pyramid 23 of 25 (2 `author_missing`), metric-collectors 3 of 3.
+On a scratch clone (round 2): constraints-context 10 of 10 handoffs
+authored, test-pyramid 24 of 25 (1 `author_missing`), metric-collectors
+4 of 4, 0 ambiguous. Round 1's 23 of 25 on test-pyramid held 3
+authored only by later reads.
 What the lifecycle shows: sink.1's authoring took 68 tool calls and
 15.1M cache-read tokens, while its grade took 25 and 1.6M. A
 long-lived main session re-reads its whole context on every call.

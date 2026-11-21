@@ -88,6 +88,7 @@ for node in na nb nc; do
   if [ "$node" = na ]; then author_lines "$claude/s1.jsonl" na "$asec"; fi
   q q1 u "$node" handoff --commit "$sha" --reason work >/dev/null
   if [ "$node" = na ]; then author_result "$claude/s1.jsonl" "$sha"; fi
+  if [ "$node" = nb ]; then nb_sha=$sha nb_sec=$asec; fi
   sec=$(date -u +%Y-%m-%dT%H:%M:%S)
   case "$node" in
     na) transcript "$claude/s1/subagents/agent-a1.jsonl" "$node" "$sha" "$sec"
@@ -98,6 +99,15 @@ for node in na nb nc; do
   esac
   q q1 u "$node" grade --verdict ship --verify-verdict pass --reason ok >/dev/null
 done
+
+# s3: another session that worked during nb's window, then, after every
+# handoff, greps nb's ledger; its result names handed_off and nb's
+# commit, but it is a read, not the cast (grader, scrape.2 round 1), so
+# nb stays author_missing
+rsec=2099-01-01T00:00:00   # well after every window: a later read
+printf '{"type":"assistant","timestamp":"%s.500Z","isSidechain":false,"sessionId":"s3","message":{"id":"r0","model":"claude-opus-5-5","content":[],"usage":{"input_tokens":1,"output_tokens":7,"cache_read_input_tokens":1,"cache_creation_input_tokens":1}}}\n' "$nb_sec" > "$claude/s3.jsonl"
+printf '{"type":"assistant","timestamp":"%s.900Z","isSidechain":false,"sessionId":"s3","message":{"id":"r1","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"tr1","name":"Bash","input":{"command":"./bin/bp3 q q1 n nb r | jq .ledger[] | grep handoff"}}],"usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":1,"cache_creation_input_tokens":1}}}\n' "$rsec" >> "$claude/s3.jsonl"
+printf '{"type":"user","timestamp":"%s.950Z","isSidechain":false,"message":{"content":[{"type":"tool_result","tool_use_id":"tr1","content":"{\\"edge\\":\\"handoff\\",\\"to\\":\\"handed_off\\",\\"commit\\":\\"%s\\"}"}]}}\n' "$rsec" "$nb_sha" >> "$claude/s3.jsonl"
 
 # q2/nd: the harness report counts 4 tool calls, the transcript 3
 q c q2 >/dev/null; q q2 c nd >/dev/null
@@ -142,6 +152,7 @@ expect "owner node has no samples" '{}' "$(q q1 metrics r | jq -c .nodes.nb.cycl
 # --- author window: the session that cast na's handoff, counted once ---
 expect "na authored" 1 "$(jq -r .nodes.na.authored <<< "$out")"
 expect "nb no session: author_missing, not zero" 1 "$(jq -r .nodes.nb.author_missing <<< "$out")"
+expect "a later read of nb is not its author" 0 "$(jq -r .nodes.nb.authored <<< "$out")"
 author=$(q q1 metrics r | jq -c '.nodes.na.cycles["1"].author')
 expect "author tool calls" 2 "$(jq -r .tool_calls <<< "$author")"
 expect "author output, last snapshot, no subagent line" 65 "$(jq -r .tokens_out <<< "$author")"
