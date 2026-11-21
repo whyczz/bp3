@@ -82,33 +82,39 @@ let subagent_files dir =
 
 (* run key from the path when the file does not name itself:
    <dir>/<session>/subagents/agent-<id>.jsonl *)
+let agent_of_path path (tx : Claude_tx.tx) =
+  if tx.agent <> "" then tx.agent
+  else let b = Filename.chop_suffix (Filename.basename path) ".jsonl" in
+    if String.starts_with ~prefix:"agent-" b then String.sub b 6 (String.length b - 6) else b
+
 let run_of_path path (tx : Claude_tx.tx) =
   let session = if tx.session <> "" then tx.session
     else Filename.basename (Filename.dirname (Filename.dirname path)) in
-  let agent = if tx.agent <> "" then tx.agent
-    else let b = Filename.chop_suffix (Filename.basename path) ".jsonl" in
-      if String.starts_with ~prefix:"agent-" b then String.sub b 6 (String.length b - 6) else b in
-  "claude:" ^ session ^ "/" ^ agent
+  "claude:" ^ session ^ "/" ^ agent_of_path path tx
 
-(* The harness report for one subagent file: its .meta.json names the
-   spawning tool call, and the parent session file beside the
-   session's folder holds the report. Parents are big (tens of MB),
-   so each is read once per scrape. *)
+(* The harness report for one subagent file lives in the parent
+   session file beside the session's folder. Its key is the agent id
+   (<task-id>, whose last report covers a resumed agent's whole
+   transcript), else the spawning call named in the .meta.json
+   (<tool-use-id>, first stop only). Parents are big (tens of MB), so
+   each is read once per scrape. *)
 let meta_path path = Filename.chop_suffix path ".jsonl" ^ ".meta.json"
 let parent_path path = Filename.dirname (Filename.dirname path) ^ ".jsonl"
 let reports_cache : (string, (string * Claude_tx.report) list) Hashtbl.t = Hashtbl.create 4
 
-let report_for path =
-  match (try Claude_tx.meta_tool_use_id (read_file (meta_path path)) with Sys_error _ -> None) with
-  | None -> None
-  | Some id ->
-      let parent = parent_path path in
-      let reports = match Hashtbl.find_opt reports_cache parent with
-        | Some r -> r
-        | None ->
-            let r = try Claude_tx.reports_of_text (read_file parent) with Sys_error _ -> [] in
-            Hashtbl.replace reports_cache parent r; r in
-      List.assoc_opt id reports
+let report_for path tx =
+  let parent = parent_path path in
+  let reports = match Hashtbl.find_opt reports_cache parent with
+    | Some r -> r
+    | None ->
+        let r = try Claude_tx.reports_of_text (read_file parent) with Sys_error _ -> [] in
+        Hashtbl.replace reports_cache parent r; r in
+  match List.assoc_opt (agent_of_path path tx) reports with
+  | Some r -> Some r
+  | None ->
+      (match (try Claude_tx.meta_tool_use_id (read_file (meta_path path)) with Sys_error _ -> None) with
+       | Some id -> List.assoc_opt id reports
+       | None -> None)
 
 let grade_samples q node (sp : Metrics.grade_span) path (tx : Claude_tx.tx) (c : Claude_tx.cost) =
   let mk m v = { Metrics.metric = "grade." ^ m; quest = q; node; cycle = sp.g_cycle;
@@ -137,9 +143,9 @@ let scrape_node q node txs =
           let t = { t with skipped_lines = t.skipped_lines + tx.skipped_lines } in
           (* the check reads the lines the report covers; the samples
              keep the whole in-window cost, follow-up turns included *)
-          let covered r = Claude_tx.cost (Claude_tx.parse ?until:(Claude_tx.seconds r.Claude_tx.r_at) (read_file path)) in
-          (match report_for path with
-           | Some r when not (Claude_tx.agrees (covered r) r) -> (batch, { t with mismatched = t.mismatched + 1 })
+          let covered r = Claude_tx.parse ?until:(Claude_tx.seconds r.Claude_tx.r_at) (read_file path) in
+          (match report_for path tx with
+           | Some r when not (Claude_tx.checks (covered r) r) -> (batch, { t with mismatched = t.mismatched + 1 })
            | Some _ -> (batch @ grade_samples q node sp path tx c, { t with checked = t.checked + 1 })
            | None -> (batch @ grade_samples q node sp path tx c, { t with unchecked = t.unchecked + 1 }))
       | _ -> (batch, { t with ambiguous = t.ambiguous + 1 })) ([], Metrics.zero) spans in

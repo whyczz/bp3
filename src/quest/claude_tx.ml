@@ -15,7 +15,8 @@ type tx = {
   last_ts : string;
   msgs : msg list;        (* one per message.id, last snapshot, first-seen order *)
   tool_use_ids : string list;
-  skipped_lines : int;    (* not JSON, or an assistant line with no message.id *)
+  skipped_lines : int;    (* not JSON, or an assistant line with no message.id or bad usage *)
+  bad_usage : int;        (* assistant lines whose usage lacks one of its four counts *)
 }
 
 (* Milliseconds matter: a grade's wall is the span of its lines. *)
@@ -34,11 +35,17 @@ let seconds ts =
         else None
 
 let str k j = match Yojson.Safe.Util.member k j with `String s -> s | _ -> ""
-let int_of k j = match Yojson.Safe.Util.member k j with `Int i -> i | _ -> 0
 
+(* All four counts or nothing: a renamed or missing key is never read
+   as 0, or a format change would pass as a cheap grade (QUEST.md R1). *)
 let usage_of j =
-  { input = int_of "input_tokens" j; output = int_of "output_tokens" j;
-    cache_read = int_of "cache_read_input_tokens" j; cache_write = int_of "cache_creation_input_tokens" j }
+  let int_of k = match j with
+    | `Assoc fields -> (match List.assoc_opt k fields with Some (`Int i) -> Some i | _ -> None)
+    | _ -> None in
+  match int_of "input_tokens", int_of "output_tokens",
+        int_of "cache_read_input_tokens", int_of "cache_creation_input_tokens" with
+  | Some input, Some output, Some cache_read, Some cache_write -> Some { input; output; cache_read; cache_write }
+  | _ -> None
 
 let prompt_text content =
   match content with
@@ -52,7 +59,7 @@ let prompt_text content =
    the part of a transcript a harness report covers. *)
 let parse ?until text =
   let order = ref [] and by_id = Hashtbl.create 64 and tools = Hashtbl.create 64 in
-  let tool_order = ref [] and skipped = ref 0 in
+  let tool_order = ref [] and skipped = ref 0 and bad_usage = ref 0 in
   let session = ref "" and agent = ref "" and prompt = ref None in
   let first_ts = ref "" and last_ts = ref "" in
   let late ts = match until, seconds ts with Some u, Some s -> s > u | _ -> false in
@@ -74,11 +81,13 @@ let parse ?until text =
                  prompt := Some (prompt_text (Yojson.Safe.Util.member "content" message))
              | "assistant" ->
                  let id = str "id" message in
+                 let usage = usage_of (Yojson.Safe.Util.member "usage" message) in
                  if id = "" then incr skipped
+                 else if usage = None then begin incr skipped; incr bad_usage end
                  else begin
                    if not (Hashtbl.mem by_id id) then order := id :: !order;
                    Hashtbl.replace by_id id
-                     { id; ts; model = str "model" message; usage = usage_of (Yojson.Safe.Util.member "usage" message);
+                     { id; ts; model = str "model" message; usage = Option.get usage;
                        sidechain = (match Yojson.Safe.Util.member "isSidechain" j with `Bool b -> b | _ -> false) };
                    (match Yojson.Safe.Util.member "content" message with
                     | `List blocks ->
@@ -96,7 +105,7 @@ let parse ?until text =
     first_prompt = (match !prompt with Some p -> p | None -> "");
     first_ts = !first_ts; last_ts = !last_ts;
     msgs = List.rev_map (Hashtbl.find by_id) !order;
-    tool_use_ids = List.rev !tool_order; skipped_lines = !skipped }
+    tool_use_ids = List.rev !tool_order; skipped_lines = !skipped; bad_usage = !bad_usage }
 
 (* The .meta.json beside a subagent transcript names the parent's
    tool call that spawned it: the join key to the harness report. *)
@@ -150,14 +159,15 @@ let in_window tx ~handed_at ~graded_at =
   | Some a, Some b, Some h, Some g -> a >= h && b < g +. 1.
   | _ -> false
 
-(* The harness report (scrape.1): when a subagent ends, the harness
-   queues a <task-notification> to the parent session carrying the
-   spawning call's <tool-use-id> and a <usage> block. It is read from
+(* The harness report (scrape.1): each time a subagent stops, the
+   harness queues a <task-notification> to the parent session with a
+   <usage> block, keyed by <task-id> (the agent id) and, on the first
+   stop, the spawning call's <tool-use-id>. It is read from
    queue-operation enqueue lines only: the parent's own messages may
-   quote the same text, and quoting is not reporting. A task can
-   notify more than once; the last report wins. r_at is when the
-   report was queued: a subagent resumed by a follow-up keeps
-   writing after it, so a report covers only the lines up to r_at. *)
+   quote the same text, and quoting is not reporting. Under each key
+   the last report wins: a subagent resumed by a follow-up stops again
+   and its later report covers the whole transcript. r_at is when the
+   report was queued; the report covers the lines up to r_at. *)
 type report = { r_at : string; r_tool_uses : int; r_duration_ms : int; r_subagent_tokens : int }
 
 let tag name s =
@@ -178,11 +188,14 @@ let reports_of_text text =
         | Some j when str "type" j = "queue-operation" && str "operation" j = "enqueue" ->
             let c = str "content" j in
             let num t = match tag t c with Some v -> int_of_string_opt (String.trim v) | None -> None in
-            (match tag "tool-use-id" c, num "tool_uses", num "duration_ms", num "subagent_tokens" with
-             | Some id, Some tu, Some ms, Some st ->
-                 if not (Hashtbl.mem found id) then order := id :: !order;
-                 Hashtbl.replace found id
-                   { r_at = str "timestamp" j; r_tool_uses = tu; r_duration_ms = ms; r_subagent_tokens = st }
+            (match num "tool_uses", num "duration_ms", num "subagent_tokens" with
+             | Some tu, Some ms, Some st ->
+                 let r = { r_at = str "timestamp" j; r_tool_uses = tu; r_duration_ms = ms; r_subagent_tokens = st } in
+                 List.iter (fun key -> match tag key c with
+                     | Some id ->
+                         if not (Hashtbl.mem found id) then order := id :: !order;
+                         Hashtbl.replace found id r
+                     | None -> ()) [ "task-id"; "tool-use-id" ]
              | _ -> ())
         | _ -> ())
     (String.split_on_char '\n' text);
@@ -190,11 +203,15 @@ let reports_of_text text =
 
 (* c is the cost of the transcript cut at r_at (parse ~until). It
    agrees when the tool calls match exactly, the wall is within a
-   second, and the end context is at most 5% under the report's,
+   second, and the end context is at most 1% under the report's,
    never over: the transcript can log a final message's output only
-   partially (seen on 4 of 43 reports, 2026-11-21: 62 to 1009 tokens
-   short), but it never logs more than the harness counted. *)
+   partially (4 of 43 reports, 2026-11-21: 62 to 1009 tokens short,
+   at most 0.74%), but it never logs more than the harness counted. *)
 let agrees (c : cost) r =
   let short = r.r_subagent_tokens - c.context_end in
-  c.tool_calls = r.r_tool_uses && short >= 0 && short * 20 <= r.r_subagent_tokens
+  c.tool_calls = r.r_tool_uses && short >= 0 && short * 100 <= r.r_subagent_tokens
   && Float.abs (c.wall_s -. (float_of_int r.r_duration_ms /. 1000.)) <= 1.
+
+(* A cut transcript checks out when no usage line in it was unreadable
+   and its cost agrees with the report. *)
+let checks (cut : tx) r = cut.bad_usage = 0 && agrees (cost cut) r

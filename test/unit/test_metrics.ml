@@ -173,11 +173,14 @@ let case_tally_buckets_add_up_to_the_grades _ =
 
 (* ---------- the harness report (scrape.1) ---------- *)
 
-let notification ?(ts = "2026-11-21T21:14:48.003Z") ?(op = "enqueue") id (st, tu, ms) =
+(* ?task adds the <task-id> key; ~tool:"" leaves out <tool-use-id>,
+   the shape of a resumed agent's later report *)
+let notification ?(ts = "2026-11-21T21:14:48.003Z") ?(op = "enqueue") ?task id (st, tu, ms) =
+  let key k v = if v = "" then "" else Printf.sprintf "<%s>%s</%s>\n" k v k in
   jline [ ("type", `String "queue-operation"); ("operation", `String op); ("timestamp", `String ts);
           ("content", `String (Printf.sprintf
-             "<task-notification>\n<tool-use-id>%s</tool-use-id>\n<status>completed</status>\n<usage><subagent_tokens>%d</subagent_tokens><tool_uses>%d</tool_uses><duration_ms>%d</duration_ms></usage>\n</task-notification>"
-             id st tu ms)) ]
+             "<task-notification>\n%s%s<status>completed</status>\n<usage><subagent_tokens>%d</subagent_tokens><tool_uses>%d</tool_uses><duration_ms>%d</duration_ms></usage>\n</task-notification>"
+             (key "task-id" (Option.value task ~default:"")) (key "tool-use-id" id) st tu ms)) ]
 
 let case_reports_come_from_enqueue_lines_and_the_last_one_wins _ =
   let quoting = jline [ ("type", `String "assistant"); ("timestamp", `String "2026-11-21T22:00:00.000Z");
@@ -197,6 +200,16 @@ let case_reports_come_from_enqueue_lines_and_the_last_one_wins _ =
     (a.r_tool_uses, a.r_duration_ms, a.r_subagent_tokens, a.r_at);
   assert_equal ~printer:string_of_int 2 c.r_tool_uses
 
+(* The first stop reports under both keys; a resumed agent's later
+   stop reports under its task id alone, and that later one wins. *)
+let case_a_resumed_agents_later_report_wins_under_its_task_id _ =
+  let rs = Claude_tx.reports_of_text (Gen.text [
+      notification ~task:"a1" "toolu_a" (100, 3, 1000);
+      notification ~ts:"2026-11-21T23:00:00.000Z" ~task:"a1" "" (150, 5, 9000) ]) in
+  assert_equal ~printer:string_of_int 3 (List.assoc "toolu_a" rs).r_tool_uses;
+  assert_equal ~printer:string_of_int 5 (List.assoc "a1" rs).r_tool_uses;
+  assert_equal ~printer:Fun.id "2026-11-21T23:00:00.000Z" (List.assoc "a1" rs).r_at
+
 let report ?(at = "2026-11-21T21:14:48.003Z") (st, tu, ms) =
   { Claude_tx.r_at = at; r_tool_uses = tu; r_duration_ms = ms; r_subagent_tokens = st }
 
@@ -204,12 +217,27 @@ let case_agrees_allows_a_small_context_undercount_and_nothing_else _ =
   let c = Claude_tx.cost (Claude_tx.parse tx_text) in   (* tools 3, wall 1280.29, context 36014 *)
   let ok label want r = assert_equal ~msg:label ~printer:string_of_bool want (Claude_tx.agrees c r) in
   ok "exact" true (report (36014, 3, 1280300));
-  ok "final output logged short (seen: 62 to 1009)" true (report (36014 + 1009, 3, 1280300));
+  ok "final output logged short, under 1% (seen: at most 0.74%)" true (report (36014 + 360, 3, 1280300));
   ok "wall within a second" true (report (36014, 3, 1281200));
   ok "one tool call off" false (report (36014, 4, 1280300));
   ok "context over the report" false (report (36013, 3, 1280300));
-  ok "context more than 5% short" false (report (36014 * 2, 3, 1280300));
+  ok "context more than 1% short" false (report (36014 + 400, 3, 1280300));
   ok "wall off by 2 s" false (report (36014, 3, 1282300))
+
+(* A renamed usage key must never read as 0 tokens and pass the check. *)
+let case_a_usage_line_missing_a_count_is_skipped_and_fails_the_check _ =
+  let renamed = jline [ ("type", `String "assistant"); ("timestamp", `String "2026-11-21T21:14:40.500Z");
+                        ("message", `Assoc [ ("id", `String "m9"); ("model", `String "claude-opus-5-5");
+                                             ("content", `List []);
+                                             ("usage", `Assoc [ ("input_tokens", `Int 1); ("output_tokenz", `Int 9);
+                                                                ("cache_read_input_tokens", `Int 0);
+                                                                ("cache_creation_input_tokens", `Int 0) ]) ]) ] in
+  let tx = Claude_tx.parse (tx_text ^ Gen.text [ renamed ]) in
+  assert_equal ~printer:string_of_int 1 tx.bad_usage;
+  assert_equal ~printer:string_of_int 3 tx.skipped_lines;
+  assert_equal ~printer:string_of_int 3 (List.length tx.msgs);
+  assert_bool "same cost, but it does not check" (not (Claude_tx.checks tx (report (36014, 3, 1280300))));
+  assert_bool "the clean transcript checks" (Claude_tx.checks (Claude_tx.parse tx_text) (report (36014, 3, 1280300)))
 
 (* A grader resumed by a follow-up writes after its report: the cut
    at r_at must reproduce the report, the full file keeps the rest. *)
@@ -227,7 +255,14 @@ let case_an_off_shape_model_is_recorded_as_other _ =
   let text = Gen.text [ user "x"; assistant ~model:"sk-ant-api03-secret" ~ts:"2026-11-21T20:53:31.726Z" ~id:"m1" (1, 1, 1, 1) ] in
   assert_equal ~printer:Fun.id "other" (Claude_tx.cost (Claude_tx.parse text)).model;
   assert_equal ~printer:Fun.id "E_METRIC_VALUE" (code (Metrics.validate (sample ~model:"sk-ant-api03-secret" ())));
-  assert_equal ~printer:Fun.id "ok" (code (Metrics.validate (sample ~model:"other" ())))
+  assert_equal ~printer:Fun.id "ok" (code (Metrics.validate (sample ~model:"other" ())));
+  (* Str's $ matches before a newline: nothing may ride after one *)
+  List.iter (fun m ->
+      assert_equal ~msg:(String.escaped m) ~printer:Fun.id "E_METRIC_VALUE" (code (Metrics.validate (sample ~model:m ())));
+      let t = Gen.text [ user "x"; assistant ~model:m ~ts:"2026-11-21T20:53:31.726Z" ~id:"m1" (1, 1, 1, 1) ] in
+      assert_equal ~msg:(String.escaped m) ~printer:Fun.id "other" (Claude_tx.cost (Claude_tx.parse t)).model)
+    [ "other\nhunter2-secret"; "claude-a\nx"; "unknown\n" ];
+  assert_equal ~printer:Fun.id "E_METRIC_VALUE" (code (Metrics.validate (sample ~at:"2026-11-21T20:53:27Z\nx" ())))
 
 (* ---------- the spec still to build ---------- *)
 
@@ -266,6 +301,8 @@ let () =
        "case_meta_names_the_parent_tool_call" >:: case_meta_names_the_parent_tool_call;
        "case_tally_buckets_add_up_to_the_grades" >:: case_tally_buckets_add_up_to_the_grades;
        "case_reports_come_from_enqueue_lines_and_the_last_one_wins" >:: case_reports_come_from_enqueue_lines_and_the_last_one_wins;
+       "case_a_resumed_agents_later_report_wins_under_its_task_id" >:: case_a_resumed_agents_later_report_wins_under_its_task_id;
+       "case_a_usage_line_missing_a_count_is_skipped_and_fails_the_check" >:: case_a_usage_line_missing_a_count_is_skipped_and_fails_the_check;
        "case_agrees_allows_a_small_context_undercount_and_nothing_else" >:: case_agrees_allows_a_small_context_undercount_and_nothing_else;
        "case_parse_until_cuts_the_transcript_at_the_report" >:: case_parse_until_cuts_the_transcript_at_the_report;
        "case_an_off_shape_model_is_recorded_as_other" >:: case_an_off_shape_model_is_recorded_as_other;

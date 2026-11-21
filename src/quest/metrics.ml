@@ -48,14 +48,20 @@ let id_ok s =
        | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '-' | '_' | '.' | ':' | '/' -> true
        | _ -> false) s
 
+(* Str's $ also matches before a newline, so a full match is checked by
+   its end position, never by $. *)
 let ts_re = Str.regexp
-    "^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\\(\\.[0-9]+\\)?Z$"
+    "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\\(\\.[0-9]+\\)?Z"
+let ts_ok s = Str.string_match ts_re s 0 && Str.match_end () = String.length s
 
 (* A model is a closed shape, not an id: claude-<lowercase>, or the
    scraper's own "unknown" / "other". Anything else could be text
    riding in a model field (QUEST.md R4). *)
-let model_re = Str.regexp "^\\(claude-[a-z0-9.-]+\\|unknown\\|other\\)$"
-let model_ok m = String.length m <= 64 && Str.string_match model_re m 0
+let model_ok m =
+  m = "unknown" || m = "other"
+  || (String.length m > 7 && String.length m <= 64 && String.starts_with ~prefix:"claude-" m
+      && String.for_all (function 'a' .. 'z' | '0' .. '9' | '.' | '-' -> true | _ -> false)
+           (String.sub m 7 (String.length m - 7)))
 
 (* Error is (code, detail); Metrics_io raises it as a verdict. *)
 let validate s =
@@ -68,7 +74,7 @@ let validate s =
       else if s.cycle < 1 then Error ("E_METRIC_VALUE", "cycle")
       else if not (List.for_all id_ok [ s.quest; s.node; s.run ]) then Error ("E_METRIC_VALUE", "ids")
       else if not (model_ok s.model) then Error ("E_METRIC_VALUE", "model")
-      else if not (Str.string_match ts_re s.at 0) then Error ("E_METRIC_VALUE", "at")
+      else if not (ts_ok s.at) then Error ("E_METRIC_VALUE", "at")
       else Ok ()
 
 (* Two samples with one key measure the same thing: the sink keeps
