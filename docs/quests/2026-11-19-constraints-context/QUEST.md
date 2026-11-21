@@ -65,6 +65,7 @@ about perl and python; see the correction):
 | the rules.2 grader's lint holes | "rules.4 follow-up node": three bugs, four false positives and the missed command positions, each a planted row |
 | what zsh's grandfathering covers | "The file and its test": the zsh line gains `runs-in test/completion.sh`; zsh runs nowhere else (rules.4) |
 | rules.4 round 3, after two needs_fix rounds on a growing shell parser | "Never skip a line": per-line scan, no state across lines, no heredoc skipping; heredoc bodies are a stated false positive |
+| rules.4 at the cap (round 3 needs_fix: ` #` in nested strings, spaced case arms) | "A": one more round with two small fixes; the owner resumes the node |
 
 Census on master, 2026-11-19 (`git ls-files`, shebangs, imports):
 

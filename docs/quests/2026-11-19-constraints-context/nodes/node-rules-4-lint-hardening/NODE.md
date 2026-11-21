@@ -99,6 +99,9 @@ shebang = parse("#!/usr/bin/env -S node --x")  # -> node, not -S
 | a heredoc or quote that never closes | never blind (round 3) | the next line's real call still FAILs: no state crosses lines |
 | multi-line `"$(` ... `)"`, nested quotes in `"$( )"` / `${ }`, `;#`, make apostrophes (round 2) | fail open / cry wolf | `out="$(\n perl -e 1\n)"` and a `perl` between two `"$(printf "%s" "it's")"` lines FAIL; the nested-quote lines alone pass |
 | `env 'X=1' perl`, make `\t- @perl` (round 2) | fail open | both FAIL |
+| ` #` inside a nested string or `${ }` cut a later call (round 3) | fail open | `"$(printf "PR #%s")" && python3`, `${y%% #*}; perl`, `"${x:-"y #z"}"; perl`, `$'a\'b #c'; perl`, a backtick ` #` before `\| perl` all FAIL: a comment is cut only after a plain head |
+| spaced case arms `zsh \| bash)` (round 3) | cry wolf | near misses pass |
+| non-ASCII file names | fail open | `scripts/tööl.sh` with `perl x` FAILs (`core.quotePath=false`) |
 | deleted or directory-symlink paths (round 1) | fail open | a tracked .sh deleted from disk is skipped and later files are still scanned; a dir symlink is skipped |
 | CRLF shebang, `command -pv`, `<<\EOF`, `nohup` | follow-up | planted near misses and a nohup row |
 
