@@ -22,7 +22,6 @@
 # No blanket per-file exemption for live files.
 #   scripts/migrate-graph-rename.sh | migration rename table:
 #     quotes the retired spellings in order to rename them
-#   scripts/migrate-quest-rename.sh | migration rename table (rename-back)
 #   src/quest/layout.ml             | declares legacy spellings it folds on read
 #   bin/bp3 RETIRED_WORKFLOWS= line | names the retired renders it prunes
 #   scripts/check-retired-terms.sh  | declares the retired list
@@ -62,7 +61,7 @@ trap 'rm -f "$hits" "$filtered"' EXIT
 while IFS= read -r line; do
   path=${line%%:*}
   case "$path" in
-    scripts/migrate-graph-rename.sh|scripts/migrate-quest-rename.sh|scripts/check-retired-terms.sh|src/quest/layout.ml) continue ;;
+    scripts/migrate-graph-rename.sh|scripts/check-retired-terms.sh|src/quest/layout.ml) continue ;;
   esac
   # bin/bp3 declares the retired workflow names it prunes; that one
   # line only, never the whole live file.

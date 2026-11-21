@@ -13,6 +13,17 @@ Never hand-edit generated quest state. `state.yaml` and
 `bp3 q`. Never parse them by hand to decide anything either:
 run `bp3 q r <quest>` and read its JSON verdict.
 
+## Constraints and context
+
+[CONSTRAINTS.md](CONSTRAINTS.md) is the owner-signed stack: the
+languages bp3 is written in, the libraries each may use, and the
+surfaces it ships. Adding any of them takes a `/teach` pitch and the
+owner's words in its Sign-off log; `make lint` checks the files
+against it. [CONTEXT.md](CONTEXT.md) is how others build agent
+harnesses, one sourced and dated claim per line. Read both before
+planning or grading; re-check a claim older than 90 days before
+citing it.
+
 ## Layout
 
 ```text

@@ -85,7 +85,7 @@ def check(root):
 | Lane | standard (changes the gate: Makefile, check-gates, check-tiers) |
 | Output | `scripts/check-constraints`, `test/check-constraints.sh`, a `fixture` row, the lint step in `Makefile`, `scripts/check-gates`, `test/check-tiers.sh` |
 | Acceptance | the case table on a planted repo; fails today (no script) |
-| Depends on | rules.1 - constraints-file |
+| Depends on | rules.1 - constraints-file, rules.3 - stack-purge (follow-up) |
 
 | Case planted | FAIL line names |
 |---|---|
@@ -93,11 +93,12 @@ def check(root):
 | a `#!/usr/bin/env python3` script with no extension | `language python3 (shebang)` |
 | `perl -e` in a shell script | `interpreter perl` |
 | `python3 - <<EOF` heredoc | `interpreter python3` |
+| `TMPDIR=x python3 f.py` (env assignments before the command) | `interpreter python3`: the 2026-11-19 census missed exactly this |
 | a new dune library | `library <name> (ocaml)` |
 | a new bare import in a `.mjs` | `library <name> (node)` |
 | a new Brewfile entry | `library <name> (bash)` |
 | CONSTRAINTS.md with no block | exit 2, `no constraints block` |
-| a comment or string naming python (`# port of the python version`) | no FAIL: only command position counts (line start, after `\|`, `;`, `&&`, `$(`); comment lines are skipped |
+| a comment or string naming python (`# port of the python version`) | no FAIL: only command position counts (line start, after `\|`, `;`, `&&`, `$(`, or after `VAR=value` words); comment lines are skipped |
 | a tracked file with an extension in neither a lang nor the data line | `language <ext>` |
 
 ## Prose

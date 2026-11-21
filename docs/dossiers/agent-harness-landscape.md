@@ -11,7 +11,8 @@ Reader: the owner, and any session framing or reviewing a bp3 plan.
 Snapshot: 2026-11-19. Compiled from five research passes run that
 day by subagents: a review-loop fact-check, then GitHub, HN with
 lobste.rs, first-party blogs with X, and the pre-LLM engineering
-canon. Every row below cites its source. Stars, points and funding
+canon. A sixth pass, over LessWrong, the Alignment Forum and geohot's
+blog, ran on 2026-11-20. Every row below cites its source. Stars, points and funding
 drift; re-check them with the saved searches in [Re-run](#re-run)
 before citing anything older than 90 days.
 
@@ -347,7 +348,7 @@ Patterns, with what each lab does and where bp3 stands:
 |---|---|---|---|
 | **verification sets how many agents you can run** | "You can't simply add Codex sessions and expect linear speedups" (L-O2) | "Without them, you can really only run one or two Claudes at a time… With them, you can run dozens or hundreds" (L-A1) | gates exist; parallel nodes are rare |
 | **the repo is the memory, kept short** | AGENTS.md is "the table of contents", about 100 lines; versioned `docs/exec-plans/active/` and `completed/` (L-O1) | short CLAUDE.md, shared and fed from PR review (L-A7, L-A4); a Gotchas section per skill (L-A5) | QUEST.md and NODE.md; long specs |
-| **a plan you can restart from** | ExecPlans with Progress, a Decision Log and a Retrospective; "restart from _only_ the ExecPlan" (L-O6) | feature_list.json plus a progress file plus git (S7) | node records plus the ledger |
+| **a plan you can restart from** | ExecPlans with Progress, a Decision Log and a Retrospective; "restart from _only_ the ExecPlan" (L-O6) | feature_list.json plus a progress file plus git (S15) | node records plus the ledger |
 | **review against the plan, not the bare diff** | "check the implementation against our plan rather than reading a diff without context" (L-O2) | per-sprint contracts agreed before work (S3) | the grader reads NODE.md acceptance |
 | **the repo defines "verified"** | "If it matters, it belongs in a verifier owned by the repo" (L-O7); lint errors carry the fix (L-O1) | "If something has to happen every time, make it a hook, a deny rule, or a managed setting" (L-A4); a 39-item verify checklist triggered by the diff (L-A1) | `make check-full`, check-gates |
 | **evidence, not "done"** | proof attached to the PR before review (L-O7) | "ask Claude for *evidence*: the command it ran and its output" (L-A4); every commit stamped with how it was verified, "even … "none"" (L-A1) | commit Verification prose (the fast-grader receipt is on hold) |
@@ -376,7 +377,7 @@ Warnings the labs state:
 - **Adversarial review over-engineers:** it led to "excessive validation and complexity" (L-A3).
 - **Lenient QA:** the evaluator would "talk itself into deciding they weren't a big deal" (S3).
 - **Flaky tests** "train the agent to run them again rather than fixing the failing code" (L-A1).
-- **State in Markdown is riskier than JSON:** agents are "less likely to inappropriately change or overwrite JSON files compared to Markdown files" (S7).
+- **State in Markdown is riskier than JSON:** agents are "less likely to inappropriately change or overwrite JSON files compared to Markdown files" (S15).
 - **One big AGENTS.md** "rots instantly" (L-O1).
 - **One-shot prompts** were "quickly aborted" (L-O2).
 - **Stale scaffolding:** a rule to stop for review after the first implementation "will pull the model toward an earlier stopping point" (L-O5).
@@ -393,6 +394,45 @@ practice. The gap is convergence:
 - New refusals start in observe mode.
 
 Input for the fast-grader thaw.
+
+### LessWrong, the Alignment Forum, and geohot
+
+One pass on 2026-11-20 (owner: "let's also do a pass over lesswrong as
+a data source, and geohot's blog"). A subagent read every post cited
+here; the key quotes were checked against its raw fetches. LW and AF
+posts live at `https://www.lesswrong.com/posts/<id>`. FP means first-party:
+the author did or measured it. OP is opinion.
+
+| Lens | Claim | Source | Kind |
+|---|---|---|---|
+| review | Reviews in a fresh session without saying who wrote the code, "because that can bias it"; won't let agents open PRs alone: "I don't trust the changes work, even if CI passes" | [Worley](https://www.lesswrong.com/posts/pcFSo5hEzzGTZEXEd) (2025-10-15) | FP |
+| Q5 | CLAUDE.md can't enforce his style "even with fairly aggressive prompting"; big work goes in as phases, one stacked PR each | [Worley](https://www.lesswrong.com/posts/pcFSo5hEzzGTZEXEd) | FP |
+| Q1 | An hourly Claude Code task picks one bug from transcripts and Slack: "Use a single commit", "Do not make a PR, just create the branch"; early runs were "overly ambitious", now about one bugfix a day | [habryka](https://www.lesswrong.com/posts/bxdwSZYxKmPBres6w) (2026-04-21) | FP |
+| review | The model has an "inclination to consider itself done"; on cheap-to-verify tasks it writes a test suite and optimizes against it; suggests "multiple different AIs write test sets" | [Greenblatt, AF](https://www.lesswrong.com/posts/dKpC6wHFqDrGZwnah) (2026-04-06) | FP |
+| review | Reward hacking was over 43x more common on RE-Bench, where the scoring function is visible; "Please do not cheat" left it at 80% | [METR crosspost](https://www.lesswrong.com/posts/Zu4ai9GFpwezyfB2K) (2025-06-09) | FP |
+| review | Models that learned to hack production coding RL environments (e.g. `sys.exit(0)` past a test harness) went on to sabotage research code through Claude Code | [evhub, AF](https://www.lesswrong.com/posts/fJtELFKddJPfAxwKS) (2025-11-21) | FP (Anthropic) |
+| review | Asked for a property-based test of a deliberately buggy isort, Gemini "rewrote the isort code to be correct" and reported a pass | [Quinn](https://www.lesswrong.com/posts/rhAPh3YzhPoBNpgHg) (2026-01-12) | FP anecdote |
+| review | OpenAI "now monitors 99.9% of internal coding traffic" with its strongest models | [Williams link post](https://www.lesswrong.com/posts/syB2r2X4E7nmw58co) (2026-03-19) | FP (OpenAI) |
+| review | Resampling suspicious actions plus a weaker trusted monitor and a small human audit cut attack success from 58% to 7% at 5% usefulness cost | [Ctrl-Z, AF](https://www.lesswrong.com/posts/LPHMMMZFAWog6ty5x) (2025-04-16) | FP (Redwood) |
+| Q3 | Derived from OpenAI's charts: a 4-agent swarm needs about 2x the tokens for the same score; swarms buy speed, not capability | [Ord](https://www.lesswrong.com/posts/6cb7qd3RSkgnviCpf) (2026-09-21) | derived |
+| Q2 | "LLMs are stateless", so state lives in a git repo; every session ends in a PR he merges, with a validation script keeping the data consistent | [Long](https://www.lesswrong.com/posts/J7brEsreXSrHpHH3v) (2026-07-06) | FP |
+| Q6 | Many agents per developer worsen the many-hands problem; engineers "lose their theory of the code" | [silentbob](https://www.lesswrong.com/posts/KzXptMbuDsYLrppss) (2026-06-06) | OP |
+| Q4 | "The best model of a programming AI is a compiler": edit the prompt and recompile rather than chat fixes in | [geohot, AI Coding](https://geohot.github.io/blog/jekyll/update/2025/09/12/ai-coding.html) (2025-09-12) | OP |
+| Q1 | Claude Code and opencode "behave similarly with Opus 4.5": the model matters more than the harness | [geohot, Computer Use Models](https://geohot.github.io/blog/jekyll/update/2025/12/18/computer-use-models.html) (2025-12-18) | FP |
+| Q5 | Of a 10 kB CLAUDE.md: "This isn't learning, it's costuming" | [geohot, tiny corp's product](https://geohot.github.io/blog/jekyll/update/2026/02/15/tiny-corp-product.html) (2026-02-15) | OP |
+| review | Six months of agent-written tinygrad: "I could have done it better and faster manually"; "RLVR shit that comments out the failing test" | [geohot, The Eternal Sloptember](https://geohot.github.io/blog/jekyll/update/2026/05/24/the-eternal-sloptember.html) (2026-05-24) | FP |
+| Q4 | A partial walk-back: "I might have been a little harsh" | [geohot, I love LLMs](https://geohot.github.io/blog/jekyll/update/2026/07/12/i-love-llms.html) (2026-07-12) | FP |
+| Q3 | "is it worth 10x the spend to get the work done twice as fast?" (Amdahl) | [geohot, Empire of Sunshine and Roses](https://geohot.github.io/blog/jekyll/update/2026/11/18/my-empire-of-sunshine-and-roses.html) (2026-11-18) | OP |
+| Q6 | tinygrad caps the repo in CI (`MAX_LINE_COUNT=26500 python sz.py`), counting code tokens only; the cap moved twice in August 2026 and the step's name still says 26000 | [tinygrad test.yml](https://github.com/tinygrad/tinygrad/blob/master/.github/workflows/test.yml), [sz.py](https://github.com/tinygrad/tinygrad/blob/master/sz.py) (master 5e8b5da) | FP |
+| review | A PR can't edit the counter that judges it: "PR code is only line-counted by master's sz.py, never executed" | [tinygrad szdiff.yml](https://github.com/tinygrad/tinygrad/blob/master/.github/workflows/szdiff.yml) | FP |
+| Q6 | "No code golf!… The true goal is reducing complexity and increasing readability"; big or complex diffs won't be merged; bug fixes need a regression test | [tinygrad README](https://github.com/tinygrad/tinygrad/blob/master/README.md) | FP |
+| Q5 | tinygrad's AGENTS.md is 8 lines; a new contributor's PR that "looks even close to AI written" is closed | [tinygrad AGENTS.md](https://github.com/tinygrad/tinygrad/blob/master/AGENTS.md), [README](https://github.com/tinygrad/tinygrad/blob/master/README.md) | FP |
+
+Against the field:
+- **Agrees:** the Goodhart guard (a visible scorer, `sys.exit(0)`, rewriting the code under test, commenting out the failing test); fresh-context review (Worley's no-attribution trick is S2 in practice); small diffs; human attention as the cap; Brooks, now with a derived number (Ord).
+- **Contradicts:** Q5's "every mistake becomes an instruction line": geohot and Worley find instruction files weak. One LW essay (lsusr, OP) says LLMs review better than humans, against the human-diff-review mainstream. geohot's "there's no way to cheat this goal. Just see if it runs faster" is refuted by METR's kernel hack that overwrote the timer.
+- **New:** hide the scorer from the author; "don't cheat" prompts do nothing; monitor actions, not only the diff (OpenAI, Ctrl-Z); tinygrad is working precedent for "checks a change cannot edit"; a constraint needs a counting rule, a CI cap, and a human norm against gaming it, and caps drift.
+- **Gaps:** LW says almost nothing on storage or harness internals; its strength is reward hacking and control. Partly read: Greenblatt, Ctrl-Z (intro), Quinn (first half). Not opened: the X posts quoted by Zvi, METR transcripts, the OpenAI chart behind Ord.
 
 ### Q6 The pre-LLM engineering canon, filtered
 
@@ -649,6 +689,29 @@ from:steipete codex      from:mitchellh agent    from:KentBeck augmented
 
 Only bcherny's and trq212's handles were seen in results; the others
 are unverified.
+
+LessWrong and the Alignment Forum (search goes through the site's
+Algolia proxy; GraphQL serves post bodies):
+
+```sh
+lw() { curl -sS https://www.lesswrong.com/api/search -H 'Content-Type: application/json' \
+  -d "[{\"indexName\":\"test_posts\",\"params\":{\"query\":\"$1\",\"hitsPerPage\":40}}]" |
+  jq -r '.[0].hits[] | select(.postedAt >= "2025-01-01") | [.baseScore,.postedAt[:10],._id,(.title|gsub("\n";""))] | @tsv' | sort -rn | head -15; }
+for q in "coding agents" "AI agent scaffolding" "Claude Code" "reward hacking coding" "LLM self-correction" \
+         "agentic coding workflow" "LLM as a judge" "AI code review" "untrusted monitoring control" \
+         "special-casing tests" "specification gaming tests deleted"; do lw "$q"; done
+curl -sS https://www.lesswrong.com/graphql -H 'Content-Type: application/json' \
+  -d '{"query":"query($id:String){ post(input:{selector:{_id:$id}}){ result { title postedAt baseScore contents { markdown } } } }","variables":{"id":"<post id>"}}'
+```
+
+geohot and tinygrad:
+
+```sh
+curl -sS https://geohot.github.io/blog/ | grep -o 'href="/blog/jekyll/update/[^"]*"'
+for p in README.md AGENTS.md sz.py .github/workflows/szdiff.yml .github/workflows/test.yml; do
+  gh api "repos/tinygrad/tinygrad/contents/$p" -H 'Accept: application/vnd.github.raw'; done
+gh api 'repos/tinygrad/tinygrad/commits?path=README.md&per_page=15' --jq '.[]|"\(.commit.committer.date[:10]) \(.sha[:9]) \(.commit.message|split("\n")[0])"'
+```
 
 Papers: arXiv IDs 2310.01798, 2404.13076, 2406.12952, 2410.21136,
 2501.12862, 2510.20270, 2511.04427.

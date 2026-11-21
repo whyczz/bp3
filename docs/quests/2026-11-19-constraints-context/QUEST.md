@@ -52,13 +52,32 @@ Owner decisions at approval, 2026-11-20:
 | style guide | iceboxed: `docs/icebox/2026-11-20-style-guide.md` |
 | icebox entry | promoted, then deleted: "Yes, delete" |
 
+Owner decisions during build, 2026-11-20 (the census below was wrong
+about perl and python; see the correction):
+
+| Question | Call |
+|---|---|
+| python3 pty driver in `test/run-suites.sh` | "Rewrite without a pty": SIGINT and SIGQUIT go to the runner's process group, as a terminal sends them |
+| 12 perl one-liners in 11 test files | "Replace with sed" |
+| `scripts/migrate-quest-rename.sh` (done migration, perl) | "Delete it": the check-tiers fossil case moves to `scripts/migrate-graph-rename.sh` |
+| where the purge lives | its own node, rules.3 stack-purge (follow-up); rules.2 depends on it, so the lint lands on a clean repo |
+| base-system utilities (grep, head, tr, sort, ...) for bash | "Add a `posix` word": the bash libs line gains `posix`, with a sign-off row (rides with read.1) |
+| the rules.2 grader's lint holes | "rules.4 follow-up node": three bugs, four false positives and the missed command positions, each a planted row |
+| what zsh's grandfathering covers | "The file and its test": the zsh line gains `runs-in test/completion.sh`; zsh runs nowhere else (rules.4) |
+| rules.4 round 3, after two needs_fix rounds on a growing shell parser | "Never skip a line": per-line scan, no state across lines, no heredoc skipping; heredoc bodies are a stated false positive |
+| rules.4 at the cap (round 3 needs_fix: ` #` in nested strings, spaced case arms) | "A": one more round with two small fixes; the owner resumes the node |
+
 Census on master, 2026-11-19 (`git ls-files`, shebangs, imports):
 
 - **Languages in code:** OCaml (23 `.ml`), bash (37 `.sh`, 1 `.bash`,
   shebang scripts), node (9 `.mjs`, 8 `.js`, 4 `.ts`, 2 node
   shebangs), and zsh (`completions/_bp3`).
 - **No perl or python.** The test-pyramid deletion and the OCaml
-  runner removed them.
+  runner removed them. **Wrong** (corrected 2026-11-20, while building
+  rules.2): perl runs in 11 test files (12 lines) and in
+  `scripts/migrate-quest-rename.sh`, and `test/run-suites.sh` runs a
+  python3 pty driver. The census grep failed on `\b` and missed
+  interpreters after a `VAR=value` prefix. rules.3 removes them.
 - **OCaml libraries:** yojson, unix, str, plus ounit2, qcheck-core and
   qcheck-ounit for tests.
 - **Node:** builtins only, and type imports from
@@ -192,6 +211,8 @@ data        ext .md .json .jsonl .yaml .tsv .txt .mmd .conf  files Makefile Brew
 |---|---|
 | [rules.1 - constraints-file](nodes/node-rules-1-constraints-file/NODE.md) | CONSTRAINTS.md: the signed stack, one block, a sign-off log |
 | [rules.2 - constraints-lint](nodes/node-rules-2-constraints-lint/NODE.md) | `scripts/check-constraints` in `make lint`: unlisted language, interpreter or library is red |
+| [rules.3 - stack-purge (follow-up)](nodes/node-rules-3-stack-purge/NODE.md) | remove the perl and python the census missed, so rules.2 lands green: sed for perl, the Ctrl-C probe without a pty, the done migration deleted |
+| [rules.4 - lint-hardening (follow-up)](nodes/node-rules-4-lint-hardening/NODE.md) | the lint stops crying wolf on trailing comments, heredocs and case arms, catches interpreters after if/then/do/xargs/& and make's @, scopes zsh to its one file |
 
 ### Milestone: ctx
 
@@ -243,7 +264,8 @@ Red chair of the source (step 7.5):
 - **Its blockers, now settled:**
   - location: root, linked
   - what counts as a language: languages contain libraries; tools are bash's libraries
-  - existing violations: perl and python are already gone; zsh is grandfathered
+  - existing violations: zsh is grandfathered; perl and python were
+    thought gone but were not (2026-11-20), so rules.3 removes them
   - lint overlap: one tiny script, not the rule engine
   - research: dossier plus saved searches
   - yolo overlap: never mechanical, always the owner
@@ -267,7 +289,9 @@ None open. Settled at approval, 2026-11-20:
 ## Node diagram
 
 ```text
-rules.1 constraints-file ──► rules.2 constraints-lint ──┐
-dossier (framing) ──► ctx.1 context-file ───────────────┼──► read.1 readers
+rules.1 constraints-file ──┐
+rules.3 stack-purge ───────┴──► rules.2 constraints-lint ──┐
+dossier (framing) ──► ctx.1 context-file ──────────────────┼──► read.1 readers
+rules.2 constraints-lint ──► rules.4 lint-hardening (follow-up, after read.1)
                      (rules.* and ctx.1 share no files; run alongside)
 ```

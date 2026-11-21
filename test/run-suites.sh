@@ -98,64 +98,33 @@ grep -Eq 'FAIL sig-INT .*rc=130$' "$work/sigs.out" || fail "suite did not die of
 grep -Eq 'FAIL sig-QUIT .*rc=131$' "$work/sigs.out" || fail "suite did not die of QUIT: $(cat "$work/sigs.out")"; ok
 grep -Eq 'FAIL sig-PIPE .*rc=141$' "$work/sigs.out" || fail "suite started with SIGPIPE ignored: $(cat "$work/sigs.out")"; ok
 
-# 2c. a terminal Ctrl-C reaps every running suite and the runner's temp dir
+# 2c. a terminal Ctrl-C reaps every running suite and the runner's temp
+# dir. A terminal sends ^C (INT) and ^\ (QUIT) to its foreground process
+# group; here the runner gets its own group (set -m for the launch, which
+# also starts it with INT and QUIT at their defaults) and the probe
+# signals that group. Suites run in their own sessions, so only the
+# runner hears it and must reap them. No pty (owner, 2026-11-20).
 mkdir -p "$work/rt"
-cat > "$work/ctrlc.py" <<'PY'
-# usage: ctrlc.py <ready-file> <keys> <cmd...>: run cmd on a pty, wait
-# for ready-file (it holds a suite's child pid), type keys (int = one
-# Ctrl-C, int3 = three Ctrl-C 0.3s apart, quit = one Ctrl-\), then
-# report cmd's exit code and whether that pid survived -- checked
-# while the pty is still open, since closing it would SIGHUP orphans
-import os, pty, select, sys, time
-seen = []
-ready, keys, cmd = sys.argv[1], sys.argv[2], sys.argv[3:]
-pid, fd = pty.fork()
-if pid == 0:
-    # an inherited ignore would survive exec and the runner could not trap it
-    import signal
-    signal.signal(signal.SIGINT, signal.SIG_DFL); signal.signal(signal.SIGQUIT, signal.SIG_DFL)
-    os.execvp(cmd[0], cmd)
-def drain():  # never block: a blocking read would delay the Ctrl-C
-    while select.select([fd], [], [], 0)[0]:
-        try:
-            chunk = os.read(fd, 4096)
-            if not chunk: return
-            seen.append(chunk.decode(errors="replace"))
-        except OSError: return
-end = time.time() + 15
-while time.time() < end and not os.path.exists(ready):
-    drain(); time.sleep(0.05)
-time.sleep(0.5)
-for i, k in enumerate({"int": [b"\x03"], "int3": [b"\x03"] * 3, "quit": [b"\x1c"]}[keys]):
-    if i: time.sleep(0.3)
-    os.write(fd, k)
-end = time.time() + 10
-while time.time() < end:
-    done, status = os.waitpid(pid, os.WNOHANG)
-    if done:
-        print(os.waitstatus_to_exitcode(status))
-        time.sleep(0.5)
-        held = int(open(ready).read().strip())
-        try:
-            os.kill(held, 0); print("suite alive")
-        except ProcessLookupError:
-            print("suite dead")
-        drain()
-        if any(w in "".join(seen) for w in ("Quit:", "Terminated", "Killed")):
-            print("noise: " + "".join(seen).replace("\r", "").replace("\n", " | "))
-        sys.exit(0)
-    drain(); time.sleep(0.05)
-print("hung"); sys.exit(1)
-PY
-for probe in int:130 int3:130 quit:131; do
-  keys=${probe%%:*} code=${probe##*:}
+for probe in INT:1:130 INT:3:130 QUIT:1:131; do
+  sig=${probe%%:*} rest=${probe#*:}
+  times=${rest%%:*} code=${rest##*:}
   rm -f "$work/hold.pid"
-  TMPDIR="$work/rt" python3 "$work/ctrlc.py" "$work/hold.pid" "$keys" "$rs" --table "$work/t.tsv" --only hold > "$work/ctrlc.out" 2>&1 || true
-  [ -s "$work/hold.pid" ] || fail "$keys probe: the held suite never started"
-  grep -q "^$code\$" "$work/ctrlc.out" || fail "$keys exit code (want $code): $(cat "$work/ctrlc.out")"; ok
-  grep -q '^suite dead$' "$work/ctrlc.out" || { kill "$(cat "$work/hold.pid")" 2>/dev/null; fail "$keys left a suite running: $(cat "$work/ctrlc.out")"; }; ok
-  [ -z "$(ls "$work/rt")" ] || fail "$keys left the runner temp dir: $(ls "$work/rt")"; ok
-  if grep -q '^noise: ' "$work/ctrlc.out"; then fail "$keys printed shell notices: $(grep '^noise: ' "$work/ctrlc.out")"; fi; ok
+  set -m
+  TMPDIR="$work/rt" "$rs" --table "$work/t.tsv" --only hold > "$work/ctrlc.out" 2>&1 &
+  rpid=$!
+  set +m
+  n=0; while [ ! -s "$work/hold.pid" ] && [ $n -lt 150 ]; do sleep 0.1; n=$((n + 1)); done
+  [ -s "$work/hold.pid" ] || fail "$sig x$times probe: the held suite never started"
+  sleep 0.5
+  kill -"$sig" -- -"$rpid" || fail "$sig x$times probe: no runner group to signal"
+  # mashed: later presses may find the group already gone
+  i=1; while [ $i -lt "$times" ]; do sleep 0.3; kill -"$sig" -- -"$rpid" 2>/dev/null || break; i=$((i + 1)); done
+  rc=0; wait "$rpid" || rc=$?
+  [ "$rc" = "$code" ] || fail "$sig x$times exit code (want $code): $rc ($(cat "$work/ctrlc.out"))"; ok
+  sleep 0.5
+  if kill -0 "$(cat "$work/hold.pid")" 2>/dev/null; then kill "$(cat "$work/hold.pid")"; fail "$sig x$times left a suite running: $(cat "$work/ctrlc.out")"; fi; ok
+  [ -z "$(ls "$work/rt")" ] || fail "$sig x$times left the runner temp dir: $(ls "$work/rt")"; ok
+  if grep -E -q 'Quit:|Terminated|Killed' "$work/ctrlc.out"; then fail "$sig x$times printed shell notices: $(cat "$work/ctrlc.out")"; fi; ok
 done
 
 # 2c'. a signal that lands between a suite's fork and its bookkeeping

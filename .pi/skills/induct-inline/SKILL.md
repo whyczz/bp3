@@ -60,6 +60,14 @@ This session wrote the commit, so it never forms the verdict.
   judges, this session casts.
 - `needs_fix` below the cycle cap is weather: fix here, commit,
   hand off again, fresh grader.
+- **Constraints are the owner's.** The grader brief names
+  `CONSTRAINTS.md`. A commit that adds a language, library
+  or surface outside it is `needs_fix`, **owner class**: never
+  a mechanical fix. This session does not fix it; it stops and
+  pitches the addition to the owner (`/teach`), and
+  `induct-yolo` parks it. A diff to `CONSTRAINTS.md` without a
+  new dated **owner-words row** in its Sign-off log is
+  `needs_fix`.
 
 ## Rules
 

@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# check-constraints (constraints-context rules.2, rules.4): the tracked
+# files against the ```constraints block in CONSTRAINTS.md, the
+# owner-signed stack. Fails, naming the file, on:
+#   - a file in an unlisted language (files entry, else extension, else
+#     shebang, `env -S` flags skipped)
+#   - an unlisted interpreter in command position, in bash files and the
+#     Makefile: line start, after | ; && || & $( ` ( and a case arm's
+#     pattern, past VAR=value words, reserved words (if then do ! { ...),
+#     wrappers (env exec command xargs nohup) and make's @ - + prefixes.
+#     Only shebang words run as interpreters anywhere; a lang may run
+#     where its line says runs-in (zsh: its completion test). Comments
+#     and strings closed on their line are skipped; no line is skipped
+#   - a declared library its language does not list: dune (libraries
+#     ...) and (pps ...), node imports and package.json deps, Brewfile
+# docs/ and *.md are prose, never code. Not caught, by design: a bash
+# tool with no Brewfile entry, `bash -c "..."` strings, node execSync,
+# dune (action (run ...)), nested Makefiles, interpreter names off the
+# fixed list. Those are the grader's.
+#   scripts/check-constraints     checks the git repo it runs in
+# Exit 0 ok, 1 on any FAIL, 2 when CONSTRAINTS.md has no block.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+# shellcheck disable=SC2016  # backticks fence the block; nothing expands
+block=$({ sed -n '/^```constraints$/,/^```$/p' CONSTRAINTS.md 2>/dev/null || true; } | sed '1d;$d')
+[ -n "$block" ] || { echo "check-constraints: no constraints block in CONSTRAINTS.md" >&2; exit 2; }
+# the block as "key word lang" rows: ext .ml ocaml, lib yojson ocaml, ...
+rows=$(awk '{
+  lang = ($1 == "data") ? "data" : $2; key = ""
+  for (i = 1; i <= NF; i++) {
+    if ($i ~ /^(lang|data|ext|files|shebang|libs|runs-in)$/) { key = $i; continue }
+    if (key == "ext" || key == "files" || key == "shebang" || key == "runs-in") print key, $i, lang
+    if (key == "libs") print "lib", $i, lang
+  }
+}' <<< "$block")
+langs=$(awk '$1 == "lang" { print $2 }' <<< "$block")
+libs() { awk -v l="$1" '$1 == "lib" && $3 == l { print $2 }' <<< "$rows"; }
+libs_ocaml=$(libs ocaml) libs_node=$(libs node) libs_bash=$(libs bash)
+lib_ok() { # lang name: a libs word matches it exactly or as a glob (node:*)
+  local list pat
+  case "$1" in ocaml) list=$libs_ocaml ;; node) list=$libs_node ;; *) list=$libs_bash ;; esac
+  while IFS= read -r pat; do
+    # shellcheck disable=SC2254  # the libs word is a glob on purpose
+    case "$2" in $pat) return 0 ;; esac
+  done <<< "$list"
+  return 1
+}
+fails=0
+fail() { echo "check-constraints: FAIL $1: $2 not in CONSTRAINTS.md"; fails=$((fails + 1)); }
+# tracked code; docs/ and *.md are prose. A path that is not a file on
+# disk (deleted and unstaged, a symlink to a directory) is skipped.
+files=$(git -c core.quotePath=false ls-files | grep -v -E '^docs/|\.md$' | while IFS= read -r f; do if [ -f "$f" ]; then echo "$f"; fi; done)
+# one pass: each file's language, or its FAIL reason
+langmap=$(awk '
+  NR == FNR { m[$1 SUBSEP $2] = $3; next }   # the rows, then the file list
+  { f = $0; base = f; sub(/^.*\//, "", base); lang = ""
+    if (("files" SUBSEP f) in m) lang = m["files" SUBSEP f]
+    else if (("files" SUBSEP base) in m) lang = m["files" SUBSEP base]
+    else if (base ~ /\./) { ext = base; sub(/^[^.]*/, "", ext); sub(/^.*\./, ".", ext)
+      if (("ext" SUBSEP ext) in m) lang = m["ext" SUBSEP ext]; else { print "?\t" f "\tlanguage " ext; next } }
+    else { first = ""; getline first < f; close(f); sub(/\r$/, "", first)
+      if (first !~ /^#!/) { print "?\t" f "\tlanguage (no extension, no shebang)"; next }
+      sub(/^#![ \t]*/, "", first); k = split(first, W, /[ \t]+/); interp = W[1]; sub(/^.*\//, "", interp)
+      if (interp == "env") { for (j = 2; j <= k && W[j] ~ /^-/; j++); interp = W[j] }
+      if (("shebang" SUBSEP interp) in m) lang = m["shebang" SUBSEP interp]
+      else { print "?\t" f "\tlanguage " interp " (shebang)"; next } }
+    print lang "\t" f }' <(printf '%s\n' "$rows") - <<< "$files") ||
+  { echo "check-constraints: FAIL: the language pass failed" >&2; exit 1; }
+while IFS=$'\t' read -r lang f why; do
+  if [ "$lang" = "?" ]; then fail "$f" "$why"; fi
+done <<< "$langmap"
+shells=() nodes=()
+while IFS=$'\t' read -r lang f; do
+  case "$lang" in bash) shells+=("$f") ;; node) nodes+=("$f") ;; esac
+  if [ "$f" = Makefile ]; then shells+=("$f"); fi
+done <<< "$(grep -v '^?' <<< "$langmap" || true)"
+# interpreters in command position. Every line is read on its own and no
+# line is ever skipped (owner, 2026-11-20: "Never skip a line"): a line
+# inside a heredoc or a multi-line string is read as code, which can cry
+# wolf but never goes blind. A scan that cannot read a file fails.
+allowed=$(awk '$1 == "shebang" { print $2 }' <<< "$rows" | tr '\n' ' ')
+runs_in=$(awk '$1 == "runs-in" { print $2 ":" $3 }' <<< "$rows" | tr '\n' ' ')
+known="python python2 python3 perl ruby php lua tclsh osascript Rscript deno bun fish zsh node bash sh ocaml"
+hits=
+if [ ${#shells[@]} -gt 0 ]; then
+  hits=$(awk -v known="$known" -v allowed="$allowed" -v runs_in="$runs_in" '
+    BEGIN { n = split(known, K, " "); for (i = 1; i <= n; i++) isk[K[i]] = 1
+            n = split(allowed, A, " "); for (i = 1; i <= n; i++) ok[A[i]] = 1
+            n = split(runs_in, A, " "); for (i = 1; i <= n; i++) { split(A[i], p, ":"); here[p[1] SUBSEP p[2]] = 1 }
+            n = split("if then do else elif while until ! { } time", X, " "); for (i = 1; i <= n; i++) rsv[X[i]] = 1
+            n = split("env exec command xargs nohup", X, " "); for (i = 1; i <= n; i++) wrp[X[i]] = 1 }
+    { line = $0   # a trailing comment is cut only after a plain head: no quote, backtick, $( or ${
+      if (match(line, /(^|[ \t;])#/) && substr(line, 1, RSTART) !~ /["\047`]|\$[({]/) line = substr(line, 1, RSTART)
+      gsub(/"([^"\\]|\\.)*"/, "\"\"", line); gsub(/\047[^\047]*\047/, "\"\"", line)   # strings closed on this line
+      if (FILENAME ~ /(^|\/)Makefile$/) sub(/^\t[ \t@+-]+/, "\t", line)            # make prefixes, recipe start
+      sub(/^[ \t]*\(?[^()[:space:]|]*([ \t]*\|[ \t]*[^()[:space:]|]*)*\)/, "", line)   # case arm pattern, a | b)
+      gsub(/\$\(|`|\|\||&&|[|;(&]/, "\n", line); s = split(line, seg, "\n")
+      for (j = 1; j <= s; j++) {
+        w = split(seg[j], W, /[[:space:]]+/); wrap = ""
+        for (k = 1; k <= w; k++) {
+          t = W[k]
+          if (t == "" || t ~ /^[A-Za-z_][A-Za-z0-9_]*=/ || (t in rsv)) continue
+          if (wrap != "" && (t ~ /^-/ || t == "\"\"")) { if (wrap == "command" && t ~ /^-[A-Za-z]*[vV]/) break; continue }
+          if (t in wrp) { wrap = t; continue }
+          sub(/^.*\//, "", t)
+          if ((t in isk) && !(t in ok) && !((FILENAME SUBSEP t) in here)) print FILENAME ":" FNR " " t
+          break } } }' "${shells[@]}") ||
+    { echo "check-constraints: FAIL: the interpreter scan could not read every file" >&2; exit 1; }
+fi
+while IFS= read -r hit; do
+  if [ -n "$hit" ]; then fail "${hit% *}" "interpreter ${hit##* }"; fi
+done <<< "$hits"
+# declared libraries, per language; a library this repo defines is not one
+dunes=$(grep -E '(^|/)dune$' <<< "$files" || true)
+internal=$(for f in $dunes; do tr '\n' ' ' < "$f"; done | { grep -o -E '\((public_)?name [^)]+\)' || true; } | awk '{ print $2 }' | tr -d ')')
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  for lib in $(sed 's/;.*//' "$f" | tr '\n\t' '  ' | { grep -o -E '\((libraries|pps) [^)]*\)' || true; } | sed -E 's/^\((libraries|pps) //; s/\)$//'); do
+    grep -qx -- "$lib" <<< "$internal" || lib_ok ocaml "$lib" || fail "$f" "library $lib (ocaml)"
+  done
+done <<< "$dunes"
+for f in ${nodes[@]+"${nodes[@]}"}; do
+  while IFS= read -r spec; do
+    case "$spec" in ''|.*|/*) continue ;; @*/*) pkg=$(cut -d/ -f1-2 <<< "$spec") ;; node:*) pkg=$spec ;; *) pkg=${spec%%/*} ;; esac
+    lib_ok node "$pkg" || fail "$f" "library $pkg (node)"
+  done < <({ grep -h -o -E "(from|import|require)[[:space:]]*\\(?[[:space:]]*['\"][^'\"]+['\"]" "$f" || true; } | sed -E "s/.*['\"]([^'\"]+)['\"]/\\1/")
+done
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  for dep in $(jq -r '[.dependencies, .devDependencies, .peerDependencies, .optionalDependencies] | map(select(.) | keys[]) | .[]' "$f"); do
+    lib_ok node "$dep" || fail "$f" "library $dep (node)"
+  done
+done <<< "$(grep -E '(^|/)package\.json$' <<< "$files" || true)"
+if grep -qx Brewfile <<< "$files"; then
+  while read -r n brew; do
+    lib_ok bash "$brew" || fail "Brewfile:$n" "library $brew (bash)"
+  done < <(awk '$1 == "brew" { gsub(/["\047,]/, "", $2); print FNR, $2 }' Brewfile)
+fi
+[ "$fails" = 0 ] || exit 1
+echo "check-constraints: ok ($(wc -w <<< "$langs" | tr -d ' ') languages, $(wc -l <<< "$files" | tr -d ' ') files)"

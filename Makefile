@@ -30,6 +30,7 @@ ocaml:
 # every shell script (shellcheck) and every JS file (node --check)
 lint:
 	./scripts/check-gates
+	./scripts/check-constraints
 	files=$$(./scripts/shell-files) && [ -n "$$files" ] && shellcheck $$files
 	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
 	files=$$(./scripts/shell-files --node) && [ -n "$$files" ] && for f in $$files; do node --check "$$f" || exit 1; done
