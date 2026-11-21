@@ -1,7 +1,7 @@
 ---
 status: frozen
 date: 2026-11-18
-promoted: null
+promoted: docs/quests/2026-11-21-metric-collectors/
 ---
 
 # Metric collectors: hooks, scrapers, derivers
