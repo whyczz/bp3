@@ -16,6 +16,32 @@ already there is skipped. `bp3 q <quest> metrics r` reads them back
 as JSON. There are no collectors yet; this node is the floor the
 scrapers stand on.
 
+## Scaffold (owner, 2026-11-21: "a solid scaffolding way")
+
+sink.1 also ships the walking skeleton the rest of the quest fills
+in. Every module and door exists, one grade's cost flows end to
+end, and the unbuilt spec is in the test file as named skips.
+
+```text
+src/quest/metrics.ml     types, registry (complete), validate, dedupe, sink text, grade_spans, tally
+src/quest/claude_tx.ml   transcript -> msgs (last snapshot), tool ids, cost; names_grade, in_window
+                         reports_of_text: a stub returning []            <- scrape.1
+src/quest/metrics_io.ml  sink read/append (one commit per node), default dirs, scrape, views
+src/quest/main.ml        bp3 q <quest> metrics r | scrape [--claude-dir <dir>]...
+test/unit/test_metrics.ml  10 cases + 2 laws, and 12 pending_<node>_ skips
+test/metrics.sh          fixture tier: buckets, one commit, idempotence, rollup untouched, dirs
+```
+
+| Node | Its pending tests (`pending_<node>_` in `test/unit/test_metrics.ml`) |
+|---|---|
+| scrape.1 | the harness report read; `checked`; `mismatched` writes nothing, exit 1; skipped lines in the verdict |
+| scrape.2 | the casting session; non-overlapping windows; no sidechain spend; `author_missing` |
+| derive.1 | cycle timing split; order law; the sum law against `bp3 q r`; median grade wall |
+
+The skeleton already does scrape.1's happy path: a found grade is
+written as `unchecked`. scrape.1 adds the cross-check that turns it
+into `checked`.
+
 ## Acceptance gates
 
 Observed today:
