@@ -52,6 +52,10 @@ command -pv python3 > /dev/null
 echo "$(printf "%s" "it's")"
 echo "${MSG:-"it's unset"}"
 true;# it's fine
+case "$s" in
+  zsh | bash) echo named ;;
+  fish | -fish) echo named ;;
+esac
 x=$((1 << 2)); y=$(( x<<1 ))
 IFS=$'\t' read -r a b <<< "$x"
 EOF
@@ -152,6 +156,28 @@ plant makespace; printf '\t- @perl x\n' >> "$work/makespace/Makefile"
 want makespace 1 'check-constraints: FAIL Makefile:3: interpreter perl not in CONSTRAINTS.md'
 plant envq;      printf "env 'X=1' perl x\n" >> "$work/envq/scripts/tool"
 want envq 1 'check-constraints: FAIL scripts/tool:5: interpreter perl not in CONSTRAINTS.md'
+# rules.4 round 4 (grader at cc58737): a ` #` inside a nested string or
+# ${ } never cuts a later call; non-ASCII names are read, not skipped
+plant hashq
+# shellcheck disable=SC2016  # literal shell planted into the script
+printf '%s\n' 'title="$(printf "PR #%s" "$n")" && python3 post.py "$title"' >> "$work/hashq/scripts/tool"
+want hashq 1 'check-constraints: FAIL scripts/tool:5: interpreter python3 not in CONSTRAINTS.md'
+plant hashparam
+# shellcheck disable=SC2016  # literal shell planted into the script
+printf '%s\n' 'x=${y%% #*}; perl x' >> "$work/hashparam/scripts/tool"
+want hashparam 1 'check-constraints: FAIL scripts/tool:5: interpreter perl not in CONSTRAINTS.md'
+plant hashdq
+# shellcheck disable=SC2016  # literal shell planted into the script
+printf '%s\n' 'echo "${x:-"y #z"}"; perl x' >> "$work/hashdq/scripts/tool"
+want hashdq 1 'check-constraints: FAIL scripts/tool:5: interpreter perl not in CONSTRAINTS.md'
+plant hashansi;  printf '%s\n' "echo \$'a\\'b #c'; perl x" >> "$work/hashansi/scripts/tool"
+want hashansi 1 'check-constraints: FAIL scripts/tool:5: interpreter perl not in CONSTRAINTS.md'
+plant hashtick
+# shellcheck disable=SC2016  # literal shell planted into the script
+printf '%s\n' 'echo "`echo " #"`" | perl x' >> "$work/hashtick/scripts/tool"
+want hashtick 1 'check-constraints: FAIL scripts/tool:5: interpreter perl not in CONSTRAINTS.md'
+plant utf8;      printf '#!/usr/bin/env bash\nperl x\n' > "$work/utf8/scripts/tööl.sh"
+want utf8 1 'check-constraints: FAIL scripts/tööl.sh:2: interpreter perl not in CONSTRAINTS.md'
 plant nohup;     printf 'nohup ruby x &\n' >> "$work/nohup/scripts/tool"
 want nohup 1 'check-constraints: FAIL scripts/tool:5: interpreter ruby not in CONSTRAINTS.md'
 plant crlf;      printf '#!/bin/bash\r\necho hi\r\n' > "$work/crlf/scripts/crlf"
