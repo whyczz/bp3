@@ -165,7 +165,17 @@ expect "output, last snapshot" 45 "$(jq -r .tokens_out <<< "$grade")"
 expect "cache write" 520 "$(jq -r .tokens_cache_write <<< "$grade")"
 expect "context end" 526 "$(jq -r .context_end <<< "$grade")"
 expect "run" claude:s1/a1 "$(jq -r .run <<< "$grade")"
-expect "owner node has no samples" '{}' "$(q q1 metrics r | jq -c .nodes.nb.cycles)"
+expect "owner node has no samples" false "$(q q1 metrics r | jq -c '.nodes.nb.cycles["1"] | has("grade") or has("author")')"
+
+# --- derive.1: timing from the ledger, roll-ups, computed on read ---
+view=$(q q1 metrics r)
+expect "per-cycle todo sums to the rollup's dwell" "$(q r q1 | jq -c '[.nodes[] | {(.node): (.timing.dwell_s.todo // 0)}] | add')" \
+  "$(jq -c '[.nodes | to_entries[] | {(.key): ([.value.cycles[].timing.todo_s // 0] | add // 0)}] | add' <<< "$view")"
+expect "quest rollup: grades and measured" "3 1" "$(jq -r '"\(.rollup.grades) \(.rollup.grades_measured)"' <<< "$view")"
+expect "quest rollup: handoffs and measured" "3 1" "$(jq -r '"\(.rollup.handoffs) \(.rollup.handoffs_measured)"' <<< "$view")"
+expect "quest rollup: median grade wall" 0.8 "$(jq -r .rollup.grade_wall_s.median <<< "$view")"
+expect "na rollup: author cache read" 3000 "$(jq -r .nodes.na.rollup.spend.author.tokens_cache_read <<< "$view")"
+expect "derived timing is never written" 12 "$(git show "$(tip na):docs/quests/q1/nodes/na/metrics.jsonl" | wc -l | tr -d ' ')"
 
 # --- author window: the session that cast na's handoff, counted once ---
 expect "na authored" 1 "$(jq -r .nodes.na.authored <<< "$out")"

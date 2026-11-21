@@ -82,6 +82,21 @@ def derive(edges, samples):
 | `timing.*` in `bp3 q r` | the existing render.ml deriver; unchanged, and the sum law ties the two together |
 | grade and author fields | the scrapers; this node only folds them |
 
+## Build notes (2026-11-21, observed on real data)
+
+| Check | Result |
+|---|---|
+| sum law, every node of constraints-context, test-pyramid, metric-collectors | per-cycle `todo_s` and `handed_off_s` add up to `bp3 q r` `timing.dwell_s` exactly (`Metrics.cycle_dwell` folds edges and states with `Store.fold_edge`, `Store.fold_state_name`, `Store.ts_epoch`, as `timing_of_text` does) |
+| rules.4 cycle 4 | `todo_s` 8, `handed_off_s` 1370 |
+| test-pyramid vs fast-grader's hand table | median grade wall 692.8 s (11.5 min) against "about 11 min"; min 247.8 s (4.1 min) against 4. The max differs: 18412.6 s against 37 min, because `grade.wall_s` is the transcript's span, and tier.1 cycle 2's grader was resumed hours after its first report (scrape.1 build notes) |
+| measured vs not | constraints-context 7 of 10 grades (3 owner-graded), test-pyramid 23 of 24 (1 owner-graded), metric-collectors 7 of 7; every handoff measured |
+| spend, cache reads | constraints-context grade 19.8M, author 52.3M; test-pyramid grade 101.1M, author 173.3M; metric-collectors grade 12.4M, author 77.0M |
+
+The roll-up lives in `metrics r` (`rollup` per node and per quest).
+Grades and handoffs counted there come from the ledger, so an
+owner-graded or unmeasured cycle shows up as a gap
+(`grades` > `grades_measured`), never as zero cost.
+
 ## Prose
 
 Computed on read, because a stored roll-up goes stale the moment a

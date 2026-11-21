@@ -233,7 +233,8 @@ let scrape q ~dirs =
 
 let num v = if Float.is_integer v && Float.abs v < 1e15 then `Int (int_of_float v) else `Float v
 
-(* nodes -> cycles -> grade|author -> fields, plus model and run *)
+(* nodes -> cycles -> grade|author|timing -> fields; grade and author
+   carry their model and run, timing (derived from the ledger) none *)
 let node_view samples =
   let cycles = List.sort_uniq compare (List.map (fun (s : Metrics.sample) -> s.cycle) samples) in
   `Assoc [ ("cycles", `Assoc (List.map (fun c ->
@@ -246,12 +247,25 @@ let node_view samples =
             let field (s : Metrics.sample) =
               (String.sub s.metric (String.length k + 1) (String.length s.metric - String.length k - 1), num s.value) in
             let first = List.hd mine in
-            (k, `Assoc (List.map field mine @ [ ("model", json_str first.model); ("run", json_str first.run) ])))
+            if k = "cycle" then ("timing", `Assoc (List.map field mine))
+            else (k, `Assoc (List.map field mine @ [ ("model", json_str first.model); ("run", json_str first.run) ])))
           kinds))) cycles)) ]
 
+(* derive.1: per node, the stored samples plus the derived timing, and
+   a roll-up; per quest, the roll-up of every node. Nothing derived is
+   written: it is computed from samples and ledger at each read. *)
 let view q =
+  let nodes = List.map (fun n ->
+      let edges = Metrics.edges_of_text (node_text q n) in
+      (n, edges, read_samples q n, Metrics.derive_timing ~quest:q ~node:n edges)) (Store.list_nodes q) in
+  let all_edges = List.concat_map (fun (_, es, _, _) -> es) nodes in
+  let all_samples = List.concat_map (fun (_, _, ss, _) -> ss) nodes in
   `Assoc [ ("ok", `Bool true); ("quest", json_str q);
-           ("nodes", `Assoc (List.map (fun n -> (n, node_view (read_samples q n))) (Store.list_nodes q))) ]
+           ("rollup", Metrics.rollup_json (Metrics.rollup ~edges:all_edges all_samples));
+           ("nodes", `Assoc (List.map (fun (n, edges, samples, derived) ->
+                (n, match node_view (samples @ derived) with
+                 | `Assoc fs -> `Assoc (fs @ [ ("rollup", Metrics.rollup_json (Metrics.rollup ~edges samples)) ])
+                 | v -> v)) nodes)) ]
 
 let scrape_view q ~dirs =
   let res = scrape q ~dirs in

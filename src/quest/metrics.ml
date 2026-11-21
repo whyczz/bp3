@@ -114,8 +114,10 @@ let to_text samples =
 
 (* ---------- ledger edges, as the collectors join them ---------- *)
 
-type edge = { e_ts : string; e_edge : string; e_cycle : int; e_commit : string option }
+type edge = { e_ts : string; e_edge : string; e_cycle : int; e_commit : string option; e_to : string }
 
+(* Edge and state names fold as the engine folds them (Store), so the
+   deriver below sees the ledger the rollup sees. *)
 let edges_of_text text =
   String.split_on_char '\n' text
   |> List.filter_map (fun l ->
@@ -124,10 +126,12 @@ let edges_of_text text =
            try
              let j = Yojson.Safe.from_string l in
              let open Yojson.Safe.Util in
-             Some { e_ts = to_string (member "ts" j); e_edge = to_string (member "edge" j);
+             Some { e_ts = to_string (member "ts" j); e_edge = Store.fold_edge (to_string (member "edge" j));
                     e_cycle = (match member "cycle" j with `Int c -> c | _ -> 1);
-                    e_commit = to_string_option (member "commit" j) }
+                    e_commit = to_string_option (member "commit" j);
+                    e_to = (match member "to" j with `String s -> Store.fold_state_name s | _ -> "") }
            with _ -> None)
+
 
 (* One grade and the handoff it judged. A needs_fix grade line carries
    the next cycle's number, so the cycle is the handoff's. *)
@@ -188,3 +192,79 @@ let tally_json t =
            ("skipped_lines", `Int t.skipped_lines);
            ("handoffs", `Int t.handoffs); ("authored", `Int t.authored);
            ("author_missing", `Int t.author_missing); ("author_ambiguous", `Int t.author_ambiguous) ]
+
+(* ---------- the node-cost deriver (derive.1) ---------- *)
+
+(* Seconds in each state, per cycle: the interval between two edges
+   that move state belongs to the state the first moved into and to
+   that edge's cycle (a needs_fix grade line already carries the next
+   cycle, so its todo interval lands there). These are the intervals
+   bp3 q r sums into timing.dwell_s, so per-cycle sums equal it. *)
+let cycle_dwell edges =
+  let moves = List.filter_map (fun e ->
+      match Store.ts_epoch e.e_ts with Some t when e.e_to <> "" -> Some (t, e) | _ -> None) edges in
+  let tbl = Hashtbl.create 8 in
+  let rec go = function
+    | (t0, a) :: ((t1, _) :: _ as rest) ->
+        let k = (a.e_cycle, a.e_to) in
+        Hashtbl.replace tbl k ((try Hashtbl.find tbl k with Not_found -> 0) + (t1 - t0));
+        go rest
+    | _ -> () in
+  go moves;
+  List.sort compare (Hashtbl.fold (fun (c, st) s acc -> (c, st, s) :: acc) tbl [])
+
+(* The deriver's samples: cycle.todo_s and cycle.handed_off_s per cycle
+   the node spent time in. Computed on read, never written (a Deriver's
+   metrics refuse writes). *)
+let derive_timing ~quest ~node edges =
+  let d = cycle_dwell edges in
+  let cycles = List.sort_uniq compare (List.map (fun (c, _, _) -> c) d) in
+  let last_ts = match List.rev edges with e :: _ -> e.e_ts | [] -> "1970-01-01T00:00:00Z" in
+  List.concat_map (fun c ->
+      List.map (fun st ->
+          let secs = List.fold_left (fun acc (c', st', s) -> if c' = c && st' = st then acc + s else acc) 0 d in
+          { metric = "cycle." ^ st ^ "_s"; quest; node; cycle = c; run = "ledger"; model = "unknown";
+            value = float_of_int secs; at = last_ts; source = node_cost.c_name })
+        [ "todo"; "handed_off" ]) cycles
+
+let median xs =
+  match List.sort compare xs with
+  | [] -> None
+  | s -> let n = List.length s in
+      Some (if n mod 2 = 1 then List.nth s (n / 2) else (List.nth s (n / 2 - 1) +. List.nth s (n / 2)) /. 2.)
+
+let sum_metric samples m =
+  List.fold_left (fun acc (s : sample) -> if s.metric = m then acc +. s.value else acc) 0. samples
+
+let spend samples prefix =
+  List.map (fun t -> (t, sum_metric samples (prefix ^ "." ^ t))) tokens
+
+(* Roll-ups over one node's or one quest's samples and edges: what was
+   measured, what was not (owner grades, missing sessions), wall, and
+   spend by token field. Pure; order of samples never matters. *)
+type rollup = {
+  r_grades : int; r_grades_measured : int; r_handoffs : int; r_handoffs_measured : int;
+  r_grade_walls : float list; r_grade_spend : (string * float) list; r_author_spend : (string * float) list;
+}
+
+let rollup ~edges samples =
+  let measured prefix = List.sort_uniq compare (List.filter_map (fun (s : sample) ->
+      if String.starts_with ~prefix:(prefix ^ ".") s.metric then Some (s.node, s.cycle) else None) samples) in
+  { r_grades = List.length (grade_spans edges);
+    r_grades_measured = List.length (measured "grade");
+    r_handoffs = List.length (List.filter (fun e -> e.e_edge = "handoff") edges);
+    r_handoffs_measured = List.length (measured "author");
+    r_grade_walls = List.filter_map (fun (s : sample) -> if s.metric = "grade.wall_s" then Some s.value else None) samples;
+    r_grade_spend = spend samples "grade"; r_author_spend = spend samples "author" }
+
+let rollup_json r =
+  let f v = if Float.is_integer v && Float.abs v < 1e15 then `Int (int_of_float v) else `Float v in
+  let walls = match r.r_grade_walls with
+    | [] -> `Null
+    | ws -> `Assoc [ ("median", f (Option.get (median ws))); ("min", f (List.fold_left min infinity ws));
+                     ("max", f (List.fold_left max neg_infinity ws)); ("sum", f (List.fold_left ( +. ) 0. ws)) ] in
+  `Assoc [ ("grades", `Int r.r_grades); ("grades_measured", `Int r.r_grades_measured);
+           ("handoffs", `Int r.r_handoffs); ("handoffs_measured", `Int r.r_handoffs_measured);
+           ("grade_wall_s", walls);
+           ("spend", `Assoc [ ("grade", `Assoc (List.map (fun (k, v) -> (k, f v)) r.r_grade_spend));
+                              ("author", `Assoc (List.map (fun (k, v) -> (k, f v)) r.r_author_spend)) ]) ]

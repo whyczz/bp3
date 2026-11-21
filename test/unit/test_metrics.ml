@@ -407,20 +407,72 @@ let case_assign_counts_each_message_once_and_never_a_subagents _ =
   assert_equal ~printer:string_of_int 45 c.tokens_out;    (* w1's last snapshot 40 + w2 5; the sidechain 9999 never *)
   assert_equal ~printer:string_of_int 300 c.tokens_cache_read
 
-(* ---------- the spec still to build ---------- *)
+(* ---------- the node-cost deriver (derive.1) ---------- *)
 
-let pending node what _ = skip_if true ("pending " ^ node ^ ": " ^ what)
+let case_cycle_timing_splits_todo_and_handed_off _ =
+  let d = Metrics.cycle_dwell (Metrics.edges_of_text rules4) in
+  let at c st = List.fold_left (fun acc (c', st', s) -> if c' = c && st' = st then acc + s else acc) 0 d in
+  let p (a, b) = Printf.sprintf "(%d, %d)" a b in
+  assert_equal ~msg:"cycle 4" ~printer:p (8, 1370) (at 4 "todo", at 4 "handed_off");
+  assert_equal ~msg:"cycle 1: create to handoff" ~printer:p (4318, 662) (at 1 "todo", at 1 "handed_off");
+  assert_equal ~msg:"the cap block, cycle 3" ~printer:string_of_int 75035 (at 3 "blocked");
+  let ss = Metrics.derive_timing ~quest:"q" ~node:"node-a" (Metrics.edges_of_text rules4) in
+  assert_equal ~printer:string_of_int 8 (List.length ss);
+  List.iter (fun (s : Metrics.sample) ->
+      assert_equal ~msg:"derived samples refuse a write" ~printer:Fun.id "E_METRIC_DERIVED" (code (Metrics.validate s))) ss
 
-let pending_tests = [
-  "pending_derive_1_cycle_timing_splits_todo_and_handed_off" >::
-    pending "derive.1" "rules.4 cycle 4: todo_s 8, handed_off_s 1370";
-  "pending_derive_1_law_derive_ignores_sample_order" >::
-    pending "derive.1" "derive xs = derive (shuffle xs)";
-  "pending_derive_1_law_cycle_todo_sums_to_the_rollup_dwell" >::
-    pending "derive.1" "sum of cycle.todo_s = bp3 q r timing.dwell_s.todo";
-  "pending_derive_1_quest_rollup_reports_median_grade_wall" >::
-    pending "derive.1" "median, min, max of grade.wall_s and spend by token field";
-]
+let iso t = let g = Unix.gmtime t in
+  Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02dZ" (g.tm_year + 1900) (g.tm_mon + 1) g.tm_mday g.tm_hour g.tm_min g.tm_sec
+
+(* A legal FSM walk with growing stamps: the deriver's per-cycle seconds
+   add up, state by state, to the dwell bp3 q r reports. *)
+let law_cycle_dwell_sums_to_the_rollup_dwell =
+  QCheck2.Test.make ~count:300 ~name:"law_cycle_dwell_sums_to_the_rollup_dwell"
+    QCheck2.Gen.(pair Gen.fsm_walk (list_size (return 64) (int_range 0 5000)))
+    (fun (lines, gaps) ->
+      let base = 1795000000. in
+      let stamped = List.mapi (fun i l ->
+          let t = base +. float_of_int (List.fold_left ( + ) 0 (List.filteri (fun k _ -> k <= i) gaps)) in
+          match Yojson.Safe.from_string l with
+          | `Assoc fs -> Yojson.Safe.to_string (`Assoc (("ts", `String (iso t)) :: List.remove_assoc "ts" fs))
+          | j -> Yojson.Safe.to_string j) lines in
+      let text = Gen.text stamped in
+      let d = Metrics.cycle_dwell (Metrics.edges_of_text text) in
+      let ours st = List.fold_left (fun acc (_, st', s) -> if st' = st then acc + s else acc) 0 d in
+      let theirs = (Store.timing_of_text text).t_dwell in
+      List.for_all (fun (st, s) -> ours st = s) theirs
+      && List.for_all (fun (_, st, _) -> List.mem_assoc st theirs) d)
+
+let law_rollup_ignores_sample_order =
+  QCheck2.Test.make ~count:300 ~name:"law_rollup_ignores_sample_order"
+    QCheck2.Gen.(pair (list_size (int_range 0 20) gen_sample) (int_range 0 1000))
+    (fun (samples, seed) ->
+      let shuffled = List.map snd (List.sort compare
+          (List.mapi (fun i s -> ((i * 7919 + seed) mod 1009, s)) samples)) in
+      let edges = Metrics.edges_of_text rules4 in
+      Metrics.rollup_json (Metrics.rollup ~edges samples) = Metrics.rollup_json (Metrics.rollup ~edges shuffled))
+
+let case_rollup_reports_median_grade_wall_and_spend _ =
+  let s m v c = sample ~metric:m ~value:v ~cycle:c () in
+  let author m v c = sample ~metric:m ~value:v ~cycle:c ~source:"author-window" () in
+  let samples = [ s "grade.wall_s" 100. 1; s "grade.wall_s" 300. 2; s "grade.wall_s" 200. 3;
+                  s "grade.tokens_cache_read" 10. 1; s "grade.tokens_cache_read" 5. 2;
+                  author "author.tokens_cache_read" 70. 1 ] in
+  let j = Metrics.rollup_json (Metrics.rollup ~edges:(Metrics.edges_of_text rules4) samples) in
+  let open Yojson.Safe.Util in
+  let i k = to_int (member k j) in
+  assert_equal ~printer:string_of_int 4 (i "grades");          (* rules.4: four grade edges *)
+  assert_equal ~printer:string_of_int 3 (i "grades_measured");
+  assert_equal ~printer:string_of_int 4 (i "handoffs");
+  assert_equal ~printer:string_of_int 1 (i "handoffs_measured");
+  let w k = to_int (member k (member "grade_wall_s" j)) in
+  assert_equal ~printer:(fun (a, b, c) -> Printf.sprintf "%d %d %d" a b c) (200, 100, 300) (w "median", w "min", w "max");
+  let sp kind k = to_int (member k (member kind (member "spend" j))) in
+  assert_equal ~printer:string_of_int 15 (sp "grade" "tokens_cache_read");
+  assert_equal ~printer:string_of_int 70 (sp "author" "tokens_cache_read");
+  assert_equal (Some 2.5) (Metrics.median [ 1.; 4.; 2.; 3. ])
+
+let pending_tests = []
 
 let () =
   run_test_tt_main
@@ -441,6 +493,10 @@ let () =
        "case_parse_session_keeps_the_main_thread_and_handoff_results" >:: case_parse_session_keeps_the_main_thread_and_handoff_results;
        "case_casts_handoff_by_the_result_commit_or_a_command_prefix_inside_the_window" >:: case_casts_handoff_by_the_result_commit_or_a_command_prefix_inside_the_window;
        "case_a_line_without_a_message_never_stops_the_reader" >:: case_a_line_without_a_message_never_stops_the_reader;
+       "case_cycle_timing_splits_todo_and_handed_off" >:: case_cycle_timing_splits_todo_and_handed_off;
+       "case_rollup_reports_median_grade_wall_and_spend" >:: case_rollup_reports_median_grade_wall_and_spend;
+       QCheck_ounit.to_ounit2_test law_cycle_dwell_sums_to_the_rollup_dwell;
+       QCheck_ounit.to_ounit2_test law_rollup_ignores_sample_order;
        "case_assign_counts_each_message_once_and_never_a_subagents" >:: case_assign_counts_each_message_once_and_never_a_subagents;
        "case_a_usage_line_missing_a_count_is_skipped_and_fails_the_check" >:: case_a_usage_line_missing_a_count_is_skipped_and_fails_the_check;
        "case_agrees_allows_a_small_context_undercount_and_nothing_else" >:: case_agrees_allows_a_small_context_undercount_and_nothing_else;
