@@ -129,9 +129,9 @@ let grade_samples q node (sp : Metrics.grade_span) path (tx : Claude_tx.tx) (c :
    A found transcript is checked against the harness report: agreeing
    is "checked", disagreeing is "mismatched" and writes nothing, and
    no report found is "unchecked" (written, flagged). *)
-let scrape_node q node txs =
-  let spans = Metrics.grade_spans (Metrics.edges_of_text (node_text q node)) in
-  let batch, t = List.fold_left (fun (batch, (t : Metrics.tally)) (sp : Metrics.grade_span) ->
+let grade_pass q node edges txs =
+  let spans = Metrics.grade_spans edges in
+  List.fold_left (fun (batch, (t : Metrics.tally)) (sp : Metrics.grade_span) ->
       let t = { t with grades = t.grades + 1 } in
       let hits = List.filter (fun (_, tx) ->
           Claude_tx.names_grade tx ~node ~commit:sp.g_commit
@@ -148,14 +148,79 @@ let scrape_node q node txs =
            | Some r when not (Claude_tx.checks (covered r) r) -> (batch, { t with mismatched = t.mismatched + 1 })
            | Some _ -> (batch @ grade_samples q node sp path tx c, { t with checked = t.checked + 1 })
            | None -> (batch @ grade_samples q node sp path tx c, { t with unchecked = t.unchecked + 1 }))
-      | _ -> (batch, { t with ambiguous = t.ambiguous + 1 })) ([], Metrics.zero) spans in
-  let written, skipped = if batch = [] then (0, 0) else append q node batch in
-  { t with written; skipped }
+      | _ -> (batch, { t with ambiguous = t.ambiguous + 1 })) ([], Metrics.zero) spans
+
+(* ---------- author windows (scrape.2) ---------- *)
+
+let main_files dir =
+  if not (is_dir dir) then []
+  else
+    Sys.readdir dir |> Array.to_list |> List.sort compare
+    |> List.filter (fun f -> Filename.check_suffix f ".jsonl")
+    |> List.map (Filename.concat dir)
+
+(* Every handoff of the quest, in time order, finds the one session
+   that cast it; each session's windows are then assigned together so
+   no message is counted twice. Returns per node (samples, tally). *)
+let author_pass q all sessions =
+  let secs ts = Option.value (Claude_tx.seconds ts) ~default:0. in
+  let spans =
+    List.sort_uniq compare (List.map fst all)
+    |> List.concat_map (fun n -> List.map (fun s -> (n, s)) (Metrics.author_spans ~node:n all))
+    |> List.stable_sort (fun (_, (a : Metrics.author_span)) (_, b) -> compare a.a_upto b.a_upto) in
+  let found = List.map (fun (n, (sp : Metrics.author_span)) ->
+      (n, sp, List.filter (fun (s : Claude_tx.session) -> Claude_tx.casts_handoff s ~node:n ~commit:sp.a_commit) sessions))
+      spans in
+  let per_session = Hashtbl.create 4 in
+  List.iter (fun (n, (sp : Metrics.author_span), ss) -> match ss with
+      | [ (s : Claude_tx.session) ] ->
+          let key = n ^ "|" ^ string_of_int sp.a_cycle ^ "|" ^ sp.a_upto in
+          let prev = Option.value (Hashtbl.find_opt per_session s.s_id) ~default:(s, []) in
+          Hashtbl.replace per_session s.s_id (s, snd prev @ [ (key, secs sp.a_from, secs sp.a_upto) ])
+      | _ -> ()) found;
+  let assigned = Hashtbl.create 16 in
+  Hashtbl.iter (fun _ (s, windows) ->
+      List.iter (fun (key, msgs, tools) -> Hashtbl.replace assigned key (s, msgs, tools))
+        (Claude_tx.assign s windows)) per_session;
+  let out = Hashtbl.create 8 in
+  let add n (batch, (t : Metrics.tally)) =
+    let (b0, t0) = Option.value (Hashtbl.find_opt out n) ~default:([], Metrics.zero) in
+    Hashtbl.replace out n (b0 @ batch, { t0 with handoffs = t0.handoffs + t.handoffs; authored = t0.authored + t.authored;
+                                                 author_missing = t0.author_missing + t.author_missing;
+                                                 author_ambiguous = t0.author_ambiguous + t.author_ambiguous }) in
+  List.iter (fun (n, (sp : Metrics.author_span), ss) ->
+      let one = { Metrics.zero with handoffs = 1 } in
+      match ss with
+      | [] -> add n ([], { one with author_missing = 1 })
+      | _ :: _ :: _ -> add n ([], { one with author_ambiguous = 1 })
+      | [ _ ] ->
+          let key = n ^ "|" ^ string_of_int sp.a_cycle ^ "|" ^ sp.a_upto in
+          let ((s : Claude_tx.session), msgs, tools) = Hashtbl.find assigned key in
+          let c = Claude_tx.author_cost msgs tools in
+          let mk m v = { Metrics.metric = "author." ^ m; quest = q; node = n; cycle = sp.a_cycle;
+                         run = "claude:" ^ s.s_id; model = c.model; value = float_of_int v; at = sp.a_upto;
+                         source = Metrics.author_window.c_name } in
+          add n ([ mk "tool_calls" c.tool_calls; mk "tokens_in" c.tokens_in; mk "tokens_out" c.tokens_out;
+                   mk "tokens_cache_read" c.tokens_cache_read; mk "tokens_cache_write" c.tokens_cache_write ],
+                 { one with authored = 1 })) found;
+  out
 
 let scrape q ~dirs =
+  let nodes = Store.list_nodes q in
+  let edges = List.map (fun n -> (n, Metrics.edges_of_text (node_text q n))) nodes in
+  let all = List.concat_map (fun (n, es) -> List.map (fun e -> (n, e)) es) edges in
   let txs = lazy (List.concat_map subagent_files dirs
                   |> List.map (fun f -> (f, Claude_tx.parse (read_file f)))) in
-  List.map (fun node -> (node, scrape_node q node txs)) (Store.list_nodes q)
+  let sessions = List.concat_map main_files dirs |> List.map (fun f -> Claude_tx.parse_session (read_file f)) in
+  let authors = author_pass q all sessions in
+  List.map (fun (node, es) ->
+      let gb, gt = grade_pass q node es txs in
+      let ab, (at : Metrics.tally) = Option.value (Hashtbl.find_opt authors node) ~default:([], Metrics.zero) in
+      let batch = gb @ ab in
+      let written, skipped = if batch = [] then (0, 0) else append q node batch in
+      (node, { gt with written; skipped; handoffs = at.handoffs; authored = at.authored;
+                       author_missing = at.author_missing; author_ambiguous = at.author_ambiguous }))
+    edges
 
 (* ---------- views ---------- *)
 

@@ -58,16 +58,36 @@ new_commit() { # $1 quest $2 node -> a commit sha on the node branch
   git update-ref "$branch" "$t"; rm -f "$idx"; printf '%s' "$t"
 }
 
-claude="$work/claude"
+claude="$work/claude"; mkdir -p "$claude"
 q c q1 >/dev/null
 for node in na nb nc; do q q1 c "$node" >/dev/null; done
 
-# na: one grader transcript in the window, its harness report agrees,
-# and one junk line rides along; nb: owner graded (no transcript);
-# nc: two transcripts name it, so the join refuses
+# the author's main session: its own messages (one streamed over two
+# lines), a subagent's line that must not count, and the Bash call that
+# cast the handoff, the commit only in its result
+author_lines() { # $1 session file $2 node $3 second
+  {
+    printf '{"type":"assistant","timestamp":"%s.100Z","isSidechain":false,"sessionId":"s1","message":{"id":"w1","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"tw1","name":"Read","input":{}}],"usage":{"input_tokens":3,"output_tokens":30,"cache_read_input_tokens":1000,"cache_creation_input_tokens":100}}}\n' "$3"
+    printf '{"type":"assistant","timestamp":"%s.200Z","isSidechain":false,"sessionId":"s1","message":{"id":"w1","model":"claude-opus-5-5","content":[],"usage":{"input_tokens":3,"output_tokens":60,"cache_read_input_tokens":1000,"cache_creation_input_tokens":100}}}\n' "$3"
+    printf '{"type":"assistant","timestamp":"%s.300Z","isSidechain":true,"sessionId":"s1","message":{"id":"sub","model":"claude-opus-5-5","content":[],"usage":{"input_tokens":9,"output_tokens":9999,"cache_read_input_tokens":9999,"cache_creation_input_tokens":9}}}\n' "$3"
+    # shellcheck disable=SC2016  # the command text is data; nothing expands
+    printf '{"type":"assistant","timestamp":"%s.400Z","isSidechain":false,"sessionId":"s1","message":{"id":"w2","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"th1","name":"Bash","input":{"command":"bp3 q q1 u %s handoff --commit \\"$(git rev-parse HEAD)\\" --reason work"}}],"usage":{"input_tokens":1,"output_tokens":5,"cache_read_input_tokens":2000,"cache_creation_input_tokens":10}}}\n' "$3" "$2"
+  } >> "$1"
+}
+author_result() { # $1 session file $2 commit
+  printf '{"type":"user","timestamp":"2099-01-01T00:00:00.000Z","isSidechain":false,"message":{"content":[{"type":"tool_result","tool_use_id":"th1","content":"{\\"ok\\":true,\\"state\\":\\"handed_off\\",\\"commit\\":\\"%s\\"}"}]}}\n' "$2" >> "$1"
+}
+
+# na: authored in session s1; one grader transcript in the window, its
+# harness report agrees, and one junk line rides along; nb: owner
+# graded, no author session; nc: two transcripts name it, so the
+# grade join refuses
 for node in na nb nc; do
   sha=$(new_commit q1 "$node")
+  asec=$(date -u +%Y-%m-%dT%H:%M:%S)
+  if [ "$node" = na ]; then author_lines "$claude/s1.jsonl" na "$asec"; fi
   q q1 u "$node" handoff --commit "$sha" --reason work >/dev/null
+  if [ "$node" = na ]; then author_result "$claude/s1.jsonl" "$sha"; fi
   sec=$(date -u +%Y-%m-%dT%H:%M:%S)
   case "$node" in
     na) transcript "$claude/s1/subagents/agent-a1.jsonl" "$node" "$sha" "$sec"
@@ -99,7 +119,7 @@ na0=$(count na) nb0=$(count nb) nc0=$(count nc)
 out=$(q q1 metrics scrape --claude-dir "$claude")
 expect "scrape ok" true "$(jq -r .ok <<< "$out")"
 expect "na checked against its report" 1 "$(jq -r .nodes.na.checked <<< "$out")"
-expect "na written" 7 "$(jq -r .nodes.na.written <<< "$out")"
+expect "na written: 7 grade + 5 author" 12 "$(jq -r .nodes.na.written <<< "$out")"
 expect "na junk line counted, not read as zero" 1 "$(jq -r .nodes.na.skipped_lines <<< "$out")"
 expect "nb owner" 1 "$(jq -r .nodes.nb.owner <<< "$out")"
 expect "nc ambiguous" 1 "$(jq -r .nodes.nc.ambiguous <<< "$out")"
@@ -118,13 +138,22 @@ expect "cache write" 520 "$(jq -r .tokens_cache_write <<< "$grade")"
 expect "context end" 526 "$(jq -r .context_end <<< "$grade")"
 expect "run" claude:s1/a1 "$(jq -r .run <<< "$grade")"
 expect "owner node has no samples" '{}' "$(q q1 metrics r | jq -c .nodes.nb.cycles)"
-expect "sink is GENERATED json lines" 7 "$(git show "$(tip na):docs/quests/q1/nodes/na/metrics.jsonl" | jq -c . | wc -l | tr -d ' ')"
+
+# --- author window: the session that cast na's handoff, counted once ---
+expect "na authored" 1 "$(jq -r .nodes.na.authored <<< "$out")"
+expect "nb no session: author_missing, not zero" 1 "$(jq -r .nodes.nb.author_missing <<< "$out")"
+author=$(q q1 metrics r | jq -c '.nodes.na.cycles["1"].author')
+expect "author tool calls" 2 "$(jq -r .tool_calls <<< "$author")"
+expect "author output, last snapshot, no subagent line" 65 "$(jq -r .tokens_out <<< "$author")"
+expect "author cache read" 3000 "$(jq -r .tokens_cache_read <<< "$author")"
+expect "author run is the session" claude:s1 "$(jq -r .run <<< "$author")"
+expect "sink is GENERATED json lines" 12 "$(git show "$(tip na):docs/quests/q1/nodes/na/metrics.jsonl" | jq -c . | wc -l | tr -d ' ')"
 
 # --- idempotent: a second scrape writes nothing ---
 t=$(tip na)
 out=$(q q1 metrics scrape --claude-dir "$claude")
 expect "rescrape written" 0 "$(jq -r .nodes.na.written <<< "$out")"
-expect "rescrape skipped" 7 "$(jq -r .nodes.na.skipped <<< "$out")"
+expect "rescrape skipped" 12 "$(jq -r .nodes.na.skipped <<< "$out")"
 expect "rescrape no commit" "$t" "$(tip na)"
 
 # --- default dirs: this repo's project dir and its desks, nothing else ---

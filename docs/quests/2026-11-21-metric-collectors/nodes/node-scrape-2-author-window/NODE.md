@@ -89,10 +89,28 @@ def scrape_authors(quest, claude_dir):
 
 | Case | Result |
 |---|---|
-| owner cast the handoff by hand (`!` in the session) | the Bash call is in the session transcript; counted normally |
+| owner cast the handoff by hand (`!` in the session) | a `!` command is a user line, not a Bash tool call: `author_missing` |
 | handoff cast from a shell outside Claude Code | `author_missing` |
 | node created long before it was worked (cycle 1) | the window starts at the previous edge on another node, not at creation |
 | compaction happened inside the window | the summary turn's usage counts once like any other message |
+
+## Build notes (2026-11-21, found on real data)
+
+These supersede the Diagram and Pseudocode above where they differ.
+
+| Finding | Evidence | Rule it set |
+|---|---|---|
+| Handoff commands often pass the commit through a variable | 4 of 6 handoffs in this session: `--commit "$(git rev-parse HEAD)"` or `$C` | the casting call names `handoff` and the node as words, and either the command holds `commit[:7]` or its result holds the full commit (`Claude_tx.casts_handoff`) |
+| A node id can be a substring of the command | unit: node `a` matched inside `handoff` | `has_word`: no id character on either side |
+| A cycle's authoring can happen before the owner's resume | rules.4 round 4 was written while blocked; resume to handoff was 8 s | a window starts at the quest's previous edge, never a `resume` (`Metrics.author_spans`) |
+| Ledger stamps are whole seconds, so adjacent windows share a second | design | `Claude_tx.assign` counts each message and tool call in the first window that holds it |
+| Session files are big | this session: 45 MB, 20k lines | only assistant lines and tool results naming `handed_off` are parsed; `find_from` compares in place (scrape 2.2 s down to 1.2 s) |
+
+On a scratch clone: constraints-context 10 of 10 handoffs authored,
+test-pyramid 23 of 25 (2 `author_missing`), metric-collectors 3 of 3.
+What the lifecycle shows: sink.1's authoring took 68 tool calls and
+15.1M cache-read tokens, while its grade took 25 and 1.6M. A
+long-lived main session re-reads its whole context on every call.
 
 ## Prose
 

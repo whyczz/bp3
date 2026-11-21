@@ -264,19 +264,92 @@ let case_an_off_shape_model_is_recorded_as_other _ =
     [ "other\nhunter2-secret"; "claude-a\nx"; "unknown\n" ];
   assert_equal ~printer:Fun.id "E_METRIC_VALUE" (code (Metrics.validate (sample ~at:"2026-11-21T20:53:27Z\nx" ())))
 
+(* ---------- author windows (scrape.2) ---------- *)
+
+(* Two nodes worked one at a time: b was created with a, so b's first
+   window must start at a's land, not at b's create; a's cycle 2 window
+   starts at the grade, not at the owner's resume after the block. *)
+let two_nodes = [
+  ("a", Gen.edge ~ts:"2026-11-21T10:00:00Z" "create" "" "todo");
+  ("b", Gen.edge ~ts:"2026-11-21T10:00:01Z" ~deps:[ "a" ] "create" "" "todo");
+  ("a", Gen.edge ~ts:"2026-11-21T11:00:00Z" ~commit:"aaaaaaa1" "handoff" "todo" "handed_off");
+  ("a", Gen.edge ~ts:"2026-11-21T11:10:00Z" ~cycle:2 ~verdict:"needs_fix" "grade" "handed_off" "blocked");
+  ("a", Gen.edge ~ts:"2026-11-21T12:00:00Z" ~cycle:2 "resume" "blocked" "todo");
+  ("a", Gen.edge ~ts:"2026-11-21T12:00:30Z" ~cycle:2 ~commit:"aaaaaaa2" "handoff" "todo" "handed_off");
+  ("a", Gen.edge ~ts:"2026-11-21T12:10:00Z" ~cycle:2 ~verdict:"ship" "grade" "handed_off" "approved");
+  ("a", Gen.edge ~ts:"2026-11-21T12:10:05Z" ~cycle:2 "land" "approved" "landed");
+  ("b", Gen.edge ~ts:"2026-11-21T13:00:00Z" ~commit:"bbbbbbb1" "handoff" "todo" "handed_off") ]
+  |> List.map (fun (n, l) -> (n, List.hd (Metrics.edges_of_text l)))
+
+let case_author_spans_start_at_the_previous_quest_edge_but_never_a_resume _ =
+  let span n = List.map (fun (s : Metrics.author_span) -> (s.a_cycle, s.a_from, s.a_upto)) (Metrics.author_spans ~node:n two_nodes) in
+  let p = function (c, f, u) -> Printf.sprintf "(%d %s %s)" c f u in
+  assert_equal ~printer:(fun l -> String.concat " " (List.map p l))
+    [ (1, "2026-11-21T10:00:01Z", "2026-11-21T11:00:00Z"); (2, "2026-11-21T11:10:00Z", "2026-11-21T12:00:30Z") ] (span "a");
+  assert_equal ~printer:(fun l -> String.concat " " (List.map p l))
+    [ (1, "2026-11-21T12:10:05Z", "2026-11-21T13:00:00Z") ] (span "b")
+
+let session_line ?(side = false) ?(tools = []) ~ts ~id (i, o, cr, cw) =
+  jline [ ("type", `String "assistant"); ("timestamp", `String ts); ("isSidechain", `Bool side);
+          ("sessionId", `String "main1");
+          ("message", `Assoc [ ("id", `String id); ("model", `String "claude-opus-5-5");
+                               ("content", `List (List.map (fun (tid, cmd) ->
+                                    `Assoc [ ("type", `String "tool_use"); ("id", `String tid); ("name", `String "Bash");
+                                             ("input", `Assoc [ ("command", `String cmd) ]) ]) tools));
+                               ("usage", `Assoc [ ("input_tokens", `Int i); ("output_tokens", `Int o);
+                                                  ("cache_read_input_tokens", `Int cr);
+                                                  ("cache_creation_input_tokens", `Int cw) ]) ]) ]
+let tool_result ~ts tid text =
+  jline [ ("type", `String "user"); ("timestamp", `String ts);
+          ("message", `Assoc [ ("content", `List [ `Assoc [ ("type", `String "tool_result"); ("tool_use_id", `String tid);
+                                                             ("content", `String text) ] ]) ]) ]
+
+let sha = "bbbbbbb1c0ffee00000000000000000000000000"
+let main_session = Gen.text [
+    session_line ~ts:"2026-11-21T12:30:00.000Z" ~id:"w1" ~tools:[ ("t1", "make check") ] (2, 10, 100, 5);
+    session_line ~ts:"2026-11-21T12:30:01.000Z" ~id:"w1" ~tools:[ ("t1", "make check") ] (2, 40, 100, 5);
+    session_line ~side:true ~ts:"2026-11-21T12:31:00.000Z" ~id:"sub" (9, 9999, 9999, 9);
+    session_line ~ts:"2026-11-21T12:59:59.000Z" ~id:"w2"
+      ~tools:[ ("t2", "./bin/bp3 q quest1 u b handoff --commit \"$(git rev-parse HEAD)\" --reason x") ] (1, 5, 200, 0);
+    tool_result ~ts:"2026-11-21T13:00:00.200Z" "t2" ("{\"ok\":true,\"state\":\"handed_off\",\"commit\":\"" ^ sha ^ "\"}");
+    tool_result ~ts:"2026-11-21T13:00:00.300Z" "t1" "check ok" ]
+
+let case_parse_session_keeps_the_main_thread_and_handoff_results _ =
+  let s = Claude_tx.parse_session main_session in
+  assert_equal ~printer:Fun.id "main1" s.s_id;
+  assert_equal [ "w1"; "w2" ] (List.map (fun (m : Claude_tx.msg) -> m.id) s.s_msgs);
+  assert_equal ~printer:string_of_int 40 (List.hd s.s_msgs).usage.output;
+  assert_equal [ "t1"; "t2" ] (List.map fst s.s_tools);
+  assert_equal [ "t2" ] (List.map fst s.s_results)
+
+let case_casts_handoff_by_the_result_commit_or_a_command_prefix _ =
+  let s = Claude_tx.parse_session main_session in
+  assert_bool "result holds the full commit" (Claude_tx.casts_handoff s ~node:"b" ~commit:sha);
+  assert_bool "another node" (not (Claude_tx.casts_handoff s ~node:"a" ~commit:sha));
+  assert_bool "another commit" (not (Claude_tx.casts_handoff s ~node:"b" ~commit:"cccccccccccccccc"));
+  let literal = Claude_tx.parse_session (Gen.text [
+      session_line ~ts:"2026-11-21T12:59:59.000Z" ~id:"w9" ~tools:[ ("t9", "bp3 q quest1 u b handoff --commit bbbbbbb1") ] (1, 1, 1, 1) ]) in
+  assert_bool "command names the commit" (Claude_tx.casts_handoff literal ~node:"b" ~commit:sha)
+
+let case_assign_counts_each_message_once_and_never_a_subagents _ =
+  let s = Claude_tx.parse_session main_session in
+  let secs ts = Option.get (Claude_tx.seconds ts) in
+  (* both windows hold 12:59:59..13:00:00; w2 belongs to the first *)
+  let ws = Claude_tx.assign s [ ("x", secs "2026-11-21T12:00:00Z", secs "2026-11-21T13:00:00Z");
+                                ("y", secs "2026-11-21T12:59:59Z", secs "2026-11-21T14:00:00Z") ] in
+  let ids = List.map (fun (k, ms, t) -> (k, List.map (fun (m : Claude_tx.msg) -> m.id) ms, t)) ws in
+  let show (k, ms, t) = Printf.sprintf "%s:%s/%d" k (String.concat "," ms) t in
+  assert_equal ~printer:(fun l -> String.concat " " (List.map show l)) [ ("x", [ "w1"; "w2" ], 2); ("y", [], 0) ] ids;
+  let (_, ms, tools) = List.hd ws in
+  let c = Claude_tx.author_cost ms tools in
+  assert_equal ~printer:string_of_int 45 c.tokens_out;    (* w1's last snapshot 40 + w2 5; the sidechain 9999 never *)
+  assert_equal ~printer:string_of_int 300 c.tokens_cache_read
+
 (* ---------- the spec still to build ---------- *)
 
 let pending node what _ = skip_if true ("pending " ^ node ^ ": " ^ what)
 
 let pending_tests = [
-  "pending_scrape_2_finds_the_session_that_cast_the_handoff" >::
-    pending "scrape.2" "a Bash tool_use naming handoff, the node and --commit <sha[:7+]>";
-  "pending_scrape_2_windows_of_one_session_never_overlap" >::
-    pending "scrape.2" "start = max(cycle entered todo, last edge on any other node before the handoff)";
-  "pending_scrape_2_subagent_messages_stay_out_of_an_author_window" >::
-    pending "scrape.2" "isSidechain messages and subagent files are never author spend";
-  "pending_scrape_2_a_missing_session_is_author_missing_never_zero" >::
-    pending "scrape.2" "author_missing and author_ambiguous buckets";
   "pending_derive_1_cycle_timing_splits_todo_and_handed_off" >::
     pending "derive.1" "rules.4 cycle 4: todo_s 8, handed_off_s 1370";
   "pending_derive_1_law_derive_ignores_sample_order" >::
@@ -302,6 +375,10 @@ let () =
        "case_tally_buckets_add_up_to_the_grades" >:: case_tally_buckets_add_up_to_the_grades;
        "case_reports_come_from_enqueue_lines_and_the_last_one_wins" >:: case_reports_come_from_enqueue_lines_and_the_last_one_wins;
        "case_a_resumed_agents_later_report_wins_under_its_task_id" >:: case_a_resumed_agents_later_report_wins_under_its_task_id;
+       "case_author_spans_start_at_the_previous_quest_edge_but_never_a_resume" >:: case_author_spans_start_at_the_previous_quest_edge_but_never_a_resume;
+       "case_parse_session_keeps_the_main_thread_and_handoff_results" >:: case_parse_session_keeps_the_main_thread_and_handoff_results;
+       "case_casts_handoff_by_the_result_commit_or_a_command_prefix" >:: case_casts_handoff_by_the_result_commit_or_a_command_prefix;
+       "case_assign_counts_each_message_once_and_never_a_subagents" >:: case_assign_counts_each_message_once_and_never_a_subagents;
        "case_a_usage_line_missing_a_count_is_skipped_and_fails_the_check" >:: case_a_usage_line_missing_a_count_is_skipped_and_fails_the_check;
        "case_agrees_allows_a_small_context_undercount_and_nothing_else" >:: case_agrees_allows_a_small_context_undercount_and_nothing_else;
        "case_parse_until_cuts_the_transcript_at_the_report" >:: case_parse_until_cuts_the_transcript_at_the_report;

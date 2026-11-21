@@ -144,9 +144,11 @@ let cost tx =
    first prompt (past briefs already did), and runs inside the
    handoff-to-grade window. Ledger times are whole seconds, so the
    window closes one second after the grade's stamp. *)
+(* No allocation per position: session files are tens of MB. *)
 let find_from s i sub =
   let n = String.length sub and m = String.length s in
-  let rec go i = if i + n > m then None else if String.sub s i n = sub then Some i else go (i + 1) in
+  let rec at i k = k = n || (s.[i + k] = sub.[k] && at i (k + 1)) in
+  let rec go i = if i + n > m then None else if at i 0 then Some i else go (i + 1) in
   if n = 0 then None else go i
 
 let contains s sub = find_from s 0 sub <> None
@@ -215,3 +217,110 @@ let agrees (c : cost) r =
 (* A cut transcript checks out when no usage line in it was unreadable
    and its cost agrees with the report. *)
 let checks (cut : tx) r = cut.bad_usage = 0 && agrees (cost cut) r
+
+(* ---------- main sessions (scrape.2) ---------- *)
+
+(* A main session file is the author's side: its own messages (not a
+   subagent's: those live in their own files), the Bash calls it made,
+   and the results of calls that moved a node to handed_off. Only
+   assistant lines and tool results are parsed; the file is tens of MB. *)
+type call = { call_id : string; call_ts : string; command : string }
+type session = {
+  s_id : string;
+  s_msgs : msg list;                  (* one per message.id, last snapshot; main thread only *)
+  s_tools : (string * string) list;   (* tool_use id, ts of the line that first holds it *)
+  s_bash : call list;
+  s_results : (string * string) list; (* tool_use_id, result text, for results naming handed_off *)
+  s_bad_usage : int;
+}
+
+let result_text content =
+  match content with
+  | `String s -> s
+  | `List blocks -> String.concat "" (List.filter_map (fun b -> match Yojson.Safe.Util.member "text" b with
+      | `String s -> Some s | _ -> None) blocks)
+  | _ -> ""
+
+let parse_session text =
+  let order = ref [] and by_id = Hashtbl.create 256 and tools = Hashtbl.create 256 in
+  let tool_order = ref [] and bash = ref [] and results = ref [] and bad = ref 0 and sid = ref "" in
+  List.iter (fun line ->
+      if contains line "\"type\":\"assistant\"" || (contains line "handed_off" && contains line "tool_result") then
+        match (try Some (Yojson.Safe.from_string line) with _ -> None) with
+        | Some (`Assoc _ as j) when (match Yojson.Safe.Util.member "isSidechain" j with `Bool b -> b | _ -> false) -> ()
+        | Some (`Assoc _ as j) ->
+            let ts = str "timestamp" j in
+            if !sid = "" then sid := str "sessionId" j;
+            let message = Yojson.Safe.Util.member "message" j in
+            let blocks = match Yojson.Safe.Util.member "content" message with `List bs -> bs | _ -> [] in
+            (match str "type" j with
+             | "assistant" ->
+                 let id = str "id" message in
+                 (match usage_of (Yojson.Safe.Util.member "usage" message) with
+                  | _ when id = "" -> ()
+                  | None -> incr bad
+                  | Some usage ->
+                      if not (Hashtbl.mem by_id id) then order := id :: !order;
+                      Hashtbl.replace by_id id { id; ts; model = str "model" message; usage; sidechain = false });
+                 List.iter (fun b ->
+                     if str "type" b = "tool_use" then begin
+                       let tid = str "id" b in
+                       if tid <> "" && not (Hashtbl.mem tools tid) then begin
+                         Hashtbl.replace tools tid (); tool_order := (tid, ts) :: !tool_order end;
+                       if str "name" b = "Bash" then
+                         bash := { call_id = tid; call_ts = ts;
+                                   command = str "command" (Yojson.Safe.Util.member "input" b) } :: !bash
+                     end) blocks
+             | "user" ->
+                 List.iter (fun b ->
+                     if str "type" b = "tool_result" then
+                       let t = result_text (Yojson.Safe.Util.member "content" b) in
+                       if contains t "handed_off" then results := (str "tool_use_id" b, t) :: !results) blocks
+             | _ -> ())
+        | _ -> ())
+    (String.split_on_char '\n' text);
+  { s_id = !sid; s_msgs = List.rev_map (Hashtbl.find by_id) !order; s_tools = List.rev !tool_order;
+    s_bash = List.rev !bash; s_results = List.rev !results; s_bad_usage = !bad }
+
+(* w stands as its own word in s: no id character on either side, so
+   node "a" is not found inside "handoff". *)
+let has_word s w =
+  let id_char c = match c with 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '-' | '_' | '.' -> true | _ -> false in
+  let n = String.length w and m = String.length s in
+  let rec from i = match find_from s i w with
+    | None -> false
+    | Some j ->
+        ((j = 0 || not (id_char s.[j - 1])) && (j + n = m || not (id_char s.[j + n]))) || from (j + 1) in
+  n > 0 && from 0
+
+(* The session that cast a handoff made a Bash call naming handoff and
+   the node as words, and either the command holds the commit's first 7
+   or the result holds the full commit (commands often pass
+   "$(git ...)"). *)
+let casts_handoff s ~node ~commit =
+  String.length commit >= 7
+  && List.exists (fun c ->
+         has_word c.command "handoff" && has_word c.command node
+         && (contains c.command (String.sub commit 0 7)
+             || (match List.assoc_opt c.call_id s.s_results with Some t -> contains t commit | None -> false)))
+       s.s_bash
+
+(* Author windows of one session, in time order: each message and tool
+   call is counted in the first window that holds it, so windows that
+   share a boundary second never share spend. A window is (key, from,
+   upto) in epoch seconds, holding what is stamped in [from, upto + 1). *)
+let assign s windows =
+  let taken = Hashtbl.create 256 in
+  let inside (_, from, upto) ts = match seconds ts with Some t -> t >= from && t < upto +. 1. | None -> false in
+  List.map (fun ((key, _, _) as w) ->
+      let msgs = List.filter (fun (m : msg) ->
+          inside w m.ts && not (Hashtbl.mem taken ("m" ^ m.id)) && (Hashtbl.replace taken ("m" ^ m.id) (); true)) s.s_msgs in
+      let tools = List.filter (fun (id, ts) ->
+          inside w ts && not (Hashtbl.mem taken ("t" ^ id)) && (Hashtbl.replace taken ("t" ^ id) (); true)) s.s_tools in
+      (key, msgs, List.length tools))
+    windows
+
+let author_cost msgs tool_calls =
+  let tx = { session = ""; agent = ""; first_prompt = ""; first_ts = ""; last_ts = ""; msgs;
+             tool_use_ids = List.init tool_calls string_of_int; skipped_lines = 0; bad_usage = 0 } in
+  cost tx

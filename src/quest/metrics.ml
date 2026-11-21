@@ -146,23 +146,45 @@ let grade_spans edges =
     | _ :: rest -> go last acc rest in
   go None [] edges
 
+(* One handoff's author window (scrape.2): from the quest's previous
+   edge to the handoff. A resume is skipped as a start: it is the
+   owner's gate, and the author's work for that cycle began at the
+   edge before it. Edges are compared as ledger stamps (one format). *)
+type author_span = { a_cycle : int; a_commit : string; a_from : string; a_upto : string }
+
+let author_spans ~node all =
+  List.filter_map (fun (n, e) ->
+      if n <> node || e.e_edge <> "handoff" then None
+      else
+        let from = List.fold_left (fun acc (_, x) ->
+            if x.e_edge <> "resume" && x.e_ts < e.e_ts && x.e_ts > acc then x.e_ts else acc) "" all in
+        Some { a_cycle = e.e_cycle; a_commit = Option.value e.e_commit ~default:"";
+               a_from = (if from = "" then e.e_ts else from); a_upto = e.e_ts }) all
+
 (* What one scrape did to one node. Every grade lands in exactly one
-   outcome bucket (checked, unchecked, ambiguous, mismatched, owner);
-   written and skipped count samples, not grades; skipped_lines counts
-   transcript lines the reader could not use (never read as zero). *)
+   outcome bucket (checked, unchecked, ambiguous, mismatched, owner),
+   and every handoff in one (authored, author_missing,
+   author_ambiguous); written and skipped count samples; skipped_lines
+   counts transcript lines the reader could not use (never read as 0). *)
 type tally = {
   grades : int; checked : int; unchecked : int; ambiguous : int;
   mismatched : int; owner_graded : int; written : int; skipped : int;
   skipped_lines : int;
+  handoffs : int; authored : int; author_missing : int; author_ambiguous : int;
 }
 
 let zero = { grades = 0; checked = 0; unchecked = 0; ambiguous = 0;
-             mismatched = 0; owner_graded = 0; written = 0; skipped = 0; skipped_lines = 0 }
+             mismatched = 0; owner_graded = 0; written = 0; skipped = 0; skipped_lines = 0;
+             handoffs = 0; authored = 0; author_missing = 0; author_ambiguous = 0 }
 
-let buckets_add_up t = t.checked + t.unchecked + t.ambiguous + t.mismatched + t.owner_graded = t.grades
+let buckets_add_up t =
+  t.checked + t.unchecked + t.ambiguous + t.mismatched + t.owner_graded = t.grades
+  && t.authored + t.author_missing + t.author_ambiguous = t.handoffs
 
 let tally_json t =
   `Assoc [ ("grades", `Int t.grades); ("checked", `Int t.checked); ("unchecked", `Int t.unchecked);
            ("ambiguous", `Int t.ambiguous); ("mismatched", `Int t.mismatched);
            ("owner", `Int t.owner_graded); ("written", `Int t.written); ("skipped", `Int t.skipped);
-           ("skipped_lines", `Int t.skipped_lines) ]
+           ("skipped_lines", `Int t.skipped_lines);
+           ("handoffs", `Int t.handoffs); ("authored", `Int t.authored);
+           ("author_missing", `Int t.author_missing); ("author_ambiguous", `Int t.author_ambiguous) ]
