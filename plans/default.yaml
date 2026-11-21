@@ -1,5 +1,5 @@
 goal_type: default
-max_cycles: 3
+max_cycles: 10
 grade:
   required: true
 verify: required

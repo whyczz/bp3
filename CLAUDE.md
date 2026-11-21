@@ -72,9 +72,11 @@ to the exact commit reviewed.
 - Teach before building: when a quest or design is new, teach the
   concepts back to the human (concept, before, change, after,
   bites, transfer cues) and get the nod before implementation.
-- Up to three review rounds by default (`max_cycles: 3`, owner
-  2026-11-19): a `needs_fix` below the cap returns the node to
-  todo for another round; one at the cap escalates to the human.
+- Up to ten review rounds by default (`max_cycles: 10`, owner
+  2026-11-21: "increase the rounds to 10, i do not want to be
+  involved"; was 3 since 2026-11-19): a `needs_fix` below the cap
+  returns the node to todo for another round; one at the cap
+  escalates to the human.
 - Ledger is truth; `state.yaml` is its cache. Refused moves are
   ledgered too. Only clean commits move — dirty worktrees are
   never state.
