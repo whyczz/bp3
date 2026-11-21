@@ -503,6 +503,7 @@ let help_q = "bp3 q - quest/node state. Doors:\n\
   bp3 q <quest> n <node> r     read one node (canonical nested address)\n\
   bp3 q <quest> n <node> e <edge> [flags]   take one node's edge (canonical nested address)\n\
   bp3 q <quest> diagram ...    generated quest diagram from the live rollup (mvp.4)\n\
+  bp3 q <quest> metrics r|scrape   what each grade and author cycle cost (metric-collectors)\n\
   bp3 q icebox r [term...]     search frozen icebox entries (read-only)\n\
   bp3 n [r]                    claimed node door: read the claimed run's node (rename.1)\n\
   bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)\n\
@@ -535,6 +536,29 @@ let help_diagram = "bp3 q <quest> diagram - generated quest diagram from the liv
   bp3 q <quest> diagram [--format ascii|mermaid|json]   emit the diagram (default ascii)\n\
   Nodes carry state and cycle (landed nodes carry node_fin), deps are drawn once, todo nodes are grouped into ready-set waves, and a blocked node names the dependents it starves. Output is generated at call time from live state; its header carries the rollup timestamp (generated_at). ascii suits terminals and records, mermaid suits rendered docs, json carries the same facts plus both texts for diffing.\n\
 Example: bp3 q my-quest diagram --format mermaid\n"
+
+(* ---------- metrics door (metric-collectors sink.1) ---------- *)
+let do_metrics quest tail =
+  check_slug quest;
+  if fold_quest quest = None then not_found "quest" quest;
+  let rec dirs acc = function
+    | [] -> List.rev acc
+    | "--claude-dir" :: d :: rest -> dirs (d :: acc) rest
+    | ["--claude-dir"] -> usage "--claude-dir needs a value"
+    | f :: _ -> usage ("unknown metrics scrape argument: " ^ f) in
+  match tail with
+  | [ ("r" | "read") ] -> print_verdict ~fmt:"json" (Metrics_io.view quest); 0
+  | "scrape" :: rest ->
+      let ds = match dirs [] rest with [] -> Metrics_io.default_dirs () | ds -> ds in
+      let (v, rc) = Metrics_io.scrape_view quest ~dirs:ds in
+      print_verdict ~fmt:"json" v; rc
+  | _ -> usage "metrics verbs are r and scrape"
+
+let help_metrics = "bp3 q <quest> metrics - what each grade and author cycle cost (metric-collectors):\n\
+  bp3 q <quest> metrics r                              samples per node, cycle, and kind (grade, author)\n\
+  bp3 q <quest> metrics scrape [--claude-dir <dir>]... collect from Claude Code transcripts; idempotent\n\
+  Samples live in metrics.jsonl on each node's state branch (GENERATED, written only here); a second scrape writes nothing new. Without --claude-dir, scrape reads ~/.claude/projects/<this repo's dir and its desks>. Exit 1 when a transcript disagrees with the harness report.\n\
+Example: bp3 q my-quest metrics scrape && bp3 q my-quest metrics r\n"
 
 let help_update = "bp3 q <quest> u <node> <edge> - edges and their flags:\n\
   edges: handoff grade verify land block resume\n\
@@ -714,6 +738,9 @@ let rec run argv =
        | _ -> usage "quest door verbs are c, r, d")
   | _q :: "diagram" :: (h :: _) when is_help h -> print_string help_diagram; 0
   | quest :: "diagram" :: tail -> do_diagram quest tail
+  | _q :: "metrics" :: (h :: _) when is_help h -> print_string help_metrics; 0
+  | _q :: "metrics" :: _ :: (h :: _) when is_help h -> print_string help_metrics; 0
+  | quest :: "metrics" :: tail -> do_metrics quest tail
   | _q :: "dep" :: (h :: _) when is_help h -> print_string help_dep; 0
   | quest :: "dep" :: node :: tail ->
       let (pos, fl) = split_flags tail in

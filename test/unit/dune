@@ -1,8 +1,9 @@
 ; Unit tier (test-pyramid): `dune test` runs these; no git, no process,
-; no wall clock. Test names start with their kind: case_, law_, char_.
+; no wall clock. Test names start with their kind: case_, law_, char_, or
+; pending_<node>_ (an OUnit skip: spec a node has not built yet).
 ; gen.ml is shared by every test; samples/ holds frozen real ledgers.
 (tests
- (names test_smoke test_clock test_store test_layout test_mint test_hooks test_render test_main test_suites)
+ (names test_smoke test_clock test_store test_layout test_mint test_hooks test_render test_main test_suites test_metrics)
  (deps
   (glob_files samples/*.jsonl)
   (glob_files golden/*))
