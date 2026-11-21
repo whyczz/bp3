@@ -51,6 +51,12 @@ let id_ok s =
 let ts_re = Str.regexp
     "^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\\(\\.[0-9]+\\)?Z$"
 
+(* A model is a closed shape, not an id: claude-<lowercase>, or the
+   scraper's own "unknown" / "other". Anything else could be text
+   riding in a model field (QUEST.md R4). *)
+let model_re = Str.regexp "^\\(claude-[a-z0-9.-]+\\|unknown\\|other\\)$"
+let model_ok m = String.length m <= 64 && Str.string_match model_re m 0
+
 (* Error is (code, detail); Metrics_io raises it as a verdict. *)
 let validate s =
   match find s.metric with
@@ -60,7 +66,8 @@ let validate s =
   | Some _ ->
       if not (Float.is_finite s.value) || s.value < 0. then Error ("E_METRIC_VALUE", "value")
       else if s.cycle < 1 then Error ("E_METRIC_VALUE", "cycle")
-      else if not (List.for_all id_ok [ s.quest; s.node; s.run; s.model ]) then Error ("E_METRIC_VALUE", "ids")
+      else if not (List.for_all id_ok [ s.quest; s.node; s.run ]) then Error ("E_METRIC_VALUE", "ids")
+      else if not (model_ok s.model) then Error ("E_METRIC_VALUE", "model")
       else if not (Str.string_match ts_re s.at 0) then Error ("E_METRIC_VALUE", "at")
       else Ok ()
 
@@ -135,18 +142,21 @@ let grade_spans edges =
 
 (* What one scrape did to one node. Every grade lands in exactly one
    outcome bucket (checked, unchecked, ambiguous, mismatched, owner);
-   written and skipped count samples, not grades. *)
+   written and skipped count samples, not grades; skipped_lines counts
+   transcript lines the reader could not use (never read as zero). *)
 type tally = {
   grades : int; checked : int; unchecked : int; ambiguous : int;
   mismatched : int; owner_graded : int; written : int; skipped : int;
+  skipped_lines : int;
 }
 
 let zero = { grades = 0; checked = 0; unchecked = 0; ambiguous = 0;
-             mismatched = 0; owner_graded = 0; written = 0; skipped = 0 }
+             mismatched = 0; owner_graded = 0; written = 0; skipped = 0; skipped_lines = 0 }
 
 let buckets_add_up t = t.checked + t.unchecked + t.ambiguous + t.mismatched + t.owner_graded = t.grades
 
 let tally_json t =
   `Assoc [ ("grades", `Int t.grades); ("checked", `Int t.checked); ("unchecked", `Int t.unchecked);
            ("ambiguous", `Int t.ambiguous); ("mismatched", `Int t.mismatched);
-           ("owner", `Int t.owner_graded); ("written", `Int t.written); ("skipped", `Int t.skipped) ]
+           ("owner", `Int t.owner_graded); ("written", `Int t.written); ("skipped", `Int t.skipped);
+           ("skipped_lines", `Int t.skipped_lines) ]

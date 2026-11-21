@@ -171,19 +171,69 @@ let case_tally_buckets_add_up_to_the_grades _ =
   assert_bool "mixed" (Metrics.buckets_add_up { Metrics.zero with grades = 3; unchecked = 2; owner_graded = 1 });
   assert_bool "lost one" (not (Metrics.buckets_add_up { Metrics.zero with grades = 3; unchecked = 2 }))
 
+(* ---------- the harness report (scrape.1) ---------- *)
+
+let notification ?(ts = "2026-11-21T21:14:48.003Z") ?(op = "enqueue") id (st, tu, ms) =
+  jline [ ("type", `String "queue-operation"); ("operation", `String op); ("timestamp", `String ts);
+          ("content", `String (Printf.sprintf
+             "<task-notification>\n<tool-use-id>%s</tool-use-id>\n<status>completed</status>\n<usage><subagent_tokens>%d</subagent_tokens><tool_uses>%d</tool_uses><duration_ms>%d</duration_ms></usage>\n</task-notification>"
+             id st tu ms)) ]
+
+let case_reports_come_from_enqueue_lines_and_the_last_one_wins _ =
+  let quoting = jline [ ("type", `String "assistant"); ("timestamp", `String "2026-11-21T22:00:00.000Z");
+                        ("message", `Assoc [ ("id", `String "mx"); ("content", `String
+                          "<tool-use-id>toolu_a</tool-use-id><usage><subagent_tokens>1</subagent_tokens><tool_uses>1</tool_uses><duration_ms>1</duration_ms></usage>") ]) ] in
+  let text = Gen.text [
+      notification "toolu_a" (173523, 52, 1280300);
+      notification ~op:"remove" "toolu_b" (9, 9, 9);
+      quoting;
+      notification "toolu_c" (100, 1, 1000);
+      notification ~ts:"2026-11-21T23:00:00.000Z" "toolu_c" (200, 2, 2000);
+      "not json \"queue-operation\"" ] in
+  let rs = Claude_tx.reports_of_text text in
+  assert_equal ~printer:(String.concat ",") [ "toolu_a"; "toolu_c" ] (List.map fst rs);
+  let a = List.assoc "toolu_a" rs and c = List.assoc "toolu_c" rs in
+  assert_equal (52, 1280300, 173523, "2026-11-21T21:14:48.003Z")
+    (a.r_tool_uses, a.r_duration_ms, a.r_subagent_tokens, a.r_at);
+  assert_equal ~printer:string_of_int 2 c.r_tool_uses
+
+let report ?(at = "2026-11-21T21:14:48.003Z") (st, tu, ms) =
+  { Claude_tx.r_at = at; r_tool_uses = tu; r_duration_ms = ms; r_subagent_tokens = st }
+
+let case_agrees_allows_a_small_context_undercount_and_nothing_else _ =
+  let c = Claude_tx.cost (Claude_tx.parse tx_text) in   (* tools 3, wall 1280.29, context 36014 *)
+  let ok label want r = assert_equal ~msg:label ~printer:string_of_bool want (Claude_tx.agrees c r) in
+  ok "exact" true (report (36014, 3, 1280300));
+  ok "final output logged short (seen: 62 to 1009)" true (report (36014 + 1009, 3, 1280300));
+  ok "wall within a second" true (report (36014, 3, 1281200));
+  ok "one tool call off" false (report (36014, 4, 1280300));
+  ok "context over the report" false (report (36013, 3, 1280300));
+  ok "context more than 5% short" false (report (36014 * 2, 3, 1280300));
+  ok "wall off by 2 s" false (report (36014, 3, 1282300))
+
+(* A grader resumed by a follow-up writes after its report: the cut
+   at r_at must reproduce the report, the full file keeps the rest. *)
+let case_parse_until_cuts_the_transcript_at_the_report _ =
+  let resumed = tx_text ^ Gen.text [
+      assistant ~ts:"2026-11-21T21:20:00.000Z" ~id:"m4" ~tools:[ "t4" ] (1, 9, 36000, 10) ] in
+  let full = Claude_tx.cost (Claude_tx.parse resumed) in
+  let cut = Claude_tx.cost (Claude_tx.parse ?until:(Claude_tx.seconds "2026-11-21T21:14:48.003Z") resumed) in
+  assert_equal ~printer:string_of_int 4 full.tool_calls;
+  assert_equal ~printer:string_of_int 3 cut.tool_calls;
+  assert_equal ~printer:string_of_float 1280.29 cut.wall_s;
+  assert_bool "cut agrees with its report" (Claude_tx.agrees cut (report (36014, 3, 1280300)))
+
+let case_an_off_shape_model_is_recorded_as_other _ =
+  let text = Gen.text [ user "x"; assistant ~model:"sk-ant-api03-secret" ~ts:"2026-11-21T20:53:31.726Z" ~id:"m1" (1, 1, 1, 1) ] in
+  assert_equal ~printer:Fun.id "other" (Claude_tx.cost (Claude_tx.parse text)).model;
+  assert_equal ~printer:Fun.id "E_METRIC_VALUE" (code (Metrics.validate (sample ~model:"sk-ant-api03-secret" ())));
+  assert_equal ~printer:Fun.id "ok" (code (Metrics.validate (sample ~model:"other" ())))
+
 (* ---------- the spec still to build ---------- *)
 
 let pending node what _ = skip_if true ("pending " ^ node ^ ": " ^ what)
 
 let pending_tests = [
-  "pending_scrape_1_reads_the_harness_report_from_the_parent_transcript" >::
-    pending "scrape.1" "reports_of_text reads tool_uses, duration_ms and subagent_tokens per toolUseId";
-  "pending_scrape_1_a_grade_that_matches_its_report_is_checked" >::
-    pending "scrape.1" "tool_uses equal, wall within 1 s, context_end equal -> checked";
-  "pending_scrape_1_a_grade_that_disagrees_with_its_report_writes_nothing" >::
-    pending "scrape.1" "mismatched, exit 1, no samples for that grade";
-  "pending_scrape_1_skipped_lines_reach_the_tally" >::
-    pending "scrape.1" "a transcript's skipped_lines show in the scrape verdict, never as zero tokens";
   "pending_scrape_2_finds_the_session_that_cast_the_handoff" >::
     pending "scrape.2" "a Bash tool_use naming handoff, the node and --commit <sha[:7+]>";
   "pending_scrape_2_windows_of_one_session_never_overlap" >::
@@ -215,6 +265,10 @@ let () =
        "case_a_grade_transcript_names_its_node_and_commit_inside_the_window" >:: case_a_grade_transcript_names_its_node_and_commit_inside_the_window;
        "case_meta_names_the_parent_tool_call" >:: case_meta_names_the_parent_tool_call;
        "case_tally_buckets_add_up_to_the_grades" >:: case_tally_buckets_add_up_to_the_grades;
+       "case_reports_come_from_enqueue_lines_and_the_last_one_wins" >:: case_reports_come_from_enqueue_lines_and_the_last_one_wins;
+       "case_agrees_allows_a_small_context_undercount_and_nothing_else" >:: case_agrees_allows_a_small_context_undercount_and_nothing_else;
+       "case_parse_until_cuts_the_transcript_at_the_report" >:: case_parse_until_cuts_the_transcript_at_the_report;
+       "case_an_off_shape_model_is_recorded_as_other" >:: case_an_off_shape_model_is_recorded_as_other;
        QCheck_ounit.to_ounit2_test law_appending_any_batch_twice_writes_it_once;
        QCheck_ounit.to_ounit2_test law_sink_text_round_trips;
      ] @ pending_tests)

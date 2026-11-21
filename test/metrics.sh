@@ -39,14 +39,22 @@ transcript() { # $1 file $2 node $3 sha $4 second (YYYY-MM-DDTHH:MM:SS)
   } > "$1"
 }
 
-new_commit() { # $1 node -> a commit sha on the node branch
-  local branch="refs/heads/bp3/node/q1/$1" t blob tree idx="$work/idx-$1"
+# the harness report: a .meta.json naming the spawning call, and a
+# queue-operation enqueue line in the parent session file
+harness_report() { # $1 transcript $2 tool-use id $3 context $4 tool uses $5 duration ms $6 second
+  printf '{"toolUseId":"%s"}\n' "$2" > "${1%.jsonl}.meta.json"
+  printf '{"type":"queue-operation","operation":"enqueue","timestamp":"%s.950Z","content":"<task-notification><tool-use-id>%s</tool-use-id><usage><subagent_tokens>%s</subagent_tokens><tool_uses>%s</tool_uses><duration_ms>%s</duration_ms></usage></task-notification>"}\n' \
+    "$6" "$2" "$3" "$4" "$5" >> "$(dirname "$(dirname "$1")").jsonl"
+}
+
+new_commit() { # $1 quest $2 node -> a commit sha on the node branch
+  local branch="refs/heads/bp3/node/$1/$2" t blob tree idx="$work/idx-$1-$2"
   t=$(git rev-parse "$branch"); rm -f "$idx"
-  blob=$(printf 'work %s\n' "$1" | git hash-object -w --stdin)
+  blob=$(printf 'work %s\n' "$2" | git hash-object -w --stdin)
   GIT_INDEX_FILE="$idx" git read-tree "$t"
-  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,work-$1.txt"
+  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,work-$2.txt"
   tree=$(GIT_INDEX_FILE="$idx" git write-tree)
-  t=$(printf 'work %s\n' "$1" | git commit-tree "$tree" -p "$t")
+  t=$(printf 'work %s\n' "$2" | git commit-tree "$tree" -p "$t")
   git update-ref "$branch" "$t"; rm -f "$idx"; printf '%s' "$t"
 }
 
@@ -54,19 +62,31 @@ claude="$work/claude"
 q c q1 >/dev/null
 for node in na nb nc; do q q1 c "$node" >/dev/null; done
 
-# na: one grader transcript in the window; nb: owner graded (no
-# transcript); nc: two transcripts name it, so the join refuses
+# na: one grader transcript in the window, its harness report agrees,
+# and one junk line rides along; nb: owner graded (no transcript);
+# nc: two transcripts name it, so the join refuses
 for node in na nb nc; do
-  sha=$(new_commit "$node")
+  sha=$(new_commit q1 "$node")
   q q1 u "$node" handoff --commit "$sha" --reason work >/dev/null
   sec=$(date -u +%Y-%m-%dT%H:%M:%S)
   case "$node" in
-    na) transcript "$claude/s1/subagents/agent-a1.jsonl" "$node" "$sha" "$sec" ;;
+    na) transcript "$claude/s1/subagents/agent-a1.jsonl" "$node" "$sha" "$sec"
+        echo 'not json' >> "$claude/s1/subagents/agent-a1.jsonl"
+        harness_report "$claude/s1/subagents/agent-a1.jsonl" toolu_a1 526 3 800 "$sec" ;;
     nc) transcript "$claude/s2/subagents/agent-c1.jsonl" "$node" "$sha" "$sec"
         transcript "$claude/s2/subagents/agent-c2.jsonl" "$node" "$sha" "$sec" ;;
   esac
   q q1 u "$node" grade --verdict ship --verify-verdict pass --reason ok >/dev/null
 done
+
+# q2/nd: the harness report counts 4 tool calls, the transcript 3
+q c q2 >/dev/null; q q2 c nd >/dev/null
+sha=$(new_commit q2 nd)
+q q2 u nd handoff --commit "$sha" --reason work >/dev/null
+sec=$(date -u +%Y-%m-%dT%H:%M:%S)
+transcript "$work/claude2/s9/subagents/agent-d1.jsonl" nd "$sha" "$sec"
+harness_report "$work/claude2/s9/subagents/agent-d1.jsonl" toolu_d1 526 4 800 "$sec"
+q q2 u nd grade --verdict ship --verify-verdict pass --reason ok >/dev/null
 
 # --- today's surface: refusals ---
 expect "unknown quest" E_NOT_FOUND "$(q nope metrics r | jq -r .error.code || true)"
@@ -78,8 +98,9 @@ rollup_before=$(q r q1 | jq -S 'del(.nodes[].timing)')
 na0=$(count na) nb0=$(count nb) nc0=$(count nc)
 out=$(q q1 metrics scrape --claude-dir "$claude")
 expect "scrape ok" true "$(jq -r .ok <<< "$out")"
-expect "na unchecked" 1 "$(jq -r .nodes.na.unchecked <<< "$out")"
+expect "na checked against its report" 1 "$(jq -r .nodes.na.checked <<< "$out")"
 expect "na written" 7 "$(jq -r .nodes.na.written <<< "$out")"
+expect "na junk line counted, not read as zero" 1 "$(jq -r .nodes.na.skipped_lines <<< "$out")"
 expect "nb owner" 1 "$(jq -r .nodes.nb.owner <<< "$out")"
 expect "nc ambiguous" 1 "$(jq -r .nodes.nc.ambiguous <<< "$out")"
 expect "nc writes nothing" 0 "$(jq -r .nodes.nc.written <<< "$out")"
@@ -118,6 +139,15 @@ cp -R "$claude/s2" "$projects/$slug-sibling/"                # another repo's: n
 out=$(q q1 metrics scrape)
 expect "desk dir scanned" "$projects/$slug--bp3-worktrees-q1" "$(jq -r '.dirs | join(",")' <<< "$out")"
 expect "desk transcript already counted" 7 "$(jq -r .nodes.na.skipped <<< "$out")"
+expect "no parent session copied: unchecked" 1 "$(jq -r .nodes.na.unchecked <<< "$out")"
 expect "sibling stays out" 1 "$(jq -r .nodes.nc.owner <<< "$out")"
+
+# --- a transcript that disagrees with its report writes nothing, exit 1 ---
+nd0=$(git rev-list --count refs/heads/bp3/node/q2/nd)
+rc=0; out=$(q q2 metrics scrape --claude-dir "$work/claude2") || rc=$?
+expect "mismatch exits 1" 1 "$rc"
+expect "mismatch not ok" false "$(jq -r .ok <<< "$out")"
+expect "nd mismatched" 1 "$(jq -r .nodes.nd.mismatched <<< "$out")"
+expect "nd writes nothing" "$nd0" "$(git rev-list --count refs/heads/bp3/node/q2/nd)"
 
 echo "metrics tests: ok ($n assertions)"

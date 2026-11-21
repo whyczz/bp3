@@ -125,6 +125,20 @@ def scrape_grades(quest, claude_dir):
 | line shape unknown (no `message.id`) | the line counts toward `skipped_lines`, never as zero tokens |
 | desk sessions (`~/.claude/projects/<slug>--bp3-worktrees-...`) | scanned: every project dir whose slug starts with the repo's |
 
+## Build notes (2026-11-21, found on real data)
+
+| Finding | Evidence | Rule it set |
+|---|---|---|
+| A grader resumed by a follow-up keeps writing after its report | 5 of 43 reports in this repo's main session: the transcript has 1-4 more tool calls than its report; cut at the report's queue time, tool calls match exactly in all 5 | the check reads the transcript up to `r_at` (`parse ~until`); the samples keep the whole in-window cost |
+| The transcript can log the final message's output short | cut at the report, context is 0 to 1009 tokens under `subagent_tokens` (4 of 5), never over | `agrees`: tool calls exact, wall within 1 s, context at most 5% under and never over |
+| The report also appears quoted in the parent's own messages | an assistant line holding `<usage>...` text | reports come from `queue-operation` `enqueue` lines only |
+| A model field is a place text could ride | grader probe: `sk-ant-api03-...` passed `id_ok` | `Metrics.model_ok`: `claude-<lowercase>`, `unknown` or `other`; the reader records anything else as `other` |
+| `wall_s` is the transcript's span, so a resumed grader's idle gap counts | test-pyramid tier.1 cycle 2: 18412 s | left to derive.1 (a span is not active time) |
+
+After the rules, on a scratch clone: constraints-context 7 checked
+and 3 owner-graded; test-pyramid 23 checked and 1 owner-graded;
+metric-collectors 1 checked; 0 mismatched.
+
 ## Prose
 
 The harness report is the trick that makes an unofficial format

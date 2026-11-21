@@ -48,14 +48,18 @@ let prompt_text content =
           | `String s -> Some s | _ -> None) blocks)
   | _ -> ""
 
-let parse text =
+(* ~until (epoch seconds) reads only the lines stamped at or before it:
+   the part of a transcript a harness report covers. *)
+let parse ?until text =
   let order = ref [] and by_id = Hashtbl.create 64 and tools = Hashtbl.create 64 in
   let tool_order = ref [] and skipped = ref 0 in
   let session = ref "" and agent = ref "" and prompt = ref None in
   let first_ts = ref "" and last_ts = ref "" in
+  let late ts = match until, seconds ts with Some u, Some s -> s > u | _ -> false in
   List.iter (fun line ->
       if String.trim line <> "" then
         match (try Some (Yojson.Safe.from_string line) with _ -> None) with
+        | Some (`Assoc _ as j) when late (str "timestamp" j) -> ()
         | Some (`Assoc _ as j) ->
             let ts = str "timestamp" j in
             if ts <> "" then begin
@@ -123,26 +127,74 @@ let cost tx =
         | None -> 0);
     tokens_in = sum (fun u -> u.input); tokens_out = sum (fun u -> u.output);
     tokens_cache_read = sum (fun u -> u.cache_read); tokens_cache_write = sum (fun u -> u.cache_write);
-    model = (match last with Some m -> m.model | None -> "unknown") }
+    model = (match last with
+        | Some m -> if Metrics.model_ok m.model then m.model else "other"
+        | None -> "unknown") }
 
 (* A grade transcript names its node and the graded commit in its
    first prompt (past briefs already did), and runs inside the
    handoff-to-grade window. Ledger times are whole seconds, so the
    window closes one second after the grade's stamp. *)
+let find_from s i sub =
+  let n = String.length sub and m = String.length s in
+  let rec go i = if i + n > m then None else if String.sub s i n = sub then Some i else go (i + 1) in
+  if n = 0 then None else go i
+
+let contains s sub = find_from s 0 sub <> None
+
 let names_grade tx ~node ~commit =
-  let has s sub =
-    let n = String.length sub and m = String.length s in
-    let rec go i = i + n <= m && (String.sub s i n = sub || go (i + 1)) in
-    n > 0 && go 0 in
-  String.length commit >= 7 && has tx.first_prompt node && has tx.first_prompt (String.sub commit 0 7)
+  String.length commit >= 7 && contains tx.first_prompt node && contains tx.first_prompt (String.sub commit 0 7)
 
 let in_window tx ~handed_at ~graded_at =
   match seconds tx.first_ts, seconds tx.last_ts, seconds handed_at, seconds graded_at with
   | Some a, Some b, Some h, Some g -> a >= h && b < g +. 1.
   | _ -> false
 
-(* The harness report (scrape.1): the <usage> block the parent session
-   receives when a subagent ends. Not read yet; until scrape.1 lands,
-   every grade it would check is counted "unchecked". *)
-type report = { r_tool_uses : int; r_duration_ms : int; r_subagent_tokens : int }
-let reports_of_text (_ : string) : (string * report) list = []
+(* The harness report (scrape.1): when a subagent ends, the harness
+   queues a <task-notification> to the parent session carrying the
+   spawning call's <tool-use-id> and a <usage> block. It is read from
+   queue-operation enqueue lines only: the parent's own messages may
+   quote the same text, and quoting is not reporting. A task can
+   notify more than once; the last report wins. r_at is when the
+   report was queued: a subagent resumed by a follow-up keeps
+   writing after it, so a report covers only the lines up to r_at. *)
+type report = { r_at : string; r_tool_uses : int; r_duration_ms : int; r_subagent_tokens : int }
+
+let tag name s =
+  let o = "<" ^ name ^ ">" and c = "</" ^ name ^ ">" in
+  match find_from s 0 o with
+  | None -> None
+  | Some i ->
+      let start = i + String.length o in
+      (match find_from s start c with
+       | Some j -> Some (String.sub s start (j - start))
+       | None -> None)
+
+let reports_of_text text =
+  let found = Hashtbl.create 16 and order = ref [] in
+  List.iter (fun line ->
+      if contains line "\"queue-operation\"" then
+        match (try Some (Yojson.Safe.from_string line) with _ -> None) with
+        | Some j when str "type" j = "queue-operation" && str "operation" j = "enqueue" ->
+            let c = str "content" j in
+            let num t = match tag t c with Some v -> int_of_string_opt (String.trim v) | None -> None in
+            (match tag "tool-use-id" c, num "tool_uses", num "duration_ms", num "subagent_tokens" with
+             | Some id, Some tu, Some ms, Some st ->
+                 if not (Hashtbl.mem found id) then order := id :: !order;
+                 Hashtbl.replace found id
+                   { r_at = str "timestamp" j; r_tool_uses = tu; r_duration_ms = ms; r_subagent_tokens = st }
+             | _ -> ())
+        | _ -> ())
+    (String.split_on_char '\n' text);
+  List.rev_map (fun id -> (id, Hashtbl.find found id)) !order
+
+(* c is the cost of the transcript cut at r_at (parse ~until). It
+   agrees when the tool calls match exactly, the wall is within a
+   second, and the end context is at most 5% under the report's,
+   never over: the transcript can log a final message's output only
+   partially (seen on 4 of 43 reports, 2026-11-21: 62 to 1009 tokens
+   short), but it never logs more than the harness counted. *)
+let agrees (c : cost) r =
+  let short = r.r_subagent_tokens - c.context_end in
+  c.tool_calls = r.r_tool_uses && short >= 0 && short * 20 <= r.r_subagent_tokens
+  && Float.abs (c.wall_s -. (float_of_int r.r_duration_ms /. 1000.)) <= 1.

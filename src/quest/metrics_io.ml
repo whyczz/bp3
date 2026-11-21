@@ -90,8 +90,27 @@ let run_of_path path (tx : Claude_tx.tx) =
       if String.starts_with ~prefix:"agent-" b then String.sub b 6 (String.length b - 6) else b in
   "claude:" ^ session ^ "/" ^ agent
 
-let grade_samples q node (sp : Metrics.grade_span) path (tx : Claude_tx.tx) =
-  let c = Claude_tx.cost tx in
+(* The harness report for one subagent file: its .meta.json names the
+   spawning tool call, and the parent session file beside the
+   session's folder holds the report. Parents are big (tens of MB),
+   so each is read once per scrape. *)
+let meta_path path = Filename.chop_suffix path ".jsonl" ^ ".meta.json"
+let parent_path path = Filename.dirname (Filename.dirname path) ^ ".jsonl"
+let reports_cache : (string, (string * Claude_tx.report) list) Hashtbl.t = Hashtbl.create 4
+
+let report_for path =
+  match (try Claude_tx.meta_tool_use_id (read_file (meta_path path)) with Sys_error _ -> None) with
+  | None -> None
+  | Some id ->
+      let parent = parent_path path in
+      let reports = match Hashtbl.find_opt reports_cache parent with
+        | Some r -> r
+        | None ->
+            let r = try Claude_tx.reports_of_text (read_file parent) with Sys_error _ -> [] in
+            Hashtbl.replace reports_cache parent r; r in
+      List.assoc_opt id reports
+
+let grade_samples q node (sp : Metrics.grade_span) path (tx : Claude_tx.tx) (c : Claude_tx.cost) =
   let mk m v = { Metrics.metric = "grade." ^ m; quest = q; node; cycle = sp.g_cycle;
                  run = run_of_path path tx; model = c.model; value = v; at = tx.last_ts;
                  source = Metrics.grade_transcripts.c_name } in
@@ -101,8 +120,9 @@ let grade_samples q node (sp : Metrics.grade_span) path (tx : Claude_tx.tx) =
     mk "tokens_cache_read" (i c.tokens_cache_read); mk "tokens_cache_write" (i c.tokens_cache_write) ]
 
 (* One node: each grade span finds its transcript, or says why not.
-   The harness-report check is scrape.1's; until then a found
-   transcript is "unchecked" and still written. *)
+   A found transcript is checked against the harness report: agreeing
+   is "checked", disagreeing is "mismatched" and writes nothing, and
+   no report found is "unchecked" (written, flagged). *)
 let scrape_node q node txs =
   let spans = Metrics.grade_spans (Metrics.edges_of_text (node_text q node)) in
   let batch, t = List.fold_left (fun (batch, (t : Metrics.tally)) (sp : Metrics.grade_span) ->
@@ -112,7 +132,16 @@ let scrape_node q node txs =
           && Claude_tx.in_window tx ~handed_at:sp.handed_at ~graded_at:sp.graded_at) (Lazy.force txs) in
       match hits with
       | [] -> (batch, { t with owner_graded = t.owner_graded + 1 })
-      | [ (path, tx) ] -> (batch @ grade_samples q node sp path tx, { t with unchecked = t.unchecked + 1 })
+      | [ (path, tx) ] ->
+          let c = Claude_tx.cost tx in
+          let t = { t with skipped_lines = t.skipped_lines + tx.skipped_lines } in
+          (* the check reads the lines the report covers; the samples
+             keep the whole in-window cost, follow-up turns included *)
+          let covered r = Claude_tx.cost (Claude_tx.parse ?until:(Claude_tx.seconds r.Claude_tx.r_at) (read_file path)) in
+          (match report_for path with
+           | Some r when not (Claude_tx.agrees (covered r) r) -> (batch, { t with mismatched = t.mismatched + 1 })
+           | Some _ -> (batch @ grade_samples q node sp path tx c, { t with checked = t.checked + 1 })
+           | None -> (batch @ grade_samples q node sp path tx c, { t with unchecked = t.unchecked + 1 }))
       | _ -> (batch, { t with ambiguous = t.ambiguous + 1 })) ([], Metrics.zero) spans in
   let written, skipped = if batch = [] then (0, 0) else append q node batch in
   { t with written; skipped }
