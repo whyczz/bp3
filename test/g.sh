@@ -626,6 +626,25 @@ if out=$(q brief-demo c brief 2>&1); then fail "node named brief accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved brief code: $out"
 
 
+# --- induct-inline-as-default skills.1: commits stacked in one quest desk land in turn ---
+# (background grades: B is committed on top of A before A's verdict is cast)
+q c stack-demo >/dev/null; q stack-demo c sa >/dev/null; q stack-demo c sb >/dev/null
+sdesk=$(BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness desk prepare --quest stack-demo | jq -r .path)
+( cd "$sdesk"
+  echo A > sa.txt; git add sa.txt; git commit -qm "sa: work"; SA=$(git rev-parse HEAD)
+  q stack-demo n sa e handoff --commit "$SA" --reason a >/dev/null
+  echo B > sb.txt; git add sb.txt; git commit -qm "sb: work"; SB=$(git rev-parse HEAD)
+  q stack-demo n sb e handoff --commit "$SB" --reason b >/dev/null
+  q stack-demo n sa e grade --verdict ship --verify-verdict pass --reason ok >/dev/null
+  q stack-demo n sa e land --reason ok | jq -e '.state == "landed"' >/dev/null || fail "stacked land sa"
+  [ -z "$(git status --short)" ] || fail "desk dirty after the first stacked land: $(git status --short)"
+  q stack-demo n sb e grade --verdict ship --verify-verdict pass --reason ok >/dev/null
+  q stack-demo n sb e land --reason ok | jq -e '.state == "landed"' >/dev/null || fail "stacked land sb"
+  [ -z "$(git status --short)" ] || fail "desk dirty after the second stacked land"
+  [ "$(git rev-parse HEAD)" = "$SB" ] || fail "a land moved the desk's branch"
+  git merge-base --is-ancestor "$SA" "$SB" || fail "stack order"
+)
+
 # --- version guard: minor-ahead warns and writes; major-ahead refuses writes ---
 stamp_ledger() { # $1 quest $2 node $3 version
   local br="bp3/node/$1/$2" path="docs/quests/$1/nodes/$2/ledger.jsonl" tip idx led blob tree nt

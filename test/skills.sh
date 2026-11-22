@@ -284,4 +284,23 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -q 'one fresh grader: a subagent, or a headless pi when the owner names it' "$ii"
 done
 
+# induct-inline-as-default skills.1: induct-inline is the default way to
+# run a quest, with background grades in grade desks, the rendered brief
+# passed verbatim, the cast boundary, verify-then-cast, one session per
+# quest. using-bp3 and induct point to it. Sources and every render.
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  ii="$repo/$dir/induct-inline/SKILL.md" ub="$repo/$dir/using-bp3/SKILL.md" id="$repo/$dir/induct/SKILL.md"
+  assert grep -q 'This is$' "$ii"
+  assert grep -q '^the default way to run a quest\. One quest\.' "$ii"
+  assert grep -qF '`bp3 q <quest> n <node> brief --desk <grade desk path>` and pass' "$ii"
+  assert grep -qF 'its `brief` text verbatim, adding nothing and leaving nothing' "$ii"
+  assert grep -qF '`bp3 harness desk prepare <quest> <node> --run grade-<node>-c<cycle>-a<attempt> --commit <sha>`.' "$ii"
+  assert grep -q 'at the \*\*cast boundary\*\* (right after that handoff, or when' "$ii"
+  assert grep -q '^- \*\*Verify, then cast\*\*: before casting a verdict, check its grade$' "$ii"
+  assert grep -q '^- One quest per session; one node being authored at a time;$' "$ii"
+  assert test -z "$(grep -n 'one node in flight' "$ii" || true)"
+  assert grep -q '^use `induct-inline`, the default: this session authors each$' "$ub"
+  assert grep -q '^`induct-inline` is the default way to run a quest: this session$' "$id"
+done
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"

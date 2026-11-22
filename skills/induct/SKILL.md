@@ -17,6 +17,10 @@ names quest promotion to master, the only owner-gated finish
 line. The FSM states stay `landed`; `node_fin`/`goal_fin`
 name the finish lines in reports, never new edges.
 
+`induct-inline` is the default way to run a quest: this session
+authors, and each grade runs in the background from the brief bp3
+renders. Use this skill instead when many independent nodes
+should run at once with workflow children, one desk per node.
 Use `quest` instead to frame a new quest. Use `using-bp3`
 instead for a single state operation by hand (one handoff, one
 grade, recovery after a dead session). Use
@@ -57,11 +61,11 @@ above stays the one conductor procedure.
 
 ## Inline variant
 
-To work a small quest inside one session with no workflow
+The default: to work a quest inside one session with no workflow
 children, the `induct-inline` skill does each step itself
 (author, hand off, land) and sends only the grade judgment to
-one fresh grader subagent, or to the owner when no subagent
-tool exists. The conductor rule above binds `induct` alone;
+one fresh grader subagent in the background, or to the owner
+when no subagent tool exists. The conductor rule above binds `induct` alone;
 the inline rules live in `skills/induct-inline/SKILL.md`.
 
 ## Procedure

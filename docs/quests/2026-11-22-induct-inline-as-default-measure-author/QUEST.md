@@ -64,7 +64,7 @@ shows facts the ledger already holds (Open question 2).
 |---|---|
 | conductor | the session running a quest; in induct-inline it also authors |
 | background grade | a grader started right after a handoff, running while the conductor authors the next ready node |
-| grade desk | a detached worktree at the graded commit, `bp3 harness worktree prepare <quest> <node> --run grade-<node>-c<cycle>-a<attempt> --commit <sha>`; its verdict is cast only if the desk is clean at the bound commit; released after the cast |
+| grade desk | a detached worktree at the graded commit, `bp3 harness desk prepare <quest> <node> --run grade-<node>-c<cycle>-a<attempt> --commit <sha>`; its verdict is cast only if the desk is clean at the bound commit; released after the cast |
 | cast boundary | the only points where a finished background verdict is cast: right after the conductor's next handoff, or when nothing is left to author |
 | grade brief | the text `bp3 q <quest> n <node> brief` renders for a handed-off node: join line, rules, read-first list, the NODE.md Acceptance gates verbatim, the previous round (commit and diff range, never its `--reason`), GRADING.md, the verdict shape |
 | `Brief.render` | the pure function behind the verb; the scrape calls it again to check a grade's first prompt |

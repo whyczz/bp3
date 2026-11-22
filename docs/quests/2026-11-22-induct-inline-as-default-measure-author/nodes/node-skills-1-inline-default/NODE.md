@@ -141,3 +141,42 @@ Known cases: the skills.sh patterns above, each absent from master's
 text (checked one by one, as pi-metrics skills.1 did), and the g.sh
 two-commit land. Property-based: omitted. Skill text has no generator,
 and the land fixture covers one shape, the one the skill creates.
+
+## Build notes (2026-11-22)
+
+- `skills/induct-inline/SKILL.md`: now the default way to run a quest.
+  - Procedure: each read starts a background grader for every
+    handed-off node without one, authors the first ready todo node
+    when nothing is being authored, and at the cast boundary casts
+    finished verdicts in handoff order and lands approved nodes.
+  - Grade: grade desks (`-a<attempt>`); the brief from
+    `bp3 q <quest> n <node> brief --desk <grade desk path>`, passed
+    verbatim; verify, then cast; the scrape's new counts and times.
+  - Rules: one quest per session, one node being authored at a time.
+  The pi bullet, the metrics wording and the constraints bullets keep
+  their earlier quests' assertions, and the brief bullet names
+  `make check-full` via GRADING.md.
+- `skills/using-bp3` and `skills/induct` name induct-inline as the
+  default and `induct` as the mode for many independent nodes at once.
+- The gates' design trace spells the desk command
+  `bp3 harness worktree prepare …`. That verb doesn't exist
+  (`E_USAGE` "unknown harness verb: worktree"); it is `bp3 harness
+  desk prepare` (or the alias `bp3 worktree prepare`). The skill and
+  the skills.sh assertion use `bp3 harness desk prepare …`, which this
+  quest ran 9 times. QUEST.md's Terms row is corrected. The gates text
+  is the owner's to correct.
+- test/skills.sh: 11 assertions × 4 dirs (source and renders); 305 in
+  all. Each pattern is absent from master's text (checked one by one).
+- test/g.sh: stacked-land fixture. In one quest desk, sa is committed and
+  handed off, then sb on top; both ship and land in turn. The desk stays
+  clean, HEAD stays sb, and A is an ancestor of B. Run alone, it fails
+  under a merge-land mutant ("stacked land sb") and under a land that
+  moves the desk's branch ("a land moved the desk's branch"). In full
+  g.sh an earlier case catches the first mutant first.
+- Renders: `bp3 skills install --harness=all` with `BP3_COMPLETIONS_DIR`
+  in scratch; `bp3 skills check` ok. The global `_bp3` is untouched
+  (Nov 20 16:26 before and after).
+- Dogfood: this quest ran the rule by hand from brief.1 on. 9 grades
+  were cast, all `checked` and all `brief_verbatim`. Overlap happened
+  once: brief.1 was graded in the background while measure.1 was
+  authored. After that, deps serialized the railway.
