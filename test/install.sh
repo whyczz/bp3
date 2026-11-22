@@ -30,6 +30,10 @@ export PATH="$work/prefix/bin:$PATH"
 out=$(bp3-q init-repo) || fail "init-repo: $out"
 echo "$out" | grep -q '"ok":true' || fail "init-repo verdict: $out"
 [ -f plans/default.yaml ] && [ -f plans/direct.yaml ] || fail "plans not scaffolded"
+# init.1: a new host repo gets this repo's plans, byte for byte (max_cycles 10)
+for p in default direct; do
+  cmp -s "plans/$p.yaml" "$root/plans/$p.yaml" || fail "scaffolded plans/$p.yaml differs from bp3's: $(cat "plans/$p.yaml")"
+done
 out=$(bp3 q c dogfood) || fail "esc3 quest create: $out"
 out=$(bp3 q dogfood c node-1) || fail "esc3 node create: $out"
 echo change >> a.txt; git add .; git commit -qm change

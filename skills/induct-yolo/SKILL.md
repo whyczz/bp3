@@ -136,9 +136,12 @@ quest up it. Names below reuse the node's words: `fleet`,
 
 ## Rules
 
-- The skill writes no state. `bp3 q u` is the only
-  writer, called by step children; no-human itself takes
-  no verdict edge and no human edge.
+- The skill writes no state by hand. `bp3 q` is the only
+  edge writer, called by step children; no-human itself
+  takes no verdict edge and no human edge. The one other
+  write is `induct` step 5's
+  `bp3 q <quest> metrics scrape`, which appends GENERATED
+  `metrics.jsonl` samples and moves no edge.
 - Identity rides env (`BP3_HARNESS`, `BP3_MODEL`) as in
   `induct`; `BP3_DECIDER` is the one env name no-human
   must never set.

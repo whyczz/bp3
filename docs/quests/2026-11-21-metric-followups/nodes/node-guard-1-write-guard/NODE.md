@@ -125,3 +125,25 @@ Known cases: one g.sh case per form in the table (major-ahead refuses,
 refs unmoved; minor-ahead writes and warns), plus reads that still
 answer. Property-based: omitted. The forms are a closed list, and the
 mutant (guard call removed) shows the cases bite.
+
+## Build notes (2026-11-21)
+
+- `Gitx.write_guard` runs first in `Gitx.commit_files` and in the new
+  `Gitx.move_ref`, which land's two quest-tip moves now use. `Main` sets
+  it to `refuse_major_ahead` at entry; `guard_write` and its argv
+  patterns are gone.
+- test/g.sh: one case per form (`u`, `n e`, `n c`, `c`, `dep`, `q c`,
+  `d`, and the claimed `e` door), every `refs/heads/` ref compared
+  before and after, plus reads that still answer with `W_VERSION_AHEAD`.
+  test/metrics.sh: a stamped copy of the fixture repo refuses its first
+  scrape (rc 1, `E_VERSION_AHEAD`, refs unmoved).
+- Fails today: both suites run against master's binary (22b7c44's
+  build) fail. g.sh: `major-ahead n e wrote`. metrics.sh: `got '0 null
+  moved'`. The mutant that drops the guard call from `commit_files` fails
+  g.sh.
+- Not tested: the hooks path. By code read, `Hooks.append_event` wraps its
+  write in `with _ -> false`, so a refused hook append is a skipped
+  append.
+- A call that writes nothing never reaches the guard. In a major-ahead
+  repo, an illegal edge now answers `E_ILLEGAL_EDGE`, where it used to
+  answer `E_VERSION_AHEAD`. Either way nothing is written.

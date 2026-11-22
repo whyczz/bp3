@@ -205,10 +205,21 @@ assert grep -q 'Disjoint quests run in parallel' "$root/.agents/skills/induct-yo
 # test-pyramid tier.3: grade and land run the full gate. No line that
 # grades, lands or hands off may name the inner loop (plain make check),
 # and each conducting skill names make check-full.
-gate_lines=$(grep -nE 'make check([^-]|$)' "$repo"/skills/*/SKILL.md "$repo"/skills/induct/workflows/*.js \
-  | grep -iE 'grade|land|handoff|gate' || true)
+# grep -h: the filter must see the line only, never its file name
+# (induct-grade.js, induct-land.js) or the repo path.
+gate_grep() { grep -hnE 'make check([^-]|$)' "$@" | grep -iE 'grade|land|handoff|gate' || true; }
+gate_lines=$(gate_grep "$repo"/skills/*/SKILL.md "$repo"/skills/induct/workflows/*.js)
 [ -z "$gate_lines" ] || { echo "FAIL: a grade/land instruction names plain make check: $gate_lines" >&2; exit 1; }
 checks=$((checks + 1))
+# metric-followups skills.1: a plain line in a file whose name says
+# "grade" passes; a line that grades with plain make check still fails.
+# /dev/null makes it two files: grep names files only then, as it does
+# over the real skill list, so without -h the plain line would fail.
+mkdir -p "$work/gate-grade-land"
+printf '// author cycles run make check\n' > "$work/gate-grade-land/induct-grade.js"
+assert test -z "$(gate_grep "$work/gate-grade-land/induct-grade.js" /dev/null)"
+printf '// grade with make check\n' >> "$work/gate-grade-land/induct-grade.js"
+assert test -n "$(gate_grep "$work/gate-grade-land/induct-grade.js" /dev/null)"
 for s in induct induct-inline induct-yolo using-bp3; do
   assert grep -q 'make check-full' "$repo/skills/$s/SKILL.md"
 done
@@ -245,5 +256,20 @@ done
 assert grep -q '^  metrics.jsonl          GENERATED' "$repo/CLAUDE.md"
 assert grep -q 'and `metrics.jsonl` in a node' "$repo/CLAUDE.md"
 assert grep -q '^\./bin/bp3 q <quest> metrics scrape|r' "$repo/CLAUDE.md"
+
+# metric-followups skills.1: the skills describe the engine that exists.
+# induct-yolo names the scrape as its one non-edge write, as induct does;
+# using-bp3 lists real edges and doors only. Sources and every render.
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  iy="$repo/$dir/induct-yolo/SKILL.md" ub="$repo/$dir/using-bp3/SKILL.md"
+  assert grep -q '`metrics.jsonl` samples and moves no edge' "$iy"
+  assert grep -q '`block` from any of the three' "$ub"
+  assert grep -q '^   `--mechanical` `needs_fix` (an exact file, line and text fix,$' "$ub"
+  assert test -z "$(grep -n '`cancel`' "$repo/$dir"/*/SKILL.md || true)"
+  assert test -z "$(grep -nE 'q (show|list)|q create |--engine|bp3-writer' "$ub" "$iy" || true)"
+  assert test -z "$(grep -n '^  writer, called by step children' "$iy" || true)"
+  assert test -z "$(grep -nE 'outside quest folders|descend from the recorded|live in .fsm\.yaml.|Judgment moves need|move.s commit message' "$ub" || true)"
+  assert grep -q '^   node dependency is `landed` or `deleted`' "$ub"
+done
 
 printf 'skills tests: ok (%s assertions)\n' "$checks"

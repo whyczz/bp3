@@ -168,22 +168,26 @@ let author_spans ~node all =
 (* What one scrape did to one node. Every grade lands in exactly one
    outcome bucket (checked, unchecked, ambiguous, mismatched, owner),
    and every handoff in one (authored, author_missing,
-   author_ambiguous); written and skipped count samples; skipped_lines
-   counts transcript lines the reader could not use (never read as 0). *)
+   author_ambiguous, author_bad_usage); written and skipped count
+   samples; skipped_lines counts transcript lines the reader could not
+   use (never read as 0). author_bad_usage is the author side of
+   mismatched: a window holding a usage-less line writes nothing. *)
 type tally = {
   grades : int; checked : int; unchecked : int; ambiguous : int;
   mismatched : int; owner_graded : int; written : int; skipped : int;
   skipped_lines : int;
   handoffs : int; authored : int; author_missing : int; author_ambiguous : int;
+  author_bad_usage : int;
 }
 
 let zero = { grades = 0; checked = 0; unchecked = 0; ambiguous = 0;
              mismatched = 0; owner_graded = 0; written = 0; skipped = 0; skipped_lines = 0;
-             handoffs = 0; authored = 0; author_missing = 0; author_ambiguous = 0 }
+             handoffs = 0; authored = 0; author_missing = 0; author_ambiguous = 0;
+             author_bad_usage = 0 }
 
 let buckets_add_up t =
   t.checked + t.unchecked + t.ambiguous + t.mismatched + t.owner_graded = t.grades
-  && t.authored + t.author_missing + t.author_ambiguous = t.handoffs
+  && t.authored + t.author_missing + t.author_ambiguous + t.author_bad_usage = t.handoffs
 
 let tally_json t =
   `Assoc [ ("grades", `Int t.grades); ("checked", `Int t.checked); ("unchecked", `Int t.unchecked);
@@ -191,7 +195,8 @@ let tally_json t =
            ("owner", `Int t.owner_graded); ("written", `Int t.written); ("skipped", `Int t.skipped);
            ("skipped_lines", `Int t.skipped_lines);
            ("handoffs", `Int t.handoffs); ("authored", `Int t.authored);
-           ("author_missing", `Int t.author_missing); ("author_ambiguous", `Int t.author_ambiguous) ]
+           ("author_missing", `Int t.author_missing); ("author_ambiguous", `Int t.author_ambiguous);
+           ("author_bad_usage", `Int t.author_bad_usage) ]
 
 (* ---------- the node-cost deriver (derive.1) ---------- *)
 

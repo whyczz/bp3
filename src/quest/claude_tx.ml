@@ -235,7 +235,7 @@ type session = {
   s_tools : (string * string) list;   (* tool_use id, ts of the line that first holds it *)
   s_bash : call list;
   s_results : (string * string) list; (* tool_use_id, result text, for results naming handed_off *)
-  s_bad_usage : int;
+  s_bad_at : string list;            (* stamps of usage-less lines, main thread; a window holding one writes nothing *)
 }
 
 let result_text content =
@@ -247,7 +247,7 @@ let result_text content =
 
 let parse_session text =
   let order = ref [] and by_id = Hashtbl.create 256 and tools = Hashtbl.create 256 in
-  let tool_order = ref [] and bash = ref [] and results = ref [] and bad = ref 0 and sid = ref "" in
+  let tool_order = ref [] and bash = ref [] and results = ref [] and bad = ref [] and sid = ref "" in
   List.iter (fun line ->
       if contains line "\"type\":\"assistant\"" || (contains line "handed_off" && contains line "tool_result") then
         match (try Some (Yojson.Safe.from_string line) with _ -> None) with
@@ -262,7 +262,7 @@ let parse_session text =
                  let id = str "id" message in
                  (match usage_of (member "usage" message) with
                   | _ when id = "" -> ()
-                  | None -> incr bad
+                  | None -> bad := ts :: !bad
                   | Some usage ->
                       if not (Hashtbl.mem by_id id) then order := id :: !order;
                       Hashtbl.replace by_id id { id; ts; model = str "model" message; usage; sidechain = false });
@@ -284,7 +284,7 @@ let parse_session text =
         | _ -> ())
     (String.split_on_char '\n' text);
   { s_id = !sid; s_msgs = List.rev_map (Hashtbl.find by_id) !order; s_tools = List.rev !tool_order;
-    s_bash = List.rev !bash; s_results = List.rev !results; s_bad_usage = !bad }
+    s_bash = List.rev !bash; s_results = List.rev !results; s_bad_at = List.rev !bad }
 
 (* w stands as its own word in s: no id character on either side, so
    node "a" is not found inside "handoff". *)
@@ -368,16 +368,20 @@ let casts_handoff s ~quest ~node ~commit ~from ~upto =
 (* Author windows of one session, in time order: each message and tool
    call is counted in the first window that holds it, so windows that
    share a boundary second never share spend. A window is (key, from,
-   upto) in epoch seconds, holding what is stamped in [from, upto + 1). *)
+   upto) in epoch seconds, holding what is stamped in [from, upto + 1).
+   Usage-less lines follow the same rule (usage.1): w_bad counts the
+   ones a window holds first, so one bad line fails one window. *)
+type window_spend = { w_key : string; w_msgs : msg list; w_tools : int; w_bad : int }
+
 let assign s windows =
   let taken = Hashtbl.create 256 in
   let inside (_, from, upto) ts = match seconds ts with Some t -> t >= from && t < upto +. 1. | None -> false in
+  let take k = not (Hashtbl.mem taken k) && (Hashtbl.replace taken k (); true) in
   List.map (fun ((key, _, _) as w) ->
-      let msgs = List.filter (fun (m : msg) ->
-          inside w m.ts && not (Hashtbl.mem taken ("m" ^ m.id)) && (Hashtbl.replace taken ("m" ^ m.id) (); true)) s.s_msgs in
-      let tools = List.filter (fun (id, ts) ->
-          inside w ts && not (Hashtbl.mem taken ("t" ^ id)) && (Hashtbl.replace taken ("t" ^ id) (); true)) s.s_tools in
-      (key, msgs, List.length tools))
+      let msgs = List.filter (fun (m : msg) -> inside w m.ts && take ("m" ^ m.id)) s.s_msgs in
+      let tools = List.filter (fun (id, ts) -> inside w ts && take ("t" ^ id)) s.s_tools in
+      let bad = List.filteri (fun i ts -> inside w ts && take ("b" ^ string_of_int i)) s.s_bad_at in
+      { w_key = key; w_msgs = msgs; w_tools = List.length tools; w_bad = List.length bad })
     windows
 
 let author_cost msgs tool_calls =

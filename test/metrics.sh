@@ -141,6 +141,43 @@ expect "unknown quest" E_NOT_FOUND "$(q nope metrics r | jq -r .error.code || tr
 expect "unknown verb" E_USAGE "$(q q1 metrics nope | jq -r .error.code || true)"
 expect "help names scrape" yes "$(q q1 metrics -h | grep -q 'metrics scrape' && echo yes)"
 
+# --- guard.1: a repo a newer MAJOR bp3 stamped refuses a scrape that has
+# samples to write, E_VERSION_AHEAD, no ref moved. Run in a copy, so the
+# cases below still see an unscraped repo. ---
+cp -R "$work/repo" "$work/ahead"
+ahead_out=$(
+  cd "$work/ahead"
+  lp=docs/quests/q1/nodes/nc/ledger.jsonl; br=refs/heads/bp3/node/q1/nc
+  t0=$(git rev-parse "$br"); idx=$(mktemp)
+  GIT_INDEX_FILE="$idx" git read-tree "$t0"
+  blob=$({ git show "$t0:$lp"
+           printf '{"ts":"2026-01-01T00:00:00Z","edge":"note","from":"todo","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"fixture stamp","harness":"t","model":"t","bp3_version":"99.0.0"}\n'
+         } | git hash-object -w --stdin)
+  GIT_INDEX_FILE="$idx" git update-index --add --cacheinfo "100644,$blob,$lp"
+  t1=$(git commit-tree "$(GIT_INDEX_FILE="$idx" git write-tree)" -p "$t0" -m "fixture stamp 99.0.0")
+  git update-ref "$br" "$t1" "$t0"; rm -f "$idx"
+  refs0=$(git for-each-ref --format='%(refname) %(objectname)' refs/heads/)
+  rc=0; out=$(q q1 metrics scrape --claude-dir "$claude" 2>&1) || rc=$?
+  refs1=$(git for-each-ref --format='%(refname) %(objectname)' refs/heads/)
+  echo "$rc $(jq -r .error.code <<< "$out") $([ "$refs0" = "$refs1" ] && echo unmoved || echo moved)"
+)
+expect "major-ahead scrape refuses, no ref moved" "1 E_VERSION_AHEAD unmoved" "$ahead_out"
+
+# --- usage.1: a usage-less line inside na's author window means the
+# window writes nothing (author_bad_usage, exit 1), as a mismatched grade
+# does; the same line outside every window changes nothing. Run in
+# copies, so the cases below still see an unscraped repo. ---
+na_ts=$(head -1 "$claude/s1.jsonl" | jq -r .timestamp)   # na's first author line
+bad_usage_scrape() { # $1 copy name, $2 timestamp of the usage-less line -> "rc authored bad written"
+  cp -R "$work/repo" "$work/$1"; cp -R "$claude" "$work/$1-claude"
+  printf '{"type":"assistant","timestamp":"%s","isSidechain":false,"sessionId":"s1","message":{"id":"w9","model":"claude-opus-5-5","content":[],"usage":{"input_tokens":1,"cache_read_input_tokens":1,"cache_creation_input_tokens":1}}}\n' "$2" >> "$work/$1-claude/s1.jsonl"
+  ( cd "$work/$1"
+    rc=0; out=$(q q1 metrics scrape --claude-dir "$work/$1-claude") || rc=$?
+    echo "$rc $(jq -r '.nodes.na | "\(.authored) \(.author_bad_usage) \(.written)"' <<< "$out")" )
+}
+expect "usage-less line in na's window: nothing authored, exit 1" "1 0 1 7" "$(bad_usage_scrape bad-in "${na_ts%.100Z}.250Z")"
+expect "usage-less line outside every window: na authored" "0 1 0 12" "$(bad_usage_scrape bad-out 2098-01-01T00:00:00.000Z)"
+
 # --- scrape: buckets, samples, one commit per node ---
 rollup_before=$(q r q1 | jq -S 'del(.nodes[].timing)')
 na0=$(count na) nb0=$(count nb) nc0=$(count nc)
