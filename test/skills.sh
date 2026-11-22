@@ -213,11 +213,13 @@ gate_lines=$(gate_grep "$repo"/skills/*/SKILL.md "$repo"/skills/induct/workflows
 checks=$((checks + 1))
 # metric-followups skills.1: a plain line in a file whose name says
 # "grade" passes; a line that grades with plain make check still fails.
+# /dev/null makes it two files: grep names files only then, as it does
+# over the real skill list, so without -h the plain line would fail.
 mkdir -p "$work/gate-grade-land"
 printf '// author cycles run make check\n' > "$work/gate-grade-land/induct-grade.js"
-assert test -z "$(gate_grep "$work/gate-grade-land/induct-grade.js")"
+assert test -z "$(gate_grep "$work/gate-grade-land/induct-grade.js" /dev/null)"
 printf '// grade with make check\n' >> "$work/gate-grade-land/induct-grade.js"
-assert test -n "$(gate_grep "$work/gate-grade-land/induct-grade.js")"
+assert test -n "$(gate_grep "$work/gate-grade-land/induct-grade.js" /dev/null)"
 for s in induct induct-inline induct-yolo using-bp3; do
   assert grep -q 'make check-full' "$repo/skills/$s/SKILL.md"
 done
@@ -266,7 +268,8 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert test -z "$(grep -n '`cancel`' "$repo/$dir"/*/SKILL.md || true)"
   assert test -z "$(grep -nE 'q (show|list)|q create |--engine|bp3-writer' "$ub" "$iy" || true)"
   assert test -z "$(grep -n '^  writer, called by step children' "$iy" || true)"
-  assert test -z "$(grep -nE 'outside quest folders|descend from the recorded|live in .fsm\.yaml.|Judgment moves need' "$ub" || true)"
+  assert test -z "$(grep -nE 'outside quest folders|descend from the recorded|live in .fsm\.yaml.|Judgment moves need|move.s commit message' "$ub" || true)"
+  assert grep -q '^   node dependency is `landed` or `deleted`' "$ub"
 done
 
 printf 'skills tests: ok (%s assertions)\n' "$checks"

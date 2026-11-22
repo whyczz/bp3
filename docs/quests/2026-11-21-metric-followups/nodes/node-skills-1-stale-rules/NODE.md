@@ -141,3 +141,21 @@ Applied the grader's named text, plus its optional note that the engine
 requires a human only to delete a blocked node, and dropped `fsm.yaml`
 from step 1. Added the skills.sh guard it named against the four stale
 phrases, then re-rendered.
+
+## Round 3 (2026-11-21)
+
+The cycle-2 grader found `needs_fix`, mechanical, with three findings:
+- `--reason` isn't the move's commit message. It goes on the ledger
+  line, and the commit says `bp3: <node>` (probed). This text predated
+  the quest; neither earlier round caught it.
+- Dependencies are satisfied by `deleted` as well as `landed`.
+- The planted-line case passed one file to grep, and grep prints no file
+  name for a single file, so the old pipeline passed it too. The case
+  couldn't fail.
+
+Applied the grader's text, with the quest-dependency clause made exact
+from `Store.dep_satisfied`: the quest has nodes, all landed or deleted,
+and isn't deleted itself. Also named the `dep` verb. The planted case
+now adds `/dev/null` as a second file, and the old pipeline flags the
+plain line (1 hit, against 0 for the new one). Added a guard for
+"move's commit message".

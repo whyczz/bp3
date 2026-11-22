@@ -34,7 +34,10 @@ General coding in this repo does not need this skill.
    deps by quest name on `q c`; node deps, same quest, on
    `q <quest> c <node>`) and recorded in the ledger. `handoff`
    refuses (`E_DEPENDENCY`, `facts.blocked_by`) until every
-   dependency is `landed`.
+   node dependency is `landed` or `deleted` (a quest dependency:
+   it has nodes, all `landed` or `deleted`, and is not itself
+   deleted). Node deps can be redeclared later with
+   `q <quest> dep <node> --depends-on <a,b> --reason <why>`.
 4. Take only legal moves: the verdict JSON's `legal_edges`
    lists them, cast as `./bin/bp3 q <quest> n <node> e <edge>`.
    From todo, `handoff --commit <sha>`; from handed_off,
@@ -43,8 +46,9 @@ General coding in this repo does not need this skill.
    `block` from any of the three. `resume` is human-only, and
    `delete` (`./bin/bp3 q <quest> d <node>`) is the owner's
    call (the engine requires a human only to delete a blocked
-   node). Every move, `d` included, needs `--reason`; it is the
-   move's commit message. Verdicts bind to the exact current commit. A
+   node). Every move, `d` included, needs `--reason`; it is
+   recorded on the move's ledger line. Verdicts bind to the exact
+   current commit. A
    `needs_fix` below the cycle cap returns the node to todo; at
    the cap it escalates to blocked — do not work around it. A
    `--mechanical` `needs_fix` (an exact file, line and text fix,
