@@ -316,3 +316,20 @@ widening `parse_session` is measured in measure.1's build notes.
 Constraints pass: none. Common-sense pass: matches CONTEXT.md:22, :39,
 :93, :104; differs from :99 by choice (round 2). Adopted by the owner:
 "i like this, settle'd let's adopt this".
+
+## Build notes (2026-11-22)
+
+Stacked-land probe (red-ink round 4), run before measure.1's handoff,
+the quest's first stacked land. brief.1 went first in `ready` order. In
+a scratch repo with this desk's binary
+(`scratchpad/probe-stacked-land.sh`):
+
+- commit A, handoff na; commit B on top, handoff nb;
+- ship and land na, then nb: both `node_fin`;
+- the desk's `git status --short` was empty after each land, and a
+  commit afterwards worked.
+
+The strongest attack's premise was wrong. `land` merges the state
+branches (`bp3/quest/<q>`, `bp3/node/<q>/<n>`) and never moves the
+desk's code branch `quest/<q>`. Stacked commits therefore can't disturb
+the desk. Background grades with stacked handoffs stand.

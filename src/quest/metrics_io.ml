@@ -162,7 +162,8 @@ let grade_samples q node (sp : Metrics.grade_span) ~run ~at (c : Claude_tx.cost)
   let i = float_of_int in
   [ mk "wall_s" c.wall_s; mk "tool_calls" (i c.tool_calls); mk "context_end" (i c.context_end);
     mk "tokens_in" (i c.tokens_in); mk "tokens_out" (i c.tokens_out);
-    mk "tokens_cache_read" (i c.tokens_cache_read); mk "tokens_cache_write" (i c.tokens_cache_write) ]
+    mk "tokens_cache_read" (i c.tokens_cache_read); mk "tokens_cache_write" (i c.tokens_cache_write);
+    mk "tool_s" c.tool_s ]
 
 (* A grade transcript from any harness the scrape reads (pi-metrics
    scrape.1): the join is the same for all, the check is the harness's. *)
@@ -264,11 +265,14 @@ let author_pass q all sessions =
           if w.w_bad > 0 then add n ([], { one with author_bad_usage = 1 }) else
           if w.w_msgs = [] then add n ([], { one with author_missing = 1 }) else
           let c = Claude_tx.author_cost w.w_msgs w.w_tools in
-          let mk m v = { Metrics.metric = "author." ^ m; quest = q; node = n; cycle = sp.a_cycle;
-                         run = "claude:" ^ s.s_id; model = c.model; value = float_of_int v; at = sp.a_upto;
-                         source = Metrics.author_window.c_name } in
+          let tm = Claude_tx.window_times s ~from:(secs sp.a_from) ~upto:(secs sp.a_upto) in
+          let mkf m v = { Metrics.metric = "author." ^ m; quest = q; node = n; cycle = sp.a_cycle;
+                          run = "claude:" ^ s.s_id; model = c.model; value = v; at = sp.a_upto;
+                          source = Metrics.author_window.c_name } in
+          let mk m v = mkf m (float_of_int v) in
           add n ([ mk "tool_calls" c.tool_calls; mk "tokens_in" c.tokens_in; mk "tokens_out" c.tokens_out;
-                   mk "tokens_cache_read" c.tokens_cache_read; mk "tokens_cache_write" c.tokens_cache_write ],
+                   mk "tokens_cache_read" c.tokens_cache_read; mk "tokens_cache_write" c.tokens_cache_write;
+                   mkf "wall_s" tm.t_wall; mkf "active_s" tm.t_active; mkf "tool_s" tm.t_tool ],
                  { one with authored = 1 })) found;
   out
 

@@ -19,6 +19,7 @@ type tx = {
   entries : entry list;    (* file order *)
   tool_calls : string list;    (* toolCall ids, first-seen order *)
   tool_results : string list;  (* toolResult toolCallIds *)
+  tool_spans : (float * float) list;   (* [toolCall entry, toolResult entry) per paired call (measure.1) *)
   skipped_lines : int;     (* not JSON, or JSON that is not an object *)
   bad_usage : int;         (* usage lacking a count, or whose totalTokens is not their sum *)
 }
@@ -48,6 +49,7 @@ let parse text =
   let session = ref "" and cwd = ref "" and first_prompt = ref "" and first_ts = ref "" and last_ts = ref "" in
   let entries = ref [] and calls = ref [] and results = ref [] and skipped = ref 0 and bad = ref 0 in
   let seen_call = Hashtbl.create 64 in
+  let uses = ref [] and results_at = ref [] in
   let add_usage ~assistant ~model j u_json =
     match usage_of u_json with
     | Some u -> entries := { e_id = str "id" j; e_ts = str "timestamp" j; e_model = model; e_usage = u;
@@ -74,10 +76,13 @@ let parse text =
                            if str "type" b = "toolCall" then
                              let id = str "id" b in
                              if id <> "" && not (Hashtbl.mem seen_call id) then begin
-                               Hashtbl.replace seen_call id (); calls := id :: !calls end) blocks
+                               Hashtbl.replace seen_call id (); calls := id :: !calls;
+                               (match Claude_tx.seconds ts with Some at -> uses := (id, at) :: !uses | None -> ()) end) blocks
                        | _ -> ())
                   | "toolResult" ->
                       results := str "toolCallId" m :: !results;
+                      (match Claude_tx.seconds ts with
+                       | Some at -> results_at := (str "toolCallId" m, at) :: !results_at | None -> ());
                       if member "usage" m <> `Null then add_usage ~assistant:false ~model:"" j (member "usage" m)
                   | _ -> ())
              | _ ->
@@ -87,6 +92,7 @@ let parse text =
     (String.split_on_char '\n' text);
   { session = !session; cwd = !cwd; first_prompt = !first_prompt; first_ts = !first_ts; last_ts = !last_ts;
     entries = List.rev !entries; tool_calls = List.rev !calls; tool_results = List.rev !results;
+    tool_spans = Claude_tx.paired (List.rev !uses) (List.rev !results_at);
     skipped_lines = !skipped; bad_usage = !bad }
 
 (* The read agrees with itself: every usage line added up, and every
@@ -110,4 +116,5 @@ let cost tx =
     tokens_cache_read = sum (fun u -> u.cache_read); tokens_cache_write = sum (fun u -> u.cache_write);
     model = (match last with
         | Some e -> if Metrics.model_ok e.e_model then e.e_model else "other"
-        | None -> "unknown") }
+        | None -> "unknown");
+    tool_s = Claude_tx.ms (Claude_tx.measure tx.tool_spans) }

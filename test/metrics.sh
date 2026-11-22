@@ -28,13 +28,15 @@ tip() { git rev-parse "refs/heads/bp3/node/q1/$1"; }
 count() { git rev-list --count "refs/heads/bp3/node/q1/$1"; }
 
 # a subagent transcript: one prompt naming $node and $sha, two
-# messages (one streamed over two lines), three tool calls
+# messages (one streamed over two lines), three tool calls, one of them
+# answered (t1, 0.6 s: grade.tool_s)
 transcript() { # $1 file $2 node $3 sha $4 second (YYYY-MM-DDTHH:MM:SS)
   mkdir -p "$(dirname "$1")"
   {
     printf '{"type":"user","timestamp":"%s.100Z","sessionId":"s1","agentId":"a1","message":{"role":"user","content":"Grade %s at %s."}}\n' "$4" "$2" "$3"
     printf '{"type":"assistant","timestamp":"%s.200Z","message":{"id":"m1","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"t1"}],"usage":{"input_tokens":2,"output_tokens":10,"cache_read_input_tokens":0,"cache_creation_input_tokens":500}}}\n' "$4"
     printf '{"type":"assistant","timestamp":"%s.300Z","message":{"id":"m1","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"t2"}],"usage":{"input_tokens":2,"output_tokens":40,"cache_read_input_tokens":0,"cache_creation_input_tokens":500}}}\n' "$4"
+    printf '{"type":"user","timestamp":"%s.800Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}\n' "$4"
     printf '{"type":"assistant","timestamp":"%s.900Z","message":{"id":"m2","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"t3"}],"usage":{"input_tokens":1,"output_tokens":5,"cache_read_input_tokens":500,"cache_creation_input_tokens":20}}}\n' "$4"
   } > "$1"
 }
@@ -175,8 +177,8 @@ bad_usage_scrape() { # $1 copy name, $2 timestamp of the usage-less line -> "rc 
     rc=0; out=$(q q1 metrics scrape --claude-dir "$work/$1-claude") || rc=$?
     echo "$rc $(jq -r '.nodes.na | "\(.authored) \(.author_bad_usage) \(.written)"' <<< "$out")" )
 }
-expect "usage-less line in na's window: nothing authored, exit 1" "1 0 1 7" "$(bad_usage_scrape bad-in "${na_ts%.100Z}.250Z")"
-expect "usage-less line outside every window: na authored" "0 1 0 12" "$(bad_usage_scrape bad-out 2098-01-01T00:00:00.000Z)"
+expect "usage-less line in na's window: nothing authored, exit 1" "1 0 1 8" "$(bad_usage_scrape bad-in "${na_ts%.100Z}.250Z")"
+expect "usage-less line outside every window: na authored" "0 1 0 16" "$(bad_usage_scrape bad-out 2098-01-01T00:00:00.000Z)"
 
 # --- scrape: buckets, samples, one commit per node ---
 rollup_before=$(q r q1 | jq -S 'del(.nodes[].timing)')
@@ -184,7 +186,7 @@ na0=$(count na) nb0=$(count nb) nc0=$(count nc)
 out=$(q q1 metrics scrape --claude-dir "$claude")
 expect "scrape ok" true "$(jq -r .ok <<< "$out")"
 expect "na checked against its report" 1 "$(jq -r .nodes.na.checked <<< "$out")"
-expect "na written: 7 grade + 5 author" 12 "$(jq -r .nodes.na.written <<< "$out")"
+expect "na written: 8 grade + 8 author" 16 "$(jq -r .nodes.na.written <<< "$out")"
 expect "na junk line counted, not read as zero" 1 "$(jq -r .nodes.na.skipped_lines <<< "$out")"
 expect "nb owner" 1 "$(jq -r .nodes.nb.owner <<< "$out")"
 expect "nc ambiguous" 1 "$(jq -r .nodes.nc.ambiguous <<< "$out")"
@@ -198,6 +200,11 @@ expect "rollup untouched" "$rollup_before" "$(q r q1 | jq -S 'del(.nodes[].timin
 grade=$(q q1 metrics r | jq -c '.nodes.na.cycles["1"].grade')
 expect "tool calls" 3 "$(jq -r .tool_calls <<< "$grade")"
 expect "wall" 0.8 "$(jq -r .wall_s <<< "$grade")"
+expect "grade tool time: t1's span, the unanswered calls count nothing" 0.6 "$(jq -r .tool_s <<< "$grade")"
+author=$(q q1 metrics r | jq -c '.nodes.na.cycles["1"].author')
+expect "author times written" "true true true" "$(jq -r '"\(has("wall_s")) \(has("active_s")) \(has("tool_s"))"' <<< "$author")"
+expect "author times: 0 <= tool <= active <= wall" true "$(jq -r '0 <= .tool_s and .tool_s <= .active_s and .active_s <= .wall_s' <<< "$author")"
+expect "rollup carries author wall and active stats" "true true" "$(q q1 metrics r | jq -r '"\(.rollup.author_wall_s | type == "object") \(.rollup.author_active_s | type == "object")"')"
 expect "output, last snapshot" 45 "$(jq -r .tokens_out <<< "$grade")"
 expect "cache write" 520 "$(jq -r .tokens_cache_write <<< "$grade")"
 expect "context end" 526 "$(jq -r .context_end <<< "$grade")"
@@ -212,7 +219,7 @@ expect "quest rollup: grades and measured" "3 1" "$(jq -r '"\(.rollup.grades) \(
 expect "quest rollup: handoffs and measured" "3 1" "$(jq -r '"\(.rollup.handoffs) \(.rollup.handoffs_measured)"' <<< "$view")"
 expect "quest rollup: median grade wall" 0.8 "$(jq -r .rollup.grade_wall_s.median <<< "$view")"
 expect "na rollup: author cache read" 3000 "$(jq -r .nodes.na.rollup.spend.author.tokens_cache_read <<< "$view")"
-expect "derived timing is never written" 12 "$(git show "$(tip na):docs/quests/q1/nodes/na/metrics.jsonl" | wc -l | tr -d ' ')"
+expect "derived timing is never written" 16 "$(git show "$(tip na):docs/quests/q1/nodes/na/metrics.jsonl" | wc -l | tr -d ' ')"
 
 # --- author window: the session that cast na's handoff, counted once ---
 expect "na authored" 1 "$(jq -r .nodes.na.authored <<< "$out")"
@@ -223,13 +230,13 @@ expect "author tool calls" 2 "$(jq -r .tool_calls <<< "$author")"
 expect "author output, last snapshot, no subagent line" 65 "$(jq -r .tokens_out <<< "$author")"
 expect "author cache read" 3000 "$(jq -r .tokens_cache_read <<< "$author")"
 expect "author run is the session" claude:s1 "$(jq -r .run <<< "$author")"
-expect "sink is GENERATED json lines" 12 "$(git show "$(tip na):docs/quests/q1/nodes/na/metrics.jsonl" | jq -c . | wc -l | tr -d ' ')"
+expect "sink is GENERATED json lines" 16 "$(git show "$(tip na):docs/quests/q1/nodes/na/metrics.jsonl" | jq -c . | wc -l | tr -d ' ')"
 
 # --- idempotent: a second scrape writes nothing ---
 t=$(tip na)
 out=$(q q1 metrics scrape --claude-dir "$claude")
 expect "rescrape written" 0 "$(jq -r .nodes.na.written <<< "$out")"
-expect "rescrape skipped" 12 "$(jq -r .nodes.na.skipped <<< "$out")"
+expect "rescrape skipped" 16 "$(jq -r .nodes.na.skipped <<< "$out")"
 expect "rescrape no commit" "$t" "$(tip na)"
 
 # --- default dirs: this repo's project dir and its desks, nothing else ---
@@ -243,7 +250,7 @@ cp -R "$claude/s1" "$projects/$slug--bp3-worktrees-q1/"      # a desk's dir: sca
 cp -R "$claude/s2" "$projects/$slug-sibling/"                # another repo's: never scanned
 out=$(q q1 metrics scrape)
 expect "desk dir scanned" "$projects/$slug--bp3-worktrees-q1" "$(jq -r '.dirs | join(",")' <<< "$out")"
-expect "desk transcript already counted" 7 "$(jq -r .nodes.na.skipped <<< "$out")"
+expect "desk transcript already counted" 8 "$(jq -r .nodes.na.skipped <<< "$out")"
 expect "no parent session copied: unchecked" 1 "$(jq -r .nodes.na.unchecked <<< "$out")"
 expect "sibling stays out" 1 "$(jq -r .nodes.nc.owner <<< "$out")"
 
@@ -287,13 +294,14 @@ rc=0; out=$(q q3 metrics scrape --claude-dir "$claude3" --pi-dir "$pi3") || rc=$
 expect "pi: a bad total exits 1" 1 "$rc"
 expect "pi: pi_dirs reported" "$pi3" "$(jq -r '.pi_dirs | join(",")' <<< "$out")"
 expect "pa self_checked, not checked" "1 0 0" "$(jq -r '.nodes.pa | "\(.self_checked) \(.checked) \(.unchecked)"' <<< "$out")"
-expect "pa written: 7 grade samples" 7 "$(jq -r .nodes.pa.written <<< "$out")"
+expect "pa written: 8 grade samples" 8 "$(jq -r .nodes.pa.written <<< "$out")"
 expect "pb claimed by pi and Claude: ambiguous" "1 0" "$(jq -r '.nodes.pb | "\(.ambiguous) \(.written)"' <<< "$out")"
 expect "pc bad total: mismatched, nothing written" "1 0" "$(jq -r '.nodes.pc | "\(.mismatched) \(.written)"' <<< "$out")"
 view=$(q q3 metrics r)
 expect "pa sample run and model" "pi:grade-pa-1 gpt-6.1-sol" "$(jq -r '.nodes.pa.cycles."1".grade | "\(.run) \(.model)"' <<< "$view")"
 expect "pa cost read from pi" "1 220 15 40 165" "$(jq -r '.nodes.pa.cycles."1".grade | "\(.tool_calls) \(.tokens_in) \(.tokens_out) \(.tokens_cache_read) \(.context_end)"' <<< "$view")"
 expect "pa wall: first user line to last entry" 0.7 "$(jq -r '.nodes.pa.cycles."1".grade.wall_s' <<< "$view")"
+expect "pa tool time: toolCall to toolResult" 0.3 "$(jq -r '.nodes.pa.cycles."1".grade.tool_s' <<< "$view")"
 
 # default pi dirs: pi's own naming of this repo and its desks, nothing else
 pslug="--$(git rev-parse --show-toplevel | sed 's#^/##; s#[/:\\]#-#g')--"

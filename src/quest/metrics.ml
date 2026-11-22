@@ -23,10 +23,11 @@ let rows owner prefix specs =
 
 let registry =
   rows grade_transcripts "grade"
-    ([ ("wall_s", "s", Sum); ("tool_calls", "count", Sum); ("context_end", "tokens", Max) ]
+    ([ ("wall_s", "s", Sum); ("tool_calls", "count", Sum); ("context_end", "tokens", Max); ("tool_s", "s", Sum) ]
      @ List.map (fun t -> (t, "tokens", Sum)) tokens)
   @ rows author_window "author"
-      (("tool_calls", "count", Sum) :: List.map (fun t -> (t, "tokens", Sum)) tokens)
+      ([ ("tool_calls", "count", Sum); ("wall_s", "s", Sum); ("active_s", "s", Sum); ("tool_s", "s", Sum) ]
+       @ List.map (fun t -> (t, "tokens", Sum)) tokens)
   @ rows node_cost "cycle" [ ("todo_s", "s", Last); ("handed_off_s", "s", Last) ]
 
 let find name = List.find_opt (fun r -> r.name = name) registry
@@ -258,7 +259,10 @@ let spend samples prefix =
 type rollup = {
   r_grades : int; r_grades_measured : int; r_handoffs : int; r_handoffs_measured : int;
   r_grade_walls : float list; r_grade_spend : (string * float) list; r_author_spend : (string * float) list;
+  r_author_walls : float list; r_author_actives : float list;   (* measure.1 *)
 }
+
+let values samples m = List.filter_map (fun (s : sample) -> if s.metric = m then Some s.value else None) samples
 
 let rollup ~edges samples =
   let measured prefix = List.sort_uniq compare (List.filter_map (fun (s : sample) ->
@@ -267,17 +271,19 @@ let rollup ~edges samples =
     r_grades_measured = List.length (measured "grade");
     r_handoffs = List.length (List.filter (fun e -> e.e_edge = "handoff") edges);
     r_handoffs_measured = List.length (measured "author");
-    r_grade_walls = List.filter_map (fun (s : sample) -> if s.metric = "grade.wall_s" then Some s.value else None) samples;
-    r_grade_spend = spend samples "grade"; r_author_spend = spend samples "author" }
+    r_grade_walls = values samples "grade.wall_s";
+    r_grade_spend = spend samples "grade"; r_author_spend = spend samples "author";
+    r_author_walls = values samples "author.wall_s"; r_author_actives = values samples "author.active_s" }
 
 let rollup_json r =
   let f v = if Float.is_integer v && Float.abs v < 1e15 then `Int (int_of_float v) else `Float v in
-  let walls = match r.r_grade_walls with
+  let stats = function
     | [] -> `Null
     | ws -> `Assoc [ ("median", f (Option.get (median ws))); ("min", f (List.fold_left min infinity ws));
                      ("max", f (List.fold_left max neg_infinity ws)); ("sum", f (List.fold_left ( +. ) 0. (List.sort compare ws))) ] in
   `Assoc [ ("grades", `Int r.r_grades); ("grades_measured", `Int r.r_grades_measured);
            ("handoffs", `Int r.r_handoffs); ("handoffs_measured", `Int r.r_handoffs_measured);
-           ("grade_wall_s", walls);
+           ("grade_wall_s", stats r.r_grade_walls);
+           ("author_wall_s", stats r.r_author_walls); ("author_active_s", stats r.r_author_actives);
            ("spend", `Assoc [ ("grade", `Assoc (List.map (fun (k, v) -> (k, f v)) r.r_grade_spend));
                               ("author", `Assoc (List.map (fun (k, v) -> (k, f v)) r.r_author_spend)) ]) ]
