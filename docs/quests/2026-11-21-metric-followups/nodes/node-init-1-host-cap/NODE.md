@@ -73,3 +73,15 @@ what `init-repo` writes from now on.
 
 Known cases: the scaffold assertion. Property-based: omitted, since a
 literal has no input space.
+
+## Build notes (2026-11-21)
+
+- `src/quest/main.ml`: the init-repo scaffold says `max_cycles: 10`. Both
+  scaffolded plans now equal this repo's `plans/*.yaml` byte for byte, so
+  test/install.sh compares them with `cmp` against `$root/plans/`. The two
+  can't drift apart again without the suite failing.
+- Fails today: master's binary (22b7c44's build) run as `init-repo` in a
+  scratch repo scaffolds `max_cycles: 3`, which differs from `plans/default.yaml`.
+  The desk build scaffolds the same bytes.
+- CONTEXT.md:98 described bp3 as `max_cycles: 3`. It now reads 10 since
+  2026-11-21, was 3.
