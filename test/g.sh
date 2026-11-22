@@ -642,7 +642,7 @@ sdesk=$(BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness desk prepare --quest stac
   q stack-demo n sb e land --reason ok | jq -e '.state == "landed"' >/dev/null || fail "stacked land sb"
   [ -z "$(git status --short)" ] || fail "desk dirty after the second stacked land"
   [ "$(git rev-parse HEAD)" = "$SB" ] || fail "a land moved the desk's branch"
-  git merge-base --is-ancestor "$SA" "$SB" || fail "stack order"
+  [ "$(git rev-parse quest/stack-demo)" = "$SB" ] || fail "quest branch tip"
 )
 
 # --- version guard: minor-ahead warns and writes; major-ahead refuses writes ---

@@ -299,6 +299,17 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -q '^- \*\*Verify, then cast\*\*: before casting a verdict, check its grade$' "$ii"
   assert grep -q '^- One quest per session; one node being authored at a time;$' "$ii"
   assert test -z "$(grep -n 'one node in flight' "$ii" || true)"
+  # skills.1 cycle 2 (grader): the verify, void, attempt, session and mode lines
+  assert grep -q '^  desk\. `git rev-parse HEAD` must print the bound commit, and$' "$ii"
+  assert grep -qF '`git status --short` must print nothing. Then cast the verdict' "$ii"
+  assert grep -q '^  the verdict is void: cast nothing, keep the desk for the owner,$' "$ii"
+  assert grep -q '^  and start the next attempt in a fresh desk\.$' "$ii"
+  assert grep -qF 'Attempts count from `a1`; a grade dispatched again gets the next' "$ii"
+  assert grep -qF 'per quest: this session runs this quest and no other' "$ii"
+  assert grep -qF '(running, or finished with its verdict not yet cast): start one' "$ii"
+  assert grep -qF 'seconds for graders, and counts `brief_verbatim` or' "$ii"
+  assert grep -q '^`induct` when many independent nodes should run at once with$' "$ub"
+  assert grep -q '^should run at once with workflow children, one desk per node\.$' "$id"
   assert grep -q '^use `induct-inline`, the default: this session authors each$' "$ub"
   assert grep -q '^`induct-inline` is the default way to run a quest: this session$' "$id"
 done

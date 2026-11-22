@@ -178,5 +178,32 @@ and the land fixture covers one shape, the one the skill creates.
   (Nov 20 16:26 before and after).
 - Dogfood: this quest ran the rule by hand from brief.1 on. 9 grades
   were cast, all `checked` and all `brief_verbatim`. Overlap happened
-  once: brief.1 was graded in the background while measure.1 was
-  authored. After that, deps serialized the railway.
+  once; after that, deps serialized the railway. Ledger stamps, quoted
+  from the two nodes' ledgers (read for evidence, not state), with the
+  grader's own transcript stamps:
+
+  | when (UTC) | what |
+  |---|---|
+  | 21:26:53 | brief.1 c1 `handoff` (96a21d5); its grader starts in a grade desk |
+  | 21:27:45 – 21:32:47 | brief.1 c1 grader transcript (302 s), while measure.1 is authored |
+  | 21:36:14 | measure.1 c1 `handoff` (954bb16), the cast boundary |
+  | 21:36:43 | brief.1 c1 `grade` needs_fix cast, after the boundary |
+  | 21:53:43 | brief.1 `land` (b2e0165, cycle 3) |
+  | 21:59:53 | measure.1 `land` (acbab8b, cycle 2) |
+
+  measure.1's c1 author window is [21:26:53, 21:36:14], 561 s, and no
+  edge falls inside it. brief.1's grade ran entirely inside it, so the
+  overlap saved that grade's 302 s of author wait.
+- Cycle 2 (the grader's mechanical fixes):
+  - skills.sh gains 10 lines per dir: verify-then-cast (HEAD at the
+    bound commit, empty status), the void verdict and the next
+    attempt, the attempt count, one session per quest, the
+    finished-grader guard, graders' wall and tool seconds, and induct
+    as the many-nodes mode in using-bp3 and induct.
+  - The Measure bullet no longer claims active time for graders.
+  - Procedure step 2 starts a grader only for a handed-off node with no
+    grader for its current attempt, running or finished with its
+    verdict not yet cast.
+  - g.sh's stack-order line couldn't fail; it now checks the quest
+    branch tip is sb.
+  Each new skills.sh line was checked absent from master's text.

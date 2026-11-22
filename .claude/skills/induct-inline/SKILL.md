@@ -36,8 +36,9 @@ hand-cast edge.
    per quest: this session runs this quest and no other, and
    NODE.md build notes carry what a compaction would lose.
 2. On every read, in this order:
-   - each `handed_off` node with no grader running: start one in
-     the background (Grade, below);
+   - each `handed_off` node with no grader for its current attempt
+     (running, or finished with its verdict not yet cast): start one
+     in the background (Grade, below);
    - when nothing is being authored, take the first `todo` node in
      `ready` order. Read its NODE.md acceptance gates, make the
      change, run the gates' `prove by` checks, and commit clean.
@@ -106,8 +107,9 @@ it never words the grader's brief either.
 - **Measure every grade.** Right after casting a verdict, run
   `bp3 q <quest> metrics scrape`. It finds the grader by the brief's
   first line, and each author window by its handoff cast. It writes
-  wall, active and tool seconds for authors and graders, and counts
-  `brief_verbatim` or `brief_edited`. The scrape is
+  wall, active and tool seconds for authors, and wall and tool
+  seconds for graders, and counts `brief_verbatim` or
+  `brief_edited`. The scrape is
   evidence, never a gate: a `mismatched` grade is reported, and so
   is an edited brief; neither changes the verdict or blocks the land.
 - **No subagent tool**: stop at `handed_off` and show the owner
