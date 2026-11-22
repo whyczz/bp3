@@ -22,7 +22,7 @@ present. Use `using-bp3` for one hand-cast edge.
 | | `induct` | `induct-inline` |
 |---|---|---|
 | author | `node-loop` child | this session |
-| grade judgment | `induct-grade` child | one fresh grader subagent; without one, the owner |
+| grade judgment | `induct-grade` child | one fresh grader: a subagent, or a headless pi when the owner names it; without either, the owner |
 | edges cast by | the looper | this session (the looper) |
 | fan-out | one child per ready node | none: one node in flight |
 | desk | one per node | one for the quest (self mode) |
@@ -55,6 +55,18 @@ This session wrote the commit, so it never forms the verdict.
   the verdict as data and makes no `bp3 q` calls (pure grade, as
   in `induct`). This session casts that verdict verbatim, bound to
   that SHA. One grader per grade; never reused across commits.
+- **pi grader** (when the owner names pi as the grader runtime):
+  run one headless pi per grade from the desk,
+  `pi -p --tools read,bash --session-id <fresh id> "<cold brief>"`.
+  It gets the same cold brief, whose first line names the node id
+  and the commit's first 7 characters; that is how the scrape
+  joins it. `--tools read,bash` keeps pi's edit and write tools
+  off, and the brief still says no edits, no commits and no
+  `bp3 q` calls. Check that the desk is clean before casting. One
+  session per grade: a fresh `--session-id` each time, never
+  reused. The verdict is the printed text, cast as returned. The
+  scrape reads the session from `~/.pi/agent/sessions/` and counts
+  it as `self_checked`.
 - **Measure every grade.** Right after casting a verdict, run
   `bp3 q <quest> metrics scrape`. It finds the grader by the node
   id and commit SHA its brief names (spell them as `bp3 q` does),

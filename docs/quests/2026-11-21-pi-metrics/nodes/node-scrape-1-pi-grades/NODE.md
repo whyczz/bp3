@@ -116,8 +116,10 @@ Edge cases:
 
 Known cases: the trace above (self_checked, ambiguous across harnesses,
 mismatched), plus default dirs and a sibling repo left out.
-Property-based: the tally law gains `self_checked`, and the unit
-generator for tallies covers it.
+Property-based: omitted. No tally generator exists, so deterministic
+unit assertions cover `self_checked` in `buckets_add_up` and
+`tally_json` instead (corrected in skills.1's commit, from scrape.1's
+grader).
 
 ## Build notes (2026-11-21)
 
