@@ -185,3 +185,8 @@ Other changes:
   here, commit, hand off again") and mutant B (no park at `handed_off`)
   now each turn skills.sh red; restored (`cmp`); 443 assertions;
   shellcheck ok.
+- Cycle 4 (the grader's mechanical fix). The CORE_SKILLS assertion matched
+  the name anywhere in `bin/bp3`, so moving it to DEV_SKILLS (host repos
+  would silently lose the skill) stayed green. It is now anchored on the
+  `CORE_SKILLS="…"` line. The core-to-dev mutant turns skills.sh red;
+  restored (`cmp`); shellcheck ok.

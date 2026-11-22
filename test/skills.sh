@@ -317,7 +317,7 @@ done
 # induct-inline-as-default skills.2: induct-inline-yolo runs one quest
 # inline under no-human rails; it follows induct-inline as written and
 # carries no numbered procedure of its own. Sources and every render.
-assert grep -q ' induct-inline-yolo ' "$repo/bin/bp3"
+assert grep -Eq '^CORE_SKILLS="([^"]* )?induct-inline-yolo( [^"]*)?"$' "$repo/bin/bp3"
 for dir in skills .claude/skills .pi/skills .agents/skills; do
   iiy="$repo/$dir/induct-inline-yolo/SKILL.md" ii="$repo/$dir/induct-inline/SKILL.md" iy="$repo/$dir/induct-yolo/SKILL.md"
   assert test -f "$iiy"
