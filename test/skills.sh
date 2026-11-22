@@ -229,4 +229,21 @@ assert cmp -s "$repo/CLAUDE.md" "$repo/AGENTS.md"
 assert grep -q '\[CONSTRAINTS.md\](CONSTRAINTS.md)' "$repo/CLAUDE.md"
 assert grep -q '\[CONTEXT.md\](CONTEXT.md)' "$repo/CLAUDE.md"
 
+# metric-collectors read.1: conductors measure every grade, as evidence
+# and never as a gate; the docs name the metrics door and its GENERATED
+# file. In the sources and in every harness render.
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  ii="$repo/$dir/induct-inline/SKILL.md" ic="$repo/$dir/induct/SKILL.md" ub="$repo/$dir/using-bp3/SKILL.md"
+  assert grep -q '^  `bp3 q <quest> metrics scrape`. It finds the grader' "$ii"
+  assert grep -q 'evidence, never a gate: a `mismatched` grade is reported' "$ii"
+  assert grep -q 'grade, run `bp3 q <quest> metrics scrape` once' "$ic"
+  assert grep -q 'Measure with `./bin/bp3 q <quest> metrics r`' "$ub"
+  assert grep -q '`metrics.jsonl` on each node.s state branch' "$ub"
+  assert grep -q 'samples and moves no edge' "$ic"
+  assert grep -q 'a finding to report, not a failed step' "$ub"
+done
+assert grep -q '^  metrics.jsonl          GENERATED' "$repo/CLAUDE.md"
+assert grep -q 'and `metrics.jsonl` in a node' "$repo/CLAUDE.md"
+assert grep -q '^\./bin/bp3 q <quest> metrics scrape|r' "$repo/CLAUDE.md"
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"

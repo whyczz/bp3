@@ -50,6 +50,18 @@ Owner decisions, 2026-11-21 (sync, before framing):
 | Harnesses in the first cut | "Claude Code first": muse and pi keep their hook and backtest; refold later |
 | Approval of this file | "Approve as-is" |
 
+Build-time calls, 2026-11-21:
+
+| Question | Call |
+|---|---|
+| How to build | Owner: "lets build this in a solid scaffolding way, where we can use this to implement the system". sink.1 ships a walking skeleton: every module, type and CLI door wired, one grade's cost flowing fixture -> scraper -> sink -> `metrics r`, and the rest of the spec as `pending_<node>_` unit tests (OUnit skips) that later nodes turn green |
+| Graders | Owner: "im killing induct for now, the multiagent setup with the graders takes too long". No induct, no grader subagents |
+| Who judges a node | Agent default (the owner declined the follow-up questions): the author stops at `handed_off` and shows the owner a packet (diff stat, gate output, pending -> passing counts, calls made); the owner says ship or needs_fix; the author casts it |
+| read.1 with induct off | Open: it edits induct skills; the owner decides before it starts (Open question 4) |
+| Induct after all | Owner: "no for this lets induct to dogfood it and really measure the lifecycle", then `/induct-inline` "with yolo, e.g. you can decide the overrides": graders return for this quest, the agent decides overrides |
+| read.1 (Open question 4) | Agent override under yolo: kept as written. Induct is back for this quest, so `induct` and `induct-inline` scrape after every grade cast; `using-bp3`, CLAUDE.md and AGENTS.md name the door and the GENERATED file |
+| Review cap | Owner, after scrape.2 blocked at cycle 3 and was resumed by hand: "increase the rounds to 10, i do not want to be involved isn't that the point of yolo". `plans/default.yaml` `max_cycles: 10`; CLAUDE.md and AGENTS.md updated; the repo default changes at promotion |
+
 What exists today (read 2026-11-21):
 
 | Kind | Today | Gap |
@@ -283,6 +295,7 @@ Source red chair (7.5), on the icebox entry:
 | 1 | Should a Claude Code `SubagentStop` hook trigger the scraper (a push hook), replacing read.1's "conductor remembers" rule? | owner, after read.1 lands |
 | 2 | When does the muse `usage_recorded` ledger line move to samples (the ledger-vs-sink rule: moments in the ledger, bulk numbers in the sink)? | next metrics quest |
 | 3 | Is the author window close enough, or should author cost wait for author subagents (induct with children)? | owner, after scrape.2's readout |
+| 4 | With induct paused, does read.1 become docs only (using-bp3, CLAUDE.md, AGENTS.md), stay as written, or go? | owner, before read.1 starts |
 
 ## Node diagram
 

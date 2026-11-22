@@ -125,6 +125,21 @@ def scrape_grades(quest, claude_dir):
 | line shape unknown (no `message.id`) | the line counts toward `skipped_lines`, never as zero tokens |
 | desk sessions (`~/.claude/projects/<slug>--bp3-worktrees-...`) | scanned: every project dir whose slug starts with the repo's |
 
+## Build notes (2026-11-21, found on real data)
+
+| Finding | Evidence | Rule it set |
+|---|---|---|
+| A grader resumed by a follow-up keeps writing after its first report | 4 of 43 reports in this repo's main session: the transcript has 1-4 more tool calls; each resumed stop queues a later report keyed by `<task-id>` alone, matching the whole transcript | reports are keyed by `<task-id>` and `<tool-use-id>`, last wins; the scraper looks up the agent id first, so its last report covers the whole transcript; the check reads lines up to that report's `r_at` (`parse ~until`) |
+| The transcript can log the final message's output short | context 62 to 1009 tokens under `subagent_tokens` on 4 of 43 (at most 0.74%), never over | `agrees`: tool calls exact, wall within 1 s, context at most 1% under and never over |
+| A usage key read as 0 passes as a cheap grade | grader (round 1): with missing keys as 0 and a 5% band, a renamed `output_tokens` would still pass on 39 of 43 | `usage_of` takes all four counts or none; a line without them is skipped (`bad_usage`), and `checks` fails any cut holding one |
+| The report also appears quoted in the parent's own messages | 5 assistant lines holding `<usage>...` text | reports come from `queue-operation` `enqueue` lines only |
+| A model field is a place text could ride | grader probes: `sk-ant-api03-...` passed `id_ok`; `other\nhunter2` passed Str's `$` | `Metrics.model_ok` is a character check (`claude-<lowercase>`, `unknown`, `other`); `ts_ok` checks the match end, not `$`; the reader records any other model as `other` |
+| `wall_s` is the transcript's span, so a resumed grader's idle gap counts | test-pyramid tier.1 cycle 2: 18412 s | left to derive.1 (a span is not active time); `tokens_out` can also be short by the final snapshot (up to 1009) |
+
+After the rules, on a scratch clone: constraints-context 7 checked
+and 3 owner-graded; test-pyramid 23 checked and 1 owner-graded;
+metric-collectors 2 checked; 0 mismatched, 0 skipped lines.
+
 ## Prose
 
 The harness report is the trick that makes an unofficial format

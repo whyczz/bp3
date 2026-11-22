@@ -55,6 +55,13 @@ This session wrote the commit, so it never forms the verdict.
   the verdict as data and makes no `bp3 q` calls (pure grade, as
   in `induct`). This session casts that verdict verbatim, bound to
   that SHA. One grader per grade; never reused across commits.
+- **Measure every grade.** Right after casting a verdict, run
+  `bp3 q <quest> metrics scrape`. It finds the grader by the node
+  id and commit SHA its brief names (spell them as `bp3 q` does),
+  and the author by the handoff cast as
+  `bp3 q <quest> n <node> e handoff` in one command. The scrape is
+  evidence, never a gate: a `mismatched` grade is reported, and it
+  never changes the verdict or blocks the land.
 - **No subagent tool**: stop at `handed_off` and show the owner
   the commit, the gate output, and the diff stat; the owner
   judges, this session casts.

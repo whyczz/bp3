@@ -14,6 +14,7 @@ let nodes_dir = "nodes"
 let legacy_nodes_dirs = ["experiments"]
 let ledger_file = "ledger.jsonl"
 let state_file = "state.yaml"
+let metrics_file = "metrics.jsonl"
 let runs_dir = "runs"
 let icebox_dir = "docs/icebox"
 let desks_root = ".bp3/worktrees"

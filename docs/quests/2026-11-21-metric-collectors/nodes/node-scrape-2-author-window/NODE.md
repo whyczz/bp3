@@ -89,10 +89,37 @@ def scrape_authors(quest, claude_dir):
 
 | Case | Result |
 |---|---|
-| owner cast the handoff by hand (`!` in the session) | the Bash call is in the session transcript; counted normally |
+| owner cast the handoff by hand (`!` in the session) | a `!` command is a user line, not a Bash tool call: `author_missing` |
 | handoff cast from a shell outside Claude Code | `author_missing` |
 | node created long before it was worked (cycle 1) | the window starts at the previous edge on another node, not at creation |
 | compaction happened inside the window | the summary turn's usage counts once like any other message |
+
+## Build notes (2026-11-21, found on real data)
+
+These supersede the Diagram and Pseudocode above where they differ.
+
+| Finding | Evidence | Rule it set |
+|---|---|---|
+| Handoff commands often pass the commit through a variable | 4 of 6 handoffs in this session: `--commit "$(git rev-parse HEAD)"` or `$C` | the casting call names `handoff` and the node as words, and either the command holds `commit[:7]` or its result holds the full commit (`Claude_tx.casts_handoff`) |
+| A node id can be a substring of the command | unit: node `a` matched inside `handoff` | `has_word`: no id character on either side |
+| A cycle's authoring can happen before the owner's resume | rules.4 round 4 was written while blocked; resume to handoff was 8 s | a window starts at the quest's previous edge, never a `resume` (`Metrics.author_spans`) |
+| Ledger stamps are whole seconds, so adjacent windows share a second | design | `Claude_tx.assign` counts each message and tool call in the first window that holds it |
+| Session files are big | this session: 45 MB, 20k lines | only assistant lines and tool results naming `handed_off` are parsed; `find_from` compares in place (scrape 2.2 s down to 1.2 s) |
+| A later read can look like the cast (round 1, grader) | a session dated 2099 that greps nb's ledger turned nb authored, with five zero samples | the casting call must run inside the handoff's own window; a window with no messages of its own is `author_missing`, never zero |
+| Results are often cut to `{ok, state}` | test-pyramid tier.2: `--commit "$SHA"` and a result without the commit; before the window check, a later read made these look authored | inside the window, a successful move to `handed_off` is evidence too, but only when the command names the quest (round 2, grader: node ids repeat across quests, `node-1-hello` x7) |
+| A node named anywhere in the command is not a cast of it (round 3, grader, at the cap) | probe C: a sibling's cast with `--reason 'unblocks nb'`; F3: another quest's nb cast plus a read of ours; 5 of 30 real handoff commands name two nodes | `casts_node`: the command holds `q <Q> n <node> e handoff` or `q <Q> u <node> handoff`, `<Q>` the quest or a variable the same command sets to it (`Q=... && bp3 q $Q`); a cut commit needs at least 2 hex (round 4, owner-granted) |
+| A result shows other values, or is cut mid-value | handoffs followed by a rollup print other nodes; `head -c` cut tier.2 c1 at `"commit":"c4` and unit.2 c2 mid-commit, the next output line running on | `shown` reads every value of a key, a cut value ending at the line's end; if a result shows a quest, node or commit, one of each must be ours (equal, or a prefix when cut) |
+| A line of an unexpected shape stopped the whole scrape | dogfood, this quest: a `queue-operation` line quoting "tool_result" and "handed_off" passed the cheap filter with no `message`; `member` raised | `Claude_tx.member` is total: a null message reads as absent fields |
+
+On a scratch clone (round 3): constraints-context 10 of 10 handoffs
+authored, test-pyramid 25 of 25, metric-collectors 6 of 6, 0
+ambiguous. Round 1's 23 of 25 on test-pyramid held 3 authored only by
+later reads; round 2's 24 missed tier.2 c1 (a cut commit, a false
+negative), and an intermediate round-3 build missed 11 by reading
+only the first value a result showed.
+What the lifecycle shows: sink.1's authoring took 68 tool calls and
+15.1M cache-read tokens, while its grade took 25 and 1.6M. A
+long-lived main session re-reads its whole context on every call.
 
 ## Prose
 
