@@ -70,7 +70,9 @@ General coding in this repo does not need this skill.
    cycle's time in todo and handed_off, and node and quest
    roll-ups. `./bin/bp3 q <quest> metrics scrape` collects from
    Claude Code transcripts and is safe to re-run; it exits 1
-   when a transcript disagrees with the harness report, which is
+   when a number could not be checked and was not written (a
+   grade transcript that disagrees with the harness report, or
+   an author window holding a usage-less line), which is
    a finding to report, not a failed step. Its samples
    live in `metrics.jsonl` on each node's state branch,
    GENERATED like `ledger.jsonl`: never hand-edit it.

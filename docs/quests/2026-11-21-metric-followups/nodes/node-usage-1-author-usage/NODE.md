@@ -107,3 +107,28 @@ case for `parse_session` keeping a bad line's timestamp. Property-based:
 the existing tally law gains the new bucket. The QCheck generator for
 tallies adds `author_bad_usage`, and `buckets_add_up` must still hold
 for every scrape.
+
+## Build notes (2026-11-21)
+
+- `Claude_tx.session` holds `s_bad_at`, the stamps of usage-less
+  main-thread lines, where it used to hold a bare count (`s_bad_usage`).
+  `Claude_tx.assign` returns a `window_spend` record (`w_key`, `w_msgs`,
+  `w_tools`, `w_bad`) in place of a 3-tuple. A bad line is taken by the
+  first window that holds it, like messages and tool calls.
+- `Metrics_io.author_pass`: `w_bad > 0` puts the window in the new
+  `author_bad_usage` bucket, and it writes no samples. `buckets_add_up`
+  and `tally_json` count the bucket. `scrape_view` exits 1 on
+  `mismatched` or `author_bad_usage`.
+- The tally law: the design trace named a QCheck tally generator that
+  doesn't exist. A real law takes its place:
+  `law_each_usage_less_line_fails_at_most_one_window` (random stamps and
+  windows; the w_bad total equals the stamps inside some window).
+- Fails today, by mutants:
+  - with the `w_bad` check removed, test/metrics.sh fails with
+    `want '1 0 1 7', got '0 1 0 12'`, which is master's behavior
+    (written whole, exit 0);
+  - counting a bad line in every window that holds it fails the law.
+- Real data: a scrape of this quest exits 0, with `author_bad_usage` 0
+  on every node.
+- Help text (`q <quest> metrics -h`) and using-bp3 step 8 name both
+  exit-1 causes.

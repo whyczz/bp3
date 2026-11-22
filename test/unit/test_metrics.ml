@@ -169,7 +169,10 @@ let case_meta_names_the_parent_tool_call _ =
 let case_tally_buckets_add_up_to_the_grades _ =
   assert_bool "zero" (Metrics.buckets_add_up Metrics.zero);
   assert_bool "mixed" (Metrics.buckets_add_up { Metrics.zero with grades = 3; unchecked = 2; owner_graded = 1 });
-  assert_bool "lost one" (not (Metrics.buckets_add_up { Metrics.zero with grades = 3; unchecked = 2 }))
+  assert_bool "lost one" (not (Metrics.buckets_add_up { Metrics.zero with grades = 3; unchecked = 2 }));
+  assert_bool "bad usage is a handoff bucket"
+    (Metrics.buckets_add_up { Metrics.zero with handoffs = 2; authored = 1; author_bad_usage = 1 });
+  assert_bool "lost a handoff" (not (Metrics.buckets_add_up { Metrics.zero with handoffs = 2; authored = 1 }))
 
 (* ---------- the harness report (scrape.1) ---------- *)
 
@@ -399,13 +402,50 @@ let case_assign_counts_each_message_once_and_never_a_subagents _ =
   (* both windows hold 12:59:59..13:00:00; w2 belongs to the first *)
   let ws = Claude_tx.assign s [ ("x", secs "2026-11-21T12:00:00Z", secs "2026-11-21T13:00:00Z");
                                 ("y", secs "2026-11-21T12:59:59Z", secs "2026-11-21T14:00:00Z") ] in
-  let ids = List.map (fun (k, ms, t) -> (k, List.map (fun (m : Claude_tx.msg) -> m.id) ms, t)) ws in
-  let show (k, ms, t) = Printf.sprintf "%s:%s/%d" k (String.concat "," ms) t in
-  assert_equal ~printer:(fun l -> String.concat " " (List.map show l)) [ ("x", [ "w1"; "w2" ], 2); ("y", [], 0) ] ids;
-  let (_, ms, tools) = List.hd ws in
-  let c = Claude_tx.author_cost ms tools in
+  let ids = List.map (fun (w : Claude_tx.window_spend) ->
+      (w.w_key, List.map (fun (m : Claude_tx.msg) -> m.id) w.w_msgs, w.w_tools, w.w_bad)) ws in
+  let show (k, ms, t, b) = Printf.sprintf "%s:%s/%d/%d" k (String.concat "," ms) t b in
+  assert_equal ~printer:(fun l -> String.concat " " (List.map show l)) [ ("x", [ "w1"; "w2" ], 2, 0); ("y", [], 0, 0) ] ids;
+  let w = List.hd ws in
+  let c = Claude_tx.author_cost w.w_msgs w.w_tools in
   assert_equal ~printer:string_of_int 45 c.tokens_out;    (* w1's last snapshot 40 + w2 5; the sidechain 9999 never *)
   assert_equal ~printer:string_of_int 300 c.tokens_cache_read
+
+(* usage.1: a main-thread line whose usage lacks a count is kept as a
+   stamp, and fails the first window that holds it, and only that one *)
+let usage_less ~ts ~id =
+  jline [ ("type", `String "assistant"); ("timestamp", `String ts); ("sessionId", `String "main1");
+          ("message", `Assoc [ ("id", `String id); ("model", `String "claude-opus-5-5"); ("content", `List []);
+                               ("usage", `Assoc [ ("input_tokens", `Int 1); ("cache_read_input_tokens", `Int 1);
+                                                  ("cache_creation_input_tokens", `Int 1) ]) ]) ]
+
+let case_a_usage_less_line_fails_the_first_window_that_holds_it _ =
+  let s = Claude_tx.parse_session (main_session ^ Gen.text [
+      usage_less ~ts:"2026-11-21T12:59:59.500Z" ~id:"w3";      (* in both windows *)
+      usage_less ~ts:"2026-11-21T15:00:00.000Z" ~id:"w4" ]) in (* in neither *)
+  assert_equal [ "2026-11-21T12:59:59.500Z"; "2026-11-21T15:00:00.000Z" ] s.s_bad_at;
+  assert_equal [ "w1"; "w2" ] (List.map (fun (m : Claude_tx.msg) -> m.id) s.s_msgs);
+  let secs ts = Option.get (Claude_tx.seconds ts) in
+  let ws = Claude_tx.assign s [ ("x", secs "2026-11-21T12:00:00Z", secs "2026-11-21T13:00:00Z");
+                                ("y", secs "2026-11-21T12:59:59Z", secs "2026-11-21T14:00:00Z") ] in
+  assert_equal ~printer:(fun l -> String.concat "," (List.map string_of_int l)) [ 1; 0 ]
+    (List.map (fun (w : Claude_tx.window_spend) -> w.w_bad) ws)
+
+(* law: across any windows, every usage-less line inside one of them
+   is counted exactly once, and one outside all of them never *)
+let law_each_usage_less_line_fails_at_most_one_window =
+  let stamp o = Printf.sprintf "2026-11-21T12:00:%02dZ" o in
+  let gen = QCheck2.Gen.(pair (list_size (int_range 0 12) (int_range 0 59))
+                              (list_size (int_range 0 5) (pair (int_range 0 59) (int_range 0 59)))) in
+  QCheck2.Test.make ~count:300 ~name:"law_each_usage_less_line_fails_at_most_one_window" gen
+    (fun (bad, spans) ->
+       let secs o = Option.get (Claude_tx.seconds (stamp o)) in
+       let windows = List.mapi (fun i (a, b) -> (string_of_int i, secs (min a b), secs (max a b))) spans in
+       let s = { Claude_tx.s_id = "s"; s_msgs = []; s_tools = []; s_bash = []; s_results = [];
+                 s_bad_at = List.map stamp bad } in
+       let held o = List.exists (fun (_, f, u) -> secs o >= f && secs o < u +. 1.) windows in
+       let total = List.fold_left (fun acc (w : Claude_tx.window_spend) -> acc + w.w_bad) 0 (Claude_tx.assign s windows) in
+       total = List.length (List.filter held bad))
 
 (* ---------- the node-cost deriver (derive.1) ---------- *)
 
@@ -525,6 +565,8 @@ let () =
        QCheck_ounit.to_ounit2_test law_node_spend_adds_up_to_the_quest;
        QCheck_ounit.to_ounit2_test law_a_rescrape_changes_no_rollup;
        "case_assign_counts_each_message_once_and_never_a_subagents" >:: case_assign_counts_each_message_once_and_never_a_subagents;
+       "case_a_usage_less_line_fails_the_first_window_that_holds_it" >:: case_a_usage_less_line_fails_the_first_window_that_holds_it;
+       QCheck_ounit.to_ounit2_test law_each_usage_less_line_fails_at_most_one_window;
        "case_a_usage_line_missing_a_count_is_skipped_and_fails_the_check" >:: case_a_usage_line_missing_a_count_is_skipped_and_fails_the_check;
        "case_agrees_allows_a_small_context_undercount_and_nothing_else" >:: case_agrees_allows_a_small_context_undercount_and_nothing_else;
        "case_parse_until_cuts_the_transcript_at_the_report" >:: case_parse_until_cuts_the_transcript_at_the_report;

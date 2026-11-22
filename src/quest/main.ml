@@ -555,7 +555,7 @@ let do_metrics quest tail =
 let help_metrics = "bp3 q <quest> metrics - what each grade and author cycle cost (metric-collectors):\n\
   bp3 q <quest> metrics r                              samples per node, cycle, and kind (grade, author)\n\
   bp3 q <quest> metrics scrape [--claude-dir <dir>]... collect from Claude Code transcripts; idempotent\n\
-  Samples live in metrics.jsonl on each node's state branch (GENERATED, written only here); a second scrape writes nothing new. Without --claude-dir, scrape reads ~/.claude/projects/<this repo's dir and its desks>. Exit 1 when a transcript disagrees with the harness report.\n\
+  Samples live in metrics.jsonl on each node's state branch (GENERATED, written only here); a second scrape writes nothing new. Without --claude-dir, scrape reads ~/.claude/projects/<this repo's dir and its desks>. Exit 1 when a number could not be checked and was not written: a grade transcript that disagrees with the harness report (mismatched), or an author window holding a usage-less line (author_bad_usage).\n\
 Example: bp3 q my-quest metrics scrape && bp3 q my-quest metrics r\n"
 
 let help_update = "bp3 q <quest> u <node> <edge> - edges and their flags:\n\

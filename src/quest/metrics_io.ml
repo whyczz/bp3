@@ -185,14 +185,15 @@ let author_pass q all sessions =
       | _ -> ()) found;
   let assigned = Hashtbl.create 16 in
   Hashtbl.iter (fun _ (s, windows) ->
-      List.iter (fun (key, msgs, tools) -> Hashtbl.replace assigned key (s, msgs, tools))
+      List.iter (fun (w : Claude_tx.window_spend) -> Hashtbl.replace assigned w.w_key (s, w))
         (Claude_tx.assign s windows)) per_session;
   let out = Hashtbl.create 8 in
   let add n (batch, (t : Metrics.tally)) =
     let (b0, t0) = Option.value (Hashtbl.find_opt out n) ~default:([], Metrics.zero) in
     Hashtbl.replace out n (b0 @ batch, { t0 with handoffs = t0.handoffs + t.handoffs; authored = t0.authored + t.authored;
                                                  author_missing = t0.author_missing + t.author_missing;
-                                                 author_ambiguous = t0.author_ambiguous + t.author_ambiguous }) in
+                                                 author_ambiguous = t0.author_ambiguous + t.author_ambiguous;
+                                                 author_bad_usage = t0.author_bad_usage + t.author_bad_usage }) in
   List.iter (fun (n, (sp : Metrics.author_span), ss) ->
       let one = { Metrics.zero with handoffs = 1 } in
       match ss with
@@ -200,10 +201,13 @@ let author_pass q all sessions =
       | _ :: _ :: _ -> add n ([], { one with author_ambiguous = 1 })
       | [ _ ] ->
           let key = n ^ "|" ^ string_of_int sp.a_cycle ^ "|" ^ sp.a_upto in
-          let ((s : Claude_tx.session), msgs, tools) = Hashtbl.find assigned key in
-          (* a window with no messages of its own measured nothing: missing, never zero *)
-          if msgs = [] then add n ([], { one with author_missing = 1 }) else
-          let c = Claude_tx.author_cost msgs tools in
+          let ((s : Claude_tx.session), (w : Claude_tx.window_spend)) = Hashtbl.find assigned key in
+          (* a usage-less line undercounts the window, like a mismatched
+             grade: nothing written (usage.1); a window with no messages
+             of its own measured nothing: missing, never zero *)
+          if w.w_bad > 0 then add n ([], { one with author_bad_usage = 1 }) else
+          if w.w_msgs = [] then add n ([], { one with author_missing = 1 }) else
+          let c = Claude_tx.author_cost w.w_msgs w.w_tools in
           let mk m v = { Metrics.metric = "author." ^ m; quest = q; node = n; cycle = sp.a_cycle;
                          run = "claude:" ^ s.s_id; model = c.model; value = float_of_int v; at = sp.a_upto;
                          source = Metrics.author_window.c_name } in
@@ -226,7 +230,8 @@ let scrape q ~dirs =
       let batch = gb @ ab in
       let written, skipped = if batch = [] then (0, 0) else append q node batch in
       (node, { gt with written; skipped; handoffs = at.handoffs; authored = at.authored;
-                       author_missing = at.author_missing; author_ambiguous = at.author_ambiguous }))
+                       author_missing = at.author_missing; author_ambiguous = at.author_ambiguous;
+                       author_bad_usage = at.author_bad_usage }))
     edges
 
 (* ---------- views ---------- *)
@@ -269,8 +274,9 @@ let view q =
 
 let scrape_view q ~dirs =
   let res = scrape q ~dirs in
-  let mismatched = List.exists (fun (_, (t : Metrics.tally)) -> t.mismatched > 0) res in
-  (`Assoc [ ("ok", `Bool (not mismatched)); ("quest", json_str q);
+  (* a number bp3 could not check was not written: a finding, exit 1 *)
+  let unwritten = List.exists (fun (_, (t : Metrics.tally)) -> t.mismatched > 0 || t.author_bad_usage > 0) res in
+  (`Assoc [ ("ok", `Bool (not unwritten)); ("quest", json_str q);
             ("dirs", `List (List.map json_str dirs));
             ("nodes", `Assoc (List.map (fun (n, t) -> (n, Metrics.tally_json t)) res)) ],
-   if mismatched then 1 else 0)
+   if unwritten then 1 else 0)
