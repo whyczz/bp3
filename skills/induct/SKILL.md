@@ -246,8 +246,9 @@ is a usage error naming this derivation.
    grade, run `bp3 q <quest> metrics scrape` once: it records
    what the grade and its author cycle cost, from the
    harness's transcripts. The scrape is evidence, never a
-   gate; a `mismatched` grade goes in the report and changes
-   no verdict.
+   gate: a `mismatched` grade goes in the report, changes no
+   verdict and never blocks the land, and the exit 1 it
+   brings is that report, not a failure.
 6. Stop when the rollup is terminal (every node `landed` or
    `deleted`) or a human decision is owed that this session
    cannot get. Name each `landed` node `node_fin` in the
@@ -260,11 +261,13 @@ is a usage error naming this derivation.
 
 ## Rules
 
-- The skill writes no state. `bp3 q u` is the only writer,
-  called by step children (and at the blocked gate, by this
-  session on attested human words); ledger files, `state.yaml`,
-  and branch tips are never hand-edited, and tape is evidence,
-  never parsed into facts.
+- The skill writes no state by hand. `bp3 q u` is the only edge
+  writer, called by step children (and at the blocked gate, by
+  this session on attested human words). The one other write is
+  step 5's `bp3 q <quest> metrics scrape`, which appends
+  GENERATED `metrics.jsonl` samples and moves no edge. Ledger
+  files, `metrics.jsonl`, `state.yaml`, and branch tips are never
+  hand-edited, and tape is evidence, never parsed into facts.
 - Human attestation comes only from actual human words in
   this session. The engine never attests on the human's
   behalf, and `resume` without it is refused

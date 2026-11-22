@@ -25,17 +25,17 @@ General coding in this repo does not need this skill.
    --engine <engine>`. It scaffolds `docs/quests/<name>/`
    (QUEST.md, fsm.yaml, state.yaml, ledger.jsonl, runs/).
    Two independent dimensions: `quest_type` is the plan in
-   `plans/` (default: one grade round), `engine` is who
+   `plans/` (default: up to ten review rounds), `engine` is who
    executes (single, master-subagents, panes, workflows).
 3. Quest dependencies live in `fsm.yaml` as `depends_on: [...]`
    (set at create with `--depends-on`). `handoff` refuses until
    every dependency's stage is `landed`; the verdict JSON shows
    `blocked_by`. Dependencies are by quest folder name.
 4. Take only legal moves. The verdict JSON lists them:
-   `handoff --commit <sha>`, `grade --verdict ship|fix_first`,
+   `handoff --commit <sha>`, `grade --verdict ship|needs_fix`,
    `land`, `block`, `cancel`. Judgment moves need `--reason`;
    it is the move's commit message. Verdicts bind to the exact
-   current commit; a second `fix_first` at the cycle cap
+   current commit; a `needs_fix` at the cycle cap
    escalates to blocked — do not work around it.
 5. Commit work before handing it off. Only clean commits move:
    `handoff` refuses dirty trees outside quest folders and
@@ -51,7 +51,9 @@ General coding in this repo does not need this skill.
    and author cycle cost (wall, tool calls, tokens), each
    cycle's time in todo and handed_off, and node and quest
    roll-ups. `./bin/bp3 q <quest> metrics scrape` collects from
-   Claude Code transcripts and is safe to re-run. Its samples
+   Claude Code transcripts and is safe to re-run; it exits 1
+   when a transcript disagrees with the harness report, which is
+   a finding to report, not a failed step. Its samples
    live in `metrics.jsonl` on each node's state branch,
    GENERATED like `ledger.jsonl`: never hand-edit it.
 

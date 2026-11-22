@@ -239,6 +239,8 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -q 'grade, run `bp3 q <quest> metrics scrape` once' "$ic"
   assert grep -q 'Measure with `./bin/bp3 q <quest> metrics r`' "$ub"
   assert grep -q '`metrics.jsonl` on each node.s state branch' "$ub"
+  assert grep -q 'samples and moves no edge' "$ic"
+  assert grep -q 'a finding to report, not a failed step' "$ub"
 done
 assert grep -q '^  metrics.jsonl          GENERATED' "$repo/CLAUDE.md"
 assert grep -q 'and `metrics.jsonl` in a node' "$repo/CLAUDE.md"
