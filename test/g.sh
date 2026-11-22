@@ -597,6 +597,30 @@ before=$(git rev-parse bp3/node/demo/parser-fix)
 if out=$(q demo u parser-fix block --reason "major ahead must refuse" 2>&1); then fail "major-ahead write accepted: $out"; fi
 echo "$out" | jq -e '.ok == false and .error.code == "E_VERSION_AHEAD" and .error.facts.binary == "0.2.0" and .error.facts.repo == "99.0.0"' >/dev/null || fail "major-ahead refusal: $out"
 [ "$(git rev-parse bp3/node/demo/parser-fix)" = "$before" ] || fail "major-ahead refusal wrote"
+# guard.1: the guard sits at the write, so every write form refuses the
+# same way and no ref moves; reads still answer, with the warning.
+refs_before=$(git for-each-ref --format='%(refname) %(objectname)' refs/heads/)
+guarded() { # $1 label, rest: the q call
+  local label=$1 out; shift
+  if out=$(q "$@" 2>&1); then fail "major-ahead $label wrote: $out"; fi
+  echo "$out" | jq -e '.error.code == "E_VERSION_AHEAD"' >/dev/null || fail "major-ahead $label code: $out"
+}
+guarded "n e" demo n parser-fix e block --reason "nested edge"
+guarded "n c" demo n c vf-new
+guarded "node c" demo c vf-new2
+guarded "dep" demo dep parser-fix --depends-on "" --reason "clear deps"
+guarded "quest c" c vf-quest --type default
+guarded "node d" demo d parser-fix --reason "delete"
+lk() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness link "$@"; }
+out=$(lk mint --kind edge --quest demo --node parser-fix --edge block --depth 2)
+MUSE_SESSION_ID=sess-vf lk claim "$(echo "$out" | jq -r .token)" >/dev/null
+rm -f .bp3-context.json
+if out=$(MUSE_SESSION_ID=sess-vf BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 e block --reason "claimed door" 2>&1); then fail "major-ahead e door wrote: $out"; fi
+echo "$out" | jq -e '.error.code == "E_VERSION_AHEAD"' >/dev/null || fail "major-ahead e door code: $out"
+[ "$(git for-each-ref --format='%(refname) %(objectname)' refs/heads/)" = "$refs_before" ] || fail "major-ahead refusals moved a ref"
+out=$(q r demo) || fail "major-ahead rollup read: $out"
+echo "$out" | jq -e '.warnings | index("W_VERSION_AHEAD") != null' >/dev/null || fail "major-ahead rollup warning: $out"
+out=$(q demo n parser-fix r) || fail "major-ahead node read: $out"
 
 # --- help: -h/--help at every door, stdout, exit 0, no state read ---
 out=$(q -h) || fail "q -h exit"

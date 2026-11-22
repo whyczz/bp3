@@ -206,9 +206,16 @@ let now_ts () =
     (t.Unix.tm_year + 1900) (t.Unix.tm_mon + 1) t.Unix.tm_mday
     t.Unix.tm_hour t.Unix.tm_min t.Unix.tm_sec
 
+(* The version guard (guard.1). Every state write runs it first:
+   commit_files and move_ref below are the only two doors that write
+   a ref. Main sets it to the newer-MAJOR refusal; Gitx knows no
+   versions, and the default (unit tests) guards nothing. *)
+let write_guard : (unit -> unit) ref = ref (fun () -> ())
+
 (* Write files into a branch via plumbing; CAS on old tip.
    files: (path, content) list. Returns new tip or E_STALE_WORLD. *)
 let commit_files ~branch ~base_tip ~expect_tip ~files ~msg =
+  !write_guard ();
   let idx = tmp_path "index" in
   let env = ["GIT_INDEX_FILE=" ^ idx] in
   let cleanup () = try Unix.unlink idx with _ -> () in
@@ -231,6 +238,14 @@ let commit_files ~branch ~base_tip ~expect_tip ~files ~msg =
     "Branch tip moved; re-read and retry." 1;
   invalidate_ref_caches ();
   new_tip
+
+(* Move a ref to an existing commit, CAS on its old tip, guarded like
+   commit_files. false when the tip moved. *)
+let move_ref ~branch ~new_tip ~expect_tip =
+  !write_guard ();
+  let ok = run_status (git ["update-ref"; branch; new_tip; expect_tip]) = 0 in
+  if ok then invalidate_ref_caches ();
+  ok
 
 let create_branch_commit ~branch ~base_tip ~files ~msg =
   (* branch must not exist; update-ref with zero old value *)

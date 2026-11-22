@@ -296,9 +296,8 @@ let do_update quest node edge fl id =
       let qbranch = quest_branch quest in
       let qtip = (match ref_tip qbranch with Some t -> t | None -> "") in
       if is_ancestor qtip node_tip then begin
-        if run_status (git ["update-ref"; qbranch; node_tip; qtip]) <> 0 then
+        if not (move_ref ~branch:qbranch ~new_tip:node_tip ~expect_tip:qtip) then
           err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
-        invalidate_ref_caches ();
         with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
           ("node", json_str node); ("state", json_str "landed"); ("fin", json_str "node_fin"); ("cycle", `Int s.cycle);
           ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
@@ -318,9 +317,8 @@ let do_update quest node edge fl id =
         end else begin
           let mtip, _ = git_out ~input:("bp3: land " ^ node)
               ["commit-tree"; tree; "-p"; qtip; "-p"; node_tip] in
-          if run_status (git ["update-ref"; qbranch; mtip; qtip]) <> 0 then
+          if not (move_ref ~branch:qbranch ~new_tip:mtip ~expect_tip:qtip) then
             err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
-          invalidate_ref_caches ();
           with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
             ("node", json_str node); ("state", json_str "landed"); ("fin", json_str "node_fin"); ("cycle", `Int s.cycle);
             ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
@@ -599,20 +597,17 @@ let help_config = "bp3 config - view the machine-local bp3 config store (<git-co
 Example: bp3 config --source\n"
 
 (* Node 5 guard: an older-MAJOR binary never writes in a newer repo.
-   Newer MINOR/PATCH only warns (warnings_of carries W_VERSION_AHEAD). *)
-let guard_write argv =
-  let argv = match argv with "q" :: rest -> rest | other -> other in
-  let is_write = match argv with
-    | v :: _ when is_verb v -> let n = normalize_verb v in n = "c" || n = "d"
-    | _q :: v :: _ when is_verb v -> normalize_verb v <> "r"
-    | _ -> false in
-  if is_write && not (List.exists is_help (List.filteri (fun i _ -> i < 3) argv)) then
-    match version_ahead () with
-    | Some v when version_major v > version_major bp3_version ->
-        err "E_VERSION_AHEAD"
-          (`Assoc [("binary", json_str bp3_version); ("repo", json_str v)])
-          "Repo was stamped by a newer MAJOR bp3; upgrade bp3 before writing." 1
-    | _ -> ()
+   Newer MINOR/PATCH only warns (warnings_of carries W_VERSION_AHEAD).
+   guard.1: it runs at the write itself (Gitx.write_guard, set at entry),
+   so no command shape can skip it; a call that writes nothing never
+   reaches it. *)
+let refuse_major_ahead () =
+  match version_ahead () with
+  | Some v when version_major v > version_major bp3_version ->
+      err "E_VERSION_AHEAD"
+        (`Assoc [("binary", json_str bp3_version); ("repo", json_str v)])
+        "Repo was stamped by a newer MAJOR bp3; upgrade bp3 before writing." 1
+  | _ -> ()
 
 let rec run argv =
   let base_id = identity () in
@@ -652,7 +647,6 @@ let rec run argv =
           | _ -> [])
      | None ->
          if edge_call && ctx_amb = None then ["W_CONTEXT_UNCLAIMED"] else []);
-  guard_write argv;
   match argv with
   | "-h" :: _ | "--help" :: _ -> print_string help_q; 0
   | "--version" :: _ -> print_endline bp3_version; 0
@@ -818,6 +812,7 @@ let rec run argv =
 
 let () =
   let argv = List.tl (Array.to_list Sys.argv) in
+  Gitx.write_guard := refuse_major_ahead;
   try exit (run argv)
   with Verdict (code, v) ->
     print_endline (Yojson.Safe.to_string (stamp_run_id v));
