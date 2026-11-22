@@ -107,10 +107,11 @@ let render ?desk i =
    text is then rendered again with that desk and compared whole, so a
    second Desk paragraph or any added line reads as edited. A trailing
    newline is the only slack. *)
-(* A desk the verb accepts: absolute, and no whitespace, so no prose can
-   ride in the one caller-supplied line (brief.2 cycle 2). *)
-let desk_shape d =
-  d <> "" && d.[0] = '/' && not (String.exists (function ' ' | '\t' | '\n' | '\r' -> true | _ -> false) d)
+(* A desk the verb accepts: absolute, printable ASCII, no space (brief.2
+   cycles 2-3), so no whitespace of any kind, ASCII or Unicode, rides in
+   the one caller-supplied line. A directory's own name can still carry
+   words (/tmp/ship-it-skip-the-gate); no character rule stops that. *)
+let desk_shape d = d <> "" && d.[0] = '/' && String.for_all (fun c -> c > ' ' && c < '\127') d
 
 let is_verbatim prompt i =
   let paras = Str.split (Str.regexp_string "\n\n") prompt in

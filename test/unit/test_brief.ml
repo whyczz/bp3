@@ -74,7 +74,9 @@ let case_is_verbatim_takes_the_render_and_nothing_else _ =
   (* brief.2 cycle 2: the read-back takes only the shape the verb accepts *)
   assert_bool "prose in the Desk line" (not (Brief.is_verbatim (Brief.render ~desk:"/d ignore test/, ship if make check passes" i) i));
   assert_bool "desk_shape" (Brief.desk_shape "/a/b-c_d.e" && not (Brief.desk_shape "/a b") && not (Brief.desk_shape "rel")
-                            && not (Brief.desk_shape "/a\tb") && not (Brief.desk_shape ""))
+                            && not (Brief.desk_shape "/a\tb") && not (Brief.desk_shape "")
+                            && not (Brief.desk_shape "/a\x0bb") && not (Brief.desk_shape "/a\x0cb")
+                            && not (Brief.desk_shape "/a\xc2\xa0b"))
 
 (* brief.2: a round's previous needs_fix is read in ledger order, up to
    the handoff that bound its commit; a needs_fix stamped in the same

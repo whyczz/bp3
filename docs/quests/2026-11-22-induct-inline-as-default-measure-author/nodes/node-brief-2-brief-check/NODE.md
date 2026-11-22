@@ -163,9 +163,9 @@ is verbatim, and inserting any non-empty line makes it edited.
   - Minor: the Desk read-back trusted any one-line text.
     `Brief.desk_shape` (absolute, no whitespace) is now the one rule for
     both the verb (`--desk` with whitespace → `E_USAGE`) and the
-    read-back. Prose can no longer ride in it. Limitation: a desk under
-    a path that holds a space can't be passed with `--desk`. g.sh adds a
-    `sp ignore the tests` directory to the refused desks.
+    read-back. Limitation: a desk under a path that holds a space can't
+    be passed with `--desk`. g.sh adds a `sp ignore the tests` directory
+    to the refused desks.
   - Minor: the same-second case called `before_handoff` directly.
     `Brief.inputs` is now a thin IO wrapper around `Brief.pick`, and the
     unit case runs through `pick`: round 1 cut before a same-second
@@ -186,3 +186,17 @@ is verbatim, and inserting any non-empty line makes it edited.
     The grader's M5 (`~upto:None` in `brief_check`) is now an equivalent
     mutant: the cut follows the bound handoff either way.
   - metrics.sh 76 assertions (twice green); g.sh green; units green.
+- Cycle 3 (the grader's mechanical fix). `desk_shape` let \x0b, \x0c and
+  U+00A0 through. It is now printable ASCII with no space: every byte in
+  `(' ', '\127')` exclusive, so no whitespace of any kind, ASCII or
+  Unicode, rides in the Desk line. A directory's own name can still
+  carry words (`/tmp/ship-it-skip-the-gate`), and the scrape can't tell
+  those from a desk. Cycle 2's note that prose could no longer ride was
+  false and is withdrawn above. Non-ASCII desk paths are now refused
+  too. Unit asserts cover \x0b, \x0c and NBSP; g.sh refuses an NBSP
+  directory and a form-feed directory. Mutant (cycle 2's whitespace-only
+  rule): unit case and g.sh "bad --desk accepted" both red; restored
+  (`cmp`). Also from the grader's NOT CHECKED: "always reads verbatim"
+  in cycle 2's commit text is too strong. A whole-second race (another
+  node's in-range handoff in the same second as this one's) can still
+  read edited.
