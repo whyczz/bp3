@@ -20,8 +20,8 @@ General coding in this repo does not need this skill.
 
 1. Read state first: `./bin/bp3 q r <quest>` (the rollup),
    `./bin/bp3 q r` (every quest), `./bin/bp3 q <quest> n <node> r`
-   (one node). Never read `state.yaml`, `ledger.jsonl`, or
-   `fsm.yaml` by hand to decide anything.
+   (one node). Never read `state.yaml` or `ledger.jsonl` by hand
+   to decide anything.
 2. Start a quest with `./bin/bp3 q c <quest> --type <goal_type>`,
    then each node with `./bin/bp3 q <quest> c <node>`. State is
    written to bp3's state branches (`bp3/quest/<quest>`,
@@ -29,10 +29,11 @@ General coding in this repo does not need this skill.
    and the node records are authored. `goal_type` is the plan in
    `plans/` (default: up to ten review rounds). Who executes (the
    engine) is not a `bp3 q` flag.
-3. Quest dependencies live in `fsm.yaml` as `depends_on: [...]`
-   (set at create with `--depends-on`). `handoff` refuses until
-   every dependency's stage is `landed`; the verdict JSON shows
-   `blocked_by`. Dependencies are by quest folder name.
+3. Dependencies are set at create with `--depends-on` (quest
+   deps by quest name on `q c`; node deps, same quest, on
+   `q <quest> c <node>`) and recorded in the ledger. `handoff`
+   refuses (`E_DEPENDENCY`, `facts.blocked_by`) until every
+   dependency is `landed`.
 4. Take only legal moves: the verdict JSON's `legal_edges`
    lists them, cast as `./bin/bp3 q <quest> n <node> e <edge>`.
    From todo, `handoff --commit <sha>`; from handed_off,
@@ -40,16 +41,18 @@ General coding in this repo does not need this skill.
    (one combined cast) or `verify`; from approved, `land`;
    `block` from any of the three. `resume` is human-only, and
    `delete` (`./bin/bp3 q <quest> d <node>`) is the owner's
-   call. Judgment moves need `--reason`; it is the move's commit
-   message. Verdicts bind to the exact current commit. A
+   call (the engine requires a human only to delete a blocked
+   node). Every move, `d` included, needs `--reason`; it is the
+   move's commit message. Verdicts bind to the exact current commit. A
    `needs_fix` below the cycle cap returns the node to todo; at
    the cap it escalates to blocked — do not work around it. A
    `--mechanical` `needs_fix` (an exact file, line and text fix,
    no judgment call) returns to todo at any cycle and never
    blocks.
 5. Commit work before handing it off. Only clean commits move:
-   `handoff` refuses dirty trees outside quest folders and
-   commits that do not descend from the recorded state.
+   `handoff` refuses any dirty working tree (`E_DIRTY_TREE`),
+   quest folders included, and binds only a commit that exists
+   (`E_COMMIT_MISMATCH`).
 6. Recover from the ledger, not from memory: after a dead
    session, `bp3 q r <quest>` rebuilds state from
    `ledger.jsonl`. Transcripts and tapes are evidence, never

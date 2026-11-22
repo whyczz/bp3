@@ -266,6 +266,7 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert test -z "$(grep -n '`cancel`' "$repo/$dir"/*/SKILL.md || true)"
   assert test -z "$(grep -nE 'q (show|list)|q create |--engine|bp3-writer' "$ub" "$iy" || true)"
   assert test -z "$(grep -n '^  writer, called by step children' "$iy" || true)"
+  assert test -z "$(grep -nE 'outside quest folders|descend from the recorded|live in .fsm\.yaml.|Judgment moves need' "$ub" || true)"
 done
 
 printf 'skills tests: ok (%s assertions)\n' "$checks"

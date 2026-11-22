@@ -125,3 +125,19 @@ space.
   after).
 - Left: CLAUDE.md = AGENTS.md still say "A reviewer who refactors takes
   a fix edge". It isn't a skill, so it's out of this node.
+
+## Round 2 (2026-11-21)
+
+The cycle-1 grader found `needs_fix`, mechanical, with three findings,
+all in using-bp3:
+- Step 5 claimed `handoff` exempts quest folders from the dirty check
+  and checks commit ancestry. It does neither (probed).
+- Step 3 said dependencies live in `fsm.yaml`. They're on the ledger's
+  create line, and node dependencies were left out.
+- Step 4 said only judgment moves need `--reason`. Every move does,
+  `d` included.
+
+Applied the grader's named text, plus its optional note that the engine
+requires a human only to delete a blocked node, and dropped `fsm.yaml`
+from step 1. Added the skills.sh guard it named against the four stale
+phrases, then re-rendered.
