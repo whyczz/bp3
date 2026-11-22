@@ -54,14 +54,19 @@ let ts_re = Str.regexp
     "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\\(\\.[0-9]+\\)?Z"
 let ts_ok s = Str.string_match ts_re s 0 && Str.match_end () = String.length s
 
-(* A model is a closed shape, not an id: claude-<lowercase>, or the
-   scraper's own "unknown" / "other". Anything else could be text
-   riding in a model field (QUEST.md R4). *)
+(* A model is a closed shape, not an id: a known family's prefix then
+   lowercase [a-z0-9.-], or the scraper's own "unknown" / "other".
+   Anything else could be text riding in a model field (QUEST.md R4);
+   pi-metrics reader.1 added the families pi reports beside claude-. *)
+let model_families = [ "claude-"; "gpt-"; "gemini-"; "grok-" ]
 let model_ok m =
   m = "unknown" || m = "other"
-  || (String.length m > 7 && String.length m <= 64 && String.starts_with ~prefix:"claude-" m
-      && String.for_all (function 'a' .. 'z' | '0' .. '9' | '.' | '-' -> true | _ -> false)
-           (String.sub m 7 (String.length m - 7)))
+  || (String.length m <= 64
+      && List.exists (fun p ->
+          let n = String.length p in
+          String.length m > n && String.starts_with ~prefix:p m
+          && String.for_all (function 'a' .. 'z' | '0' .. '9' | '.' | '-' -> true | _ -> false)
+               (String.sub m n (String.length m - n))) model_families)
 
 (* Error is (code, detail); Metrics_io raises it as a verdict. *)
 let validate s =
