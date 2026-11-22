@@ -65,8 +65,47 @@ let default_dirs () =
     Sys.readdir base |> Array.to_list |> List.sort compare |> List.filter ours
     |> List.map (Filename.concat base)
 
+(* pi names a session dir after its cwd too, by its own rule (pi docs
+   session-format.md): drop the leading separator, turn / \ : into -,
+   and wrap in --...--. Dots stay, so a desk is
+   --<repo>-.bp3-worktrees-<slug>--. pi writes the files flat in that
+   dir. Logical and real paths both match, as for Claude. *)
+let pi_slug p =
+  let p = if String.length p > 0 && (p.[0] = '/' || p.[0] = '\\') then String.sub p 1 (String.length p - 1) else p in
+  "--" ^ String.map (function '/' | '\\' | ':' -> '-' | c -> c) p ^ "--"
+
+let default_pi_dirs () =
+  let base = Filename.concat (match Sys.getenv_opt "HOME" with Some h -> h | None -> "") ".pi/agent/sessions" in
+  let m = main_root () in
+  let roots = List.sort_uniq compare [ m; (try Unix.realpath m with Unix.Unix_error _ -> m) ] in
+  let ours d = List.exists (fun r ->
+      let main = pi_slug r in
+      let desk = pi_slug (r ^ "/" ^ Layout.desks_root ^ "/") in   (* --<repo>-.bp3-worktrees---; less its -- *)
+      let desk_prefix = String.sub desk 0 (String.length desk - 2) in
+      d = main || (String.starts_with ~prefix:desk_prefix d && String.ends_with ~suffix:"--" d
+                   && String.length d > String.length desk_prefix + 2)) roots in
+  if not (Sys.file_exists base && Sys.is_directory base) then []
+  else
+    Sys.readdir base |> Array.to_list |> List.sort compare |> List.filter ours
+    |> List.map (Filename.concat base)
+
 let is_dir p = Sys.file_exists p && Sys.is_directory p
 let read_file p = In_channel.with_open_bin p In_channel.input_all
+
+let pi_files dir =
+  if not (is_dir dir) then []
+  else
+    Sys.readdir dir |> Array.to_list |> List.sort compare
+    |> List.filter (fun f -> Filename.check_suffix f ".jsonl")
+    |> List.map (Filename.concat dir)
+
+(* a pi session's run key: its header id, else the id in its file name
+   (<ts>_<id>.jsonl) *)
+let pi_run_of_path path (tx : Pi_tx.tx) =
+  if tx.session <> "" then "pi:" ^ tx.session
+  else
+    let b = Filename.chop_suffix (Filename.basename path) ".jsonl" in
+    "pi:" ^ (match String.index_opt b '_' with Some i -> String.sub b (i + 1) (String.length b - i - 1) | None -> b)
 
 let subagent_files dir =
   if not (is_dir dir) then []
@@ -116,38 +155,55 @@ let report_for path tx =
        | Some id -> List.assoc_opt id reports
        | None -> None)
 
-let grade_samples q node (sp : Metrics.grade_span) path (tx : Claude_tx.tx) (c : Claude_tx.cost) =
+let grade_samples q node (sp : Metrics.grade_span) ~run ~at (c : Claude_tx.cost) =
   let mk m v = { Metrics.metric = "grade." ^ m; quest = q; node; cycle = sp.g_cycle;
-                 run = run_of_path path tx; model = c.model; value = v; at = tx.last_ts;
+                 run; model = c.model; value = v; at;
                  source = Metrics.grade_transcripts.c_name } in
   let i = float_of_int in
   [ mk "wall_s" c.wall_s; mk "tool_calls" (i c.tool_calls); mk "context_end" (i c.context_end);
     mk "tokens_in" (i c.tokens_in); mk "tokens_out" (i c.tokens_out);
     mk "tokens_cache_read" (i c.tokens_cache_read); mk "tokens_cache_write" (i c.tokens_cache_write) ]
 
-(* One node: each grade span finds its transcript, or says why not.
-   A found transcript is checked against the harness report: agreeing
-   is "checked", disagreeing is "mismatched" and writes nothing, and
-   no report found is "unchecked" (written, flagged). *)
-let grade_pass q node edges txs =
+(* A grade transcript from any harness the scrape reads (pi-metrics
+   scrape.1): the join is the same for all, the check is the harness's. *)
+type grader = Claude of string * Claude_tx.tx | Pi of string * Pi_tx.tx
+
+let joins g ~node (sp : Metrics.grade_span) =
+  let prompt, first_ts, last_ts = match g with
+    | Claude (_, tx) -> (tx.first_prompt, tx.first_ts, tx.last_ts)
+    | Pi (_, tx) -> (tx.first_prompt, tx.first_ts, tx.last_ts) in
+  Claude_tx.prompt_names_grade prompt ~node ~commit:sp.g_commit
+  && Claude_tx.span_in_window ~first_ts ~last_ts ~handed_at:sp.handed_at ~graded_at:sp.graded_at
+
+(* One node: each grade span finds its transcript among every harness's,
+   or says why not. A Claude transcript is checked against the harness
+   report: agreeing is "checked", disagreeing is "mismatched" and writes
+   nothing, and no report found is "unchecked" (written, flagged). A pi
+   session has no report: one that agrees with itself is "self_checked"
+   (written), one that doesn't is "mismatched". *)
+let grade_pass q node edges graders =
   let spans = Metrics.grade_spans edges in
   List.fold_left (fun (batch, (t : Metrics.tally)) (sp : Metrics.grade_span) ->
       let t = { t with grades = t.grades + 1 } in
-      let hits = List.filter (fun (_, tx) ->
-          Claude_tx.names_grade tx ~node ~commit:sp.g_commit
-          && Claude_tx.in_window tx ~handed_at:sp.handed_at ~graded_at:sp.graded_at) (Lazy.force txs) in
-      match hits with
+      match List.filter (fun g -> joins g ~node sp) (Lazy.force graders) with
       | [] -> (batch, { t with owner_graded = t.owner_graded + 1 })
-      | [ (path, tx) ] ->
+      | [ Claude (path, tx) ] ->
           let c = Claude_tx.cost tx in
           let t = { t with skipped_lines = t.skipped_lines + tx.skipped_lines } in
+          let samples () = grade_samples q node sp ~run:(run_of_path path tx) ~at:tx.last_ts c in
           (* the check reads the lines the report covers; the samples
              keep the whole in-window cost, follow-up turns included *)
           let covered r = Claude_tx.parse ?until:(Claude_tx.seconds r.Claude_tx.r_at) (read_file path) in
           (match report_for path tx with
            | Some r when not (Claude_tx.checks (covered r) r) -> (batch, { t with mismatched = t.mismatched + 1 })
-           | Some _ -> (batch @ grade_samples q node sp path tx c, { t with checked = t.checked + 1 })
-           | None -> (batch @ grade_samples q node sp path tx c, { t with unchecked = t.unchecked + 1 }))
+           | Some _ -> (batch @ samples (), { t with checked = t.checked + 1 })
+           | None -> (batch @ samples (), { t with unchecked = t.unchecked + 1 }))
+      | [ Pi (path, tx) ] ->
+          let t = { t with skipped_lines = t.skipped_lines + tx.skipped_lines } in
+          if Pi_tx.self_checks tx then
+            (batch @ grade_samples q node sp ~run:(pi_run_of_path path tx) ~at:tx.last_ts (Pi_tx.cost tx),
+             { t with self_checked = t.self_checked + 1 })
+          else (batch, { t with mismatched = t.mismatched + 1 })
       | _ -> (batch, { t with ambiguous = t.ambiguous + 1 })) ([], Metrics.zero) spans
 
 (* ---------- author windows (scrape.2) ---------- *)
@@ -216,12 +272,14 @@ let author_pass q all sessions =
                  { one with authored = 1 })) found;
   out
 
-let scrape q ~dirs =
+let scrape q ~dirs ~pi_dirs =
   let nodes = Store.list_nodes q in
   let edges = List.map (fun n -> (n, Metrics.edges_of_text (node_text q n))) nodes in
   let all = List.concat_map (fun (n, es) -> List.map (fun e -> (n, e)) es) edges in
-  let txs = lazy (List.concat_map subagent_files dirs
-                  |> List.map (fun f -> (f, Claude_tx.parse (read_file f)))) in
+  let txs = lazy ((List.concat_map subagent_files dirs
+                   |> List.map (fun f -> Claude (f, Claude_tx.parse (read_file f))))
+                  @ (List.concat_map pi_files pi_dirs
+                     |> List.map (fun f -> Pi (f, Pi_tx.parse (read_file f))))) in
   let sessions = List.concat_map main_files dirs |> List.map (fun f -> Claude_tx.parse_session (read_file f)) in
   let authors = author_pass q all sessions in
   List.map (fun (node, es) ->
@@ -272,11 +330,11 @@ let view q =
                  | `Assoc fs -> `Assoc (fs @ [ ("rollup", Metrics.rollup_json (Metrics.rollup ~edges samples)) ])
                  | v -> v)) nodes)) ]
 
-let scrape_view q ~dirs =
-  let res = scrape q ~dirs in
+let scrape_view q ~dirs ~pi_dirs =
+  let res = scrape q ~dirs ~pi_dirs in
   (* a number bp3 could not check was not written: a finding, exit 1 *)
   let unwritten = List.exists (fun (_, (t : Metrics.tally)) -> t.mismatched > 0 || t.author_bad_usage > 0) res in
   (`Assoc [ ("ok", `Bool (not unwritten)); ("quest", json_str q);
-            ("dirs", `List (List.map json_str dirs));
+            ("dirs", `List (List.map json_str dirs)); ("pi_dirs", `List (List.map json_str pi_dirs));
             ("nodes", `Assoc (List.map (fun (n, t) -> (n, Metrics.tally_json t)) res)) ],
    if unwritten then 1 else 0)

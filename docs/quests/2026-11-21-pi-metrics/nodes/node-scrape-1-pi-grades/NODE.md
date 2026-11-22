@@ -118,3 +118,42 @@ Known cases: the trace above (self_checked, ambiguous across harnesses,
 mismatched), plus default dirs and a sibling repo left out.
 Property-based: the tally law gains `self_checked`, and the unit
 generator for tallies covers it.
+
+## Build notes (2026-11-21)
+
+- `Metrics_io.grader` is `Claude of path * Claude_tx.tx | Pi of path *
+  Pi_tx.tx`. `joins` applies the shared rules, which now live in
+  `Claude_tx.prompt_names_grade` and `Claude_tx.span_in_window`
+  (`names_grade` and `in_window` call them). `grade_pass` filters every
+  candidate: one Claude hit is checked as before; one pi hit is
+  `self_checked` if `Pi_tx.self_checks` passes, else `mismatched`; two or
+  more are `ambiguous`, whatever harness they came from.
+- `pi_slug` and `default_pi_dirs`: the repo's dir and
+  `--<repo>-.bp3-worktrees-<slug>--`, logical and real paths. A
+  `-.bp3-worktreesX--` dir and a sibling repo's dir are both left out
+  (tested). `pi_run_of_path` takes the header id, else the id in the
+  file name. The scrape JSON gains `pi_dirs`; `--pi-dir` and
+  `--claude-dir` each replace only their own default set.
+- `Metrics.tally.self_checked` is counted by `buckets_add_up` and
+  `tally_json`.
+- test/metrics.sh (60 assertions), q3:
+  - pa is self_checked with 7 samples (`run pi:grade-pa-1`, model
+    gpt-6.1-sol, tool_calls 1, tokens 220/15/40, context_end 165, wall
+    0.7);
+  - pb is claimed by both harnesses and reads ambiguous;
+  - pc has a total off by one, reads mismatched, and the scrape exits 1;
+  - the default pi dirs case passes.
+- Mutants:
+  - writing pi grades without their self-check fails metrics.sh
+    ("a bad total exits 1: want 1, got 0");
+  - dropping pi from the candidates fails it too.
+  An earlier run of the second mutant didn't compile (an unused
+  variable), so the run reported was redone with one that compiles.
+- Dogfood: a scrape of this quest finds reader.1's real pi grader
+  session (`pi:grade-node-reader-1-pi-session-c1-1795319246`) as
+  self_checked. Wall 150.563 s (152 s from outside), 20 tool calls,
+  tokens 63,918 / 2,979 / 602,240 / 0, context_end 49,500. pi's RPC
+  `get_session_stats` on that file gives the same calls and tokens. pi's
+  dollar cost for the grade: $0.218.
+- Also here, from reader.1's grader (minor): test_pi_tx gains the
+  absent-usage case its Tests section named.

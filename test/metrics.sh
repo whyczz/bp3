@@ -253,6 +253,54 @@ rc=0; out=$(q q2 metrics scrape --claude-dir "$work/claude2") || rc=$?
 expect "mismatch exits 1" 1 "$rc"
 expect "mismatch not ok" false "$(jq -r .ok <<< "$out")"
 expect "nd mismatched" 1 "$(jq -r .nodes.nd.mismatched <<< "$out")"
+
+# --- pi-metrics scrape.1: pi grader sessions join like Claude transcripts.
+# pa: one pi session names it -> self_checked, written as pi:<id>;
+# pb: a pi session and a Claude transcript both name it -> ambiguous;
+# pc: a pi session whose total is off by one -> mismatched, exit 1 ---
+pi_session() { # $1 dir $2 id $3 node $4 sha $5 second $6 total of the last line
+  mkdir -p "$1"
+  {
+    printf '{"type":"session","version":3,"id":"%s","timestamp":"%s.050Z","cwd":"/r"}\n' "$2" "$5"
+    printf '{"type":"message","id":"u1","parentId":null,"timestamp":"%s.100Z","message":{"role":"user","content":"Grade %s at %s."}}\n' "$5" "$3" "${4:0:7}"
+    printf '{"type":"message","id":"a1","parentId":"u1","timestamp":"%s.200Z","message":{"role":"assistant","model":"gpt-6.1-sol","provider":"openai","content":[{"type":"toolCall","id":"c1","name":"bash","arguments":{"command":"make check-full"}}],"usage":{"input":100,"output":10,"cacheRead":0,"cacheWrite":0,"totalTokens":110}}}\n' "$5"
+    printf '{"type":"message","id":"r1","parentId":"a1","timestamp":"%s.500Z","message":{"role":"toolResult","toolCallId":"c1","toolName":"bash","content":[],"isError":false}}\n' "$5"
+    printf '{"type":"message","id":"a2","parentId":"r1","timestamp":"%s.800Z","message":{"role":"assistant","model":"gpt-6.1-sol","provider":"openai","content":[{"type":"text","text":"VERDICT: ship"}],"usage":{"input":120,"output":5,"cacheRead":40,"cacheWrite":0,"totalTokens":%s}}}\n' "$5" "$6"
+  } > "$1/$5_$2.jsonl"
+}
+pi3="$work/pi3"; claude3="$work/claude3"; mkdir -p "$claude3"
+q c q3 >/dev/null
+for node in pa pb pc; do q q3 c "$node" >/dev/null; done
+for node in pa pb pc; do
+  sha=$(new_commit q3 "$node")
+  q q3 u "$node" handoff --commit "$sha" --reason work >/dev/null
+  sec=$(date -u +%Y-%m-%dT%H:%M:%S)
+  case "$node" in
+    pa) pi_session "$pi3" "grade-pa-1" pa "$sha" "$sec" 165 ;;
+    pb) pi_session "$pi3" "grade-pb-1" pb "$sha" "$sec" 165
+        transcript "$claude3/s7/subagents/agent-b1.jsonl" pb "$sha" "$sec" ;;
+    pc) pi_session "$pi3" "grade-pc-1" pc "$sha" "$sec" 166 ;;
+  esac
+  q q3 u "$node" grade --verdict ship --verify-verdict pass --reason ok >/dev/null
+done
+rc=0; out=$(q q3 metrics scrape --claude-dir "$claude3" --pi-dir "$pi3") || rc=$?
+expect "pi: a bad total exits 1" 1 "$rc"
+expect "pi: pi_dirs reported" "$pi3" "$(jq -r '.pi_dirs | join(",")' <<< "$out")"
+expect "pa self_checked, not checked" "1 0 0" "$(jq -r '.nodes.pa | "\(.self_checked) \(.checked) \(.unchecked)"' <<< "$out")"
+expect "pa written: 7 grade samples" 7 "$(jq -r .nodes.pa.written <<< "$out")"
+expect "pb claimed by pi and Claude: ambiguous" "1 0" "$(jq -r '.nodes.pb | "\(.ambiguous) \(.written)"' <<< "$out")"
+expect "pc bad total: mismatched, nothing written" "1 0" "$(jq -r '.nodes.pc | "\(.mismatched) \(.written)"' <<< "$out")"
+view=$(q q3 metrics r)
+expect "pa sample run and model" "pi:grade-pa-1 gpt-6.1-sol" "$(jq -r '.nodes.pa.cycles."1".grade | "\(.run) \(.model)"' <<< "$view")"
+expect "pa cost read from pi" "1 220 15 40 165" "$(jq -r '.nodes.pa.cycles."1".grade | "\(.tool_calls) \(.tokens_in) \(.tokens_out) \(.tokens_cache_read) \(.context_end)"' <<< "$view")"
+expect "pa wall: first user line to last entry" 0.7 "$(jq -r '.nodes.pa.cycles."1".grade.wall_s' <<< "$view")"
+
+# default pi dirs: pi's own naming of this repo and its desks, nothing else
+pslug="--$(git rev-parse --show-toplevel | sed 's#^/##; s#[/:\\]#-#g')--"
+pisessions="$HOME/.pi/agent/sessions"
+mkdir -p "$pisessions/$pslug" "$pisessions/${pslug%--}-.bp3-worktrees-q3--" "$pisessions/${pslug%--}-sibling--" "$pisessions/${pslug%--}-.bp3-worktreesX--"
+rc=0; out=$(q q3 metrics scrape --claude-dir "$claude3") || rc=$?
+expect "default pi dirs: the repo and its desk only" "$pisessions/$pslug,$pisessions/${pslug%--}-.bp3-worktrees-q3--" "$(jq -r '.pi_dirs | join(",")' <<< "$out")"
 expect "nd writes nothing" "$nd0" "$(git rev-list --count refs/heads/bp3/node/q2/nd)"
 
 echo "metrics tests: ok ($n assertions)"

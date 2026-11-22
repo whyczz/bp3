@@ -62,10 +62,15 @@ let case_self_check_fails_on_a_bad_total_a_missing_count_or_an_unpaired_call _ =
                           ~u:(`Assoc [ ("input", `Int 120); ("cacheRead", `Int 0); ("cacheWrite", `Int 0); ("totalTokens", `Int 120) ])
                           (120, 0, 0, 0)) grader in
   let unpaired = List.filteri (fun j _ -> j <> 4) grader in
+  (* an assistant message always carries usage: one without any is a bad read *)
+  let absent = swap 6 (msg ~id:"a2" ~ts:"2026-11-21T12:00:43.500Z"
+                         [ ("role", s "assistant"); ("model", s "gpt-6.1-sol"); ("content", `List []) ]) grader in
   List.iter (fun (name, lines) ->
       let tx = Pi_tx.parse (Gen.text lines) in
       assert_bool name (not (Pi_tx.self_checks tx)))
-    [ ("total off by one", off_by_one); ("a count missing", missing); ("a call with no result", unpaired) ];
+    [ ("total off by one", off_by_one); ("a count missing", missing); ("a call with no result", unpaired);
+      ("no usage at all", absent) ];
+  assert_equal ~printer:string_of_int 1 (Pi_tx.parse (Gen.text absent)).bad_usage;
   (* a bad line never counts as zero spend: it is left out and flagged *)
   let tx = Pi_tx.parse (Gen.text off_by_one) in
   assert_equal ~printer:string_of_int 1 tx.bad_usage;

@@ -172,7 +172,12 @@ let case_tally_buckets_add_up_to_the_grades _ =
   assert_bool "lost one" (not (Metrics.buckets_add_up { Metrics.zero with grades = 3; unchecked = 2 }));
   assert_bool "bad usage is a handoff bucket"
     (Metrics.buckets_add_up { Metrics.zero with handoffs = 2; authored = 1; author_bad_usage = 1 });
-  assert_bool "lost a handoff" (not (Metrics.buckets_add_up { Metrics.zero with handoffs = 2; authored = 1 }))
+  assert_bool "lost a handoff" (not (Metrics.buckets_add_up { Metrics.zero with handoffs = 2; authored = 1 }));
+  assert_bool "a self-checked pi grade is a grade bucket"
+    (Metrics.buckets_add_up { Metrics.zero with grades = 2; checked = 1; self_checked = 1 });
+  assert_equal ~printer:string_of_int 1
+    (match Metrics.tally_json { Metrics.zero with self_checked = 1 } with
+     | `Assoc fs -> (match List.assoc_opt "self_checked" fs with Some (`Int n) -> n | _ -> -1) | _ -> -1)
 
 (* ---------- the harness report (scrape.1) ---------- *)
 
