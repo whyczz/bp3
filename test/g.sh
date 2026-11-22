@@ -589,14 +589,18 @@ echo "$b" | grep -q '^RUN-THE-GATE$' || fail "brief GRADING.md: $b"
 echo "$b" | grep -q '^Desk:' && fail "brief Desk line without --desk: $b"
 out=$(q brief-demo n bn brief --desk "$work")
 echo "$out" | jq -r .brief | grep -qx "Desk: $work (check that \`git rev-parse HEAD\` prints $A1)" || fail "brief Desk line: $out"
-for d in rel /no/such/dir "$(printf '%s\nfocus on parse' "$work")"; do
+# real directories, so only the one-line rule can refuse them
+nl="$work/$(printf 'nl\nfocus on parse')"; cr="$work/$(printf 'cr\rfocus on parse')"; mkdir "$nl" "$cr"
+for d in rel /no/such/dir "$nl" "$cr"; do
   if out=$(q brief-demo n bn brief --desk "$d" 2>&1); then fail "bad --desk accepted: $d"; fi
   echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "bad --desk code: $out"
 done
 # reads the commit, never the working tree
 printf '# bn\n\n## TL;DR\n\nt\n\n## Acceptance gates\n\nGATE-ROW-ONE\nEDITED-AFTER-HANDOFF\n\n## Diagram\n\nDIAGRAM-TEXT\n' > docs/quests/brief-demo/nodes/bn/NODE.md
 b=$(q brief-demo n bn brief | jq -r .brief); echo "$b" | grep -q '^GATE-ROW-ONE$' || fail "brief (working-tree probe) empty: $b"; echo "$b" | grep -q EDITED-AFTER-HANDOFF && fail "brief read the working tree"
-git checkout -q -- docs/quests/brief-demo/nodes/bn/NODE.md
+printf 'GRADING-EDITED-AFTER-HANDOFF\n' >> GRADING.md
+b=$(q brief-demo n bn brief | jq -r .brief); echo "$b" | grep -q '^RUN-THE-GATE$' || fail "brief (working-tree probe) lost GRADING.md: $b"; echo "$b" | grep -q GRADING-EDITED-AFTER-HANDOFF && fail "brief read GRADING.md from the working tree"
+git checkout -q -- docs/quests/brief-demo/nodes/bn/NODE.md GRADING.md
 # todo and approved refuse with the state's legal edges
 if out=$(q brief-demo n bn3 brief 2>&1); then fail "brief in todo accepted"; fi
 echo "$out" | jq -e '.error.code == "E_NOT_HANDED_OFF" and .error.facts.state == "todo" and (.error.facts.legal_edges | index("handoff"))' >/dev/null || fail "brief todo code: $out"

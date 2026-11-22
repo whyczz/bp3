@@ -221,3 +221,11 @@ first line always names the node id and `commit[:7]`.
   first. Planted mutant (`Brief.inputs` reads the working tree instead
   of `git show`): g.sh red, "brief read the working tree"; restored
   (`cmp`), g.sh green, `make check` rc 0.
+- Cycle 3 (the grader's mechanical fix). The newline desk case could not
+  fail: the path didn't exist, so the existence check refused it first.
+  g.sh now makes real directories whose names hold `\n` and `\r`.
+  Mutants with the `\n` clause or the `\r` clause dropped: each g.sh red,
+  "bad --desk accepted". Also closed (cycle 2's NOT CHECKED): the
+  working-tree probe edits GRADING.md too. A mutant that reads only
+  GRADING.md from disk turns g.sh red, "brief read GRADING.md from the
+  working tree". All restored (`cmp`); g.sh green, `make check` rc 0.
