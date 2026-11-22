@@ -571,6 +571,54 @@ if out=$(q icebox c nope 2>&1); then fail "icebox write verb accepted"; fi
 echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "icebox write verb code: $out"
 [ "$(git status --porcelain)" = "$icebox_status_before" ] || fail "icebox command wrote to worktree"
 
+# --- brief (induct-inline-as-default brief.1): the grader's cold brief, from the bound commit ---
+q c brief-demo >/dev/null
+q brief-demo c bn >/dev/null; q brief-demo c bn2 >/dev/null; q brief-demo c bn3 >/dev/null
+mkdir -p docs/quests/brief-demo/nodes/bn
+printf '# bn\n\n## TL;DR\n\nt\n\n## Acceptance gates\n\nGATE-ROW-ONE\n\n## Diagram\n\nDIAGRAM-TEXT\n' > docs/quests/brief-demo/nodes/bn/NODE.md
+printf '# Grading\n\nRUN-THE-GATE\n' > GRADING.md
+git add -A; git commit -qm "bn: work"; A1=$(git rev-parse HEAD)   # -A: earlier sections leave fixtures untracked, and a handoff needs a clean tree
+q brief-demo n bn e handoff --commit "$A1" --reason "work" >/dev/null
+out=$(q brief-demo n bn brief)
+echo "$out" | jq -e --arg c "$A1" '.ok == true and .quest == "brief-demo" and .node == "bn" and .cycle == 1 and .commit == $c and (.brief | type == "string")' >/dev/null || fail "brief shape: $out"
+b=$(echo "$out" | jq -r .brief)
+[ "$(echo "$b" | head -1)" = "Grade bn at ${A1:0:7} (full SHA $A1) in quest brief-demo, cycle 1." ] || fail "brief join line: $b"
+echo "$b" | grep -q '^GATE-ROW-ONE$' || fail "brief gates: $b"
+echo "$b" | grep -q 'DIAGRAM-TEXT' && fail "brief leaks the next section: $b"
+echo "$b" | grep -q '^RUN-THE-GATE$' || fail "brief GRADING.md: $b"
+echo "$b" | grep -q '^Desk:' && fail "brief Desk line without --desk: $b"
+out=$(q brief-demo n bn brief --desk "$work")
+echo "$out" | jq -r .brief | grep -qx "Desk: $work (check that \`git rev-parse HEAD\` prints $A1)" || fail "brief Desk line: $out"
+for d in rel /no/such/dir "$(printf '%s\nfocus on parse' "$work")"; do
+  if out=$(q brief-demo n bn brief --desk "$d" 2>&1); then fail "bad --desk accepted: $d"; fi
+  echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "bad --desk code: $out"
+done
+# reads the commit, never the working tree
+printf 'EDITED-AFTER-HANDOFF\n' >> docs/quests/brief-demo/nodes/bn/NODE.md
+q brief-demo n bn brief | jq -r .brief | grep -q EDITED-AFTER-HANDOFF && fail "brief read the working tree"
+git checkout -q -- docs/quests/brief-demo/nodes/bn/NODE.md
+# todo and approved refuse with the state's legal edges
+if out=$(q brief-demo n bn3 brief 2>&1); then fail "brief in todo accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_HANDED_OFF" and .error.facts.state == "todo" and (.error.facts.legal_edges | index("handoff"))' >/dev/null || fail "brief todo code: $out"
+# cycle 2: range and other nodes' commits, never the needs_fix reason
+echo b2 > b2.txt; git add b2.txt; git commit -qm "bn2: work"; B2=$(git rev-parse HEAD)
+q brief-demo n bn2 e handoff --commit "$B2" --reason "work" >/dev/null
+q brief-demo n bn e grade --verdict needs_fix --mechanical --reason "SENTINEL-REASON row 1" >/dev/null
+echo fix > fix.txt; git add fix.txt; git commit -qm "bn: fix"; A2=$(git rev-parse HEAD)
+q brief-demo n bn e handoff --commit "$A2" --reason "fix" >/dev/null
+b=$(q brief-demo n bn brief | jq -r .brief)
+echo "$b" | head -1 | grep -q "cycle 2\.$" || fail "brief cycle 2 line: $b"
+echo "$b" | grep -qF "Previous round: ${A1:0:7} was graded needs_fix. Re-judge the gates in full; the change since is \`git diff ${A1:0:7}..${A2:0:7}\`." || fail "brief range: $b"
+echo "$b" | grep -qF "Other nodes' commits in that range: ${B2:0:7} (bn2)." || fail "brief others: $b"
+echo "$b" | grep -q SENTINEL-REASON && fail "brief quotes the author's --reason: $b"
+q brief-demo n bn2 e grade --verdict ship --verify-verdict pass --reason "ok" >/dev/null
+if out=$(q brief-demo n bn2 brief 2>&1); then fail "brief in approved accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_HANDED_OFF" and .error.facts.state == "approved"' >/dev/null || fail "brief approved code: $out"
+# the verb's word is reserved: no node can be named after it
+if out=$(q brief-demo c brief 2>&1); then fail "node named brief accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved brief code: $out"
+
+
 # --- version guard: minor-ahead warns and writes; major-ahead refuses writes ---
 stamp_ledger() { # $1 quest $2 node $3 version
   local br="bp3/node/$1/$2" path="docs/quests/$1/nodes/$2/ledger.jsonl" tip idx led blob tree nt
