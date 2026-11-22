@@ -345,6 +345,14 @@ let case_casts_handoff_by_the_result_commit_or_a_command_prefix_inside_the_windo
   let literal = Claude_tx.parse_session (Gen.text [
       session_line ~ts:"2026-11-21T12:59:59.000Z" ~id:"w9" ~tools:[ ("t9", "bp3 q quest1 u b handoff --commit bbbbbbb1") ] (1, 1, 1, 1) ]) in
   assert_bool "command names the commit" (casts literal "b" sha);
+  (* measure.1 cycle 2: the node may be a variable the same command sets, as the quest may *)
+  let var cmd = Claude_tx.parse_session (Gen.text [
+      session_line ~ts:"2026-11-21T12:59:59.000Z" ~id:"w7" ~tools:[ ("t7", cmd) ] (1, 1, 1, 1) ]) in
+  assert_bool "n $N set to b" (casts (var "Q=quest1; N=b; bp3 q $Q n $N e handoff --commit bbbbbbb1") "b" sha);
+  assert_bool "n \"${N}\" set to b" (casts (var "N=b; bp3 q quest1 n \"${N}\" e handoff --commit bbbbbbb1") "b" sha);
+  assert_bool "u $N set to b" (casts (var "N=b; bp3 q quest1 u $N handoff --commit bbbbbbb1") "b" sha);
+  assert_bool "N set to another node" (not (casts (var "N=a; bp3 q quest1 n $N e handoff --commit bbbbbbb1") "b" sha));
+  assert_bool "N never set" (not (casts (var "bp3 q quest1 n $N e handoff --commit bbbbbbb1") "b" sha));
   (* grader probe (round 1): a later read that greps the same words *)
   let later = Claude_tx.parse_session (Gen.text [
       session_line ~ts:"2026-11-21T14:00:00.000Z" ~id:"r1" ~tools:[ ("r1t", "./bin/bp3 q quest1 n b r | grep handoff") ] (1, 1, 1, 1);
@@ -572,7 +580,7 @@ let trace_session = Claude_tx.parse_session (String.concat "\n" [
     a_line ~id:"w3" "10:07:00";
     a_line ~id:"w4" ~tools:[ "t3" ] "10:07:10";
     r_line ~tool:"t3" "10:07:40";
-    a_line ~id:"w5" ~tools:[ "t9" ] "10:07:20" ])
+    a_line ~id:"w5" ~tools:[ "t9" ] "10:07:05" ])
 
 let times ~from ~upto = Claude_tx.window_times trace_session ~from:(secs from) ~upto:(secs upto)
 let triple (w : Claude_tx.window_times) = Printf.sprintf "%g %g %g" w.t_wall w.t_active w.t_tool
@@ -583,7 +591,27 @@ let case_author_window_times_follow_the_trace _ =
   assert_equal ~printer:Fun.id "7660 155 60" (triple (times ~from:"08:00:00" ~upto:"10:07:40"));
   (* an end_turn as the window's last line adds nothing *)
   assert_equal ~printer:Fun.id "150 115 30" (triple (times ~from:"10:00:00" ~upto:"10:02:30"))
-  (* t9 (10:07:20) has no result: it adds nothing to the 60 above, a lower bound *)
+  (* t9 (10:07:05) has no result: it adds nothing to the 60 above, a lower bound *)
+
+let case_author_pass_writes_the_window_times _ =
+  let cast hms = jl [ ("type", `String "assistant"); ("timestamp", `String (at hms)); ("isSidechain", `Bool false);
+                      ("sessionId", `String "s1");
+                      ("message", `Assoc [ ("id", `String "w4"); ("model", `String "claude-opus-5-5"); ("stop_reason", `String "tool_use");
+                                           ("content", `List [ `Assoc [ ("type", `String "tool_use"); ("id", `String "t3"); ("name", `String "Bash");
+                                                                        ("input", `Assoc [ ("command", `String "bp3 q q1 n nd e handoff --commit abc1234") ]) ] ]);
+                                           ("usage", `Assoc [ ("input_tokens", `Int 1); ("output_tokens", `Int 1);
+                                                              ("cache_read_input_tokens", `Int 0); ("cache_creation_input_tokens", `Int 0) ]) ]) ] in
+  let s = Claude_tx.parse_session (String.concat "\n" [
+      a_line ~id:"w1" ~tools:[ "t1"; "t2" ] "10:00:05"; r_line ~tool:"t2" "10:00:20"; r_line ~tool:"t1" "10:00:35";
+      a_line ~id:"w2" ~stop:"end_turn" "10:02:00"; a_line ~id:"w3" "10:07:00"; cast "10:07:10"; r_line ~tool:"t3" "10:07:40" ]) in
+  let edge ts e c = { Metrics.e_ts = "2026-11-22T" ^ ts ^ "Z"; e_edge = e; e_cycle = 1; e_commit = c; e_to = "" } in
+  let all = [ ("nd", edge "10:00:00" "create" None); ("nd", edge "10:07:40" "handoff" (Some "abc1234def5678abc1234def5678abc1234def56")) ] in
+  let out = Metrics_io.author_pass "q1" all [ s ] in
+  let samples, (t : Metrics.tally) = Hashtbl.find out "nd" in
+  let v m = match List.find_opt (fun (x : Metrics.sample) -> x.metric = m) samples with
+    | Some x -> Printf.sprintf "%g" x.value | None -> "-" in
+  assert_equal ~printer:string_of_int 1 t.authored;
+  assert_equal ~printer:Fun.id "460 155 60" (String.concat " " (List.map v [ "author.wall_s"; "author.active_s"; "author.tool_s" ]))
 
 let case_grade_tool_time_is_the_union_of_paired_calls _ =
   let tx = Claude_tx.parse (String.concat "\n" [
@@ -655,5 +683,6 @@ let () =
        QCheck_ounit.to_ounit2_test law_sink_text_round_trips;
        "case_author_window_times_follow_the_trace" >:: case_author_window_times_follow_the_trace;
        "case_grade_tool_time_is_the_union_of_paired_calls" >:: case_grade_tool_time_is_the_union_of_paired_calls;
+       "case_author_pass_writes_the_window_times" >:: case_author_pass_writes_the_window_times;
        QCheck_ounit.to_ounit2_test law_author_times_are_ordered;
      ] @ pending_tests)

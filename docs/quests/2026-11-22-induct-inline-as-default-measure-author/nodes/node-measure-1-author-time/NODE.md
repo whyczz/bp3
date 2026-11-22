@@ -200,3 +200,35 @@ call durations.
   Active is close to wall because no human was in the loop.
 - Scrape cost of the wider parse: 1.21 s before, 1.25 s after, the same
   clone and dirs (67 MB of main sessions).
+- Cycle 2: the grader's two mechanical fixes, plus two fixes the
+  dogfood found.
+  - Grader fix 1: t9 moves to 10:07:05, outside t3's span, so a count
+    of unpaired calls would show.
+  - Grader fix 2: `case_author_pass_writes_the_window_times` drives
+    `Metrics_io.author_pass` and asserts 460 / 155 / 60 on the scrape
+    path. The metrics.sh window is 0 s wide, so it couldn't.
+  - Dogfood: this quest's first two casts named the node as `n $N`, and
+    both author windows read `author_missing`. `Claude_tx.casts_node` now
+    accepts the node, like the quest, as a shell variable the same
+    command sets.
+  - Dogfood: measure.1's own grade read `ambiguous`. brief.1's cycle-2
+    brief lists "954bb16 (node-measure-1-author-time)" in its previous
+    round and ran inside measure.1's window. `Metrics_io.claimants`:
+    when several transcripts claim a grade, the single one whose first
+    line names node and commit (`Claude_tx.join_line_names`) wins. A
+    lone claimant still joins anywhere in its prompt, because 8 of this
+    session's 18 older hand-written briefs open with "You are a fresh…".
+  - Tests: metrics.sh pd (join line beats a later mention: self_checked
+    1, ambiguous 0) and pe (a lone claimant below the first line still
+    joins); 67 assertions.
+  - Mutants, each red then restored (`cmp`):
+    - unpaired author calls counted to `upto`: the trace case;
+    - author times written as 0: the author_pass case;
+    - node must be literal: the casts case;
+    - tie-break removed: metrics.sh pd;
+    - join line read as the whole prompt: metrics.sh pd.
+    A first run of the zero-times mutant didn't compile (an unused
+    variable), so the run counted here is the one that does.
+  - Re-scrape of this quest with the fix: brief.1 c1 author 753 s
+    (active 752.8, tool 325.6), measure.1 c1 author 561 s (active 560.5,
+    tool 133.7); measure.1 c1 grade checked, 633 s wall, 75 s tools.

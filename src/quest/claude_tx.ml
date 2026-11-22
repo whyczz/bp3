@@ -207,6 +207,14 @@ let span_in_window ~first_ts ~last_ts ~handed_at ~graded_at =
   | Some a, Some b, Some h, Some g -> a >= h && b < g +. 1.
   | _ -> false
 
+(* The brief's join line (brief.1): its first line names the node and
+   the commit. When several transcripts claim one grade, the one whose
+   first line does wins (measure.1 cycle 2: a cycle-2 brief lists other
+   nodes' commits by node id, so it claims their grades too). *)
+let join_line_names prompt ~node ~commit =
+  let first = match String.index_opt prompt '\n' with Some i -> String.sub prompt 0 i | None -> prompt in
+  prompt_names_grade first ~node ~commit
+
 let names_grade tx ~node ~commit = prompt_names_grade tx.first_prompt ~node ~commit
 
 let in_window tx ~handed_at ~graded_at =
@@ -374,26 +382,31 @@ let shown t key =
       from 0)
     [ "\"" ^ key ^ "\":\""; "\"" ^ key ^ "\": \"" ]
 
-(* The command casts this quest's node: it holds `q <Q> n <node> e
-   handoff` or `q <Q> u|update <node> handoff`, and <Q> is the quest,
-   or a shell variable ($Q, "$Q", ${Q}) the same command sets to it.
-   A node named anywhere else (a --reason, a read) is not the cast. *)
+(* The command casts this quest's node: it holds `q <Q> n <N> e
+   handoff` or `q <Q> u|update <N> handoff`, where <Q> is the quest and
+   <N> the node, each spelled out or as a shell variable ($Q, "$Q",
+   ${Q}) the same command sets to it (induct-inline-as-default measure.1:
+   this quest's first two casts used `n $N`). A node named anywhere else
+   (a --reason, a read) is not the cast. *)
 let casts_node command ~quest ~node =
-  let n = Str.quote node in
-  let re = Str.regexp ("\\(^\\|[ \t;&|(]\\)q[ \t]+\\([^ \t;&|]+\\)[ \t]+\\(n[ \t]+" ^ n ^ "[ \t]+e\\|u[ \t]+" ^ n
-                       ^ "\\|update[ \t]+" ^ n ^ "\\)[ \t]+handoff\\($\\|[ \t;&|)]\\)") in
-  let names_quest tok =
-    tok = quest
+  let tok = "\\([^ \t;&|]+\\)" in
+  let re = Str.regexp ("\\(^\\|[ \t;&|(]\\)q[ \t]+" ^ tok ^ "[ \t]+\\(n[ \t]+" ^ tok ^ "[ \t]+e\\|\\(u\\|update\\)[ \t]+"
+                       ^ tok ^ "\\)[ \t]+handoff\\($\\|[ \t;&|)]\\)") in
+  let names value tok =
+    tok = value
     || (let strip = List.fold_left (fun s (p, q) ->
             if String.length s >= String.length p + String.length q && String.starts_with ~prefix:p s
                && String.ends_with ~suffix:q s
             then String.sub s (String.length p) (String.length s - String.length p - String.length q) else s) in
         let var = strip tok [ ("\"", "\""); ("$", ""); ("{", "}") ] in
         var <> tok && var <> "" && String.for_all (function 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' -> true | _ -> false) var
-        && List.exists (fun v -> has_word command (var ^ "=" ^ v)) [ quest; "\"" ^ quest ^ "\""; "'" ^ quest ^ "'" ]) in
+        && List.exists (fun v -> has_word command (var ^ "=" ^ v)) [ value; "\"" ^ value ^ "\""; "'" ^ value ^ "'" ]) in
+  let group g = try Some (Str.matched_group g command) with Not_found | Invalid_argument _ -> None in
   let rec from i = match (try Some (Str.search_forward re command i) with Not_found -> None) with
     | None -> false
-    | Some k -> names_quest (Str.matched_group 2 command) || from (k + 1) in
+    | Some k ->
+        let q = group 2 and n = (match group 4 with Some n -> Some n | None -> group 6) in
+        (match q, n with Some q, Some n -> names quest q && names node n | _ -> false) || from (k + 1) in
   from 0
 
 (* The session that cast a handoff made a Bash call that casts this

@@ -265,11 +265,11 @@ expect "nd mismatched" 1 "$(jq -r .nodes.nd.mismatched <<< "$out")"
 # pa: one pi session names it -> self_checked, written as pi:<id>;
 # pb: a pi session and a Claude transcript both name it -> ambiguous;
 # pc: a pi session whose total is off by one -> mismatched, exit 1 ---
-pi_session() { # $1 dir $2 id $3 node $4 sha $5 second $6 total of the last line
+pi_session() { # $1 dir $2 id $3 node $4 sha $5 second $6 total of the last line [$7 prompt, JSON-escaped]
   mkdir -p "$1"
   {
     printf '{"type":"session","version":3,"id":"%s","timestamp":"%s.050Z","cwd":"/r"}\n' "$2" "$5"
-    printf '{"type":"message","id":"u1","parentId":null,"timestamp":"%s.100Z","message":{"role":"user","content":"Grade %s at %s."}}\n' "$5" "$3" "${4:0:7}"
+    printf '{"type":"message","id":"u1","parentId":null,"timestamp":"%s.100Z","message":{"role":"user","content":"%s"}}\n' "$5" "${7:-Grade $3 at ${4:0:7}.}"
     printf '{"type":"message","id":"a1","parentId":"u1","timestamp":"%s.200Z","message":{"role":"assistant","model":"gpt-6.1-sol","provider":"openai","content":[{"type":"toolCall","id":"c1","name":"bash","arguments":{"command":"make check-full"}}],"usage":{"input":100,"output":10,"cacheRead":0,"cacheWrite":0,"totalTokens":110}}}\n' "$5"
     printf '{"type":"message","id":"r1","parentId":"a1","timestamp":"%s.500Z","message":{"role":"toolResult","toolCallId":"c1","toolName":"bash","content":[],"isError":false}}\n' "$5"
     printf '{"type":"message","id":"a2","parentId":"r1","timestamp":"%s.800Z","message":{"role":"assistant","model":"gpt-6.1-sol","provider":"openai","content":[{"type":"text","text":"VERDICT: ship"}],"usage":{"input":120,"output":5,"cacheRead":40,"cacheWrite":0,"totalTokens":%s}}}\n' "$5" "$6"
@@ -277,8 +277,8 @@ pi_session() { # $1 dir $2 id $3 node $4 sha $5 second $6 total of the last line
 }
 pi3="$work/pi3"; claude3="$work/claude3"; mkdir -p "$claude3"
 q c q3 >/dev/null
-for node in pa pb pc; do q q3 c "$node" >/dev/null; done
-for node in pa pb pc; do
+for node in pa pb pc pd pe; do q q3 c "$node" >/dev/null; done
+for node in pa pb pc pd pe; do
   sha=$(new_commit q3 "$node")
   q q3 u "$node" handoff --commit "$sha" --reason work >/dev/null
   sec=$(date -u +%Y-%m-%dT%H:%M:%S)
@@ -287,6 +287,12 @@ for node in pa pb pc; do
     pb) pi_session "$pi3" "grade-pb-1" pb "$sha" "$sec" 165
         transcript "$claude3/s7/subagents/agent-b1.jsonl" pb "$sha" "$sec" ;;
     pc) pi_session "$pi3" "grade-pc-1" pc "$sha" "$sec" 166 ;;
+    # measure.1 cycle 2: pd's own grader names it on its first line; another
+    # brief names pd's commit only further down (its previous-round part)
+    pd) pi_session "$pi3" "grade-pd-1" pd "$sha" "$sec" 165
+        pi_session "$pi3" "grade-px-1" pd "$sha" "$sec" 165 "Grade px at 1111111 in quest q3, cycle 2.\\nOther nodes' commits in that range: ${sha:0:7} (pd)." ;;
+    # an older hand-written brief: node and commit below the first line, alone
+    pe) pi_session "$pi3" "grade-pe-1" pe "$sha" "$sec" 165 "You are a fresh grader.\\nGrade pe at ${sha:0:7}." ;;
   esac
   q q3 u "$node" grade --verdict ship --verify-verdict pass --reason ok >/dev/null
 done
@@ -297,6 +303,8 @@ expect "pa self_checked, not checked" "1 0 0" "$(jq -r '.nodes.pa | "\(.self_che
 expect "pa written: 8 grade samples" 8 "$(jq -r .nodes.pa.written <<< "$out")"
 expect "pb claimed by pi and Claude: ambiguous" "1 0" "$(jq -r '.nodes.pb | "\(.ambiguous) \(.written)"' <<< "$out")"
 expect "pc bad total: mismatched, nothing written" "1 0" "$(jq -r '.nodes.pc | "\(.mismatched) \(.written)"' <<< "$out")"
+expect "pd: the join line beats a later mention" "1 0" "$(jq -r '.nodes.pd | "\(.self_checked) \(.ambiguous)"' <<< "$out")"
+expect "pe: a lone claimant still joins below the first line" "1 0" "$(jq -r '.nodes.pe | "\(.self_checked) \(.ambiguous)"' <<< "$out")"
 view=$(q q3 metrics r)
 expect "pa sample run and model" "pi:grade-pa-1 gpt-6.1-sol" "$(jq -r '.nodes.pa.cycles."1".grade | "\(.run) \(.model)"' <<< "$view")"
 expect "pa cost read from pi" "1 220 15 40 165" "$(jq -r '.nodes.pa.cycles."1".grade | "\(.tool_calls) \(.tokens_in) \(.tokens_out) \(.tokens_cache_read) \(.context_end)"' <<< "$view")"

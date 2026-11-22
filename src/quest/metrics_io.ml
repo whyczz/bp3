@@ -176,6 +176,17 @@ let joins g ~node (sp : Metrics.grade_span) =
   Claude_tx.prompt_names_grade prompt ~node ~commit:sp.g_commit
   && Claude_tx.span_in_window ~first_ts ~last_ts ~handed_at:sp.handed_at ~graded_at:sp.graded_at
 
+let join_line g ~node (sp : Metrics.grade_span) =
+  let prompt = match g with Claude (_, tx) -> tx.first_prompt | Pi (_, tx) -> tx.first_prompt in
+  Claude_tx.join_line_names prompt ~node ~commit:sp.g_commit
+
+(* Several claimants: the single one whose first line is the join line
+   wins; otherwise the grade stays ambiguous. *)
+let claimants graders ~node sp =
+  match List.filter (fun g -> joins g ~node sp) graders with
+  | (_ :: _ :: _) as cs -> (match List.filter (fun g -> join_line g ~node sp) cs with [ g ] -> [ g ] | _ -> cs)
+  | cs -> cs
+
 (* One node: each grade span finds its transcript among every harness's,
    or says why not. A Claude transcript is checked against the harness
    report: agreeing is "checked", disagreeing is "mismatched" and writes
@@ -186,7 +197,7 @@ let grade_pass q node edges graders =
   let spans = Metrics.grade_spans edges in
   List.fold_left (fun (batch, (t : Metrics.tally)) (sp : Metrics.grade_span) ->
       let t = { t with grades = t.grades + 1 } in
-      match List.filter (fun g -> joins g ~node sp) (Lazy.force graders) with
+      match claimants (Lazy.force graders) ~node sp with
       | [] -> (batch, { t with owner_graded = t.owner_graded + 1 })
       | [ Claude (path, tx) ] ->
           let c = Claude_tx.cost tx in
