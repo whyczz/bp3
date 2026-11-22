@@ -193,6 +193,14 @@ let claimants graders ~node sp =
    nothing, and no report found is "unchecked" (written, flagged). A pi
    session has no report: one that agrees with itself is "self_checked"
    (written), one that doesn't is "mismatched". *)
+(* brief.2: was the joined grader's first prompt the brief bp3 renders
+   for that handoff? Evidence beside the buckets: it never changes what
+   is written, nor the exit code. *)
+let brief_check q node (sp : Metrics.grade_span) prompt (t : Metrics.tally) =
+  let i = Brief.inputs ~quest:q ~node ~cycle:sp.g_cycle ~commit:sp.g_commit ~upto:(Some sp.handed_at) in
+  if Brief.is_verbatim prompt i then { t with brief_verbatim = t.brief_verbatim + 1 }
+  else { t with brief_edited = t.brief_edited + 1 }
+
 let grade_pass q node edges graders =
   let spans = Metrics.grade_spans edges in
   List.fold_left (fun (batch, (t : Metrics.tally)) (sp : Metrics.grade_span) ->
@@ -208,13 +216,13 @@ let grade_pass q node edges graders =
           let covered r = Claude_tx.parse ?until:(Claude_tx.seconds r.Claude_tx.r_at) (read_file path) in
           (match report_for path tx with
            | Some r when not (Claude_tx.checks (covered r) r) -> (batch, { t with mismatched = t.mismatched + 1 })
-           | Some _ -> (batch @ samples (), { t with checked = t.checked + 1 })
-           | None -> (batch @ samples (), { t with unchecked = t.unchecked + 1 }))
+           | Some _ -> (batch @ samples (), brief_check q node sp tx.first_prompt { t with checked = t.checked + 1 })
+           | None -> (batch @ samples (), brief_check q node sp tx.first_prompt { t with unchecked = t.unchecked + 1 }))
       | [ Pi (path, tx) ] ->
           let t = { t with skipped_lines = t.skipped_lines + tx.skipped_lines } in
           if Pi_tx.self_checks tx then
             (batch @ grade_samples q node sp ~run:(pi_run_of_path path tx) ~at:tx.last_ts (Pi_tx.cost tx),
-             { t with self_checked = t.self_checked + 1 })
+             brief_check q node sp tx.first_prompt { t with self_checked = t.self_checked + 1 })
           else (batch, { t with mismatched = t.mismatched + 1 })
       | _ -> (batch, { t with ambiguous = t.ambiguous + 1 })) ([], Metrics.zero) spans
 

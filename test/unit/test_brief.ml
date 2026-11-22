@@ -56,6 +56,50 @@ let case_missing_files_are_named_not_hidden _ =
   let ng = Brief.render { base with node_md = Some "# x\n\n## TL;DR\n\nt\n" } in
   assert_bool "no gates" (has ng "(NODE.md at abc1234 has no Acceptance gates section: that is a finding)")
 
+(* brief.2: the prompt is the render, exactly; the Desk paragraph is
+   read back only in its rendered form and place. *)
+let case_is_verbatim_takes_the_render_and_nothing_else _ =
+  let i = { base with cycle = 2; prev = Some "1111111aaaa" } in
+  let r = Brief.render ~desk:"/the/desk" i in
+  assert_bool "render with a desk" (Brief.is_verbatim r i);
+  assert_bool "render without a desk" (Brief.is_verbatim (Brief.render i) i);
+  assert_bool "a trailing newline more or less" (Brief.is_verbatim (r ^ "\n\n") i && Brief.is_verbatim (String.sub r 0 (String.length r - 1)) i);
+  assert_bool "one added line" (not (Brief.is_verbatim (r ^ "Focus on parse.ml only.\n") i));
+  let paras = Str.split (Str.regexp_string "\n\n") r in
+  let join ps = String.concat "\n\n" ps in
+  let insert k p = join (List.filteri (fun j _ -> j < k) paras @ [ p ] @ List.filteri (fun j _ -> j >= k) paras) in
+  assert_bool "a second Desk paragraph" (not (Brief.is_verbatim (insert 4 "Desk: /x (check that `git rev-parse HEAD` prints abc)") i));
+  assert_bool "a Desk paragraph naming another commit" (not (Brief.is_verbatim (Brief.render ~desk:"/d" { i with commit = String.make 40 'f' }) i));
+  assert_bool "the previous round dropped" (not (Brief.is_verbatim (Brief.render ~desk:"/the/desk" base) i))
+
+(* brief.2: a round's previous needs_fix is read in ledger order, up to
+   the handoff that bound its commit; a needs_fix stamped in the same
+   second as that handoff came after it. *)
+let case_previous_round_is_cut_at_the_bound_handoff _ =
+  let e ts edge commit to_ = { Metrics.e_ts = "2026-11-22T10:00:" ^ ts ^ "Z"; e_edge = edge; e_cycle = 1;
+                               e_commit = Some commit; e_to = to_ } in
+  let edges = [ e "00" "create" "" "todo"; e "05" "handoff" "c1" "handed_off"; e "05" "grade" "c1" "todo";
+                e "09" "handoff" "c2" "handed_off" ] in
+  let prev commit upto = Brief.last_needs_fix (Brief.before_handoff ~commit ~upto:(Some upto) edges) in
+  assert_equal ~printer:(Option.value ~default:"none") None (prev "c1" "2026-11-22T10:00:05Z");
+  assert_equal ~printer:(Option.value ~default:"none") (Some "c1") (prev "c2" "2026-11-22T10:00:09Z");
+  assert_equal ~printer:(Option.value ~default:"none") (Some "c1")
+    (Brief.last_needs_fix (Brief.before_handoff ~commit:"c2" ~upto:None edges))
+
+(* Law: any absolute one-line desk renders verbatim; any added paragraph
+   anywhere after the join line reads as edited. *)
+let law_is_verbatim_exact =
+  let open QCheck2.Gen in
+  let seg = string_size ~gen:(char_range 'a' 'z') (int_range 1 6) in
+  let path = list_size (int_range 1 4) seg >|= fun ss -> "/" ^ String.concat "/" ss in
+  QCheck2.Test.make ~count:300 ~name:"law_is_verbatim_exact" (triple path seg (int_range 1 10))
+    (fun (desk, word, k) ->
+       let r = Brief.render ~desk base in
+       let paras = Str.split (Str.regexp_string "\n\n") r in
+       let k = 1 + (k mod (List.length paras - 1)) in
+       let edited = String.concat "\n\n" (List.filteri (fun j _ -> j < k) paras @ [ "Also " ^ word ^ "." ] @ List.filteri (fun j _ -> j >= k) paras) in
+       Brief.is_verbatim r base && not (Brief.is_verbatim edited base))
+
 (* Law: the gates part is the section verbatim, and the first line
    always carries the join key (node id and the commit's first 7). *)
 let law_gates_verbatim_and_join_line =
@@ -81,4 +125,7 @@ let () =
        "case_cycle_two_shows_the_range_and_other_nodes_never_a_reason" >:: case_cycle_two_shows_the_range_and_other_nodes_never_a_reason;
        "case_missing_files_are_named_not_hidden" >:: case_missing_files_are_named_not_hidden;
        QCheck_ounit.to_ounit2_test law_gates_verbatim_and_join_line;
+       "case_is_verbatim_takes_the_render_and_nothing_else" >:: case_is_verbatim_takes_the_render_and_nothing_else;
+       QCheck_ounit.to_ounit2_test law_is_verbatim_exact;
+       "case_previous_round_is_cut_at_the_bound_handoff" >:: case_previous_round_is_cut_at_the_bound_handoff;
      ])

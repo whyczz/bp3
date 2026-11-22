@@ -101,6 +101,24 @@ let render ?desk i =
      @ [ grading; verdict_shape ])
   ^ "\n"
 
+(* brief.2: the prompt a grader got is the brief bp3 rendered, exactly.
+   The one part the caller supplies, the Desk paragraph, is read back
+   only in its exact rendered form and position (after the rules); the
+   text is then rendered again with that desk and compared whole, so a
+   second Desk paragraph or any added line reads as edited. A trailing
+   newline is the only slack. *)
+let is_verbatim prompt i =
+  let paras = Str.split (Str.regexp_string "\n\n") prompt in
+  let pre = "Desk: " and post = " (check that `git rev-parse HEAD` prints " ^ i.commit ^ ")" in
+  let desk = match List.nth_opt paras 3 with
+    | Some p when String.starts_with ~prefix:pre p && String.ends_with ~suffix:post p
+                  && not (String.contains p '\n') ->
+        Some (String.sub p (String.length pre) (String.length p - String.length pre - String.length post))
+    | _ -> None in
+  let trim s = let n = ref (String.length s) in
+    while !n > 0 && s.[!n - 1] = '\n' do decr n done; String.sub s 0 !n in
+  trim prompt = trim (render ?desk i)
+
 (* ---------- inputs: the ledgers and git, as of a stamp ---------- *)
 
 let node_edges q n = match Store.fold_node q n with
@@ -117,12 +135,24 @@ let last_needs_fix edges =
       if (e.e_edge = "grade" || e.e_edge = "verify") && (e.e_to = "todo" || e.e_to = "blocked")
       then (match e.e_commit with Some c -> Some c | None -> acc) else acc) None edges
 
+(* The node's own edges before the handoff that bound this commit, in
+   ledger order (brief.2): a needs_fix cast in the same second as that
+   handoff came after it, and stamps can't tell. Without such a
+   handoff, the edges stamped at or before upto. *)
+let before_handoff ~commit ~upto edges =
+  let rec go acc cut = function
+    | [] -> cut
+    | (e : Metrics.edge) :: rest ->
+        let cut = if e.e_edge = "handoff" && e.e_commit = Some commit && by upto e then Some (List.rev acc) else cut in
+        go (e :: acc) cut rest in
+  match go [] None edges with Some pre -> pre | None -> List.filter (by upto) edges
+
 let rev_range a b =
   let out, code = Gitx.git_out [ "rev-list"; a ^ ".." ^ b ] in
   if code <> 0 then [] else List.filter (fun s -> s <> "") (String.split_on_char '\n' out)
 
 let inputs ~quest ~node ~cycle ~commit ~upto =
-  let mine = List.filter (by upto) (node_edges quest node) in
+  let mine = before_handoff ~commit ~upto (node_edges quest node) in
   let prev = last_needs_fix mine in
   let others = match prev with
     | None -> []

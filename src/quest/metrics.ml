@@ -186,12 +186,13 @@ type tally = {
   skipped_lines : int;
   handoffs : int; authored : int; author_missing : int; author_ambiguous : int;
   author_bad_usage : int;
+  brief_verbatim : int; brief_edited : int;   (* brief.2: beside the buckets, never one of them *)
 }
 
 let zero = { grades = 0; checked = 0; unchecked = 0; self_checked = 0; ambiguous = 0;
              mismatched = 0; owner_graded = 0; written = 0; skipped = 0; skipped_lines = 0;
              handoffs = 0; authored = 0; author_missing = 0; author_ambiguous = 0;
-             author_bad_usage = 0 }
+             author_bad_usage = 0; brief_verbatim = 0; brief_edited = 0 }
 
 let buckets_add_up t =
   t.checked + t.unchecked + t.self_checked + t.ambiguous + t.mismatched + t.owner_graded = t.grades
@@ -205,7 +206,8 @@ let tally_json t =
            ("skipped_lines", `Int t.skipped_lines);
            ("handoffs", `Int t.handoffs); ("authored", `Int t.authored);
            ("author_missing", `Int t.author_missing); ("author_ambiguous", `Int t.author_ambiguous);
-           ("author_bad_usage", `Int t.author_bad_usage) ]
+           ("author_bad_usage", `Int t.author_bad_usage);
+           ("brief_verbatim", `Int t.brief_verbatim); ("brief_edited", `Int t.brief_edited) ]
 
 (* ---------- the node-cost deriver (derive.1) ---------- *)
 

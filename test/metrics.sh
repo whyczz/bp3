@@ -311,6 +311,42 @@ expect "pa cost read from pi" "1 220 15 40 165" "$(jq -r '.nodes.pa.cycles."1".g
 expect "pa wall: first user line to last entry" 0.7 "$(jq -r '.nodes.pa.cycles."1".grade.wall_s' <<< "$view")"
 expect "pa tool time: toolCall to toolResult" 0.3 "$(jq -r '.nodes.pa.cycles."1".grade.tool_s' <<< "$view")"
 
+# --- brief.2: each joined grade says whether its brief was bp3's own ---
+pi_brief() { # $1 dir $2 id $3 second $4 prompt (raw text; jq escapes it)
+  mkdir -p "$1"
+  { jq -cn --arg id "$2" --arg ts "$3.050Z" '{type:"session",version:3,id:$id,timestamp:$ts,cwd:"/r"}'
+    jq -cn --arg ts "$3.100Z" --arg p "$4" '{type:"message",id:"u1",parentId:null,timestamp:$ts,message:{role:"user",content:$p}}'
+    printf '{"type":"message","id":"a1","parentId":"u1","timestamp":"%s.200Z","message":{"role":"assistant","model":"gpt-6.1-sol","provider":"openai","content":[{"type":"toolCall","id":"c1","name":"bash","arguments":{"command":"make check-full"}}],"usage":{"input":100,"output":10,"cacheRead":0,"cacheWrite":0,"totalTokens":110}}}\n' "$3"
+    printf '{"type":"message","id":"r1","parentId":"a1","timestamp":"%s.500Z","message":{"role":"toolResult","toolCallId":"c1","toolName":"bash","content":[],"isError":false}}\n' "$3"
+    printf '{"type":"message","id":"a2","parentId":"r1","timestamp":"%s.800Z","message":{"role":"assistant","model":"gpt-6.1-sol","provider":"openai","content":[{"type":"text","text":"VERDICT: ship"}],"usage":{"input":120,"output":5,"cacheRead":40,"cacheWrite":0,"totalTokens":165}}}\n' "$3"
+  } > "$1/$3_$2.jsonl"
+}
+pi4="$work/pi4"
+q c q4 >/dev/null
+for node in va vb vc vd; do q q4 c "$node" >/dev/null; mkdir -p "docs/quests/q4/nodes/$node"
+  printf '# %s\n\n## Acceptance gates\n\nGATE %s\n\n## Diagram\n\nx\n' "$node" "$node" > "docs/quests/q4/nodes/$node/NODE.md"; done
+printf '# Grading\n\nRun the gate.\n' > GRADING.md
+git add -A; git commit -qm "q4 nodes"; c4=$(git rev-parse HEAD)
+brief4() { q q4 n "$1" brief --desk "$work" | jq -r .brief; }
+for node in va vb vc vd; do q q4 u "$node" handoff --commit "$c4" --reason work >/dev/null; done
+sec=$(date -u +%Y-%m-%dT%H:%M:%S)
+pi_brief "$pi4" grade-va-1 "$sec" "$(brief4 va)"
+pi_brief "$pi4" grade-vb-1 "$sec" "$(brief4 vb)
+Focus on parse.ml only."
+pi_brief "$pi4" grade-vc-1 "$sec" "$(brief4 vc)"   # vc's first round: graded, then sent back
+q q4 u vc grade --verdict needs_fix --mechanical --reason "SENTINEL-REASON" >/dev/null
+echo fix > vc-fix.txt; git add vc-fix.txt; git commit -qm "vc: fix"; c4b=$(git rev-parse HEAD)
+q q4 u vc handoff --commit "$c4b" --reason fix >/dev/null
+sec2=$(date -u +%Y-%m-%dT%H:%M:%S)
+pi_brief "$pi4" grade-vc-2 "$sec2" "$(brief4 vc)"
+for node in va vb vc vd; do q q4 u "$node" grade --verdict ship --verify-verdict pass --reason ok >/dev/null; done
+rc=0; out=$(q q4 metrics scrape --claude-dir "$work/no-claude" --pi-dir "$pi4") || rc=$?
+expect "brief check never fails the scrape" 0 "$rc"
+expect "va: the rendered brief, desk included: verbatim" "1 1 0" "$(jq -r '.nodes.va | "\(.self_checked) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
+expect "vb: one added line: edited, grade still written" "1 0 1 8" "$(jq -r '.nodes.vb | "\(.self_checked) \(.brief_verbatim) \(.brief_edited) \(.written)"' <<< "$out")"
+expect "vc: each round rendered as of its own handoff: both verbatim" "2 2 0" "$(jq -r '.nodes.vc | "\(.self_checked) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
+expect "vd: owner-graded: neither" "1 0 0" "$(jq -r '.nodes.vd | "\(.owner) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
+
 # default pi dirs: pi's own naming of this repo and its desks, nothing else
 pslug="--$(git rev-parse --show-toplevel | sed 's#^/##; s#[/:\\]#-#g')--"
 pisessions="$HOME/.pi/agent/sessions"

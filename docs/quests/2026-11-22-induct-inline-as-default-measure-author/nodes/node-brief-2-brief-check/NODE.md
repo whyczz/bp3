@@ -103,3 +103,47 @@ Known cases: the trace above, plus a pi grader (the prompt is the `-p`
 argument) and a Claude subagent (the Agent prompt). Property-based: for
 generated briefs, a prompt equal to the render with any `Desk:` line
 is verbatim, and inserting any non-empty line makes it edited.
+
+## Build notes (2026-11-22)
+
+- `Brief.is_verbatim prompt inputs`: the comparison is exact after the
+  render. The one caller part, the Desk paragraph, is read back only in
+  its rendered form and place (paragraph 4, one line, naming the bound
+  commit). The brief is rendered again with that desk and compared
+  whole, so a second Desk paragraph or any added line reads as edited.
+  The one slack is trailing newlines.
+- `Metrics_io.brief_check`: a joined grade that is written (checked,
+  unchecked, self_checked) renders its brief with
+  `Brief.inputs ~upto:(Some handed_at)` and counts `brief_verbatim` or
+  `brief_edited`. Mismatched, ambiguous and owner-graded grades count
+  neither. The counts sit beside the buckets in `Metrics.tally`;
+  `buckets_add_up` and the exit code are unchanged.
+- Found while building, fixed in `Brief.inputs`: the previous round was
+  cut by stamp (`e_ts <= upto`). A needs_fix cast in the same second as
+  the handoff then joined that round's render and read as edited.
+  `Brief.before_handoff` cuts in ledger order at the handoff that bound
+  the commit. Real grades take minutes, but stamps are whole seconds.
+- Tests:
+  - `test_brief.ml`: `case_is_verbatim_takes_the_render_and_nothing_else`
+    (desk and no desk, trailing newline, an added line, a second Desk
+    paragraph, a Desk naming another commit, a dropped previous round),
+    `law_is_verbatim_exact` (300 runs: any absolute one-line desk is
+    verbatim; any added paragraph is edited), and
+    `case_previous_round_is_cut_at_the_bound_handoff` (the same-second
+    needs_fix);
+  - metrics.sh q4, 72 assertions: va verbatim with a desk; vb one added
+    line → edited, 8 samples still written; vc both rounds verbatim,
+    each rendered as of its own handoff; vd owner → neither; scrape
+    rc 0.
+- Mutants, each red then restored (`cmp`):
+  - always verbatim: unit case, law, metrics.sh vb;
+  - never verbatim: unit case, law, metrics.sh va;
+  - desk never read back: unit case, law, metrics.sh va;
+  - no cut at the bound handoff: the same-second unit case. metrics.sh vc
+    catches it only when the cast shares the handoff's second, which is
+    timing luck, so the unit case is the guard.
+- Dogfood:
+  - this quest's scrape reads 5 of 5 grades `brief_verbatim`. Every
+    Agent prompt was copied from `bp3 … brief` by hand, and none slipped;
+  - pi-metrics in the scratch clone (hand-written briefs) reads 3 of 3
+    `brief_edited`, as the table says for old quests.
