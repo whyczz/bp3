@@ -214,3 +214,10 @@ first line always names the node id and `commit[:7]`.
 - The order changed: brief.1 went first (first in `ready`). The quest's
   first stacked land is therefore brief.1's, cast after measure.1's
   handoff, so the probe runs before measure.1's handoff.
+- Cycle 2 (the grader's mechanical fix). The working-tree probe could not
+  fail: the edit landed after `## Diagram`, outside the gates, and the
+  probe never checked the brief was non-empty. It now rewrites NODE.md
+  with `EDITED-AFTER-HANDOFF` inside the gates and asserts `GATE-ROW-ONE`
+  first. Planted mutant (`Brief.inputs` reads the working tree instead
+  of `git show`): g.sh red, "brief read the working tree"; restored
+  (`cmp`), g.sh green, `make check` rc 0.
