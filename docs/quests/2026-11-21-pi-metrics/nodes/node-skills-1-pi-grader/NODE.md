@@ -77,3 +77,22 @@ pi grader is a fresh process with no authoring context. `--tools
 read,bash` keeps it from editing. It can still write through bash, so
 the brief keeps the "no edits, no commits, no bp3 q calls" line, and
 the conductor checks that the desk is clean before casting.
+
+## Build notes (2026-11-21)
+
+- induct-inline's grade section gains a **pi grader** bullet: the
+  command, the same cold brief whose first line names the node id and
+  sha7, `--tools read,bash`, a clean desk before casting, one session per
+  grade with a fresh `--session-id`, the printed text cast as returned,
+  and `self_checked` in the scrape. The "how it differs" table names
+  both grader runtimes.
+- test/skills.sh: 5 new assertions × 4 dirs (source and renders). Each
+  pattern is absent from master's induct-inline (checked one by one).
+  261 assertions in total.
+- Renders: `bp3 skills install --harness=all` with `BP3_COMPLETIONS_DIR`
+  in scratch. The global `_bp3` was untouched (Nov 20 16:26 before and
+  after).
+- Also here, from scrape.1's grader (minor): scrape.1's Tests section no
+  longer claims a tally generator.
+- This quest followed the bullet by hand since reader.1: reader.1's and
+  scrape.1's grades were headless pi runs (152 s and 110 s).

@@ -54,14 +54,19 @@ let ts_re = Str.regexp
     "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\\(\\.[0-9]+\\)?Z"
 let ts_ok s = Str.string_match ts_re s 0 && Str.match_end () = String.length s
 
-(* A model is a closed shape, not an id: claude-<lowercase>, or the
-   scraper's own "unknown" / "other". Anything else could be text
-   riding in a model field (QUEST.md R4). *)
+(* A model is a closed shape, not an id: a known family's prefix then
+   lowercase [a-z0-9.-], or the scraper's own "unknown" / "other".
+   Anything else could be text riding in a model field (QUEST.md R4);
+   pi-metrics reader.1 added the families pi reports beside claude-. *)
+let model_families = [ "claude-"; "gpt-"; "gemini-"; "grok-" ]
 let model_ok m =
   m = "unknown" || m = "other"
-  || (String.length m > 7 && String.length m <= 64 && String.starts_with ~prefix:"claude-" m
-      && String.for_all (function 'a' .. 'z' | '0' .. '9' | '.' | '-' -> true | _ -> false)
-           (String.sub m 7 (String.length m - 7)))
+  || (String.length m <= 64
+      && List.exists (fun p ->
+          let n = String.length p in
+          String.length m > n && String.starts_with ~prefix:p m
+          && String.for_all (function 'a' .. 'z' | '0' .. '9' | '.' | '-' -> true | _ -> false)
+               (String.sub m n (String.length m - n))) model_families)
 
 (* Error is (code, detail); Metrics_io raises it as a verdict. *)
 let validate s =
@@ -166,31 +171,34 @@ let author_spans ~node all =
                a_from = (if from = "" then e.e_ts else from); a_upto = e.e_ts }) all
 
 (* What one scrape did to one node. Every grade lands in exactly one
-   outcome bucket (checked, unchecked, ambiguous, mismatched, owner),
+   outcome bucket (checked, unchecked, self_checked, ambiguous,
+   mismatched, owner): self_checked is a pi grade that agreed with
+   itself (Pi_tx.self_checks), never with a separate report,
    and every handoff in one (authored, author_missing,
    author_ambiguous, author_bad_usage); written and skipped count
    samples; skipped_lines counts transcript lines the reader could not
    use (never read as 0). author_bad_usage is the author side of
    mismatched: a window holding a usage-less line writes nothing. *)
 type tally = {
-  grades : int; checked : int; unchecked : int; ambiguous : int;
+  grades : int; checked : int; unchecked : int; self_checked : int; ambiguous : int;
   mismatched : int; owner_graded : int; written : int; skipped : int;
   skipped_lines : int;
   handoffs : int; authored : int; author_missing : int; author_ambiguous : int;
   author_bad_usage : int;
 }
 
-let zero = { grades = 0; checked = 0; unchecked = 0; ambiguous = 0;
+let zero = { grades = 0; checked = 0; unchecked = 0; self_checked = 0; ambiguous = 0;
              mismatched = 0; owner_graded = 0; written = 0; skipped = 0; skipped_lines = 0;
              handoffs = 0; authored = 0; author_missing = 0; author_ambiguous = 0;
              author_bad_usage = 0 }
 
 let buckets_add_up t =
-  t.checked + t.unchecked + t.ambiguous + t.mismatched + t.owner_graded = t.grades
+  t.checked + t.unchecked + t.self_checked + t.ambiguous + t.mismatched + t.owner_graded = t.grades
   && t.authored + t.author_missing + t.author_ambiguous + t.author_bad_usage = t.handoffs
 
 let tally_json t =
   `Assoc [ ("grades", `Int t.grades); ("checked", `Int t.checked); ("unchecked", `Int t.unchecked);
+           ("self_checked", `Int t.self_checked);
            ("ambiguous", `Int t.ambiguous); ("mismatched", `Int t.mismatched);
            ("owner", `Int t.owner_graded); ("written", `Int t.written); ("skipped", `Int t.skipped);
            ("skipped_lines", `Int t.skipped_lines);

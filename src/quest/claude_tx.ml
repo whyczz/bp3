@@ -157,13 +157,21 @@ let find_from s i sub =
 
 let contains s sub = find_from s 0 sub <> None
 
-let names_grade tx ~node ~commit =
-  String.length commit >= 7 && contains tx.first_prompt node && contains tx.first_prompt (String.sub commit 0 7)
+(* The grade join's two rules, on any harness's transcript (pi-metrics
+   scrape.1): the first prompt names the node and the commit's first 7
+   characters, and the transcript lies inside [handoff, grade + 1s). *)
+let prompt_names_grade prompt ~node ~commit =
+  String.length commit >= 7 && contains prompt node && contains prompt (String.sub commit 0 7)
 
-let in_window tx ~handed_at ~graded_at =
-  match seconds tx.first_ts, seconds tx.last_ts, seconds handed_at, seconds graded_at with
+let span_in_window ~first_ts ~last_ts ~handed_at ~graded_at =
+  match seconds first_ts, seconds last_ts, seconds handed_at, seconds graded_at with
   | Some a, Some b, Some h, Some g -> a >= h && b < g +. 1.
   | _ -> false
+
+let names_grade tx ~node ~commit = prompt_names_grade tx.first_prompt ~node ~commit
+
+let in_window tx ~handed_at ~graded_at =
+  span_in_window ~first_ts:tx.first_ts ~last_ts:tx.last_ts ~handed_at ~graded_at
 
 (* The harness report (scrape.1): each time a subagent stops, the
    harness queues a <task-notification> to the parent session with a

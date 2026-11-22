@@ -272,4 +272,16 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -q '^   node dependency is `landed` or `deleted`' "$ub"
 done
 
+# pi-metrics skills.1: induct-inline names pi as a grader runtime, with
+# the command, one session per grade, the join's first line, and the
+# verdict cast as printed. In the source and every render.
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  ii="$repo/$dir/induct-inline/SKILL.md"
+  assert grep -q '^  `pi -p --tools read,bash --session-id <fresh id> "<cold brief>"`\.$' "$ii"
+  assert grep -q '^  session per grade: a fresh `--session-id` each time, never$' "$ii"
+  assert grep -q 'whose first line names the node id$' "$ii"
+  assert grep -q 'The verdict is the printed text, cast as returned\.' "$ii"
+  assert grep -q 'one fresh grader: a subagent, or a headless pi when the owner names it' "$ii"
+done
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"

@@ -31,7 +31,7 @@ Design trace (unit, synthetic sessions, no real transcript in the repo):
 session: header {id "g1", cwd "/r"}, system, user "Grade nd at abc1234.", assistant (toolCall t1 bash, usage 100/10/0/0, total 110),
          toolResult t1, usage entry (cacheRead 50), assistant (text, usage 120/5/0/0, total 125)
 Pi_tx.parse -> {session "g1"; cwd "/r"; first_prompt "Grade nd at abc1234."; first_ts; last_ts; tool calls [t1]; bad 0}
-Pi_tx.cost  -> {tool_calls 1; tokens_in 220; tokens_out 15; tokens_cache_read 50; context_end 120; model "gpt-6.1-sol"}
+Pi_tx.cost  -> {tool_calls 1; tokens_in 220; tokens_out 15; tokens_cache_read 50; context_end 125; model "gpt-6.1-sol"}
 self_checks -> true; total 111 instead of 110 -> false; toolResult t1 removed -> false; a count missing -> false
 model_ok "gpt-6.1-sol", "claude-opus-5-5", "gemini-3-pro", "grok-5" -> true; "sk-proj-abc", "GPT-6", "gpt 6" -> false
 ```
@@ -72,7 +72,7 @@ def parse(text):
 def cost(tx):   # same record as Claude_tx.cost
     last = last assistant usage
     return dict(wall_s=secs(tx.last_ts) - secs(tx.first_ts), tool_calls=len(tx.tool_calls),
-                context_end=last.input + last.cacheRead + last.cacheWrite,
+                context_end=last.input + last.cacheRead + last.cacheWrite + last.output,
                 tokens_*=sum over usages, model=family_or_other(last.model))
 
 def self_checks(tx): return tx.bad == 0 and set(tx.tool_calls) <= tx.tool_results
@@ -112,7 +112,7 @@ the model field must never carry free text or a key (QUEST.md R4 of
 metric-collectors). `sk-proj-...` still reads as `other`.
 
 Context end follows Claude's definition (the last assistant's prompt
-size: input plus cache read plus cache write), so the two harnesses'
+size plus its output: input, cache read, cache write and output), so the two harnesses'
 numbers mean the same thing.
 
 ## Tests
@@ -122,3 +122,33 @@ Known cases: the trace above, plus a junk line (counted in
 (bad). Property-based: for any generated list of usage lines, the cost's
 token sums equal the sums of the lines, and `self_checks` is false
 whenever one total is off.
+
+## Build notes (2026-11-21)
+
+- `src/quest/pi_tx.ml`: `parse`, `self_checks`, `cost`. Usage-bearing
+  entries are assistant messages, tool results with `usage`, and any
+  other entry carrying `usage` (`usage`, compaction, branch summary). A
+  usage that lacks a count, or whose `totalTokens` isn't the sum of the
+  four, is `bad_usage`: left out and flagged, never read as 0.
+- `context_end` is the last assistant's input + cacheRead + cacheWrite +
+  output, which is Claude_tx.cost's meaning. The first draft of this
+  record left out output; that's fixed above.
+- `Metrics.model_ok` takes `model_families` (`claude-`, `gpt-`, `gemini-`,
+  `grok-`). pi's local `mlx-local` models read as `other`.
+- Real data, read-only:
+  - the totals law holds on all 850 usage lines in ~/.pi (openai,
+    mlx-local, compactions);
+  - every `toolCall` has its `toolResult` except one interrupted call in
+    one old session, which the self-check rightly fails.
+- Oracle, by hand. pi's `/session` prints nothing in print mode, but RPC
+  mode's `get_session_stats` gives pi's own totals with no model call
+  and leaves the file unchanged. Both checks used the rule `Pi_tx`
+  implements:
+  - the probe session matches exactly (5046 / 5 / 0 / 0, 5051);
+  - bp3's largest pi session (866 lines, with compactions) matches
+    exactly: 298 assistant messages, 517 tool calls, input 1,589,336,
+    output 296,080, cacheRead 33,388,032, total 35,273,448.
+  The comparison ran jq over the files, not the OCaml reader; the unit
+  tests tie the reader to the rule.
+- This finding bears on Open question 3: `get_session_stats` is a free,
+  independent oracle a scrape could call.
