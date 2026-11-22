@@ -200,3 +200,9 @@ is verbatim, and inserting any non-empty line makes it edited.
   in cycle 2's commit text is too strong. A whole-second race (another
   node's in-range handoff in the same second as this one's) can still
   read edited.
+- Cycle 4 (the grader's mechanical fix). The `--desk` refusal still said
+  "with no whitespace", so a caller with an absolute, existing,
+  space-free but non-ASCII path couldn't follow the guidance. The detail
+  now names the rule: "printable ASCII with no space". g.sh asserts the
+  NBSP refusal's detail names it. Mutant (the old text): g.sh "--desk
+  refusal text"; restored (`cmp`). g.sh green, `make check` rc 0.

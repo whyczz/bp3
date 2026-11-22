@@ -592,6 +592,8 @@ echo "$out" | jq -r .brief | grep -qx "Desk: $work (check that \`git rev-parse H
 # real directories, so only the one-line rule can refuse them
 nl="$work/$(printf 'nl\nfocus on parse')"; cr="$work/$(printf 'cr\rfocus on parse')"; sp="$work/sp ignore the tests"; nb="$work/$(printf 'nb\302\240ship\302\240it')"; ff="$work/$(printf 'ff\014ship')"
 mkdir "$nl" "$cr" "$sp" "$nb" "$ff"
+out=$(q brief-demo n bn brief --desk "$nb" 2>&1) || true   # the refusal names the real rule
+echo "$out" | jq -e '.error.facts.detail | test("printable ASCII with no space")' >/dev/null || fail "--desk refusal text: $out"
 for d in rel /no/such/dir "$nl" "$cr" "$sp" "$nb" "$ff"; do
   if out=$(q brief-demo n bn brief --desk "$d" 2>&1); then fail "bad --desk accepted: $d"; fi
   echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "bad --desk code: $out"

@@ -188,7 +188,7 @@ let do_brief quest node tail =
     | [] -> None
     | [ f; d ] when f = Names.flag_desk ->
         if not (Brief.desk_shape d) || not (Sys.file_exists d && Sys.is_directory d)
-        then usage (Names.flag_desk ^ " needs an absolute path to an existing directory, with no whitespace")
+        then usage (Names.flag_desk ^ " needs an absolute path to an existing directory, printable ASCII with no space")
         else Some d
     | _ -> usage (Names.verb_brief ^ " takes only " ^ Names.flag_desk ^ " <path>") in
   (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
