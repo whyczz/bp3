@@ -178,3 +178,10 @@ Other changes:
     `metrics r` or `desk list`; only `metrics scrape` emits them. The
     report's sources now name the last scrape's output, and the readout
     line says which item comes from where.
+- Cycle 3 (the grader's mechanical fix). The constraints-class and
+  no-grader park rows were pinned by label only, so a mutant that makes
+  an unattended run fix an owner-class `needs_fix` stayed green. Both
+  rows are now pinned whole. Mutant A (the constraints row says "fix it
+  here, commit, hand off again") and mutant B (no park at `handed_off`)
+  now each turn skills.sh red; restored (`cmp`); 443 assertions;
+  shellcheck ok.
