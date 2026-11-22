@@ -178,7 +178,8 @@ and the land fixture covers one shape, the one the skill creates.
   (Nov 20 16:26 before and after).
 - Dogfood: this quest ran the rule by hand from brief.1 on. 9 grades
   were cast, all `checked` and all `brief_verbatim`. Overlap happened
-  once; after that, deps serialized the railway. Ledger stamps, quoted
+  in four author windows while measure.1 and brief.1 were both open;
+  after both landed, deps serialized the railway. Ledger stamps, quoted
   from the two nodes' ledgers (read for evidence, not state), with the
   grader's own transcript stamps:
 
@@ -188,12 +189,16 @@ and the land fixture covers one shape, the one the skill creates.
   | 21:27:45 – 21:32:47 | brief.1 c1 grader transcript (302 s), while measure.1 is authored |
   | 21:36:14 | measure.1 c1 `handoff` (954bb16), the cast boundary |
   | 21:36:43 | brief.1 c1 `grade` needs_fix cast, after the boundary |
+  | 21:36:37 – 21:47:10 | measure.1 c1 grader, while brief.1 c2 [21:36:43, 21:38:23] and c3 [21:44:11, 21:46:27] are authored |
+  | 21:46:47 – 21:53:29 | brief.1 c3 grader, while measure.1 c2 [21:47:32, 21:51:39] is authored |
   | 21:53:43 | brief.1 `land` (b2e0165, cycle 3) |
   | 21:59:53 | measure.1 `land` (acbab8b, cycle 2) |
 
   measure.1's c1 author window is [21:26:53, 21:36:14], 561 s, and no
-  edge falls inside it. brief.1's grade ran entirely inside it, so the
-  overlap saved that grade's 302 s of author wait.
+  edge falls inside it. brief.1's grade ran entirely inside it, so that
+  grade saved 302 s of author wait. With the other three overlaps
+  (100 s, 136 s, 247 s) the total is about 785 s, and every cast still
+  fell at a cast boundary.
 - Cycle 2 (the grader's mechanical fixes):
   - skills.sh gains 10 lines per dir: verify-then-cast (HEAD at the
     bound commit, empty status), the void verdict and the next
@@ -207,3 +212,6 @@ and the land fixture covers one shape, the one the skill creates.
   - g.sh's stack-order line couldn't fail; it now checks the quest
     branch tip is sb.
   Each new skills.sh line was checked absent from master's text.
+- Cycle 3 (the grader's mechanical fix): the dogfood note now counts all
+  four overlapped author windows (about 785 s), not one (302 s). The
+  stamps come from the node ledgers and the grader transcripts.
