@@ -336,6 +336,15 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -q '^- One quest per invocation and one session per quest; fleets are$' "$iiy"
   assert grep -q '^`induct-inline-yolo` to run one quest this way with no human$' "$ii"
   assert grep -q '^with no human present, use `induct-inline-yolo`\.$' "$iy"
+  # skills.2 cycle 2 (grader): the budget stop, the scope-change park, the report's items and sources
+  assert grep -q '^  | scope change or acceptance-gate edit | the owner.s call | park |$' "$iiy"
+  assert grep -qF 'When it is spent, start no new author step and no new grade' "$iiy"
+  assert grep -q '^- nodes at `node_fin`' "$iiy"
+  assert grep -q '^- parked nodes, each with its reason' "$iiy"
+  assert grep -q '^- the metrics readout:' "$iiy"
+  assert grep -q '^- desks still open' "$iiy"
+  assert grep -qF '`bp3 q <quest> metrics r`, the last `bp3 q <quest> metrics scrape`' "$iiy"
+  assert grep -q '`brief_verbatim` / `brief_edited` (from the last scrape.s tally);' "$iiy"
 done
 
 printf 'skills tests: ok (%s assertions)\n' "$checks"

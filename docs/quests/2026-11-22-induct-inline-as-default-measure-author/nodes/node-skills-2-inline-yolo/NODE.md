@@ -169,3 +169,12 @@ Other changes:
 - Mutants, each red then restored (`cmp`):
   - a numbered step added: the no-procedure check;
   - the never-promote rail dropped: its line.
+- Cycle 2 (the grader's mechanical fixes):
+  - Major: the budget stop, the scope-change park row and the check-in
+    report's items had no assertion. Eight more lines per dir, 443 in
+    all. Deleting the scope-change row, the budget sentence or the
+    desks bullet now turns skills.sh red.
+  - Minor: `brief_verbatim` / `brief_edited` aren't in `q r`,
+    `metrics r` or `desk list`; only `metrics scrape` emits them. The
+    report's sources now name the last scrape's output, and the readout
+    line says which item comes from where.

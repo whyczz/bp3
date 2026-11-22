@@ -52,15 +52,15 @@ human in the room.
 ## Check-in report
 
 The only output, read from `bp3 q r <quest>`,
-`bp3 q <quest> metrics r` and `bp3 harness desk list`, never from
-memory:
+`bp3 q <quest> metrics r`, the last `bp3 q <quest> metrics scrape`
+output and `bp3 harness desk list`, never from memory:
 
 - nodes at `node_fin`, with their rounds;
 - parked nodes, each with its reason and the owner decision it waits on;
 - what this run decided that was not the owner's, one line each;
 - the metrics readout: `author.wall_s` and `author.active_s` per
-  cycle, grade wall and `grade.tool_s`, and `brief_verbatim` /
-  `brief_edited`;
+  cycle, grade wall and `grade.tool_s` (from `metrics r`), and
+  `brief_verbatim` / `brief_edited` (from the last scrape's tally);
 - desks still open (grade desks should all be released);
 - whether the quest is ready for `goal_fin`, which only the owner takes.
 
