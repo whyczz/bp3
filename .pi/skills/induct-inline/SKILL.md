@@ -15,7 +15,8 @@ step done in this session except the grade judgment.
 
 Use `induct` when many independent nodes should run at once with
 workflow children (one per ready node, desks per node). Use
-`induct-yolo` when no human is present. Use `using-bp3` for one
+`induct-inline-yolo` to run one quest this way with no human
+present, and `induct-yolo` for several. Use `using-bp3` for one
 hand-cast edge.
 
 ## How it differs from induct

@@ -91,7 +91,7 @@ assert grep -q 'skills/induct/workflows/induct-grade.js' "$work/out"
 "$root/bin/bp3" skills install --harness=all > /dev/null
 "$root/bin/bp3" skills check > "$work/check-rerendered.json"
 assert jq -e '.ok == true' "$work/check-rerendered.json"
-assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/induct-inline/SKILL.md","!**/.agents/skills/induct-yolo/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink/SKILL.md","!**/.agents/skills/trial/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
+assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/induct-inline/SKILL.md","!**/.agents/skills/induct-inline-yolo/SKILL.md","!**/.agents/skills/induct-yolo/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink/SKILL.md","!**/.agents/skills/trial/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
 # induct is the one conducting skill; retired traverse/bp3g names render nowhere.
 for h in .pi .agents .claude; do
   assert test -f "$root/$h/skills/induct/SKILL.md"
@@ -312,6 +312,30 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -q '^should run at once with workflow children, one desk per node\.$' "$id"
   assert grep -q '^use `induct-inline`, the default: this session authors each$' "$ub"
   assert grep -q '^`induct-inline` is the default way to run a quest: this session$' "$id"
+done
+
+# induct-inline-as-default skills.2: induct-inline-yolo runs one quest
+# inline under no-human rails; it follows induct-inline as written and
+# carries no numbered procedure of its own. Sources and every render.
+assert grep -q ' induct-inline-yolo ' "$repo/bin/bp3"
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  iiy="$repo/$dir/induct-inline-yolo/SKILL.md" ii="$repo/$dir/induct-inline/SKILL.md" iy="$repo/$dir/induct-yolo/SKILL.md"
+  assert test -f "$iiy"
+  assert grep -q '^name: induct-inline-yolo$' "$iiy"
+  assert grep -qF 'Follow the `induct-inline` skill' "$iiy"
+  assert grep -qF 'SKILL.md`) procedure and rules as written' "$iiy"
+  assert test -z "$(grep -nE '^[0-9]+\. ' "$iiy" || true)"
+  assert grep -qF '**Never attest**: `BP3_DECIDER` stays unset for the whole run.' "$iiy"
+  assert grep -q 'Never take `resume` or `delete`, never promote, never push:' "$iiy"
+  assert grep -qF '**Park, never page**' "$iiy"
+  assert grep -q 'only its dependents\.$' "$iiy"
+  assert grep -q '^  | constraints-class `needs_fix` |' "$iiy"
+  assert grep -q '^  | no subagent tool |.*never self-grade |$' "$iiy"
+  assert grep -qF '**Budget**: an optional stated budget, in grades or wall minutes.' "$iiy"
+  assert grep -q '^## Check-in report$' "$iiy"
+  assert grep -q '^- One quest per invocation and one session per quest; fleets are$' "$iiy"
+  assert grep -q '^`induct-inline-yolo` to run one quest this way with no human$' "$ii"
+  assert grep -q '^with no human present, use `induct-inline-yolo`\.$' "$iy"
 done
 
 printf 'skills tests: ok (%s assertions)\n' "$checks"
