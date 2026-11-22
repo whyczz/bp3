@@ -187,9 +187,8 @@ let do_brief quest node tail =
   let desk = match tail with
     | [] -> None
     | [ f; d ] when f = Names.flag_desk ->
-        if d = "" || d.[0] <> '/' || String.contains d '\n' || String.contains d '\r'
-           || not (Sys.file_exists d && Sys.is_directory d)
-        then usage (Names.flag_desk ^ " needs an absolute path to an existing directory, on one line")
+        if not (Brief.desk_shape d) || not (Sys.file_exists d && Sys.is_directory d)
+        then usage (Names.flag_desk ^ " needs an absolute path to an existing directory, with no whitespace")
         else Some d
     | _ -> usage (Names.verb_brief ^ " takes only " ^ Names.flag_desk ^ " <path>") in
   (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());

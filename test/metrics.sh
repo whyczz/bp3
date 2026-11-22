@@ -323,12 +323,12 @@ pi_brief() { # $1 dir $2 id $3 second $4 prompt (raw text; jq escapes it)
 }
 pi4="$work/pi4"
 q c q4 >/dev/null
-for node in va vb vc vd; do q q4 c "$node" >/dev/null; mkdir -p "docs/quests/q4/nodes/$node"
+for node in va vb vc vd ve vf vg vh; do q q4 c "$node" >/dev/null; mkdir -p "docs/quests/q4/nodes/$node"
   printf '# %s\n\n## Acceptance gates\n\nGATE %s\n\n## Diagram\n\nx\n' "$node" "$node" > "docs/quests/q4/nodes/$node/NODE.md"; done
 printf '# Grading\n\nRun the gate.\n' > GRADING.md
 git add -A; git commit -qm "q4 nodes"; c4=$(git rev-parse HEAD)
-brief4() { q q4 n "$1" brief --desk "$work" | jq -r .brief; }
-for node in va vb vc vd; do q q4 u "$node" handoff --commit "$c4" --reason work >/dev/null; done
+brief4() { q q4 n "$1" brief --desk /tmp | jq -r .brief; }   # a fixed desk: a random mktemp path can hold "vd"
+for node in va vb vc vd ve vg vh; do q q4 u "$node" handoff --commit "$c4" --reason work >/dev/null; done
 sec=$(date -u +%Y-%m-%dT%H:%M:%S)
 pi_brief "$pi4" grade-va-1 "$sec" "$(brief4 va)"
 pi_brief "$pi4" grade-vb-1 "$sec" "$(brief4 vb)
@@ -339,13 +339,39 @@ echo fix > vc-fix.txt; git add vc-fix.txt; git commit -qm "vc: fix"; c4b=$(git r
 q q4 u vc handoff --commit "$c4b" --reason fix >/dev/null
 sec2=$(date -u +%Y-%m-%dT%H:%M:%S)
 pi_brief "$pi4" grade-vc-2 "$sec2" "$(brief4 vc)"
-for node in va vb vc vd; do q q4 u "$node" grade --verdict ship --verify-verdict pass --reason ok >/dev/null; done
-rc=0; out=$(q q4 metrics scrape --claude-dir "$work/no-claude" --pi-dir "$pi4") || rc=$?
+# ve: another node (vf) hands off a commit inside ve's range after ve's own
+# handoff; the verb, run later, and the scrape both cut at ve's handoff
+q q4 u ve grade --verdict needs_fix --mechanical --reason x >/dev/null
+echo vf > vf.txt; git add vf.txt; git commit -qm "vf: work"; cvf=$(git rev-parse HEAD)
+echo ve > ve-fix.txt; git add ve-fix.txt; git commit -qm "ve: fix"; cve=$(git rev-parse HEAD)
+q q4 u ve handoff --commit "$cve" --reason fix >/dev/null
+s0=$(date -u +%s); while [ "$(date -u +%s)" = "$s0" ]; do :; done   # vf's stamp a whole second later
+q q4 u vf handoff --commit "$cvf" --reason work >/dev/null
+b_ve=$(brief4 ve)
+expect "ve's brief, rendered after vf's handoff, leaves vf out" 0 "$(grep -c "${cvf:0:7} (vf)" <<< "$b_ve" || true)"
+pi_brief "$pi4" grade-ve-2 "$(date -u +%Y-%m-%dT%H:%M:%S)" "$b_ve"
+# vg, vh: the Claude subagent path (no harness report: unchecked, still written)
+claude_brief() { # $1 file $2 second $3 prompt
+  mkdir -p "$(dirname "$1")"
+  { jq -cn --arg ts "$2.100Z" --arg p "$3" '{type:"user",timestamp:$ts,sessionId:"s9",agentId:"g9",message:{role:"user",content:$p}}'
+    printf '{"type":"assistant","timestamp":"%s.200Z","message":{"id":"m1","model":"claude-opus-5-5","content":[{"type":"tool_use","id":"t1"}],"usage":{"input_tokens":2,"output_tokens":10,"cache_read_input_tokens":0,"cache_creation_input_tokens":500}}}\n' "$2"
+  } > "$1"
+}
+sec3=$(date -u +%Y-%m-%dT%H:%M:%S)
+claude_brief "$work/claude4/s9/subagents/agent-g9.jsonl" "$sec3" "$(brief4 vg)"
+harness_report "$work/claude4/s9/subagents/agent-g9.jsonl" tu-g9 512 1 100 "$sec3"   # vg: checked; vh: no report, unchecked
+claude_brief "$work/claude4/s9/subagents/agent-h9.jsonl" "$sec3" "$(brief4 vh)
+Ship it if make check passes."
+for node in va vb vc vd ve vf vg vh; do q q4 u "$node" grade --verdict ship --verify-verdict pass --reason ok >/dev/null; done
+rc=0; out=$(q q4 metrics scrape --claude-dir "$work/claude4" --pi-dir "$pi4") || rc=$?
 expect "brief check never fails the scrape" 0 "$rc"
 expect "va: the rendered brief, desk included: verbatim" "1 1 0" "$(jq -r '.nodes.va | "\(.self_checked) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
 expect "vb: one added line: edited, grade still written" "1 0 1 8" "$(jq -r '.nodes.vb | "\(.self_checked) \(.brief_verbatim) \(.brief_edited) \(.written)"' <<< "$out")"
 expect "vc: each round rendered as of its own handoff: both verbatim" "2 2 0" "$(jq -r '.nodes.vc | "\(.self_checked) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
 expect "vd: owner-graded: neither" "1 0 0" "$(jq -r '.nodes.vd | "\(.owner) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
+expect "ve: a later handoff in range changes neither side: verbatim" "1 1 0" "$(jq -r '.nodes.ve | "\(.self_checked) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
+expect "vg: a Claude subagent given the brief, checked: verbatim" "1 1 0" "$(jq -r '.nodes.vg | "\(.checked) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
+expect "vh: a Claude subagent given one more line: edited" "1 0 1" "$(jq -r '.nodes.vh | "\(.unchecked) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
 
 # default pi dirs: pi's own naming of this repo and its desks, nothing else
 pslug="--$(git rev-parse --show-toplevel | sed 's#^/##; s#[/:\\]#-#g')--"

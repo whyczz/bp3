@@ -107,13 +107,18 @@ let render ?desk i =
    text is then rendered again with that desk and compared whole, so a
    second Desk paragraph or any added line reads as edited. A trailing
    newline is the only slack. *)
+(* A desk the verb accepts: absolute, and no whitespace, so no prose can
+   ride in the one caller-supplied line (brief.2 cycle 2). *)
+let desk_shape d =
+  d <> "" && d.[0] = '/' && not (String.exists (function ' ' | '\t' | '\n' | '\r' -> true | _ -> false) d)
+
 let is_verbatim prompt i =
   let paras = Str.split (Str.regexp_string "\n\n") prompt in
   let pre = "Desk: " and post = " (check that `git rev-parse HEAD` prints " ^ i.commit ^ ")" in
   let desk = match List.nth_opt paras 3 with
-    | Some p when String.starts_with ~prefix:pre p && String.ends_with ~suffix:post p
-                  && not (String.contains p '\n') ->
-        Some (String.sub p (String.length pre) (String.length p - String.length pre - String.length post))
+    | Some p when String.starts_with ~prefix:pre p && String.ends_with ~suffix:post p ->
+        let d = String.sub p (String.length pre) (String.length p - String.length pre - String.length post) in
+        if desk_shape d then Some d else None
     | _ -> None in
   let trim s = let n = ref (String.length s) in
     while !n > 0 && s.[!n - 1] = '\n' do decr n done; String.sub s 0 !n in
@@ -147,26 +152,42 @@ let before_handoff ~commit ~upto edges =
         go (e :: acc) cut rest in
   match go [] None edges with Some pre -> pre | None -> List.filter (by upto) edges
 
+(* The stamp of the handoff that bound this commit (brief.2 cycle 2). *)
+let bound_at ~commit ~upto edges =
+  List.fold_left (fun acc (e : Metrics.edge) ->
+      if e.e_edge = "handoff" && e.e_commit = Some commit && by upto e then Some e.e_ts else acc) None edges
+
+(* Pure: the previous round and the other nodes' commits a brief shows.
+   Both are cut at the handoff that bound this commit, so the verb (run
+   any time after it) and the scrape (as of it) pick the same facts.
+   `in_range p c` says whether c lies in p..commit. *)
+let pick ~node ~commit ~upto ~own ~others ~in_range =
+  let prev = last_needs_fix (before_handoff ~commit ~upto own) in
+  let cut = match bound_at ~commit ~upto own with Some ts -> Some ts | None -> upto in
+  let others = match prev with
+    | None -> []
+    | Some p ->
+        List.concat_map (fun (n, es) ->
+            if n = node then []
+            else List.filter_map (fun (e : Metrics.edge) -> match e.e_commit with
+                | Some c when e.e_edge = "handoff" && by cut e && in_range p c -> Some (c, n)
+                | _ -> None) es) others
+        |> List.sort_uniq compare in
+  (prev, others)
+
 let rev_range a b =
   let out, code = Gitx.git_out [ "rev-list"; a ^ ".." ^ b ] in
   if code <> 0 then [] else List.filter (fun s -> s <> "") (String.split_on_char '\n' out)
 
 let inputs ~quest ~node ~cycle ~commit ~upto =
-  let mine = before_handoff ~commit ~upto (node_edges quest node) in
-  let prev = last_needs_fix mine in
-  let others = match prev with
-    | None -> []
-    | Some p ->
-        let range = rev_range p commit in
-        List.concat_map (fun n ->
-            if n = node then []
-            else
-              List.filter_map (fun (e : Metrics.edge) ->
-                  match e.e_commit with
-                  | Some c when e.e_edge = "handoff" && by upto e && List.mem c range -> Some (c, n)
-                  | _ -> None) (node_edges quest n))
-          (Store.list_nodes quest)
-        |> List.sort_uniq compare in
+  let range = Hashtbl.create 2 in
+  let in_range p c =
+    let r = match Hashtbl.find_opt range p with
+      | Some r -> r | None -> let r = rev_range p commit in Hashtbl.replace range p r; r in
+    List.mem c r in
+  let prev, others =
+    pick ~node ~commit ~upto ~own:(node_edges quest node)
+      ~others:(List.map (fun n -> (n, node_edges quest n)) (Store.list_nodes quest)) ~in_range in
   let show path = Gitx.git_show commit path in
   { quest; node; cycle; commit;
     node_md = show (node_md_path quest node);

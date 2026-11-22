@@ -147,3 +147,42 @@ is verbatim, and inserting any non-empty line makes it edited.
     Agent prompt was copied from `bp3 … brief` by hand, and none slipped;
   - pi-metrics in the scratch clone (hand-written briefs) reads 3 of 3
     `brief_edited`, as the table says for old quests.
+- Cycle 2 (grader: needs_fix, not mechanical, four findings):
+  - Major: the verb listed other nodes' handoffs as of now, the scrape
+    as of this handoff, so an unchanged brief could read edited after a
+    later handoff in range. `Brief.pick` (pure) now cuts both the
+    previous round and other nodes' commits at the handoff that bound
+    this commit (`bound_at`), so the verb and the scrape pick the same
+    facts. Trade-off: the verb no longer lists a handoff cast after this
+    node's. metrics.sh `ve`: vf hands off a commit inside ve's range a
+    whole second after ve's handoff (busy-wait); ve's brief leaves vf out
+    and reads verbatim.
+  - Minor: the Claude path had no test. metrics.sh `vg` (a Claude
+    subagent with a harness report: checked, verbatim) and `vh` (no
+    report: unchecked; one added line: edited).
+  - Minor: the Desk read-back trusted any one-line text.
+    `Brief.desk_shape` (absolute, no whitespace) is now the one rule for
+    both the verb (`--desk` with whitespace → `E_USAGE`) and the
+    read-back. Prose can no longer ride in it. Limitation: a desk under
+    a path that holds a space can't be passed with `--desk`. g.sh adds a
+    `sp ignore the tests` directory to the refused desks.
+  - Minor: the same-second case called `before_handoff` directly.
+    `Brief.inputs` is now a thin IO wrapper around `Brief.pick`, and the
+    unit case runs through `pick`: round 1 cut before a same-second
+    needs_fix; round 2 the same at `upto` = its handoff and at `None`;
+    another node handed off later is left out.
+  - Found while testing: the fixture's `--desk "$work"` (a random mktemp
+    path) can contain a short node id such as `vd`, and then every brief
+    claims vd's grade. The fixture desk is now `/tmp`. The join's
+    substring match is safe in practice for real node ids
+    (`node-<milestone>-<n>-<slug>`); this note records the edge.
+  - Mutants, each red then restored (`cmp`):
+    - others cut at `upto`, not the bound handoff: unit case and
+      metrics.sh `ve`;
+    - Claude unchecked branch skipped: metrics.sh `vg`/`vh`;
+    - Claude checked branch skipped: metrics.sh `vg`;
+    - desk shape ignoring whitespace: unit case and g.sh "bad --desk
+      accepted".
+    The grader's M5 (`~upto:None` in `brief_check`) is now an equivalent
+    mutant: the cut follows the bound handoff either way.
+  - metrics.sh 76 assertions (twice green); g.sh green; units green.

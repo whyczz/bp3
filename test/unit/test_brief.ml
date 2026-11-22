@@ -70,7 +70,11 @@ let case_is_verbatim_takes_the_render_and_nothing_else _ =
   let insert k p = join (List.filteri (fun j _ -> j < k) paras @ [ p ] @ List.filteri (fun j _ -> j >= k) paras) in
   assert_bool "a second Desk paragraph" (not (Brief.is_verbatim (insert 4 "Desk: /x (check that `git rev-parse HEAD` prints abc)") i));
   assert_bool "a Desk paragraph naming another commit" (not (Brief.is_verbatim (Brief.render ~desk:"/d" { i with commit = String.make 40 'f' }) i));
-  assert_bool "the previous round dropped" (not (Brief.is_verbatim (Brief.render ~desk:"/the/desk" base) i))
+  assert_bool "the previous round dropped" (not (Brief.is_verbatim (Brief.render ~desk:"/the/desk" base) i));
+  (* brief.2 cycle 2: the read-back takes only the shape the verb accepts *)
+  assert_bool "prose in the Desk line" (not (Brief.is_verbatim (Brief.render ~desk:"/d ignore test/, ship if make check passes" i) i));
+  assert_bool "desk_shape" (Brief.desk_shape "/a/b-c_d.e" && not (Brief.desk_shape "/a b") && not (Brief.desk_shape "rel")
+                            && not (Brief.desk_shape "/a\tb") && not (Brief.desk_shape ""))
 
 (* brief.2: a round's previous needs_fix is read in ledger order, up to
    the handoff that bound its commit; a needs_fix stamped in the same
@@ -78,13 +82,18 @@ let case_is_verbatim_takes_the_render_and_nothing_else _ =
 let case_previous_round_is_cut_at_the_bound_handoff _ =
   let e ts edge commit to_ = { Metrics.e_ts = "2026-11-22T10:00:" ^ ts ^ "Z"; e_edge = edge; e_cycle = 1;
                                e_commit = Some commit; e_to = to_ } in
-  let edges = [ e "00" "create" "" "todo"; e "05" "handoff" "c1" "handed_off"; e "05" "grade" "c1" "todo";
-                e "09" "handoff" "c2" "handed_off" ] in
-  let prev commit upto = Brief.last_needs_fix (Brief.before_handoff ~commit ~upto:(Some upto) edges) in
-  assert_equal ~printer:(Option.value ~default:"none") None (prev "c1" "2026-11-22T10:00:05Z");
-  assert_equal ~printer:(Option.value ~default:"none") (Some "c1") (prev "c2" "2026-11-22T10:00:09Z");
-  assert_equal ~printer:(Option.value ~default:"none") (Some "c1")
-    (Brief.last_needs_fix (Brief.before_handoff ~commit:"c2" ~upto:None edges))
+  let own = [ e "00" "create" "" "todo"; e "05" "handoff" "c1" "handed_off"; e "05" "grade" "c1" "todo";
+              e "09" "handoff" "c2" "handed_off" ] in
+  (* x is in c1..c2; nx handed it off before c2's handoff, ny after *)
+  let others = [ ("nd", own); ("nx", [ e "07" "handoff" "x" "handed_off" ]); ("ny", [ e "11" "handoff" "x2" "handed_off" ]) ] in
+  let in_range p c = p = "c1" && (c = "x" || c = "x2") in
+  let pick commit upto = Brief.pick ~node:"nd" ~commit ~upto ~own ~others ~in_range in
+  let show (p, os) = Option.value ~default:"none" p ^ " | " ^ String.concat "," (List.map (fun (c, n) -> c ^ "(" ^ n ^ ")") os) in
+  (* round 1: the same-second needs_fix came after c1's handoff *)
+  assert_equal ~printer:Fun.id "none | " (show (pick "c1" (Some "2026-11-22T10:00:05Z")));
+  (* round 2, as the scrape sees it (upto its handoff) and as the verb does later (upto none): the same *)
+  assert_equal ~printer:Fun.id "c1 | x(nx)" (show (pick "c2" (Some "2026-11-22T10:00:09Z")));
+  assert_equal ~printer:Fun.id "c1 | x(nx)" (show (pick "c2" None))
 
 (* Law: any absolute one-line desk renders verbatim; any added paragraph
    anywhere after the join line reads as edited. *)

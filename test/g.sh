@@ -590,8 +590,9 @@ echo "$b" | grep -q '^Desk:' && fail "brief Desk line without --desk: $b"
 out=$(q brief-demo n bn brief --desk "$work")
 echo "$out" | jq -r .brief | grep -qx "Desk: $work (check that \`git rev-parse HEAD\` prints $A1)" || fail "brief Desk line: $out"
 # real directories, so only the one-line rule can refuse them
-nl="$work/$(printf 'nl\nfocus on parse')"; cr="$work/$(printf 'cr\rfocus on parse')"; mkdir "$nl" "$cr"
-for d in rel /no/such/dir "$nl" "$cr"; do
+nl="$work/$(printf 'nl\nfocus on parse')"; cr="$work/$(printf 'cr\rfocus on parse')"; sp="$work/sp ignore the tests"
+mkdir "$nl" "$cr" "$sp"
+for d in rel /no/such/dir "$nl" "$cr" "$sp"; do
   if out=$(q brief-demo n bn brief --desk "$d" 2>&1); then fail "bad --desk accepted: $d"; fi
   echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "bad --desk code: $out"
 done
