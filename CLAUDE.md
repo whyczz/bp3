@@ -9,8 +9,9 @@ quest is the DAG of nodes it plans).
 ## The one rule
 
 Never hand-edit generated quest state. `state.yaml` and
-`ledger.jsonl` in a quest folder are written only through
-`bp3 q`. Never parse them by hand to decide anything either:
+`ledger.jsonl` in a quest folder, and `metrics.jsonl` in a node
+folder, are written only through `bp3 q`. Never parse them by
+hand to decide anything either:
 run `bp3 q r <quest>` and read its JSON verdict.
 
 ## Constraints and context
@@ -33,10 +34,11 @@ docs/quests/<quest>/     one folder per quest, flat, never moved
   state.yaml             GENERATED: stage, commit, cycle (a cache)
   ledger.jsonl           GENERATED: every move, append-only (truth)
   runs/<id>/             tape.log (verbatim), notes.md (lessons)
-plans/<type>.yaml        goal_type plans (default: up to three review rounds)
+plans/<type>.yaml        goal_type plans (default: up to ten review rounds)
 src/quest/main.ml        the state engine (OCaml, yojson + unix)
 docs/dossiers/           research records; they inform, never decide
-nodes/ inside each quest folder: one record per node
+nodes/ inside each quest folder: one record per node, plus
+  metrics.jsonl          GENERATED: grade and author cost samples (bp3 q <quest> metrics)
 ```
 
 Status is a frontmatter field in `QUEST.md`
@@ -54,6 +56,7 @@ other repos point at it.
 ./bin/bp3 q <quest> n <node> e handoff --commit <sha> --reason "..."
 ./bin/bp3 q <quest> n <node> e grade --verdict ship|needs_fix --reason "..."
 ./bin/bp3 q <quest> n <node> e land --reason "..."
+./bin/bp3 q <quest> metrics scrape|r   # collect, then read, what grades and author cycles cost
 ./bin/bp3 e                            # claimed edge door: resolved context
 ./bin/bp3 n r                          # claimed node door: read own node
 dune build src/quest/main.exe          # (make check does this)

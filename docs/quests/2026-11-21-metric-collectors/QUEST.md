@@ -59,6 +59,7 @@ Build-time calls, 2026-11-21:
 | Who judges a node | Agent default (the owner declined the follow-up questions): the author stops at `handed_off` and shows the owner a packet (diff stat, gate output, pending -> passing counts, calls made); the owner says ship or needs_fix; the author casts it |
 | read.1 with induct off | Open: it edits induct skills; the owner decides before it starts (Open question 4) |
 | Induct after all | Owner: "no for this lets induct to dogfood it and really measure the lifecycle", then `/induct-inline` "with yolo, e.g. you can decide the overrides": graders return for this quest, the agent decides overrides |
+| read.1 (Open question 4) | Agent override under yolo: kept as written. Induct is back for this quest, so `induct` and `induct-inline` scrape after every grade cast; `using-bp3`, CLAUDE.md and AGENTS.md name the door and the GENERATED file |
 | Review cap | Owner, after scrape.2 blocked at cycle 3 and was resumed by hand: "increase the rounds to 10, i do not want to be involved isn't that the point of yolo". `plans/default.yaml` `max_cycles: 10`; CLAUDE.md and AGENTS.md updated; the repo default changes at promotion |
 
 What exists today (read 2026-11-21):

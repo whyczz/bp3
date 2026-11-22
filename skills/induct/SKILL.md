@@ -242,7 +242,12 @@ is a usage error naming this derivation.
 5. Re-read after every dispatch return (`bp3 q r <quest>`)
    and go to step 3. A return that moved nothing (refusal, no
    commit) is re-judged from the fresh read, never retried
-   unchanged against a moved tip.
+   unchanged against a moved tip. After a return that cast a
+   grade, run `bp3 q <quest> metrics scrape` once: it records
+   what the grade and its author cycle cost, from the
+   harness's transcripts. The scrape is evidence, never a
+   gate; a `mismatched` grade goes in the report and changes
+   no verdict.
 6. Stop when the rollup is terminal (every node `landed` or
    `deleted`) or a human decision is owed that this session
    cannot get. Name each `landed` node `node_fin` in the

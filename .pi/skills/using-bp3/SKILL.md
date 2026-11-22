@@ -48,6 +48,13 @@ General coding in this repo does not need this skill.
 7. Verify with `make check` while working and with
    `make check-full` before handoff, grade or land (the
    gate); report exactly what ran.
+8. Measure with `./bin/bp3 q <quest> metrics r`: what each grade
+   and author cycle cost (wall, tool calls, tokens), each
+   cycle's time in todo and handed_off, and node and quest
+   roll-ups. `./bin/bp3 q <quest> metrics scrape` collects from
+   Claude Code transcripts and is safe to re-run. Its samples
+   live in `metrics.jsonl` on each node's state branch,
+   GENERATED like `ledger.jsonl`: never hand-edit it.
 
 ## Rules
 
