@@ -221,3 +221,56 @@ Wave 1 (parallel — disjoint files, /swarm ready):
   agy.1 (tx-core + agy_tx + Store.identity) ──────────────────────────────┼──► skills.1 (agy-induct-inline) ──► dogfood.1 (benchmark)
   agy.2 (bin/bp3 agy + camelCase hooks + CONSTRAINTS) ────────────────────┘
 ```
+
+## Build notes
+
+### Dogfood scorecard (`dogfood.1`, measured 2026-11-23 on `agy`)
+
+Measured across the 6 landed implementation nodes (`agy.1`, `agy.2`, `verify.1`, `verify.2`, `grade.1`, `skills.1`) via `./bin/bp3 q 2026-11-23-fast-agy-induct metrics scrape` and `./bin/bp3 q 2026-11-23-fast-agy-induct metrics r`:
+
+| Row | Baseline (`2026-11-22`, 5 nodes) | Target | Observed overall (6 nodes, 8 grades) | Observed post-`grade.1` (3 grades) | Status |
+|---|---|---|---|---|---|
+| grade wall median | 377s (6.3m) | **<= 180s (3m)** | **181s (3.0m)** (min 128s, max 1223s, sum 2603s) | **137s (2.3m)** (`137s`, `128s`, `141s`) | **HIT post-`grade.1`** (overall 1s over due to 5 pre-`grade.1` grades + `agy.2` c1's ~16m approval pause) |
+| mean cycles / node | 3.2 (16/5) | **<= 1.5** | **1.33** (8/6) | **1.00** (3/3) | **HIT** |
+| minor-only `needs_fix` | 4 / 11 | **0** | **0 / 2** (`agy.1` c1 real bug; `agy.2` c1 `[major]` test gap; 5 `[minor]`s shipped in `FOLLOW-UPS`) | **0 / 0** | **HIT** |
+| `red-first` wall time | n/a | **< 30s** | **2.4s** (OCaml) / **7.7s** (skills) | same | **HIT** |
+| `agy` scrape coverage | 0% | **100%** (0 `author_missing`, 0 `owner_graded`) | **100%** (`8/8` `self_checked`, `8/8` `authored`, `0` missing/mismatched/bad_usage) | **100%** (`3/3` `brief_verbatim`) | **HIT** |
+| total quest wall time | ~168m (5 nodes) | < 60m | **48.2m** (`20:55:42Z` -> `21:43:55Z`, 6 nodes) | — | **HIT (-71%)** |
+| wave-1 parallel overlap | 0 | **>= 2 concurrent** | **3 graders overlapped** (`agy.1`, `agy.2`, `verify.1` all `handed_off` at `21:11:52Z`); authoring ran inline (not `/swarm` — user did not invoke `/swarm` for this session) | — | **Partial** (background grade overlap proven; `/swarm` multi-coder deferred to `warden-v0`) |
+
+### Per-node breakdown
+
+| Node | Cycle | Author wall / active (s) | Grade wall / tool (s) | Brief verbatim? | Verdict |
+|---|---:|---:|---:|---|---|
+| `node-agy-1-tx-core-and-scrape` | 1 | 621 / 583 | 308 / 153 | pre-`grade.1` (`edited`) | `needs_fix` (real bug: `SYSTEM_MESSAGE`) |
+| `node-agy-1-tx-core-and-scrape` | 2 | 98 / 42 | 170 / 92 | pre-`grade.1` (`edited`) | `ship` |
+| `node-agy-2-cli-hooks-and-install` | 1 | 206 / 166 | 1223 / 96 | pre-`grade.1` (`edited`) | `needs_fix` (`[major]`: `--harness=all` test) |
+| `node-agy-2-cli-hooks-and-install` | 2 | 93 / 11 | **128** / 80 | **verbatim** (delta c2) | `ship` |
+| `node-verify-1-red-first` | 1 | 142 / 121 | 304 / 89 | pre-`grade.1` (`edited`) | `ship` |
+| `node-verify-2-receipt` | 1 | 158 / 92 | 192 / 47 | pre-`grade.1` (`edited`) | `ship` |
+| `node-grade-1-delta-brief` | 1 | 256 / 159 | **137** / 71 | **verbatim** | `ship` |
+| `node-skills-1-agy-induct-inline` | 1 | 188 / 147 | **141** / 67 | **verbatim** | `ship` |
+
+### Wave-1 overlap timestamps (from node ledgers)
+
+- `node-agy-1-tx-core-and-scrape`: `handoff` c1 `2026-11-23T21:06:04Z` -> `grade` `21:13:01Z` (authored `agy.2` + `verify.1` during this window)
+- `node-agy-2-cli-hooks-and-install`: `handoff` c1 `2026-11-23T21:09:30Z` -> `grade` `21:31:29Z` (paused ~16m in `waiting_for_input` on `run_command` approval)
+- `node-verify-1-red-first`: `handoff` c1 `2026-11-23T21:11:52Z` -> `grade` `21:17:58Z`
+
+### Verbatim `metrics scrape` output
+
+```json
+{"ok":true,"quest":"2026-11-23-fast-agy-induct","dirs":["/Users/whycz/.claude/projects/-Users-whycz-m-bp3"],"pi_dirs":["/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3--","/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3-.bp3-worktrees-2026-11-15-bp3-supervisor-mvp-and-pi-muse-enablement--","/Users/whycz/.pi/agent/sessions/--Users-whycz-m-bp3-.bp3-worktrees-2026-11-21-pi-metrics--"],"agy_dirs":["/Users/whycz/.gemini/antigravity-cli/brain"],"nodes":{"node-agy-1-tx-core-and-scrape":{"grades":2,"checked":0,"unchecked":0,"self_checked":2,"ambiguous":0,"mismatched":0,"owner":0,"written":40,"skipped":0,"skipped_lines":0,"handoffs":2,"authored":2,"author_missing":0,"author_ambiguous":0,"author_bad_usage":0,"brief_verbatim":0,"brief_edited":2},"node-agy-2-cli-hooks-and-install":{"grades":2,"checked":0,"unchecked":0,"self_checked":2,"ambiguous":0,"mismatched":0,"owner":0,"written":40,"skipped":0,"skipped_lines":0,"handoffs":2,"authored":2,"author_missing":0,"author_ambiguous":0,"author_bad_usage":0,"brief_verbatim":1,"brief_edited":1},"node-dogfood-1-benchmark-and-sandbox-check":{"grades":0,"checked":0,"unchecked":0,"self_checked":0,"ambiguous":0,"mismatched":0,"owner":0,"written":0,"skipped":0,"skipped_lines":0,"handoffs":0,"authored":0,"author_missing":0,"author_ambiguous":0,"author_bad_usage":0,"brief_verbatim":0,"brief_edited":0},"node-grade-1-delta-brief":{"grades":1,"checked":0,"unchecked":0,"self_checked":1,"ambiguous":0,"mismatched":0,"owner":0,"written":20,"skipped":0,"skipped_lines":0,"handoffs":1,"authored":1,"author_missing":0,"author_ambiguous":0,"author_bad_usage":0,"brief_verbatim":1,"brief_edited":0},"node-skills-1-agy-induct-inline":{"grades":1,"checked":0,"unchecked":0,"self_checked":1,"ambiguous":0,"mismatched":0,"owner":0,"written":20,"skipped":0,"skipped_lines":0,"handoffs":1,"authored":1,"author_missing":0,"author_ambiguous":0,"author_bad_usage":0,"brief_verbatim":1,"brief_edited":0},"node-verify-1-red-first":{"grades":1,"checked":0,"unchecked":0,"self_checked":1,"ambiguous":0,"mismatched":0,"owner":0,"written":20,"skipped":0,"skipped_lines":0,"handoffs":1,"authored":1,"author_missing":0,"author_ambiguous":0,"author_bad_usage":0,"brief_verbatim":0,"brief_edited":1},"node-verify-2-receipt":{"grades":1,"checked":0,"unchecked":0,"self_checked":1,"ambiguous":0,"mismatched":0,"owner":0,"written":20,"skipped":0,"skipped_lines":0,"handoffs":1,"authored":1,"author_missing":0,"author_ambiguous":0,"author_bad_usage":0,"brief_verbatim":0,"brief_edited":1}}}
+```
+
+### Verbatim `metrics r` rollup
+
+```json
+{"grades":8,"grades_measured":8,"handoffs":8,"handoffs_measured":8,"grade_wall_s":{"median":181,"min":128,"max":1223,"sum":2603},"author_wall_s":{"median":173,"min":93,"max":621,"sum":1762},"author_active_s":{"median":134,"min":11,"max":583,"sum":1321},"spend":{"grade":{"tokens_in":1005611,"tokens_out":125032,"tokens_cache_read":7888019,"tokens_cache_write":0},"author":{"tokens_in":340708,"tokens_out":81938,"tokens_cache_read":17144435,"tokens_cache_write":0}}}
+```
+
+### Bottlenecks & edge cases surfaced for `warden-v0`
+
+1. **`brief_edited` on pre-`grade.1` grades:** expected artifact of `Brief.is_verbatim` re-rendering historical grades with the new `Brief.render` template; all 3 post-`grade.1` grades read `brief_verbatim: 1, brief_edited: 0`.
+2. **Test-only cycle-2 commits and `red-first`:** `agy.2` c2 added test assertions without touching production code; using `refactor(agy.2): ...` told `red-first` to expect `green (refactor)`. Consider adding `test:` as an explicit green-on-parent prefix in a future polish pass if test-only follow-ups recur.
+3. **Background grader `waiting_for_input` stalls:** `agy.2` c1 paused ~16m waiting for user approval on an unsandboxed scratch command (`1223s` wall vs `96s` tool time). Post-`grade.1` graders using `./scripts/receipt` had zero approval stalls (`128s`–`141s` wall).
