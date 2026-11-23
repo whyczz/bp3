@@ -29,7 +29,8 @@ citing it.
 
 ```text
 docs/quests/<quest>/     one folder per quest, flat, never moved
-  QUEST.md              authored: goal, scope, nodes, status field
+  QUEST.md              authored: plan of record (goal, scope, gates, status)
+  LOG.md                authored: living run log (nodes, build notes, findings, lessons)
   fsm.yaml               authored: the plan (from plans/ at init)
   state.yaml             GENERATED: stage, commit, cycle (a cache)
   ledger.jsonl           GENERATED: every move, append-only (truth)

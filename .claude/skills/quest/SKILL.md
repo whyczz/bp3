@@ -252,6 +252,13 @@ The Quest file ends with the Node diagram: after reading
 every node's prose, the reader gets the whole railway —
 nodes, dependencies, cohorts — in one ASCII picture.
 
+Keep the living run record in a companion `LOG.md` beside
+`QUEST.md` (same quest folder; never named `LEDGER.md`, which
+would collide with generated `ledger.jsonl`): `LOG.md` holds the
+node status/cycles table, build notes, measured scorecard, new
+findings, follow-ups, and lessons learned while `QUEST.md` stays
+the clean plan of record.
+
 ## Lifecycle
 
 | Status | Meaning | Landing evidence |

@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# agy-statusline — live bp3 quest progress + context token bar for Antigravity CLI (agy).
+# Reads agy's statusLine JSON payload on stdin and prints one compact ANSI line:
+#   bp3: <quest> [████░░░░] 2/4 (50%) | <node> (<state> c<N>) | <wall> | ctx <used>/<max> (<pct>%)
+#
+# Enable in agy:
+#   /statusline /path/to/bp3/scripts/agy-statusline
+# Or in ~/.gemini/antigravity-cli/settings.json:
+#   "statusLine": {"type":"command","command":"/path/to/bp3/scripts/agy-statusline","enabled":true,"stack_with_default":true}
+#
+# Fail-open: always exits 0 (agy disables statusLine after 30 consecutive failures).
+set -uo pipefail
+
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  sed -n '2,12s/^# \{0,1\}//p' "$0"
+  exit 0
+fi
+
+# ANSI palette (disabled when NO_COLOR is set or --no-color passed)
+if [ -n "${NO_COLOR:-}" ] || [ "${1:-}" = "--no-color" ]; then
+  C_RST="" C_DIM="" C_CYN="" C_GRN="" C_YLW="" C_RED="" C_BLD=""
+else
+  C_RST=$'\033[0m'
+  C_DIM=$'\033[2m'
+  C_CYN=$'\033[36m'
+  C_GRN=$'\033[32m'
+  C_YLW=$'\033[33m'
+  C_RED=$'\033[31m'
+  C_BLD=$'\033[1m'
+fi
+
+fmt_tokens() {
+  local n="${1:-0}"
+  awk -v n="$n" 'BEGIN {
+    if (n >= 1000000) printf "%.1fM", n / 1000000;
+    else if (n >= 1000) printf "%.0fk", n / 1000;
+    else printf "%d", n;
+  }'
+}
+
+fmt_bar() {
+  local done="$1" total="$2" width=8
+  local filled=0 empty=8 i bar=""
+  if [ "$total" -gt 0 ]; then
+    filled=$(( (done * width + total / 2) / total ))
+    [ "$filled" -gt "$width" ] && filled="$width"
+    [ "$filled" -lt 0 ] && filled=0
+  fi
+  empty=$(( width - filled ))
+  for ((i = 0; i < filled; i++)); do bar="${bar}█"; done
+  for ((i = 0; i < empty; i++)); do bar="${bar}░"; done
+  printf '[%s]' "$bar"
+}
+
+fmt_wall() {
+  local secs="$1"
+  if [ "$secs" -lt 60 ]; then
+    printf '%ds' "$secs"
+  elif [ "$secs" -lt 3600 ]; then
+    printf '%dm' $(( secs / 60 ))
+  else
+    printf '%dh%02dm' $(( secs / 3600 )) $(( (secs % 3600) / 60 ))
+  fi
+}
+
+parse_iso_epoch() {
+  local ts="$1"
+  # macOS BSD date vs GNU date
+  date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" "+%s" 2>/dev/null \
+    || date -u -d "$ts" "+%s" 2>/dev/null \
+    || echo ""
+}
+
+payload=""
+if [ ! -t 0 ]; then
+  payload="$(cat 2>/dev/null || true)"
+fi
+
+cwd="."
+ctx_str=""
+if [ -n "$payload" ] && command -v jq >/dev/null 2>&1; then
+  # Single jq pass over stdin JSON for speed
+  IFS=$'\t' read -r j_cwd j_pct j_size j_tin j_tout <<< "$(
+    printf '%s' "$payload" | jq -r '[
+      (.workspace.current_dir // .cwd // "."),
+      (.context_window.used_percentage // -1),
+      (.context_window.context_window_size // 0),
+      (.context_window.total_input_tokens // 0),
+      (.context_window.total_output_tokens // 0)
+    ] | @tsv' 2>/dev/null || true
+  )"
+  [ -n "${j_cwd:-}" ] && cwd="$j_cwd"
+
+  if [ -n "${j_pct:-}" ] && [ "$j_pct" != "-1" ]; then
+    pct_int="$(awk -v p="$j_pct" 'BEGIN { printf "%d", p + 0.5 }')"
+    c_ctx="$C_GRN"
+    if [ "$pct_int" -ge 85 ]; then
+      c_ctx="$C_RED"
+    elif [ "$pct_int" -ge 60 ]; then
+      c_ctx="$C_YLW"
+    fi
+    if [ "${j_size:-0}" -gt 0 ] 2>/dev/null; then
+      used_tok="$(awk -v s="$j_size" -v p="$j_pct" 'BEGIN { printf "%.0f", s * p / 100.0 }')"
+      ctx_str="${c_ctx}ctx $(fmt_tokens "$used_tok")/$(fmt_tokens "$j_size") (${pct_int}%)${C_RST}"
+    else
+      tot_tok=$(( ${j_tin:-0} + ${j_tout:-0} ))
+      ctx_str="${c_ctx}ctx $(fmt_tokens "$tot_tok") (${pct_int}%)${C_RST}"
+    fi
+  fi
+fi
+
+# Locate bp3 repo root
+root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$root" ] || [ ! -d "$root/docs/quests" ]; then
+  [ -n "$ctx_str" ] && printf '%s\n' "$ctx_str"
+  exit 0
+fi
+
+# Resolve bp3 binary
+bp3_bin=""
+if [ -x "$root/bin/bp3" ]; then
+  bp3_bin="$root/bin/bp3"
+elif command -v bp3 >/dev/null 2>&1; then
+  bp3_bin="$(command -v bp3)"
+fi
+if [ -z "$bp3_bin" ] || ! command -v jq >/dev/null 2>&1; then
+  [ -n "$ctx_str" ] && printf '%s\n' "$ctx_str"
+  exit 0
+fi
+
+# Detect active quest: prefer current quest/<slug> branch, else newest status: active QUEST.md
+quest=""
+branch="$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+case "$branch" in
+  quest/*) quest="${branch#quest/}" ;;
+esac
+if [ -z "$quest" ]; then
+  for qf in "$root"/docs/quests/*/QUEST.md; do
+    [ -f "$qf" ] || continue
+    if grep -q '^status: active$' "$qf" 2>/dev/null; then
+      quest="$(basename "$(dirname "$qf")")"
+    fi
+  done
+fi
+
+if [ -z "$quest" ]; then
+  if [ -n "$ctx_str" ]; then
+    printf '%sbp3:%s idle %s|%s %s\n' "$C_CYN" "$C_RST" "$C_DIM" "$C_RST" "$ctx_str"
+  fi
+  exit 0
+fi
+
+rollup="$(cd "$root" && "$bp3_bin" q r "$quest" 2>/dev/null || true)"
+if [ -z "$rollup" ] || ! printf '%s' "$rollup" | jq -e '.ok == true' >/dev/null 2>&1; then
+  if [ -n "$ctx_str" ]; then
+    printf '%sbp3:%s %s %s|%s %s\n' "$C_CYN" "$C_RST" "$quest" "$C_DIM" "$C_RST" "$ctx_str"
+  else
+    printf '%sbp3:%s %s\n' "$C_CYN" "$C_RST" "$quest"
+  fi
+  exit 0
+fi
+
+IFS=$'\t' read -r total landed cur_node cur_state cur_cycle <<< "$(
+  printf '%s' "$rollup" | jq -r '
+    (.nodes | length) as $tot |
+    ([.nodes[] | select(.state == "landed")] | length) as $land |
+    (
+      ([.nodes[] | select(.state == "handed_off")][0]) //
+      ([.nodes[] | select(.state == "blocked")][0]) //
+      ([.ready[0] as $r | .nodes[] | select(.node == $r)][0]) //
+      null
+    ) as $cur |
+    [
+      $tot,
+      $land,
+      ($cur.node // ""),
+      ($cur.state // ""),
+      ($cur.cycle // 0)
+    ] | @tsv' 2>/dev/null || true
+)"
+
+total="${total:-0}"
+landed="${landed:-0}"
+pct=0
+[ "$total" -gt 0 ] && pct=$(( landed * 100 / total ))
+bar="$(fmt_bar "$landed" "$total")"
+
+# Shorten node slug: strip leading "node-" for compact display
+short_node="${cur_node#node-}"
+if [ -n "$short_node" ]; then
+  node_color="$C_CYN"
+  [ "$cur_state" = "blocked" ] && node_color="$C_RED"
+  [ "$cur_state" = "handed_off" ] && node_color="$C_YLW"
+  node_part="${node_color}${short_node} (${cur_state} c${cur_cycle})${C_RST}"
+elif [ "$total" -gt 0 ] && [ "$landed" -eq "$total" ]; then
+  node_part="${C_GRN}all landed (goal_fin)${C_RST}"
+else
+  node_part="${C_DIM}idle${C_RST}"
+fi
+
+# Wall time since quest creation from quest storage ref
+wall_part=""
+first_ts="$(git -C "$root" show "refs/heads/bp3/quest/${quest}:docs/quests/${quest}/ledger.jsonl" 2>/dev/null | head -n 1 | jq -r '.ts // empty' 2>/dev/null || true)"
+if [ -n "$first_ts" ]; then
+  start_ep="$(parse_iso_epoch "$first_ts")"
+  now_ep="$(date -u +%s)"
+  if [ -n "$start_ep" ] && [ "$now_ep" -ge "$start_ep" ]; then
+    wall_part=" ${C_DIM}|${C_RST} $(fmt_wall $(( now_ep - start_ep )))"
+  fi
+fi
+
+ctx_part=""
+[ -n "$ctx_str" ] && ctx_part=" ${C_DIM}|${C_RST} ${ctx_str}"
+
+printf '%s%sbp3:%s %s %s%s%s %d/%d (%d%%) %s|%s %s%s%s\n' \
+  "$C_BLD" "$C_CYN" "$C_RST" \
+  "$quest" \
+  "$C_GRN" "$bar" "$C_RST" \
+  "$landed" "$total" "$pct" \
+  "$C_DIM" "$C_RST" \
+  "$node_part" \
+  "$wall_part" \
+  "$ctx_part"
+exit 0

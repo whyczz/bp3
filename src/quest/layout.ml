@@ -10,6 +10,7 @@ let quests_root = "docs/quests"
    a tip may hold its ledgers under any of these, in any era. *)
 let legacy_quests_roots = ["docs/graphs"; "docs/goals"]
 let quest_file = "QUEST.md"
+let log_file = "LOG.md"
 let nodes_dir = "nodes"
 let legacy_nodes_dirs = ["experiments"]
 let ledger_file = "ledger.jsonl"

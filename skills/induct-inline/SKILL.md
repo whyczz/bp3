@@ -34,7 +34,8 @@ hand-cast edge.
    prepare the quest desk exactly as `induct` step 2 does and
    author only there; host mode works in the repo. One session
    per quest: this session runs this quest and no other, and
-   NODE.md build notes carry what a compaction would lose.
+   `LOG.md` / NODE.md build notes carry new findings, lessons,
+   and what a compaction would lose.
 2. On every read, in this order:
    - each `handed_off` node with no grader for its current attempt
      (running, or finished with its verdict not yet cast): start one
