@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# receipt — 4-line deterministic handoff evidence (fast-agy-induct verify.2).
+# Runs the gate (make check-full by default) and scripts/red-first on a clean
+# commit and prints: commit header, gate exit+summary, red-first line, and
+# test-file/line delta under test/.
+#
+# Usage: scripts/receipt [<sha>]
+#   default <sha> is HEAD.
+#   -h / --help prints this docstring, exit 0, reads no state.
+# Exit codes:
+#   0  clean tree, gate green, red-first ok/n/a
+#   1  gate failed or red-first FAIL
+#   2  usage error or dirty working tree
+set -euo pipefail
+
+usage() {
+  sed -n '2,13s/^# \{0,1\}//p' "$0"
+}
+
+sha="HEAD"
+if [ $# -gt 1 ]; then
+  echo "receipt: expected at most one commit argument" >&2
+  exit 2
+fi
+if [ $# -eq 1 ]; then
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    -*) echo "receipt: unknown flag: $1" >&2; exit 2 ;;
+    *) sha="$1" ;;
+  esac
+fi
+
+root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$root" ]; then
+  echo "receipt: not inside a git repository" >&2
+  exit 2
+fi
+
+if [ -n "$(git -C "$root" status --porcelain)" ]; then
+  echo "receipt: dirty worktree; commit or clean first" >&2
+  exit 2
+fi
+
+full="$(git -C "$root" rev-parse --verify "${sha}^{commit}" 2>/dev/null || true)"
+if [ -z "$full" ]; then
+  echo "receipt: invalid commit: $sha" >&2
+  exit 2
+fi
+
+sha7="${full:0:7}"
+subject="$(git -C "$root" show -s --format=%s "$full")"
+
+gate_cmd="${BP3_RECEIPT_GATE:-make check-full}"
+gate_log="$(mktemp "${TMPDIR:-/tmp}/bp3-receipt-gate.XXXXXX")"
+trap 'rm -f -- "$gate_log"' EXIT
+
+gate_rc=0
+(cd "$root" && bash -c "$gate_cmd") >"$gate_log" 2>&1 || gate_rc=$?
+gate_last="$(awk 'NF {last=$0} END {print last}' "$gate_log")"
+[ -n "$gate_last" ] || gate_last="(no output)"
+
+rf_rc=0
+rf_line="$(cd "$root" && ./scripts/red-first "$full" 2>&1)" || rf_rc=$?
+rf_line="$(printf '%s\n' "$rf_line" | tail -n 1)"
+
+if git -C "$root" rev-parse --verify "${full}^" >/dev/null 2>&1; then
+  numstat="$(git -C "$root" diff --numstat "${full}^" "$full" -- test/ || true)"
+  stats="$(printf '%s\n' "$numstat" | awk '
+    NF >= 3 {
+      files++
+      if ($1 ~ /^[0-9]+$/) add += $1
+      if ($2 ~ /^[0-9]+$/) del += $2
+    }
+    END { printf "%d %d %d\n", files+0, add+0, del+0 }')"
+  read -r t_files t_add t_del <<< "$stats"
+  tests_line="tests: ${t_files} file(s) changed (+${t_add}/-${t_del} lines under test/)"
+else
+  tests_line="tests: initial commit"
+fi
+
+printf 'receipt %s %s\n' "$sha7" "$subject"
+printf 'check-full: rc=%d %s\n' "$gate_rc" "$gate_last"
+printf '%s\n' "$rf_line"
+printf '%s\n' "$tests_line"
+
+if [ "$gate_rc" -eq 0 ] && [ "$rf_rc" -eq 0 ]; then
+  exit 0
+else
+  exit 1
+fi
