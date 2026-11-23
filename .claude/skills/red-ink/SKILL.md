@@ -11,7 +11,7 @@ existing artifact
     |
     +-- copy --> working copy        (original stays untouched)
                      |
-    walk:  output -> inputs -> data -> state -> fn -> names -> concepts
+    walk:  shape (10k-ft) -> output -> inputs -> data -> state -> fn -> names -> concepts
                      |
     per slice: Observe -> Orient -> Decide -> Act -> IIUC
                      |
@@ -24,7 +24,7 @@ existing artifact
 def red_ink(artifact, expert=None):
     copy = duplicate(artifact)           # original never edited
     icebox_hits = search_icebox(artifact)  # where we want to get to
-    for slice in [output, inputs, data, state, fn, names, concepts]:
+    for slice in [shape, output, inputs, data, state, fn, names, concepts]:
         teach(slice)                     # Observe
         orient(slice)                    # the 2-4 things that matter
         decision = ask_one(owner)        # Decide: options + recommendation
@@ -84,21 +84,25 @@ entry frozen.
 
 ## The walk
 
-Before round one:
-1. **TL;DR opener:** a quick greentext-style overview of what this
-   design is and why it exists before starting the walk.
-2. **PRFAQ-style Demo (already built):** in round one's Observe,
-   present the feature as if it already shipped — 2–4 concrete
-   day-to-day use cases showing what you type, what you see, and
-   what pain it kills (honestly labeled `design trace`), before
-   drilling into schemas or flags.
-3. **Opening attack** (see Red chair at the ends) — one strongest
-   attack, named in round one's Observe. Output first after that,
-   unless the attack reorders the walk. A design whose output is
-   wrong earns no internals discussion.
+Before drilling into schemas or flags, start with the **10,000-foot
+Shape gate** (`Shape` is slice 1, before `Output`):
+1. **Context & Why (greentext TL;DR opener):** why this exists,
+   what pain it kills, and how it fits the rest of the system.
+2. **PRFAQ-style Demo (already built):** present the feature as if
+   it already shipped — 2–4 concrete day-to-day use cases showing
+   what you type, what you see, and what action happens at the end
+   (honestly labeled `design trace`).
+3. **Architecture & mechanism bet:** state plainly *how* it works
+   at 10,000 ft (e.g. deterministic rules middleware vs LLM-as-a-judge
+   vs hybrid, and what concrete artifact/action it produces) so the
+   owner settles the big bet before debating JSON keys or flags.
+4. **Opening attack** (see Red chair at the ends) — one strongest
+   attack, named in round one's Observe. `Output` comes right after
+   `Shape` is settled, unless the attack reorders the walk.
 
 | Slice | Question it answers |
 |---|---|
+| Shape (10k-ft) | context & why, PRFAQ demo, core mechanism (rules vs LLM vs hybrid), and what end action/artifact it produces |
 | Output | what it emits: calls, verdict shapes, error codes, exits |
 | Inputs | what it takes in: args, flags, env, config, files |
 | Internals: data | shapes and schemas |
