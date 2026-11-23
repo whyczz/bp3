@@ -1,12 +1,15 @@
 ---
-status: proposed
+status: canceled
 home_repo: bp3
 date: 2026-11-19
 ---
 
 # fast-grader: minutes per grade, evidence by script
 
-On hold (owner, 2026-11-19: "okay put the fast-grade on hold"). Draft
+Canceled (owner, 2026-11-23: superseded by landed quest
+`docs/quests/2026-11-23-fast-agy-induct/`, which kept graders strictly
+read-only and promoted `docs/icebox/2026-11-19-fast-grader.md`). On hold
+(owner, 2026-11-19: "okay put the fast-grade on hold"). Draft
 only, not approved; the icebox entry stays frozen. CONTEXT.md moved to
 the constraints-context quest
 (`docs/quests/2026-11-19-constraints-context/`).
