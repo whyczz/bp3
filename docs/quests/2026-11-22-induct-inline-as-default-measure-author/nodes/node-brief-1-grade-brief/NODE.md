@@ -177,3 +177,55 @@ tree: g.sh edits NODE.md in the working tree after handoff, and the
 brief still shows the committed text. Property-based: for generated
 NODE.md text, the rendered gates part equals the section, and the
 first line always names the node id and `commit[:7]`.
+
+## Build notes (2026-11-22)
+
+- `src/quest/names.ml` (new): `verb_brief`, `flag_desk`,
+  `e_not_handed_off`. The dispatch, the help line and the refusal use
+  them; `Store.reserved_slugs` gains `Names.verb_brief`.
+- `src/quest/brief.ml` (new): `section`, `render` (pure) and `inputs`
+  (ledgers and git as of a stamp; `~upto:None` for the verb).
+  The previous round is the last grade or verify line that sent the node
+  to todo or blocked, and its commit; the reason is never read. Other
+  nodes' commits are their handoff commits inside `git rev-list
+  <prev>..<commit>`.
+- `src/quest/main.ml`: `do_brief`, dispatched as `q <quest> n <node>
+  brief [--desk <path>]` ahead of the edge door; one help line in
+  `help_q`.
+- `GRADING.md` (new): the gate and the rules the hand-written briefs
+  carried, plus "a check must be seen to fail on the bug it guards".
+- CLAUDE.md and AGENTS.md: one Commands line each (still identical).
+- Tests:
+  - `test/unit/test_brief.ml`: 5 cases and 1 law, 300 runs;
+  - `test/g.sh` brief block: JSON shape, join line, gates verbatim
+    (the next section left out), GRADING.md, the Desk line, three bad
+    desks (`E_USAGE`), the working tree ignored, todo and approved
+    refused (`E_NOT_HANDED_OFF`), the cycle-2 range and other node,
+    `SENTINEL-REASON` absent, and `brief` reserved.
+  The g.sh block sits before the version-guard section, which stamps
+  the fixture repo MAJOR-ahead, and stages the files earlier sections
+  leave untracked (a handoff needs a clean tree).
+- Mutants, each red then restored (`cmp` against the kept copy):
+  - desk validation off: g.sh "bad --desk accepted: rel";
+  - others never listed: g.sh "brief others";
+  - state check off: g.sh "brief in approved accepted";
+  - `section` past the next heading: test_brief's law fails.
+- `make check-full`: rc 0, 28/28 suites, 37 s.
+- The order changed: brief.1 went first (first in `ready`). The quest's
+  first stacked land is therefore brief.1's, cast after measure.1's
+  handoff, so the probe runs before measure.1's handoff.
+- Cycle 2 (the grader's mechanical fix). The working-tree probe could not
+  fail: the edit landed after `## Diagram`, outside the gates, and the
+  probe never checked the brief was non-empty. It now rewrites NODE.md
+  with `EDITED-AFTER-HANDOFF` inside the gates and asserts `GATE-ROW-ONE`
+  first. Planted mutant (`Brief.inputs` reads the working tree instead
+  of `git show`): g.sh red, "brief read the working tree"; restored
+  (`cmp`), g.sh green, `make check` rc 0.
+- Cycle 3 (the grader's mechanical fix). The newline desk case could not
+  fail: the path didn't exist, so the existence check refused it first.
+  g.sh now makes real directories whose names hold `\n` and `\r`.
+  Mutants with the `\n` clause or the `\r` clause dropped: each g.sh red,
+  "bad --desk accepted". Also closed (cycle 2's NOT CHECKED): the
+  working-tree probe edits GRADING.md too. A mutant that reads only
+  GRADING.md from disk turns g.sh red, "brief read GRADING.md from the
+  working tree". All restored (`cmp`); g.sh green, `make check` rc 0.

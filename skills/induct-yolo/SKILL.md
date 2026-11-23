@@ -11,7 +11,8 @@ by name (`/induct-yolo <quest>...`,
 overnight, or in a queue with no human present. Several
 quests may be named; a Run budget may be stated. One
 output: the check-in report (step 5). For one quest with a
-human present, use `induct` instead.
+human present, use `induct` instead; for one quest run inline
+with no human present, use `induct-inline-yolo`.
 
 `/induct-yolo <quest>...` means `/induct <quest>` per
 quest, in queue order, under the no-human rails below. Follow

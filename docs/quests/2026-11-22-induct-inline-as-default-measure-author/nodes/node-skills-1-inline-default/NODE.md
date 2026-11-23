@@ -141,3 +141,77 @@ Known cases: the skills.sh patterns above, each absent from master's
 text (checked one by one, as pi-metrics skills.1 did), and the g.sh
 two-commit land. Property-based: omitted. Skill text has no generator,
 and the land fixture covers one shape, the one the skill creates.
+
+## Build notes (2026-11-22)
+
+- `skills/induct-inline/SKILL.md`: now the default way to run a quest.
+  - Procedure: each read starts a background grader for every
+    handed-off node without one, authors the first ready todo node
+    when nothing is being authored, and at the cast boundary casts
+    finished verdicts in handoff order and lands approved nodes.
+  - Grade: grade desks (`-a<attempt>`); the brief from
+    `bp3 q <quest> n <node> brief --desk <grade desk path>`, passed
+    verbatim; verify, then cast; the scrape's new counts and times.
+  - Rules: one quest per session, one node being authored at a time.
+  The pi bullet, the metrics wording and the constraints bullets keep
+  their earlier quests' assertions, and the brief bullet names
+  `make check-full` via GRADING.md.
+- `skills/using-bp3` and `skills/induct` name induct-inline as the
+  default and `induct` as the mode for many independent nodes at once.
+- The gates' design trace spells the desk command
+  `bp3 harness worktree prepare …`. That verb doesn't exist
+  (`E_USAGE` "unknown harness verb: worktree"); it is `bp3 harness
+  desk prepare` (or the alias `bp3 worktree prepare`). The skill and
+  the skills.sh assertion use `bp3 harness desk prepare …`, which this
+  quest ran 9 times. QUEST.md's Terms row is corrected. The gates text
+  is the owner's to correct.
+- test/skills.sh: 11 assertions × 4 dirs (source and renders); 305 in
+  all. Each pattern is absent from master's text (checked one by one).
+- test/g.sh: stacked-land fixture. In one quest desk, sa is committed and
+  handed off, then sb on top; both ship and land in turn. The desk stays
+  clean, HEAD stays sb, and A is an ancestor of B. Run alone, it fails
+  under a merge-land mutant ("stacked land sb") and under a land that
+  moves the desk's branch ("a land moved the desk's branch"). In full
+  g.sh an earlier case catches the first mutant first.
+- Renders: `bp3 skills install --harness=all` with `BP3_COMPLETIONS_DIR`
+  in scratch; `bp3 skills check` ok. The global `_bp3` is untouched
+  (Nov 20 16:26 before and after).
+- Dogfood: this quest ran the rule by hand from brief.1 on. 9 grades
+  were cast, all `checked` and all `brief_verbatim`. Overlap happened
+  in four author windows while measure.1 and brief.1 were both open;
+  after both landed, deps serialized the railway. Ledger stamps, quoted
+  from the two nodes' ledgers (read for evidence, not state), with the
+  grader's own transcript stamps:
+
+  | when (UTC) | what |
+  |---|---|
+  | 21:26:53 | brief.1 c1 `handoff` (96a21d5); its grader starts in a grade desk |
+  | 21:27:45 – 21:32:47 | brief.1 c1 grader transcript (302 s), while measure.1 is authored |
+  | 21:36:14 | measure.1 c1 `handoff` (954bb16), the cast boundary |
+  | 21:36:43 | brief.1 c1 `grade` needs_fix cast, after the boundary |
+  | 21:36:37 – 21:47:10 | measure.1 c1 grader, while brief.1 c2 [21:36:43, 21:38:23] and c3 [21:44:11, 21:46:27] are authored |
+  | 21:46:47 – 21:53:29 | brief.1 c3 grader, while measure.1 c2 [21:47:32, 21:51:39] is authored |
+  | 21:53:43 | brief.1 `land` (b2e0165, cycle 3) |
+  | 21:59:53 | measure.1 `land` (acbab8b, cycle 2) |
+
+  measure.1's c1 author window is [21:26:53, 21:36:14], 561 s, and no
+  edge falls inside it. brief.1's grade ran entirely inside it, so that
+  grade saved 302 s of author wait. With the other three overlaps
+  (100 s, 136 s, 247 s) the total is about 785 s, and every cast still
+  fell at a cast boundary.
+- Cycle 2 (the grader's mechanical fixes):
+  - skills.sh gains 10 lines per dir: verify-then-cast (HEAD at the
+    bound commit, empty status), the void verdict and the next
+    attempt, the attempt count, one session per quest, the
+    finished-grader guard, graders' wall and tool seconds, and induct
+    as the many-nodes mode in using-bp3 and induct.
+  - The Measure bullet no longer claims active time for graders.
+  - Procedure step 2 starts a grader only for a handed-off node with no
+    grader for its current attempt, running or finished with its
+    verdict not yet cast.
+  - g.sh's stack-order line couldn't fail; it now checks the quest
+    branch tip is sb.
+  Each new skills.sh line was checked absent from master's text.
+- Cycle 3 (the grader's mechanical fix): the dogfood note now counts all
+  four overlapped author windows (about 785 s), not one (302 s). The
+  stamps come from the node ledgers and the grader transcripts.

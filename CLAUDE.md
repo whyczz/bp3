@@ -56,6 +56,7 @@ other repos point at it.
 ./bin/bp3 q <quest> n <node> e handoff --commit <sha> --reason "..."
 ./bin/bp3 q <quest> n <node> e grade --verdict ship|needs_fix --reason "..."
 ./bin/bp3 q <quest> n <node> e land --reason "..."
+./bin/bp3 q <quest> n <node> brief [--desk <path>]   # the grader's cold brief, rendered from the bound commit (GRADING.md)
 ./bin/bp3 q <quest> metrics scrape|r   # collect, then read, what grades and author cycles cost
 ./bin/bp3 e                            # claimed edge door: resolved context
 ./bin/bp3 n r                          # claimed node door: read own node

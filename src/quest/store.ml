@@ -21,7 +21,7 @@ let reserved_slugs =
     "c"; "create"; "r"; "read"; "u"; "update"; "d"; "delete";
     "s"; "i"; "f"; "w";
     "derive"; "inspect"; "remove"; "prepare"; "check"; "exit";
-    "release"; "list" ]
+    "release"; "list"; Names.verb_brief ]
 
 let check_creatable s =
   check_slug s;

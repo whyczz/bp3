@@ -113,3 +113,80 @@ names induct-inline's procedure as written and has no numbered steps.
 Known cases: the skills.sh patterns above, each absent from master's
 text, and `bp3 skills check` fresh after install. Property-based:
 omitted; skill text has no generator.
+
+## Build notes (2026-11-22)
+
+add-bp3-skill's gates, in order:
+
+1. The job, in one sentence: the owner runs one quest inline with no
+   human present, and gets a check-in report.
+   - Example invocations: `/induct-inline-yolo q1`; "run q1 inline,
+     yolo, don't stop to ask"; `/induct-inline-yolo q1 6 grades`.
+   - Near-misses: `/induct-yolo q1 q2` (a fleet: induct-yolo);
+     `/induct-inline q1` with the owner present (induct-inline); "grade
+     this node" (using-bp3).
+2. Overlap:
+   - induct-yolo runs fleets with workflow children; induct-inline
+     needs a human for owner calls.
+   - A "yolo" section inside induct-inline could absorb this, but the
+     owner asked for its own skill ("i want a induct-inline-yolo skill
+     as well").
+   - It carries rails only and follows induct-inline as written, as
+     induct-yolo does with induct.
+3. Stateless: instructions only. The check-in report reads
+   `bp3 q r`, `metrics r` and `harness desk list`; no hooks, no daemon.
+4. Red chair:
+   - The trigger word "yolo" is shared with induct-yolo, and the
+     descriptions split it: one quest inline here, several quests
+     there.
+   - Context tax: 66 lines.
+   - No collision with any yap skill name.
+   - The "decide what isn't the owner's" rail could overreach. It
+     names only the fix-and-recommit and next-attempt calls, and it
+     parks everything owner-class.
+5. Source: `skills/induct-inline-yolo/SKILL.md`, frontmatter `name`
+   equals the directory, no placeholders.
+6. Install and verify: `bp3 skills install --harness=all` with
+   `BP3_COMPLETIONS_DIR` in scratch (the global `_bp3` is untouched,
+   Nov 20 16:26). It wrote `.pi`, `.claude` and `.agents` renders and
+   added the `.pi/settings.json` exclusion. `muse skills validate
+   .agents/skills/induct-inline-yolo --json`: `valid: true`, zero
+   diagnostics. `bp3 skills check` ok.
+7. Not verified: a live run of the skill by a fresh session. This
+   quest ran its rules by hand.
+
+Other changes:
+
+- `bin/bp3` `CORE_SKILLS` gains induct-inline-yolo.
+- induct-inline and induct-yolo each name it. The cross-reference was
+  left out of skills.1, so that node named no skill that didn't exist
+  yet.
+- test/skills.sh: the exact `.pi/settings.json` list in the install
+  fixture gains the new exclusion. There are 16 new lines per dir, plus
+  the `CORE_SKILLS` line; 411 assertions in all. Every new pattern
+  fails on master: no skill file, no cross-references, and no
+  `CORE_SKILLS` entry there.
+- Mutants, each red then restored (`cmp`):
+  - a numbered step added: the no-procedure check;
+  - the never-promote rail dropped: its line.
+- Cycle 2 (the grader's mechanical fixes):
+  - Major: the budget stop, the scope-change park row and the check-in
+    report's items had no assertion. Eight more lines per dir, 443 in
+    all. Deleting the scope-change row, the budget sentence or the
+    desks bullet now turns skills.sh red.
+  - Minor: `brief_verbatim` / `brief_edited` aren't in `q r`,
+    `metrics r` or `desk list`; only `metrics scrape` emits them. The
+    report's sources now name the last scrape's output, and the readout
+    line says which item comes from where.
+- Cycle 3 (the grader's mechanical fix). The constraints-class and
+  no-grader park rows were pinned by label only, so a mutant that makes
+  an unattended run fix an owner-class `needs_fix` stayed green. Both
+  rows are now pinned whole. Mutant A (the constraints row says "fix it
+  here, commit, hand off again") and mutant B (no park at `handed_off`)
+  now each turn skills.sh red; restored (`cmp`); 443 assertions;
+  shellcheck ok.
+- Cycle 4 (the grader's mechanical fix). The CORE_SKILLS assertion matched
+  the name anywhere in `bin/bp3`, so moving it to DEV_SKILLS (host repos
+  would silently lose the skill) stayed green. It is now anchored on the
+  `CORE_SKILLS="…"` line. The core-to-dev mutant turns skills.sh red;
+  restored (`cmp`); shellcheck ok.

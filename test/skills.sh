@@ -91,7 +91,7 @@ assert grep -q 'skills/induct/workflows/induct-grade.js' "$work/out"
 "$root/bin/bp3" skills install --harness=all > /dev/null
 "$root/bin/bp3" skills check > "$work/check-rerendered.json"
 assert jq -e '.ok == true' "$work/check-rerendered.json"
-assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/induct-inline/SKILL.md","!**/.agents/skills/induct-yolo/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink/SKILL.md","!**/.agents/skills/trial/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
+assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/induct-inline/SKILL.md","!**/.agents/skills/induct-inline-yolo/SKILL.md","!**/.agents/skills/induct-yolo/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink/SKILL.md","!**/.agents/skills/trial/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
 # induct is the one conducting skill; retired traverse/bp3g names render nowhere.
 for h in .pi .agents .claude; do
   assert test -f "$root/$h/skills/induct/SKILL.md"
@@ -282,6 +282,69 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -q 'whose first line names the node id$' "$ii"
   assert grep -q 'The verdict is the printed text, cast as returned\.' "$ii"
   assert grep -q 'one fresh grader: a subagent, or a headless pi when the owner names it' "$ii"
+done
+
+# induct-inline-as-default skills.1: induct-inline is the default way to
+# run a quest, with background grades in grade desks, the rendered brief
+# passed verbatim, the cast boundary, verify-then-cast, one session per
+# quest. using-bp3 and induct point to it. Sources and every render.
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  ii="$repo/$dir/induct-inline/SKILL.md" ub="$repo/$dir/using-bp3/SKILL.md" id="$repo/$dir/induct/SKILL.md"
+  assert grep -q 'This is$' "$ii"
+  assert grep -q '^the default way to run a quest\. One quest\.' "$ii"
+  assert grep -qF '`bp3 q <quest> n <node> brief --desk <grade desk path>` and pass' "$ii"
+  assert grep -qF 'its `brief` text verbatim, adding nothing and leaving nothing' "$ii"
+  assert grep -qF '`bp3 harness desk prepare <quest> <node> --run grade-<node>-c<cycle>-a<attempt> --commit <sha>`.' "$ii"
+  assert grep -q 'at the \*\*cast boundary\*\* (right after that handoff, or when' "$ii"
+  assert grep -q '^- \*\*Verify, then cast\*\*: before casting a verdict, check its grade$' "$ii"
+  assert grep -q '^- One quest per session; one node being authored at a time;$' "$ii"
+  assert test -z "$(grep -n 'one node in flight' "$ii" || true)"
+  # skills.1 cycle 2 (grader): the verify, void, attempt, session and mode lines
+  assert grep -q '^  desk\. `git rev-parse HEAD` must print the bound commit, and$' "$ii"
+  assert grep -qF '`git status --short` must print nothing. Then cast the verdict' "$ii"
+  assert grep -q '^  the verdict is void: cast nothing, keep the desk for the owner,$' "$ii"
+  assert grep -q '^  and start the next attempt in a fresh desk\.$' "$ii"
+  assert grep -qF 'Attempts count from `a1`; a grade dispatched again gets the next' "$ii"
+  assert grep -qF 'per quest: this session runs this quest and no other' "$ii"
+  assert grep -qF '(running, or finished with its verdict not yet cast): start one' "$ii"
+  assert grep -qF 'seconds for graders, and counts `brief_verbatim` or' "$ii"
+  assert grep -q '^`induct` when many independent nodes should run at once with$' "$ub"
+  assert grep -q '^should run at once with workflow children, one desk per node\.$' "$id"
+  assert grep -q '^use `induct-inline`, the default: this session authors each$' "$ub"
+  assert grep -q '^`induct-inline` is the default way to run a quest: this session$' "$id"
+done
+
+# induct-inline-as-default skills.2: induct-inline-yolo runs one quest
+# inline under no-human rails; it follows induct-inline as written and
+# carries no numbered procedure of its own. Sources and every render.
+assert grep -Eq '^CORE_SKILLS="([^"]* )?induct-inline-yolo( [^"]*)?"$' "$repo/bin/bp3"
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  iiy="$repo/$dir/induct-inline-yolo/SKILL.md" ii="$repo/$dir/induct-inline/SKILL.md" iy="$repo/$dir/induct-yolo/SKILL.md"
+  assert test -f "$iiy"
+  assert grep -q '^name: induct-inline-yolo$' "$iiy"
+  assert grep -qF 'Follow the `induct-inline` skill' "$iiy"
+  assert grep -qF 'SKILL.md`) procedure and rules as written' "$iiy"
+  assert test -z "$(grep -nE '^[0-9]+\. ' "$iiy" || true)"
+  assert grep -qF '**Never attest**: `BP3_DECIDER` stays unset for the whole run.' "$iiy"
+  assert grep -q 'Never take `resume` or `delete`, never promote, never push:' "$iiy"
+  assert grep -qF '**Park, never page**' "$iiy"
+  assert grep -q 'only its dependents\.$' "$iiy"
+  assert grep -qF '  | constraints-class `needs_fix` | stop, pitch to the owner (`/teach`) | park, with the pitch written in the report |' "$iiy"
+  assert grep -qF '| no subagent tool | the owner judges | use pi only if the invocation names it, else park at `handed_off`; never self-grade |' "$iiy"
+  assert grep -qF '**Budget**: an optional stated budget, in grades or wall minutes.' "$iiy"
+  assert grep -q '^## Check-in report$' "$iiy"
+  assert grep -q '^- One quest per invocation and one session per quest; fleets are$' "$iiy"
+  assert grep -q '^`induct-inline-yolo` to run one quest this way with no human$' "$ii"
+  assert grep -q '^with no human present, use `induct-inline-yolo`\.$' "$iy"
+  # skills.2 cycle 2 (grader): the budget stop, the scope-change park, the report's items and sources
+  assert grep -q '^  | scope change or acceptance-gate edit | the owner.s call | park |$' "$iiy"
+  assert grep -qF 'When it is spent, start no new author step and no new grade' "$iiy"
+  assert grep -q '^- nodes at `node_fin`' "$iiy"
+  assert grep -q '^- parked nodes, each with its reason' "$iiy"
+  assert grep -q '^- the metrics readout:' "$iiy"
+  assert grep -q '^- desks still open' "$iiy"
+  assert grep -qF '`bp3 q <quest> metrics r`, the last `bp3 q <quest> metrics scrape`' "$iiy"
+  assert grep -q '`brief_verbatim` / `brief_edited` (from the last scrape.s tally);' "$iiy"
 done
 
 printf 'skills tests: ok (%s assertions)\n' "$checks"

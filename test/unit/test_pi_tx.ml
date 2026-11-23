@@ -47,6 +47,7 @@ let case_a_pi_session_reads_into_the_claude_cost_record _ =
   let i = string_of_int in
   assert_equal ~printer:string_of_float 42.5 c.wall_s;
   assert_equal ~printer:i 1 c.tool_calls;
+  assert_equal ~printer:string_of_float 35. c.tool_s;   (* toolCall 12:00:05 to its toolResult 12:00:40 (measure.1) *)
   assert_equal ~printer:i 220 c.tokens_in;
   assert_equal ~printer:i 15 c.tokens_out;
   assert_equal ~printer:i 50 c.tokens_cache_read;       (* the usage entry counts, as in pi's own totals *)

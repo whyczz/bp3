@@ -179,6 +179,31 @@ let do_node_delete quest node fl id =
   with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
     ("node", json_str node); ("state", json_str "deleted")]
 
+(* The grader's cold brief (induct-inline-as-default brief.1): a read.
+   It exists only while the bound commit waits on its grade; the one
+   caller input is a desk path, checked so it can carry nothing else. *)
+let do_brief quest node tail =
+  check_slug quest; check_slug node;
+  let desk = match tail with
+    | [] -> None
+    | [ f; d ] when f = Names.flag_desk ->
+        if not (Brief.desk_shape d) || not (Sys.file_exists d && Sys.is_directory d)
+        then usage (Names.flag_desk ^ " needs an absolute path to an existing directory, printable ASCII with no space")
+        else Some d
+    | _ -> usage (Names.verb_brief ^ " takes only " ^ Names.flag_desk ^ " <path>") in
+  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  let (_, s, _) = (match fold_node quest node with Some v -> v | None -> not_found "node" node) in
+  let commit = (match s.st, s.bound with
+    | "handed_off", Some c -> c
+    | _ ->
+        err Names.e_not_handed_off
+          (`Assoc [("state", json_str s.st); ("legal_edges", `List (List.map json_str (legal_edges s.st)))])
+          "A brief exists only for a commit waiting on its grade; re-read the node." 1) in
+  let i = Brief.inputs ~quest ~node ~cycle:s.cycle ~commit ~upto:None in
+  `Assoc [("ok", `Bool true); ("quest", json_str quest); ("node", json_str node);
+          ("cycle", `Int s.cycle); ("commit", json_str commit);
+          ("brief", json_str (Brief.render ?desk i))]
+
 let do_update quest node edge fl id =
   check_slug quest; check_slug node;
   let reason = require_reason fl in
@@ -500,6 +525,7 @@ let help_q = "bp3 q - quest/node state. Doors:\n\
   bp3 q <quest> c|r|u|d ...    node door for one quest\n\
   bp3 q <quest> n <node> r     read one node (canonical nested address)\n\
   bp3 q <quest> n <node> e <edge> [flags]   take one node's edge (canonical nested address)\n\
+  bp3 q <quest> n <node> " ^ Names.verb_brief ^ " [" ^ Names.flag_desk ^ " <path>]   the grader's cold brief for a handed_off node, rendered from the bound commit\n\
   bp3 q <quest> diagram ...    generated quest diagram from the live rollup (mvp.4)\n\
   bp3 q <quest> metrics r|scrape   what each grade and author cycle cost (metric-collectors)\n\
   bp3 q icebox r [term...]     search frozen icebox entries (read-only)\n\
@@ -758,6 +784,8 @@ let rec run argv =
        | Some (_, s, text) ->
            print_verdict ~fmt:fl.fmt
              (node_verdict quest node s (deps_of_text text) (timing_of_text text)); 0)
+  | quest :: "n" :: node :: v :: tail when v = Names.verb_brief ->
+      print_verdict ~fmt:"json" (do_brief quest node tail); 0
   | quest :: "n" :: node :: "e" :: edge :: tail ->
       let (pos, fl) = split_flags tail in
       if pos <> [] then usage "stray positional in nested edge";

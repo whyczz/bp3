@@ -162,7 +162,8 @@ let grade_samples q node (sp : Metrics.grade_span) ~run ~at (c : Claude_tx.cost)
   let i = float_of_int in
   [ mk "wall_s" c.wall_s; mk "tool_calls" (i c.tool_calls); mk "context_end" (i c.context_end);
     mk "tokens_in" (i c.tokens_in); mk "tokens_out" (i c.tokens_out);
-    mk "tokens_cache_read" (i c.tokens_cache_read); mk "tokens_cache_write" (i c.tokens_cache_write) ]
+    mk "tokens_cache_read" (i c.tokens_cache_read); mk "tokens_cache_write" (i c.tokens_cache_write);
+    mk "tool_s" c.tool_s ]
 
 (* A grade transcript from any harness the scrape reads (pi-metrics
    scrape.1): the join is the same for all, the check is the harness's. *)
@@ -175,17 +176,36 @@ let joins g ~node (sp : Metrics.grade_span) =
   Claude_tx.prompt_names_grade prompt ~node ~commit:sp.g_commit
   && Claude_tx.span_in_window ~first_ts ~last_ts ~handed_at:sp.handed_at ~graded_at:sp.graded_at
 
+let join_line g ~node (sp : Metrics.grade_span) =
+  let prompt = match g with Claude (_, tx) -> tx.first_prompt | Pi (_, tx) -> tx.first_prompt in
+  Claude_tx.join_line_names prompt ~node ~commit:sp.g_commit
+
+(* Several claimants: the single one whose first line is the join line
+   wins; otherwise the grade stays ambiguous. *)
+let claimants graders ~node sp =
+  match List.filter (fun g -> joins g ~node sp) graders with
+  | (_ :: _ :: _) as cs -> (match List.filter (fun g -> join_line g ~node sp) cs with [ g ] -> [ g ] | _ -> cs)
+  | cs -> cs
+
 (* One node: each grade span finds its transcript among every harness's,
    or says why not. A Claude transcript is checked against the harness
    report: agreeing is "checked", disagreeing is "mismatched" and writes
    nothing, and no report found is "unchecked" (written, flagged). A pi
    session has no report: one that agrees with itself is "self_checked"
    (written), one that doesn't is "mismatched". *)
+(* brief.2: was the joined grader's first prompt the brief bp3 renders
+   for that handoff? Evidence beside the buckets: it never changes what
+   is written, nor the exit code. *)
+let brief_check q node (sp : Metrics.grade_span) prompt (t : Metrics.tally) =
+  let i = Brief.inputs ~quest:q ~node ~cycle:sp.g_cycle ~commit:sp.g_commit ~upto:(Some sp.handed_at) in
+  if Brief.is_verbatim prompt i then { t with brief_verbatim = t.brief_verbatim + 1 }
+  else { t with brief_edited = t.brief_edited + 1 }
+
 let grade_pass q node edges graders =
   let spans = Metrics.grade_spans edges in
   List.fold_left (fun (batch, (t : Metrics.tally)) (sp : Metrics.grade_span) ->
       let t = { t with grades = t.grades + 1 } in
-      match List.filter (fun g -> joins g ~node sp) (Lazy.force graders) with
+      match claimants (Lazy.force graders) ~node sp with
       | [] -> (batch, { t with owner_graded = t.owner_graded + 1 })
       | [ Claude (path, tx) ] ->
           let c = Claude_tx.cost tx in
@@ -196,13 +216,13 @@ let grade_pass q node edges graders =
           let covered r = Claude_tx.parse ?until:(Claude_tx.seconds r.Claude_tx.r_at) (read_file path) in
           (match report_for path tx with
            | Some r when not (Claude_tx.checks (covered r) r) -> (batch, { t with mismatched = t.mismatched + 1 })
-           | Some _ -> (batch @ samples (), { t with checked = t.checked + 1 })
-           | None -> (batch @ samples (), { t with unchecked = t.unchecked + 1 }))
+           | Some _ -> (batch @ samples (), brief_check q node sp tx.first_prompt { t with checked = t.checked + 1 })
+           | None -> (batch @ samples (), brief_check q node sp tx.first_prompt { t with unchecked = t.unchecked + 1 }))
       | [ Pi (path, tx) ] ->
           let t = { t with skipped_lines = t.skipped_lines + tx.skipped_lines } in
           if Pi_tx.self_checks tx then
             (batch @ grade_samples q node sp ~run:(pi_run_of_path path tx) ~at:tx.last_ts (Pi_tx.cost tx),
-             { t with self_checked = t.self_checked + 1 })
+             brief_check q node sp tx.first_prompt { t with self_checked = t.self_checked + 1 })
           else (batch, { t with mismatched = t.mismatched + 1 })
       | _ -> (batch, { t with ambiguous = t.ambiguous + 1 })) ([], Metrics.zero) spans
 
@@ -264,11 +284,14 @@ let author_pass q all sessions =
           if w.w_bad > 0 then add n ([], { one with author_bad_usage = 1 }) else
           if w.w_msgs = [] then add n ([], { one with author_missing = 1 }) else
           let c = Claude_tx.author_cost w.w_msgs w.w_tools in
-          let mk m v = { Metrics.metric = "author." ^ m; quest = q; node = n; cycle = sp.a_cycle;
-                         run = "claude:" ^ s.s_id; model = c.model; value = float_of_int v; at = sp.a_upto;
-                         source = Metrics.author_window.c_name } in
+          let tm = Claude_tx.window_times s ~from:(secs sp.a_from) ~upto:(secs sp.a_upto) in
+          let mkf m v = { Metrics.metric = "author." ^ m; quest = q; node = n; cycle = sp.a_cycle;
+                          run = "claude:" ^ s.s_id; model = c.model; value = v; at = sp.a_upto;
+                          source = Metrics.author_window.c_name } in
+          let mk m v = mkf m (float_of_int v) in
           add n ([ mk "tool_calls" c.tool_calls; mk "tokens_in" c.tokens_in; mk "tokens_out" c.tokens_out;
-                   mk "tokens_cache_read" c.tokens_cache_read; mk "tokens_cache_write" c.tokens_cache_write ],
+                   mk "tokens_cache_read" c.tokens_cache_read; mk "tokens_cache_write" c.tokens_cache_write;
+                   mkf "wall_s" tm.t_wall; mkf "active_s" tm.t_active; mkf "tool_s" tm.t_tool ],
                  { one with authored = 1 })) found;
   out
 

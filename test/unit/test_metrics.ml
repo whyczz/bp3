@@ -345,6 +345,14 @@ let case_casts_handoff_by_the_result_commit_or_a_command_prefix_inside_the_windo
   let literal = Claude_tx.parse_session (Gen.text [
       session_line ~ts:"2026-11-21T12:59:59.000Z" ~id:"w9" ~tools:[ ("t9", "bp3 q quest1 u b handoff --commit bbbbbbb1") ] (1, 1, 1, 1) ]) in
   assert_bool "command names the commit" (casts literal "b" sha);
+  (* measure.1 cycle 2: the node may be a variable the same command sets, as the quest may *)
+  let var cmd = Claude_tx.parse_session (Gen.text [
+      session_line ~ts:"2026-11-21T12:59:59.000Z" ~id:"w7" ~tools:[ ("t7", cmd) ] (1, 1, 1, 1) ]) in
+  assert_bool "n $N set to b" (casts (var "Q=quest1; N=b; bp3 q $Q n $N e handoff --commit bbbbbbb1") "b" sha);
+  assert_bool "n \"${N}\" set to b" (casts (var "N=b; bp3 q quest1 n \"${N}\" e handoff --commit bbbbbbb1") "b" sha);
+  assert_bool "u $N set to b" (casts (var "N=b; bp3 q quest1 u $N handoff --commit bbbbbbb1") "b" sha);
+  assert_bool "N set to another node" (not (casts (var "N=a; bp3 q quest1 n $N e handoff --commit bbbbbbb1") "b" sha));
+  assert_bool "N never set" (not (casts (var "bp3 q quest1 n $N e handoff --commit bbbbbbb1") "b" sha));
   (* grader probe (round 1): a later read that greps the same words *)
   let later = Claude_tx.parse_session (Gen.text [
       session_line ~ts:"2026-11-21T14:00:00.000Z" ~id:"r1" ~tools:[ ("r1t", "./bin/bp3 q quest1 n b r | grep handoff") ] (1, 1, 1, 1);
@@ -447,7 +455,7 @@ let law_each_usage_less_line_fails_at_most_one_window =
        let secs o = Option.get (Claude_tx.seconds (stamp o)) in
        let windows = List.mapi (fun i (a, b) -> (string_of_int i, secs (min a b), secs (max a b))) spans in
        let s = { Claude_tx.s_id = "s"; s_msgs = []; s_tools = []; s_bash = []; s_results = [];
-                 s_bad_at = List.map stamp bad } in
+                 s_bad_at = List.map stamp bad; s_marks = []; s_results_at = [] } in
        let held o = List.exists (fun (_, f, u) -> secs o >= f && secs o < u +. 1.) windows in
        let total = List.fold_left (fun acc (w : Claude_tx.window_spend) -> acc + w.w_bad) 0 (Claude_tx.assign s windows) in
        total = List.length (List.filter held bad))
@@ -544,6 +552,101 @@ let case_rollup_reports_median_grade_wall_and_spend _ =
 
 let pending_tests = []
 
+(* ---------- author time (induct-inline-as-default measure.1) ---------- *)
+
+let jl fields = Yojson.Safe.to_string (`Assoc fields)
+let at hms = "2026-11-22T" ^ hms ^ ".000Z"
+let a_line ?(stop = "tool_use") ?(tools = []) ~id hms =
+  jl [ ("type", `String "assistant"); ("timestamp", `String (at hms)); ("isSidechain", `Bool false);
+       ("sessionId", `String "s1");
+       ("message", `Assoc [ ("id", `String id); ("model", `String "claude-opus-5-5"); ("stop_reason", `String stop);
+                            ("content", `List (List.map (fun t -> `Assoc [ ("type", `String "tool_use"); ("id", `String t);
+                                                                          ("name", `String "Bash"); ("input", `Assoc []) ]) tools));
+                            ("usage", `Assoc [ ("input_tokens", `Int 1); ("output_tokens", `Int 1);
+                                               ("cache_read_input_tokens", `Int 0); ("cache_creation_input_tokens", `Int 0) ]) ]) ]
+let r_line ~tool hms =
+  jl [ ("type", `String "user"); ("timestamp", `String (at hms)); ("isSidechain", `Bool false);
+       ("message", `Assoc [ ("content", `List [ `Assoc [ ("type", `String "tool_result"); ("tool_use_id", `String tool);
+                                                         ("content", `String "ok") ] ]) ]) ]
+let secs hms = Option.get (Claude_tx.seconds (at hms))
+
+(* The NODE.md trace: tools in parallel, a turn that ended and waited
+   for the human, then the handoff cast. *)
+let trace_session = Claude_tx.parse_session (String.concat "\n" [
+    a_line ~id:"w1" ~tools:[ "t1"; "t2" ] "10:00:05";
+    r_line ~tool:"t2" "10:00:20";
+    r_line ~tool:"t1" "10:00:35";
+    a_line ~id:"w2" ~stop:"end_turn" "10:02:00";
+    a_line ~id:"w3" "10:07:00";
+    a_line ~id:"w4" ~tools:[ "t3" ] "10:07:10";
+    r_line ~tool:"t3" "10:07:40";
+    a_line ~id:"w5" ~tools:[ "t9" ] "10:07:05" ])
+
+let times ~from ~upto = Claude_tx.window_times trace_session ~from:(secs from) ~upto:(secs upto)
+let triple (w : Claude_tx.window_times) = Printf.sprintf "%g %g %g" w.t_wall w.t_active w.t_tool
+
+let case_author_window_times_follow_the_trace _ =
+  assert_equal ~printer:Fun.id "460 155 60" (triple (times ~from:"10:00:00" ~upto:"10:07:40"));
+  (* a window opened 2 h before this session's first line: that span is wall, never active *)
+  assert_equal ~printer:Fun.id "7660 155 60" (triple (times ~from:"08:00:00" ~upto:"10:07:40"));
+  (* an end_turn as the window's last line adds nothing *)
+  assert_equal ~printer:Fun.id "150 115 30" (triple (times ~from:"10:00:00" ~upto:"10:02:30"))
+  (* t9 (10:07:05) has no result: it adds nothing to the 60 above, a lower bound *)
+
+let case_author_pass_writes_the_window_times _ =
+  let cast hms = jl [ ("type", `String "assistant"); ("timestamp", `String (at hms)); ("isSidechain", `Bool false);
+                      ("sessionId", `String "s1");
+                      ("message", `Assoc [ ("id", `String "w4"); ("model", `String "claude-opus-5-5"); ("stop_reason", `String "tool_use");
+                                           ("content", `List [ `Assoc [ ("type", `String "tool_use"); ("id", `String "t3"); ("name", `String "Bash");
+                                                                        ("input", `Assoc [ ("command", `String "bp3 q q1 n nd e handoff --commit abc1234") ]) ] ]);
+                                           ("usage", `Assoc [ ("input_tokens", `Int 1); ("output_tokens", `Int 1);
+                                                              ("cache_read_input_tokens", `Int 0); ("cache_creation_input_tokens", `Int 0) ]) ]) ] in
+  let s = Claude_tx.parse_session (String.concat "\n" [
+      a_line ~id:"w1" ~tools:[ "t1"; "t2" ] "10:00:05"; r_line ~tool:"t2" "10:00:20"; r_line ~tool:"t1" "10:00:35";
+      a_line ~id:"w2" ~stop:"end_turn" "10:02:00"; a_line ~id:"w3" "10:07:00"; cast "10:07:10"; r_line ~tool:"t3" "10:07:40" ]) in
+  let edge ts e c = { Metrics.e_ts = "2026-11-22T" ^ ts ^ "Z"; e_edge = e; e_cycle = 1; e_commit = c; e_to = "" } in
+  let all = [ ("nd", edge "10:00:00" "create" None); ("nd", edge "10:07:40" "handoff" (Some "abc1234def5678abc1234def5678abc1234def56")) ] in
+  let out = Metrics_io.author_pass "q1" all [ s ] in
+  let samples, (t : Metrics.tally) = Hashtbl.find out "nd" in
+  let v m = match List.find_opt (fun (x : Metrics.sample) -> x.metric = m) samples with
+    | Some x -> Printf.sprintf "%g" x.value | None -> "-" in
+  assert_equal ~printer:string_of_int 1 t.authored;
+  assert_equal ~printer:Fun.id "460 155 60" (String.concat " " (List.map v [ "author.wall_s"; "author.active_s"; "author.tool_s" ]))
+
+let case_grade_tool_time_is_the_union_of_paired_calls _ =
+  let tx = Claude_tx.parse (String.concat "\n" [
+      jl [ ("type", `String "user"); ("timestamp", `String (at "12:00:00"));
+           ("message", `Assoc [ ("role", `String "user"); ("content", `String "Grade nd at abc1234.") ]) ];
+      a_line ~id:"g1" ~tools:[ "x1"; "x2" ] "12:00:01";
+      r_line ~tool:"x2" "12:00:11";
+      r_line ~tool:"x1" "12:00:37";
+      a_line ~id:"g2" ~tools:[ "x3" ] "12:00:40";
+      a_line ~id:"g3" ~stop:"end_turn" "12:01:30" ]) in
+  let c = Claude_tx.cost tx in
+  assert_equal ~printer:string_of_float 36. c.tool_s;
+  assert_equal ~printer:string_of_float 90. c.wall_s
+
+(* Law: for any lines, turn ends and tool calls, 0 <= tool <= active <=
+   wall, and tool time never exceeds the calls' summed durations. *)
+let law_author_times_are_ordered =
+  let open QCheck2.Gen in
+  let gen =
+    triple (list_size (int_range 0 30) (pair (int_range 0 600) bool))
+      (list_size (int_range 0 10) (pair (int_range 0 600) (int_range 0 120)))
+      (pair (int_range 0 300) (int_range 0 900)) in
+  QCheck2.Test.make ~count:300 ~name:"law_author_times_are_ordered" gen
+    (fun (marks, calls, (from, len)) ->
+       let base = secs "10:00:00" in
+       let iso s = let x = 36000 + s in
+         Printf.sprintf "2026-11-22T%02d:%02d:%02d.000Z" (x / 3600) (x mod 3600 / 60) (x mod 60) in
+       let s = { Claude_tx.s_id = "s"; s_msgs = []; s_bash = []; s_results = []; s_bad_at = [];
+                 s_marks = List.sort compare (List.map (fun (o, e) -> (base +. float_of_int o, e)) marks);
+                 s_tools = List.mapi (fun i (o, _) -> (string_of_int i, iso o)) calls;
+                 s_results_at = List.mapi (fun i (o, d) -> (string_of_int i, base +. float_of_int (o + d))) calls } in
+       let w = Claude_tx.window_times s ~from:(base +. float_of_int from) ~upto:(base +. float_of_int (from + len)) in
+       let summed = float_of_int (List.fold_left (fun acc (_, d) -> acc + d) 0 calls) in
+       0. <= w.t_tool && w.t_tool <= w.t_active +. 1e-6 && w.t_active <= w.t_wall +. 1e-6 && w.t_tool <= summed +. 1e-6)
+
 let () =
   run_test_tt_main
     ("metrics" >::: [
@@ -578,4 +681,8 @@ let () =
        "case_an_off_shape_model_is_recorded_as_other" >:: case_an_off_shape_model_is_recorded_as_other;
        QCheck_ounit.to_ounit2_test law_appending_any_batch_twice_writes_it_once;
        QCheck_ounit.to_ounit2_test law_sink_text_round_trips;
+       "case_author_window_times_follow_the_trace" >:: case_author_window_times_follow_the_trace;
+       "case_grade_tool_time_is_the_union_of_paired_calls" >:: case_grade_tool_time_is_the_union_of_paired_calls;
+       "case_author_pass_writes_the_window_times" >:: case_author_pass_writes_the_window_times;
+       QCheck_ounit.to_ounit2_test law_author_times_are_ordered;
      ] @ pending_tests)

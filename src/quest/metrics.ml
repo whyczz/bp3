@@ -23,10 +23,11 @@ let rows owner prefix specs =
 
 let registry =
   rows grade_transcripts "grade"
-    ([ ("wall_s", "s", Sum); ("tool_calls", "count", Sum); ("context_end", "tokens", Max) ]
+    ([ ("wall_s", "s", Sum); ("tool_calls", "count", Sum); ("context_end", "tokens", Max); ("tool_s", "s", Sum) ]
      @ List.map (fun t -> (t, "tokens", Sum)) tokens)
   @ rows author_window "author"
-      (("tool_calls", "count", Sum) :: List.map (fun t -> (t, "tokens", Sum)) tokens)
+      ([ ("tool_calls", "count", Sum); ("wall_s", "s", Sum); ("active_s", "s", Sum); ("tool_s", "s", Sum) ]
+       @ List.map (fun t -> (t, "tokens", Sum)) tokens)
   @ rows node_cost "cycle" [ ("todo_s", "s", Last); ("handed_off_s", "s", Last) ]
 
 let find name = List.find_opt (fun r -> r.name = name) registry
@@ -185,12 +186,13 @@ type tally = {
   skipped_lines : int;
   handoffs : int; authored : int; author_missing : int; author_ambiguous : int;
   author_bad_usage : int;
+  brief_verbatim : int; brief_edited : int;   (* brief.2: beside the buckets, never one of them *)
 }
 
 let zero = { grades = 0; checked = 0; unchecked = 0; self_checked = 0; ambiguous = 0;
              mismatched = 0; owner_graded = 0; written = 0; skipped = 0; skipped_lines = 0;
              handoffs = 0; authored = 0; author_missing = 0; author_ambiguous = 0;
-             author_bad_usage = 0 }
+             author_bad_usage = 0; brief_verbatim = 0; brief_edited = 0 }
 
 let buckets_add_up t =
   t.checked + t.unchecked + t.self_checked + t.ambiguous + t.mismatched + t.owner_graded = t.grades
@@ -204,7 +206,8 @@ let tally_json t =
            ("skipped_lines", `Int t.skipped_lines);
            ("handoffs", `Int t.handoffs); ("authored", `Int t.authored);
            ("author_missing", `Int t.author_missing); ("author_ambiguous", `Int t.author_ambiguous);
-           ("author_bad_usage", `Int t.author_bad_usage) ]
+           ("author_bad_usage", `Int t.author_bad_usage);
+           ("brief_verbatim", `Int t.brief_verbatim); ("brief_edited", `Int t.brief_edited) ]
 
 (* ---------- the node-cost deriver (derive.1) ---------- *)
 
@@ -258,7 +261,10 @@ let spend samples prefix =
 type rollup = {
   r_grades : int; r_grades_measured : int; r_handoffs : int; r_handoffs_measured : int;
   r_grade_walls : float list; r_grade_spend : (string * float) list; r_author_spend : (string * float) list;
+  r_author_walls : float list; r_author_actives : float list;   (* measure.1 *)
 }
+
+let values samples m = List.filter_map (fun (s : sample) -> if s.metric = m then Some s.value else None) samples
 
 let rollup ~edges samples =
   let measured prefix = List.sort_uniq compare (List.filter_map (fun (s : sample) ->
@@ -267,17 +273,19 @@ let rollup ~edges samples =
     r_grades_measured = List.length (measured "grade");
     r_handoffs = List.length (List.filter (fun e -> e.e_edge = "handoff") edges);
     r_handoffs_measured = List.length (measured "author");
-    r_grade_walls = List.filter_map (fun (s : sample) -> if s.metric = "grade.wall_s" then Some s.value else None) samples;
-    r_grade_spend = spend samples "grade"; r_author_spend = spend samples "author" }
+    r_grade_walls = values samples "grade.wall_s";
+    r_grade_spend = spend samples "grade"; r_author_spend = spend samples "author";
+    r_author_walls = values samples "author.wall_s"; r_author_actives = values samples "author.active_s" }
 
 let rollup_json r =
   let f v = if Float.is_integer v && Float.abs v < 1e15 then `Int (int_of_float v) else `Float v in
-  let walls = match r.r_grade_walls with
+  let stats = function
     | [] -> `Null
     | ws -> `Assoc [ ("median", f (Option.get (median ws))); ("min", f (List.fold_left min infinity ws));
                      ("max", f (List.fold_left max neg_infinity ws)); ("sum", f (List.fold_left ( +. ) 0. (List.sort compare ws))) ] in
   `Assoc [ ("grades", `Int r.r_grades); ("grades_measured", `Int r.r_grades_measured);
            ("handoffs", `Int r.r_handoffs); ("handoffs_measured", `Int r.r_handoffs_measured);
-           ("grade_wall_s", walls);
+           ("grade_wall_s", stats r.r_grade_walls);
+           ("author_wall_s", stats r.r_author_walls); ("author_active_s", stats r.r_author_actives);
            ("spend", `Assoc [ ("grade", `Assoc (List.map (fun (k, v) -> (k, f v)) r.r_grade_spend));
                               ("author", `Assoc (List.map (fun (k, v) -> (k, f v)) r.r_author_spend)) ]) ]
