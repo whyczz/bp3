@@ -128,10 +128,25 @@ if [ -z "$bp3_bin" ] || ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
+# Count active quests on this branch (invariant: at most 1 active quest per branch)
+active_count=0
+active_quest=""
+for qf in "$root"/docs/quests/*/QUEST.md; do
+  [ -f "$qf" ] || continue
+  if grep -q '^status: active$' "$qf" 2>/dev/null; then
+    active_count=$((active_count + 1))
+    active_quest="$(basename "$(dirname "$qf")")"
+  fi
+done
+warn_part=""
+if [ "$active_count" -gt 1 ]; then
+  warn_part=" ${C_DIM}|${C_RST} ${C_RED}WARN: ${active_count} active quests${C_RST}"
+fi
+
 # Detect active quest:
 # 1. Current quest/<slug> branch
 # 2. Active red-ink working copy (docs/quests/<slug>/QUEST.red-ink.md or *.2b-reviewed.md)
-# 3. Newest status: active QUEST.md
+# 3. Active QUEST.md on this branch
 quest=""
 mode=""
 branch="$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
@@ -146,21 +161,17 @@ if [ -z "$quest" ]; then
   done
 fi
 if [ -z "$quest" ]; then
-  for qf in "$root"/docs/quests/*/QUEST.md; do
-    [ -f "$qf" ] || continue
-    if grep -q '^status: active$' "$qf" 2>/dev/null; then
-      quest="$(basename "$(dirname "$qf")")"
-    fi
-  done
+  quest="$active_quest"
 fi
 
 if [ "$mode" = "red-ink" ]; then
   ctx_part=""
   [ -n "$ctx_str" ] && ctx_part=" ${C_DIM}|${C_RST} ${ctx_str}"
-  printf '%s%sbp3:%s %s %s[red-ink]%s%s\n' \
+  printf '%s%sbp3:%s %s %s[red-ink]%s%s%s\n' \
     "$C_BLD" "$C_CYN" "$C_RST" \
     "$quest" \
     "$C_YLW" "$C_RST" \
+    "$warn_part" \
     "$ctx_part"
   exit 0
 fi
@@ -175,9 +186,9 @@ fi
 rollup="$(cd "$root" && "$bp3_bin" q r "$quest" 2>/dev/null || true)"
 if [ -z "$rollup" ] || ! printf '%s' "$rollup" | jq -e '.ok == true' >/dev/null 2>&1; then
   if [ -n "$ctx_str" ]; then
-    printf '%sbp3:%s %s %s|%s %s\n' "$C_CYN" "$C_RST" "$quest" "$C_DIM" "$C_RST" "$ctx_str"
+    printf '%sbp3:%s %s%s %s|%s %s\n' "$C_CYN" "$C_RST" "$quest" "$warn_part" "$C_DIM" "$C_RST" "$ctx_str"
   else
-    printf '%sbp3:%s %s\n' "$C_CYN" "$C_RST" "$quest"
+    printf '%sbp3:%s %s%s\n' "$C_CYN" "$C_RST" "$quest" "$warn_part"
   fi
   exit 0
 fi
@@ -234,7 +245,7 @@ fi
 ctx_part=""
 [ -n "$ctx_str" ] && ctx_part=" ${C_DIM}|${C_RST} ${ctx_str}"
 
-printf '%s%sbp3:%s %s %s%s%s %d/%d (%d%%) %s|%s %s%s%s\n' \
+printf '%s%sbp3:%s %s %s%s%s %d/%d (%d%%) %s|%s %s%s%s%s\n' \
   "$C_BLD" "$C_CYN" "$C_RST" \
   "$quest" \
   "$C_GRN" "$bar" "$C_RST" \
@@ -242,5 +253,6 @@ printf '%s%sbp3:%s %s %s%s%s %d/%d (%d%%) %s|%s %s%s%s\n' \
   "$C_DIM" "$C_RST" \
   "$node_part" \
   "$wall_part" \
+  "$warn_part" \
   "$ctx_part"
 exit 0

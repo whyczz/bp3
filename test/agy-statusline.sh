@@ -62,6 +62,13 @@ assert_contains "$out" "bp3: demo-q [red-ink]" "red-ink mode"
 assert_contains "$out" "ctx 262k/1.0M (25%)" "context tokens in red-ink mode"
 rm -f "$proj/docs/quests/demo-q/QUEST.red-ink.md"
 
+# 3b. Multiple active quests on one branch emits WARN
+mkdir -p "$proj/docs/quests/second-q"
+printf -- '---\nstatus: active\n---\n# second-q\n' > "$proj/docs/quests/second-q/QUEST.md"
+out="$(printf '%s' "$payload" | NO_COLOR=1 "$script")"
+assert_contains "$out" "WARN: 2 active quests" "multi-active warning"
+rm -rf "$proj/docs/quests/second-q"
+
 # 4. Idle bp3 repo (no active quest) still prints context tokens and exits 0
 printf -- '---\nstatus: landed\n---\n# demo-q\n' > "$proj/docs/quests/demo-q/QUEST.md"
 out="$(printf '%s' "$payload" | NO_COLOR=1 "$script")"
