@@ -128,12 +128,23 @@ if [ -z "$bp3_bin" ] || ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# Detect active quest: prefer current quest/<slug> branch, else newest status: active QUEST.md
+# Detect active quest:
+# 1. Current quest/<slug> branch
+# 2. Active red-ink working copy (docs/quests/<slug>/QUEST.red-ink.md or *.2b-reviewed.md)
+# 3. Newest status: active QUEST.md
 quest=""
+mode=""
 branch="$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 case "$branch" in
   quest/*) quest="${branch#quest/}" ;;
 esac
+if [ -z "$quest" ]; then
+  for rf in "$root"/docs/quests/*/QUEST.red-ink.md "$root"/docs/quests/*/QUEST.2b-reviewed.md; do
+    [ -f "$rf" ] || continue
+    quest="$(basename "$(dirname "$rf")")"
+    mode="red-ink"
+  done
+fi
 if [ -z "$quest" ]; then
   for qf in "$root"/docs/quests/*/QUEST.md; do
     [ -f "$qf" ] || continue
@@ -141,6 +152,17 @@ if [ -z "$quest" ]; then
       quest="$(basename "$(dirname "$qf")")"
     fi
   done
+fi
+
+if [ "$mode" = "red-ink" ]; then
+  ctx_part=""
+  [ -n "$ctx_str" ] && ctx_part=" ${C_DIM}|${C_RST} ${ctx_str}"
+  printf '%s%sbp3:%s %s %s[red-ink]%s%s\n' \
+    "$C_BLD" "$C_CYN" "$C_RST" \
+    "$quest" \
+    "$C_YLW" "$C_RST" \
+    "$ctx_part"
+  exit 0
 fi
 
 if [ -z "$quest" ]; then
@@ -193,7 +215,7 @@ if [ -n "$short_node" ]; then
   [ "$cur_state" = "handed_off" ] && node_color="$C_YLW"
   node_part="${node_color}${short_node} (${cur_state} c${cur_cycle})${C_RST}"
 elif [ "$total" -gt 0 ] && [ "$landed" -eq "$total" ]; then
-  node_part="${C_GRN}all landed (goal_fin)${C_RST}"
+  node_part="${C_GRN}finished (goal_fin)${C_RST}"
 else
   node_part="${C_DIM}idle${C_RST}"
 fi

@@ -55,7 +55,14 @@ assert_contains "$out" "[████░░░░] 1/2 (50%)" "progress bar and 
 assert_contains "$out" "2-second (handed_off c1)" "active node and state"
 assert_contains "$out" "ctx 262k/1.0M (25%)" "context token usage"
 
-# 3. Idle bp3 repo (no active quest) still prints context tokens and exits 0
+# 3. Red-ink working copy takes precedence over active/landed QUEST.md
+touch "$proj/docs/quests/demo-q/QUEST.red-ink.md"
+out="$(printf '%s' "$payload" | NO_COLOR=1 "$script")"
+assert_contains "$out" "bp3: demo-q [red-ink]" "red-ink mode"
+assert_contains "$out" "ctx 262k/1.0M (25%)" "context tokens in red-ink mode"
+rm -f "$proj/docs/quests/demo-q/QUEST.red-ink.md"
+
+# 4. Idle bp3 repo (no active quest) still prints context tokens and exits 0
 printf -- '---\nstatus: landed\n---\n# demo-q\n' > "$proj/docs/quests/demo-q/QUEST.md"
 out="$(printf '%s' "$payload" | NO_COLOR=1 "$script")"
 assert_contains "$out" "bp3: idle" "idle state"
