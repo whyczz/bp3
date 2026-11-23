@@ -124,6 +124,8 @@ assert test -f "$root/.muse/hooks.json"
 assert cmp "$root/.claude/hooks.json" "$root/.muse/hooks.json"
 assert test -f "$root/.claude/settings.json"
 assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks || true" and (.hooks | has("PostLLMCall") | not)' "$root/.claude/settings.json"
+assert test -f "$root/.agents/hooks.json"
+assert jq -e '.bp3.SessionStart[0].command == "../bin/bp3 q hooks || true" and .bp3.PreToolUse[0].hooks[0].command == "../bin/bp3 q hooks || true" and .bp3.PostToolUse[0].hooks[0].command == "../bin/bp3 q hooks || true" and .bp3.Stop[0].command == "../bin/bp3 q hooks || true"' "$root/.agents/hooks.json"
 mkdir -p "$root/.claude"
 printf '{"keepMe":true}\n' > "$root/.claude/settings.json"
 "$root/bin/bp3" skills install --harness=claude > /dev/null

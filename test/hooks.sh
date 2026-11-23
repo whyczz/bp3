@@ -190,6 +190,9 @@ echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "fold changed by event
 # --- fast-agy-induct agy.2: agy camelCase hook payloads ---
 RUN_AGY=20260101T030000Z-handoff-agy-gemini-4-neon-c1
 mkdir -p "docs/quests/demo/nodes/parser-fix/runs/$RUN_AGY"
+agy_start=$(printf '{"hookEventName":"SessionStart","conversationId":"CONV1","cwd":"%s"}' "$repo")
+out=$(hooks "$agy_start")
+echo "$out" | jq -e '. == {}' >/dev/null || fail "agy SessionStart must reply {}: $out"
 agy_pre=$(printf '{"hookEventName":"PreToolUse","conversationId":"CONV1","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_NODE=parser-fix echo hi"}}}' "$repo" "$RUN_AGY")
 out=$(hooks "$agy_pre")
 echo "$out" | jq -e '.decision == "allow"' >/dev/null || fail "agy PreToolUse must reply decision allow: $out"
