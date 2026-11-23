@@ -35,9 +35,29 @@ cp "$root/bin/bp3" "$prefix/bin/bp3"
 rm -rf "$prefix/share/bp3/skills" "$prefix/share/bp3/completions"
 cp -R "$root/skills" "$prefix/share/bp3/skills"
 cp "$root/scripts/check-skills" "$prefix/share/bp3/scripts/check-skills"
+cp "$root/scripts/agy-statusline" "$prefix/share/bp3/scripts/agy-statusline"
 if [ -d "$root/completions" ]; then
   cp -R "$root/completions" "$prefix/share/bp3/completions"
 fi
-chmod +x "$prefix/bin/bp3-q" "$prefix/bin/bp3" "$prefix/share/bp3/scripts/check-skills"
+chmod +x "$prefix/bin/bp3-q" "$prefix/bin/bp3" "$prefix/share/bp3/scripts/check-skills" "$prefix/share/bp3/scripts/agy-statusline"
 echo "installed bp3-q $version -> $prefix/bin/bp3-q (was: $old)"
 echo "installed bp3 tool + skills -> $prefix/bin/bp3, $prefix/share/bp3/skills"
+
+# Wire agy statusLine (stacked below default) when agy config dir exists or BP3_AGY_SETTINGS is set.
+agy_settings="${BP3_AGY_SETTINGS:-$HOME/.gemini/antigravity-cli/settings.json}"
+agy_dir="$(dirname "$agy_settings")"
+if command -v jq >/dev/null 2>&1 && { [ -n "${BP3_AGY_SETTINGS:-}" ] || [ -d "$agy_dir" ]; }; then
+  mkdir -p "$agy_dir"
+  [ -f "$agy_settings" ] || printf '{}\n' > "$agy_settings"
+  tmp_agy="$(mktemp "${agy_dir}/settings.json.XXXXXX")"
+  if jq --arg cmd "$prefix/share/bp3/scripts/agy-statusline" \
+    '.statusLine = {"type":"command","command":$cmd,"enabled":true,"padding":0,"stack_with_default":true}' \
+    "$agy_settings" > "$tmp_agy"; then
+    mv "$tmp_agy" "$agy_settings"
+    echo "installed agy statusLine -> $agy_settings"
+  else
+    rm -f "$tmp_agy"
+    echo "install: invalid JSON in $agy_settings; left untouched" >&2
+    exit 1
+  fi
+fi

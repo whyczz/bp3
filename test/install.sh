@@ -14,12 +14,18 @@ art="$work/dist/bp3-q-v$version-$os-$arch"
 cp "$root/_build/default/src/quest/main.exe" "$art"
 (cd "$work/dist" && shasum -a 256 "$(basename "$art")" > "$(basename "$art").sha256")
 
-out=$(PREFIX="$work/prefix" "$root/scripts/install-bp3.sh" "$art")
+mkdir -p "$work/agy"
+printf '{"keepMe":true}\n' > "$work/agy/settings.json"
+out=$(PREFIX="$work/prefix" BP3_AGY_SETTINGS="$work/agy/settings.json" "$root/scripts/install-bp3.sh" "$art")
 echo "$out" | grep -q "installed bp3-q $version" || fail "install print: $out"
 echo "$out" | grep -q "(was: none)" || fail "install old: $out"
 [ -x "$work/prefix/bin/bp3-q" ] || fail "bp3-q not installed"
 [ -x "$work/prefix/bin/bp3" ] || fail "bp3 shim not installed"
-out=$(PREFIX="$work/prefix" "$root/scripts/install-bp3.sh" "$art")
+[ -x "$work/prefix/share/bp3/scripts/agy-statusline" ] || fail "agy-statusline not installed"
+jq -e --arg cmd "$work/prefix/share/bp3/scripts/agy-statusline" \
+  '.keepMe == true and .statusLine.type == "command" and .statusLine.command == $cmd and .statusLine.enabled == true and .statusLine.stack_with_default == true' \
+  "$work/agy/settings.json" >/dev/null || fail "agy statusLine settings: $(cat "$work/agy/settings.json")"
+out=$(PREFIX="$work/prefix" BP3_AGY_SETTINGS="$work/agy/settings.json" "$root/scripts/install-bp3.sh" "$art")
 echo "$out" | grep -q "(was: $version)" || fail "reinstall old->new: $out"
 
 # dogfood: full quest loop in a scratch repo on the installed binary only
