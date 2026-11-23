@@ -589,6 +589,8 @@ b=$(echo "$out" | jq -r .brief)
 echo "$b" | grep -q '^GATE-ROW-ONE$' || fail "brief gates: $b"
 echo "$b" | grep -q 'DIAGRAM-TEXT' && fail "brief leaks the next section: $b"
 echo "$b" | grep -q '^RUN-THE-GATE$' || fail "brief GRADING.md: $b"
+echo "$b" | grep -qF 'Severity gate:' || fail "brief severity gate: $b"
+echo "$b" | grep -q '^FOLLOW-UPS:' || fail "brief FOLLOW-UPS: $b"
 echo "$b" | grep -q '^Desk:' && fail "brief Desk line without --desk: $b"
 out=$(q brief-demo n bn brief --desk "$work")
 echo "$out" | jq -r .brief | grep -qx "Desk: $work (check that \`git rev-parse HEAD\` prints $A1)" || fail "brief Desk line: $out"
@@ -618,7 +620,8 @@ echo fix > fix.txt; git add fix.txt; git commit -qm "bn: fix"; A2=$(git rev-pars
 q brief-demo n bn e handoff --commit "$A2" --reason "fix" >/dev/null
 b=$(q brief-demo n bn brief | jq -r .brief)
 echo "$b" | head -1 | grep -q "cycle 2\.$" || fail "brief cycle 2 line: $b"
-echo "$b" | grep -qF "Previous round: ${A1:0:7} was graded needs_fix. Re-judge the gates in full; the change since is \`git diff ${A1:0:7}..${A2:0:7}\`." || fail "brief range: $b"
+echo "$b" | grep -qF "Previous round: ${A1:0:7} was graded needs_fix. Delta re-grade: run \`./scripts/receipt\`, review \`git diff ${A1:0:7}..${A2:0:7}\` (ignoring other nodes' commits below), and re-verify only the Acceptance gates touched by that diff plus any test deletions." || fail "brief range: $b"
+echo "$b" | grep -qF "Re-judge the gates in full" && fail "brief still says Re-judge the gates in full: $b"
 echo "$b" | grep -qF "Other nodes' commits in that range: ${B2:0:7} (bn2)." || fail "brief others: $b"
 echo "$b" | grep -q SENTINEL-REASON && fail "brief quotes the author's --reason: $b"
 q brief-demo n bn2 e grade --verdict ship --verify-verdict pass --reason "ok" >/dev/null

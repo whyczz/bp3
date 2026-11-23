@@ -43,8 +43,8 @@ let rules =
   String.concat "\n"
     [ "Rules:";
       "- Make no edits to tracked files, no commits, and no `bp3 q` calls.";
-      "- Put experiments in a fresh `mktemp -d` directory. Before you finish, `git status --short` must print nothing.";
-      "- A finding is a false claim, a broken gate, or a test that can't fail. Wording you would write differently is not a finding.";
+      "- Put any scratch probe in a fresh `mktemp -d` directory. Before you finish, `git status --short` must print nothing.";
+      "- Severity gate: cast `needs_fix` ONLY for [critical] or [major] findings (broken gate, proven bug, unjustified deletion or weakening of existing tests, vacuous test, or CONSTRAINTS.md violation). [minor] nits go under FOLLOW-UPS and the verdict is `ship`.";
       "- An edit to GRADING.md, CONSTRAINTS.md, or this node's Acceptance gates is an owner-class finding, unless the node's Output names the file." ]
 
 let verdict_shape =
@@ -53,10 +53,11 @@ let verdict_shape =
       "";
       "VERDICT: ship | needs_fix";
       "MECHANICAL: yes | no";
-      "GATE: <the gate's exit code and its last 3 lines>";
+      "GATE: <the gate's exit code and receipt lines>";
       "FINDINGS:";
-      "1. [critical|major|minor] <claim> — <evidence>";
+      "1. [critical|major] <claim> — <evidence>";
       "   FIX: <the exact change, for needs_fix>";
+      "FOLLOW-UPS: <non-blocking minors, or none>";
       "CHECKED: <one line each>";
       "NOT CHECKED: <what and why>" ]
 
@@ -82,8 +83,9 @@ let render ?desk i =
     | None -> []
     | Some p ->
         let p7 = short p in
-        [ "Previous round: " ^ p7 ^ " was graded needs_fix. Re-judge the gates in full; \
-           the change since is `git diff " ^ p7 ^ ".." ^ c7 ^ "`.\n\
+        [ "Previous round: " ^ p7 ^ " was graded needs_fix. Delta re-grade: run `./scripts/receipt`, \
+           review `git diff " ^ p7 ^ ".." ^ c7 ^ "` (ignoring other nodes' commits below), \
+           and re-verify only the Acceptance gates touched by that diff plus any test deletions.\n\
            Other nodes' commits in that range: "
           ^ (match i.others with
              | [] -> "none."

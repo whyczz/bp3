@@ -23,15 +23,16 @@ let case_section_is_the_body_up_to_the_next_h2 _ =
 let case_cycle_one_brief_holds_every_part_in_order _ =
   let b = Brief.render base in
   assert_equal ~printer:Fun.id ("Grade nd at abc1234 (full SHA " ^ sha ^ ") in quest q1, cycle 1.") (List.hd (lines b));
-  let order = [ "You are a fresh, independent grader"; "Rules:"; "Read first:";
+  let order = [ "You are a fresh, independent grader"; "Rules:"; "Severity gate:"; "Read first:";
                 "- docs/quests/q1/nodes/nd/NODE.md and docs/quests/q1/QUEST.md"; "- CLAUDE.md, CONSTRAINTS.md";
                 "- `git show abc1234`"; "Acceptance gates (NODE.md at abc1234):\n\ngate line one";
                 "Repo grading rules (GRADING.md at abc1234):\n\n# Grading\n\nRun `make check-full`.";
-                "Final message, exactly this shape:"; "VERDICT: ship | needs_fix" ] in
+                "Final message, exactly this shape:"; "VERDICT: ship | needs_fix"; "FOLLOW-UPS:" ] in
   ignore (List.fold_left (fun from part ->
       match Claude_tx.find_from b from part with
       | Some i -> i + String.length part
       | None -> assert_failure ("missing or out of order: " ^ part)) 0 order);
+  assert_bool "unjustified test deletion/weakening is named" (has b "unjustified deletion or weakening of existing tests");
   assert_bool "no Desk line without --desk" (not (has b "Desk:"));
   assert_bool "no previous round in cycle 1" (not (has b "Previous round"));
   assert_bool "the next section stays out" (not (has b "boxes"))
@@ -43,7 +44,8 @@ let case_desk_adds_one_line _ =
 
 let case_cycle_two_shows_the_range_and_other_nodes_never_a_reason _ =
   let b = Brief.render { base with cycle = 2; prev = Some "1111111aaaa"; others = [ ("3333333bbbb", "nd2") ] } in
-  assert_bool "range" (has b "Previous round: 1111111 was graded needs_fix. Re-judge the gates in full; the change since is `git diff 1111111..abc1234`.");
+  assert_bool "range" (has b "Previous round: 1111111 was graded needs_fix. Delta re-grade: run `./scripts/receipt`, review `git diff 1111111..abc1234` (ignoring other nodes' commits below), and re-verify only the Acceptance gates touched by that diff plus any test deletions.");
+  assert_bool "no full re-judge" (not (has b "Re-judge the gates in full"));
   assert_bool "others" (has b "Other nodes' commits in that range: 3333333 (nd2).");
   let none = Brief.render { base with cycle = 2; prev = Some "1111111aaaa" } in
   assert_bool "none" (has none "Other nodes' commits in that range: none.")

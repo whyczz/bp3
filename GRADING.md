@@ -7,9 +7,26 @@ the brief's own.
 
 ## Gate
 
-Run `make check-full` from the desk, the grade gate. Quote its exit code
-and its last lines. A grade that ran only `make check` has not run the
-gate.
+Run `./scripts/receipt` from the desk (which runs `make check-full`,
+`scripts/red-first`, and the `test/` line delta). Quote its exit code
+and all 4 receipt lines. A grade that ran only `make check` has not run
+the gate.
+
+## Depth and severity
+
+- **Deterministic proofs first:** `scripts/red-first` proves changed
+  tests fail on parent code (`BASE_FAIL_HEAD_PASS`). Do NOT hand-plant
+  mutants per check in scratch copies; run **one** targeted adversarial
+  probe on the single edge case the tests most likely miss.
+- **Severity gate:** cast `needs_fix` ONLY for `[critical]` or `[major]`
+  findings (broken gate, proven bug, unjustified deletion or weakening
+  of existing tests, vacuous test that `red-first` missed, or a
+  `CONSTRAINTS.md` violation). `[minor]` findings (wording, note counts,
+  style) go under `FOLLOW-UPS` and the verdict is `ship`.
+- **Docs/skill-only commits (`red-first: n/a`):** verify the gate
+  (`make check-full`, `check-skills`, `check-retired-terms`) and the
+  node's acceptance criteria directly; do not demand regex-pinning of
+  every prose sentence.
 
 ## Rules
 
@@ -24,6 +41,3 @@ gate.
   language, library or surface outside it is `needs_fix`, owner class.
   So is a diff to `CONSTRAINTS.md` without a new dated owner-words row
   in its Sign-off log.
-- A check you mean to claim must be seen to fail on the bug it guards:
-  plant the bug in a scratch copy and watch the check go red. A claim
-  you didn't see fail is reported as unverified, not as a finding.
