@@ -56,9 +56,9 @@ let identity () =
   let h = Sys.getenv_opt "BP3_HARNESS" in
   (match h with
    | Some v when v <> "" ->
-       if not (List.mem v ["muse-code"; "codex"; "muse"; "human"]) then
+       if not (List.mem v ["muse-code"; "codex"; "muse"; "human"; "claude"; "pi"; "agy"]) then
          err "E_IDENTITY" (`Assoc [("harness", json_str v)])
-           "BP3_HARNESS must be one of muse-code, codex, muse, human." 2
+           "BP3_HARNESS must be one of muse-code, codex, muse, human, claude, pi, agy." 2
    | _ -> ());
   let decider_human = (Sys.getenv_opt "BP3_DECIDER" = Some "human") in
   let harness = match h with Some v when v <> "" -> v | _ -> "unknown" in

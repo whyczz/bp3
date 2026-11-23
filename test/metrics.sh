@@ -177,8 +177,8 @@ bad_usage_scrape() { # $1 copy name, $2 timestamp of the usage-less line -> "rc 
     rc=0; out=$(q q1 metrics scrape --claude-dir "$work/$1-claude") || rc=$?
     echo "$rc $(jq -r '.nodes.na | "\(.authored) \(.author_bad_usage) \(.written)"' <<< "$out")" )
 }
-expect "usage-less line in na's window: nothing authored, exit 1" "1 0 1 8" "$(bad_usage_scrape bad-in "${na_ts%.100Z}.250Z")"
-expect "usage-less line outside every window: na authored" "0 1 0 16" "$(bad_usage_scrape bad-out 2098-01-01T00:00:00.000Z)"
+expect "usage-less line in na's window: nothing authored, exit 1" "1 0 1 10" "$(bad_usage_scrape bad-in "${na_ts%.100Z}.250Z")"
+expect "usage-less line outside every window: na authored" "0 1 0 20" "$(bad_usage_scrape bad-out 2098-01-01T00:00:00.000Z)"
 
 # --- scrape: buckets, samples, one commit per node ---
 rollup_before=$(q r q1 | jq -S 'del(.nodes[].timing)')
@@ -186,7 +186,7 @@ na0=$(count na) nb0=$(count nb) nc0=$(count nc)
 out=$(q q1 metrics scrape --claude-dir "$claude")
 expect "scrape ok" true "$(jq -r .ok <<< "$out")"
 expect "na checked against its report" 1 "$(jq -r .nodes.na.checked <<< "$out")"
-expect "na written: 8 grade + 8 author" 16 "$(jq -r .nodes.na.written <<< "$out")"
+expect "na written: 10 grade + 10 author" 20 "$(jq -r .nodes.na.written <<< "$out")"
 expect "na junk line counted, not read as zero" 1 "$(jq -r .nodes.na.skipped_lines <<< "$out")"
 expect "nb owner" 1 "$(jq -r .nodes.nb.owner <<< "$out")"
 expect "nc ambiguous" 1 "$(jq -r .nodes.nc.ambiguous <<< "$out")"
@@ -219,7 +219,7 @@ expect "quest rollup: grades and measured" "3 1" "$(jq -r '"\(.rollup.grades) \(
 expect "quest rollup: handoffs and measured" "3 1" "$(jq -r '"\(.rollup.handoffs) \(.rollup.handoffs_measured)"' <<< "$view")"
 expect "quest rollup: median grade wall" 0.8 "$(jq -r .rollup.grade_wall_s.median <<< "$view")"
 expect "na rollup: author cache read" 3000 "$(jq -r .nodes.na.rollup.spend.author.tokens_cache_read <<< "$view")"
-expect "derived timing is never written" 16 "$(git show "$(tip na):docs/quests/q1/nodes/na/metrics.jsonl" | wc -l | tr -d ' ')"
+expect "derived timing is never written" 20 "$(git show "$(tip na):docs/quests/q1/nodes/na/metrics.jsonl" | wc -l | tr -d ' ')"
 
 # --- author window: the session that cast na's handoff, counted once ---
 expect "na authored" 1 "$(jq -r .nodes.na.authored <<< "$out")"
@@ -230,13 +230,13 @@ expect "author tool calls" 2 "$(jq -r .tool_calls <<< "$author")"
 expect "author output, last snapshot, no subagent line" 65 "$(jq -r .tokens_out <<< "$author")"
 expect "author cache read" 3000 "$(jq -r .tokens_cache_read <<< "$author")"
 expect "author run is the session" claude:s1 "$(jq -r .run <<< "$author")"
-expect "sink is GENERATED json lines" 16 "$(git show "$(tip na):docs/quests/q1/nodes/na/metrics.jsonl" | jq -c . | wc -l | tr -d ' ')"
+expect "sink is GENERATED json lines" 20 "$(git show "$(tip na):docs/quests/q1/nodes/na/metrics.jsonl" | jq -c . | wc -l | tr -d ' ')"
 
 # --- idempotent: a second scrape writes nothing ---
 t=$(tip na)
 out=$(q q1 metrics scrape --claude-dir "$claude")
 expect "rescrape written" 0 "$(jq -r .nodes.na.written <<< "$out")"
-expect "rescrape skipped" 16 "$(jq -r .nodes.na.skipped <<< "$out")"
+expect "rescrape skipped" 20 "$(jq -r .nodes.na.skipped <<< "$out")"
 expect "rescrape no commit" "$t" "$(tip na)"
 
 # --- default dirs: this repo's project dir and its desks, nothing else ---
@@ -250,7 +250,7 @@ cp -R "$claude/s1" "$projects/$slug--bp3-worktrees-q1/"      # a desk's dir: sca
 cp -R "$claude/s2" "$projects/$slug-sibling/"                # another repo's: never scanned
 out=$(q q1 metrics scrape)
 expect "desk dir scanned" "$projects/$slug--bp3-worktrees-q1" "$(jq -r '.dirs | join(",")' <<< "$out")"
-expect "desk transcript already counted" 8 "$(jq -r .nodes.na.skipped <<< "$out")"
+expect "desk transcript already counted" 10 "$(jq -r .nodes.na.skipped <<< "$out")"
 expect "no parent session copied: unchecked" 1 "$(jq -r .nodes.na.unchecked <<< "$out")"
 expect "sibling stays out" 1 "$(jq -r .nodes.nc.owner <<< "$out")"
 
@@ -300,7 +300,7 @@ rc=0; out=$(q q3 metrics scrape --claude-dir "$claude3" --pi-dir "$pi3") || rc=$
 expect "pi: a bad total exits 1" 1 "$rc"
 expect "pi: pi_dirs reported" "$pi3" "$(jq -r '.pi_dirs | join(",")' <<< "$out")"
 expect "pa self_checked, not checked" "1 0 0" "$(jq -r '.nodes.pa | "\(.self_checked) \(.checked) \(.unchecked)"' <<< "$out")"
-expect "pa written: 8 grade samples" 8 "$(jq -r .nodes.pa.written <<< "$out")"
+expect "pa written: 10 grade samples" 10 "$(jq -r .nodes.pa.written <<< "$out")"
 expect "pb claimed by pi and Claude: ambiguous" "1 0" "$(jq -r '.nodes.pb | "\(.ambiguous) \(.written)"' <<< "$out")"
 expect "pc bad total: mismatched, nothing written" "1 0" "$(jq -r '.nodes.pc | "\(.mismatched) \(.written)"' <<< "$out")"
 expect "pd: the join line beats a later mention" "1 0" "$(jq -r '.nodes.pd | "\(.self_checked) \(.ambiguous)"' <<< "$out")"
@@ -366,7 +366,7 @@ for node in va vb vc vd ve vf vg vh; do q q4 u "$node" grade --verdict ship --ve
 rc=0; out=$(q q4 metrics scrape --claude-dir "$work/claude4" --pi-dir "$pi4") || rc=$?
 expect "brief check never fails the scrape" 0 "$rc"
 expect "va: the rendered brief, desk included: verbatim" "1 1 0" "$(jq -r '.nodes.va | "\(.self_checked) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
-expect "vb: one added line: edited, grade still written" "1 0 1 8" "$(jq -r '.nodes.vb | "\(.self_checked) \(.brief_verbatim) \(.brief_edited) \(.written)"' <<< "$out")"
+expect "vb: one added line: edited, grade still written" "1 0 1 10" "$(jq -r '.nodes.vb | "\(.self_checked) \(.brief_verbatim) \(.brief_edited) \(.written)"' <<< "$out")"
 expect "vc: each round rendered as of its own handoff: both verbatim" "2 2 0" "$(jq -r '.nodes.vc | "\(.self_checked) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
 expect "vd: owner-graded: neither" "1 0 0" "$(jq -r '.nodes.vd | "\(.owner) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
 expect "ve: a later handoff in range changes neither side: verbatim" "1 1 0" "$(jq -r '.nodes.ve | "\(.self_checked) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
@@ -380,5 +380,34 @@ mkdir -p "$pisessions/$pslug" "$pisessions/${pslug%--}-.bp3-worktrees-q3--" "$pi
 rc=0; out=$(q q3 metrics scrape --claude-dir "$claude3") || rc=$?
 expect "default pi dirs: the repo and its desk only" "$pisessions/$pslug,$pisessions/${pslug%--}-.bp3-worktrees-q3--" "$(jq -r '.pi_dirs | join(",")' <<< "$out")"
 expect "nd writes nothing" "$nd0" "$(git rev-list --count refs/heads/bp3/node/q2/nd)"
+
+# --- fast-agy-induct agy.1: agy grader + author sessions via --agy-dir ---
+agy5="$work/agy5"
+q c q5 >/dev/null
+q q5 c aa >/dev/null
+sha5=$(new_commit q5 aa)
+sec5_start=$(date -u +%Y-%m-%dT%H:%M:%S)
+q q5 u aa handoff --commit "$sha5" --reason work >/dev/null
+sec5=$(date -u +%Y-%m-%dT%H:%M:%S)
+mkdir -p "$agy5/conv-auth/.system_generated/logs" "$agy5/conv-grade/.system_generated/logs"
+{
+  printf '{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"%sZ","content":"implement aa"}\n' "$sec5_start"
+  printf '{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"%sZ","model":"gemini-4-neon-medium","input_tokens":800,"cache_read_tokens":100,"output_tokens":40,"tool_calls":[{"name":"run_command","args":{"CommandLine":"\\"./bin/bp3 q q5 n aa e handoff --commit %s --reason work\\""}}]}\n' "$sec5_start" "${sha5:0:7}"
+  printf '{"step_index":2,"source":"TOOL","type":"GENERIC","status":"DONE","created_at":"%sZ","content":"{\\"ok\\":true,\\"state\\":\\"handed_off\\"}"}\n' "$sec5"
+} > "$agy5/conv-auth/.system_generated/logs/transcript.jsonl"
+{
+  printf '{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"%sZ","content":"Grade aa at %s."}\n' "$sec5" "${sha5:0:7}"
+  printf '{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"%sZ","model":"gemini-4-neon-medium","input_tokens":500,"cache_read_tokens":50,"output_tokens":30,"tool_calls":[{"name":"run_command","args":{"CommandLine":"\\"make check-full\\""}}]}\n' "$sec5"
+  printf '{"step_index":2,"source":"TOOL","type":"GENERIC","status":"ERROR","created_at":"%sZ","content":"exit 1"}\n' "$sec5"
+  printf '{"step_index":3,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"%sZ","model":"gemini-4-neon-medium","input_tokens":600,"cache_read_tokens":100,"output_tokens":20,"tool_calls":[]}\n' "$sec5"
+} > "$agy5/conv-grade/.system_generated/logs/transcript.jsonl"
+q q5 u aa grade --verdict ship --verify-verdict pass --reason ok >/dev/null
+rc=0; out=$(q q5 metrics scrape --claude-dir "$work/empty-cl" --pi-dir "$work/empty-pi" --agy-dir "$agy5") || rc=$?
+expect "agy scrape ok" 0 "$rc"
+expect "agy agy_dirs reported" "$agy5" "$(jq -r '.agy_dirs | join(",")' <<< "$out")"
+expect "agy aa self_checked and authored" "1 1 20" "$(jq -r '.nodes.aa | "\(.self_checked) \(.authored) \(.written)"' <<< "$out")"
+v5=$(q q5 metrics r)
+expect "agy grade run, model, tool_errors, turns" "agy:conv-grade gemini-4-neon-medium 1 2" "$(jq -r '.nodes.aa.cycles."1".grade | "\(.run) \(.model) \(.tool_errors) \(.turns)"' <<< "$v5")"
+expect "agy author run, model, turns" "agy:conv-auth gemini-4-neon-medium 1" "$(jq -r '.nodes.aa.cycles."1".author | "\(.run) \(.model) \(.turns)"' <<< "$v5")"
 
 echo "metrics tests: ok ($n assertions)"

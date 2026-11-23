@@ -71,6 +71,9 @@ echo "$out" | jq -e '.ok == true and (.warnings | index("W_IDENTITY_UNKNOWN") !=
 git show bp3/node/demo/id-node:docs/quests/demo/nodes/id-node/ledger.jsonl | tail -1 | jq -e '.harness == "unknown" and .model == "unknown" and .bp3_version == "0.2.0"' >/dev/null || fail "identity ledger unknown"
 if out=$(BP3_HARNESS=bogus BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q demo r parser-fix 2>&1); then fail "invalid harness accepted"; fi
 echo "$out" | jq -e '.error.code == "E_IDENTITY"' >/dev/null || fail "identity code: $out"
+for h in agy claude pi; do
+  BP3_HARNESS="$h" BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q demo r parser-fix | jq -e '.ok == true' >/dev/null || fail "harness $h rejected"
+done
 
 # --- run-id: BP3_RUN_ID from env stamps verdict + ledger; unset is absent ---
 out=$(BP3_RUN_ID=run-42 BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q c runq)

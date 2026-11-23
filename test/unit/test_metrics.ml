@@ -455,7 +455,7 @@ let law_each_usage_less_line_fails_at_most_one_window =
        let secs o = Option.get (Claude_tx.seconds (stamp o)) in
        let windows = List.mapi (fun i (a, b) -> (string_of_int i, secs (min a b), secs (max a b))) spans in
        let s = { Claude_tx.s_id = "s"; s_msgs = []; s_tools = []; s_bash = []; s_results = [];
-                 s_bad_at = List.map stamp bad; s_marks = []; s_results_at = [] } in
+                 s_bad_at = List.map stamp bad; s_marks = []; s_results_at = []; s_events = [] } in
        let held o = List.exists (fun (_, f, u) -> secs o >= f && secs o < u +. 1.) windows in
        let total = List.fold_left (fun acc (w : Claude_tx.window_spend) -> acc + w.w_bad) 0 (Claude_tx.assign s windows) in
        total = List.length (List.filter held bad))
@@ -606,8 +606,8 @@ let case_author_pass_writes_the_window_times _ =
       a_line ~id:"w2" ~stop:"end_turn" "10:02:00"; a_line ~id:"w3" "10:07:00"; cast "10:07:10"; r_line ~tool:"t3" "10:07:40" ]) in
   let edge ts e c = { Metrics.e_ts = "2026-11-22T" ^ ts ^ "Z"; e_edge = e; e_cycle = 1; e_commit = c; e_to = "" } in
   let all = [ ("nd", edge "10:00:00" "create" None); ("nd", edge "10:07:40" "handoff" (Some "abc1234def5678abc1234def5678abc1234def56")) ] in
-  let out = Metrics_io.author_pass "q1" all [ s ] in
-  let samples, (t : Metrics.tally) = Hashtbl.find out "nd" in
+  let out = Metrics_io.author_pass "q1" all [ Metrics_io.Claude_s ("", s) ] in
+  let samples, _, (t : Metrics.tally) = Hashtbl.find out "nd" in
   let v m = match List.find_opt (fun (x : Metrics.sample) -> x.metric = m) samples with
     | Some x -> Printf.sprintf "%g" x.value | None -> "-" in
   assert_equal ~printer:string_of_int 1 t.authored;
@@ -642,7 +642,8 @@ let law_author_times_are_ordered =
        let s = { Claude_tx.s_id = "s"; s_msgs = []; s_bash = []; s_results = []; s_bad_at = [];
                  s_marks = List.sort compare (List.map (fun (o, e) -> (base +. float_of_int o, e)) marks);
                  s_tools = List.mapi (fun i (o, _) -> (string_of_int i, iso o)) calls;
-                 s_results_at = List.mapi (fun i (o, d) -> (string_of_int i, base +. float_of_int (o + d))) calls } in
+                 s_results_at = List.mapi (fun i (o, d) -> (string_of_int i, base +. float_of_int (o + d))) calls;
+                 s_events = [] } in
        let w = Claude_tx.window_times s ~from:(base +. float_of_int from) ~upto:(base +. float_of_int (from + len)) in
        let summed = float_of_int (List.fold_left (fun acc (_, d) -> acc + d) 0 calls) in
        0. <= w.t_tool && w.t_tool <= w.t_active +. 1e-6 && w.t_active <= w.t_wall +. 1e-6 && w.t_tool <= summed +. 1e-6)

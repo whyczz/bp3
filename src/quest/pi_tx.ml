@@ -1,14 +1,12 @@
 (* pi sessions (pi-metrics reader.1): one JSONL file per session, a
    `session` header then entries in a tree (id/parentId). Read into the
-   same cost record a Claude Code transcript gives, so a pi grade is
-   measured like a Claude one. pi writes no separate harness report, so
-   the read checks itself instead (self_checks). Pure: text in, facts
-   out. Format: pi docs session-format.md and message-types.md (1.5.0). *)
+   shared Tx.cost record so a pi grade is measured like any other
+   harness. Pure: text in, facts out. *)
 
 (* One usage-bearing entry: an assistant message, a `usage` entry, a
    compaction or branch summary, or a tool result with nested model work.
    All of them count toward pi's own session totals. *)
-type entry = { e_id : string; e_ts : string; e_model : string; e_usage : Claude_tx.usage; e_assistant : bool }
+type entry = { e_id : string; e_ts : string; e_model : string; e_usage : Tx.usage; e_assistant : bool }
 
 type tx = {
   session : string;        (* the header's id; "" when the file has no header *)
@@ -20,13 +18,15 @@ type tx = {
   tool_calls : string list;    (* toolCall ids, first-seen order *)
   tool_results : string list;  (* toolResult toolCallIds *)
   tool_spans : (float * float) list;   (* [toolCall entry, toolResult entry) per paired call (measure.1) *)
+  tool_events : Tx.tool_event list;
+  tool_errors : int;
   skipped_lines : int;     (* not JSON, or JSON that is not an object *)
   bad_usage : int;         (* usage lacking a count, or whose totalTokens is not their sum *)
 }
 
-let member = Claude_tx.member
-let str = Claude_tx.str
-let int_of k j = match member k j with `Int n -> Some n | _ -> None
+let member = Tx.member
+let str = Tx.str
+let int_of = Tx.int_of
 
 (* All four counts and the total, and the total adds up: `reasoning` is
    already in output and cacheWrite1h inside cacheWrite, so neither is
@@ -35,7 +35,7 @@ let usage_of j =
   match int_of "input" j, int_of "output" j, int_of "cacheRead" j, int_of "cacheWrite" j, int_of "totalTokens" j with
   | Some input, Some output, Some cache_read, Some cache_write, Some total
     when input + output + cache_read + cache_write = total ->
-      Some { Claude_tx.input; output; cache_read; cache_write }
+      Some { Tx.input; output; cache_read; cache_write }
   | _ -> None
 
 let text_of content =
@@ -48,14 +48,14 @@ let text_of content =
 let parse text =
   let session = ref "" and cwd = ref "" and first_prompt = ref "" and first_ts = ref "" and last_ts = ref "" in
   let entries = ref [] and calls = ref [] and results = ref [] and skipped = ref 0 and bad = ref 0 in
-  let seen_call = Hashtbl.create 64 in
-  let uses = ref [] and results_at = ref [] in
+  let seen_call = Hashtbl.create 64 and call_meta = Hashtbl.create 64 in
+  let uses = ref [] and results_at = ref [] and events = ref [] and tool_errors = ref 0 in
   let add_usage ~assistant ~model j u_json =
     match usage_of u_json with
     | Some u -> entries := { e_id = str "id" j; e_ts = str "timestamp" j; e_model = model; e_usage = u;
                              e_assistant = assistant } :: !entries
     | None -> incr bad in
-  List.iter (fun line ->
+  List.iteri (fun line_idx line ->
       if String.trim line <> "" then
         match (try Some (Yojson.Safe.from_string line) with _ -> None) with
         | Some (`Assoc _ as j) ->
@@ -77,12 +77,25 @@ let parse text =
                              let id = str "id" b in
                              if id <> "" && not (Hashtbl.mem seen_call id) then begin
                                Hashtbl.replace seen_call id (); calls := id :: !calls;
-                               (match Claude_tx.seconds ts with Some at -> uses := (id, at) :: !uses | None -> ()) end) blocks
+                               let name = str "name" b in
+                               let cmd = str "command" (member "arguments" b) in
+                               let start_s = Option.value (Tx.seconds ts) ~default:0. in
+                               Hashtbl.replace call_meta id (name, cmd, start_s, line_idx + 1);
+                               (match Tx.seconds ts with Some at -> uses := (id, at) :: !uses | None -> ()) end) blocks
                        | _ -> ())
                   | "toolResult" ->
-                      results := str "toolCallId" m :: !results;
-                      (match Claude_tx.seconds ts with
-                       | Some at -> results_at := (str "toolCallId" m, at) :: !results_at | None -> ());
+                      let cid = str "toolCallId" m in
+                      let is_err = Tx.bool_of "isError" m in
+                      if is_err then incr tool_errors;
+                      results := cid :: !results;
+                      let end_at = Tx.seconds ts in
+                      (match end_at with Some at -> results_at := (cid, at) :: !results_at | None -> ());
+                      (match Hashtbl.find_opt call_meta cid with
+                       | Some (name, cmd, start_s, step) ->
+                           events := { Tx.te_name = name; te_cmd_head = Tx.cmd_head cmd;
+                                       te_error = is_err; te_start = start_s;
+                                       te_end = Option.value end_at ~default:start_s; te_step = step } :: !events
+                       | None -> ());
                       if member "usage" m <> `Null then add_usage ~assistant:false ~model:"" j (member "usage" m)
                   | _ -> ())
              | _ ->
@@ -92,7 +105,8 @@ let parse text =
     (String.split_on_char '\n' text);
   { session = !session; cwd = !cwd; first_prompt = !first_prompt; first_ts = !first_ts; last_ts = !last_ts;
     entries = List.rev !entries; tool_calls = List.rev !calls; tool_results = List.rev !results;
-    tool_spans = Claude_tx.paired (List.rev !uses) (List.rev !results_at);
+    tool_spans = Tx.paired (List.rev !uses) (List.rev !results_at);
+    tool_events = List.rev !events; tool_errors = !tool_errors;
     skipped_lines = !skipped; bad_usage = !bad }
 
 (* The read agrees with itself: every usage line added up, and every
@@ -100,15 +114,16 @@ let parse text =
 let self_checks tx =
   tx.bad_usage = 0 && List.for_all (fun c -> List.mem c tx.tool_results) tx.tool_calls
 
-(* Claude_tx.cost's meaning, field by field: wall is the span from the
+(* Tx.cost's meaning, field by field: wall is the span from the
    first user message to the last entry; context_end and model come from
    the last assistant message. *)
 let cost tx =
   let sum f = List.fold_left (fun acc e -> acc + f e.e_usage) 0 tx.entries in
   let last = List.find_opt (fun e -> e.e_assistant) (List.rev tx.entries) in
-  let wall = match Claude_tx.seconds tx.first_ts, Claude_tx.seconds tx.last_ts with
+  let turns = List.length (List.filter (fun e -> e.e_assistant) tx.entries) in
+  let wall = match Tx.seconds tx.first_ts, Tx.seconds tx.last_ts with
     | Some a, Some b -> Float.round ((b -. a) *. 1000.) /. 1000. | _ -> 0. in
-  { Claude_tx.wall_s = wall; tool_calls = List.length tx.tool_calls;
+  { Tx.wall_s = wall; tool_calls = List.length tx.tool_calls;
     context_end = (match last with
         | Some e -> e.e_usage.input + e.e_usage.cache_read + e.e_usage.cache_write + e.e_usage.output
         | None -> 0);
@@ -117,4 +132,6 @@ let cost tx =
     model = (match last with
         | Some e -> if Metrics.model_ok e.e_model then e.e_model else "other"
         | None -> "unknown");
-    tool_s = Claude_tx.ms (Claude_tx.measure tx.tool_spans) }
+    tool_s = Tx.ms (Tx.measure tx.tool_spans);
+    tool_errors = tx.tool_errors;
+    turns }

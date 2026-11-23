@@ -23,10 +23,12 @@ let rows owner prefix specs =
 
 let registry =
   rows grade_transcripts "grade"
-    ([ ("wall_s", "s", Sum); ("tool_calls", "count", Sum); ("context_end", "tokens", Max); ("tool_s", "s", Sum) ]
+    ([ ("wall_s", "s", Sum); ("tool_calls", "count", Sum); ("context_end", "tokens", Max);
+       ("tool_s", "s", Sum); ("tool_errors", "count", Sum); ("turns", "count", Sum) ]
      @ List.map (fun t -> (t, "tokens", Sum)) tokens)
   @ rows author_window "author"
-      ([ ("tool_calls", "count", Sum); ("wall_s", "s", Sum); ("active_s", "s", Sum); ("tool_s", "s", Sum) ]
+      ([ ("tool_calls", "count", Sum); ("wall_s", "s", Sum); ("active_s", "s", Sum);
+         ("tool_s", "s", Sum); ("tool_errors", "count", Sum); ("turns", "count", Sum) ]
        @ List.map (fun t -> (t, "tokens", Sum)) tokens)
   @ rows node_cost "cycle" [ ("todo_s", "s", Last); ("handed_off_s", "s", Last) ]
 

@@ -4,7 +4,7 @@
    contract, so a count is cross-checked against the harness report
    before it is trusted (QUEST.md R1). Pure: text in, facts out. *)
 
-type usage = { input : int; output : int; cache_read : int; cache_write : int }
+type usage = Tx.usage = { input : int; output : int; cache_read : int; cache_write : int }
 type msg = { id : string; ts : string; model : string; usage : usage; sidechain : bool }
 
 type tx = {
@@ -16,58 +16,20 @@ type tx = {
   msgs : msg list;        (* one per message.id, last snapshot, first-seen order *)
   tool_use_ids : string list;
   tool_spans : (float * float) list;   (* [tool_use, tool_result) per paired call, epoch seconds *)
+  tool_events : Tx.tool_event list;
+  tool_errors : int;
   skipped_lines : int;    (* not JSON, or an assistant line with no message.id or bad usage *)
   bad_usage : int;        (* assistant lines whose usage lacks one of its four counts *)
 }
 
-(* Milliseconds matter: a grade's wall is the span of its lines. *)
-let seconds ts =
-  if String.length ts < 20 then None
-  else
-    match Harness.epoch_of_iso (String.sub ts 0 19 ^ "Z") with
-    | None -> None
-    | Some s ->
-        let frac = String.sub ts 19 (String.length ts - 19) in
-        if frac = "Z" then Some s
-        else if String.length frac >= 3 && frac.[0] = '.' && frac.[String.length frac - 1] = 'Z' then
-          (match float_of_string_opt ("0" ^ String.sub frac 0 (String.length frac - 1)) with
-           | Some f -> Some (s +. f)
-           | None -> None)
-        else None
-
-(* Intervals [a, b) in epoch seconds (induct-inline-as-default
-   measure.1): parallel tool calls overlap, so time is the union of the
-   spans, never the sum of their lengths. *)
-let merge spans =
-  List.sort compare (List.filter (fun (a, b) -> b > a) spans)
-  |> List.fold_left (fun acc (a, b) -> match acc with
-      | (pa, pb) :: rest when a <= pb -> (pa, Float.max pb b) :: rest
-      | _ -> (a, b) :: acc) []
-  |> List.rev
-
-let measure spans = List.fold_left (fun acc (a, b) -> acc +. (b -. a)) 0. (merge spans)
-
-let inter xs ys =
-  let ys = merge ys in
-  List.concat_map (fun (a, b) ->
-      List.filter_map (fun (c, d) ->
-          let lo = Float.max a c and hi = Float.min b d in if hi > lo then Some (lo, hi) else None) ys)
-    (merge xs)
-
-let ms v = Float.round (v *. 1000.) /. 1000.
-
-(* Each paired call's span; a call with no result in the text counts
-   nothing, so tool time is a lower bound. *)
-let paired uses results =
-  let at = Hashtbl.create 64 in
-  List.iter (fun (id, r) -> if not (Hashtbl.mem at id) then Hashtbl.replace at id r) results;
-  List.filter_map (fun (id, u) -> match Hashtbl.find_opt at id with Some r -> Some (u, r) | None -> None) uses
-
-(* Total field access: a line of an unexpected shape (a null message, a
-   list) reads as absent fields, never as an exception that kills the
-   whole scrape. *)
-let member k j = match j with `Assoc fs -> (match List.assoc_opt k fs with Some v -> v | None -> `Null) | _ -> `Null
-let str k j = match member k j with `String s -> s | _ -> ""
+let seconds = Tx.seconds
+let merge = Tx.merge
+let measure = Tx.measure
+let inter = Tx.inter
+let ms = Tx.ms
+let paired = Tx.paired
+let member = Tx.member
+let str = Tx.str
 
 (* All four counts or nothing: a renamed or missing key is never read
    as 0, or a format change would pass as a cheap grade (QUEST.md R1). *)
@@ -92,12 +54,13 @@ let prompt_text content =
    the part of a transcript a harness report covers. *)
 let parse ?until text =
   let order = ref [] and by_id = Hashtbl.create 64 and tools = Hashtbl.create 64 in
+  let call_meta = Hashtbl.create 64 and events = ref [] and tool_errors = ref 0 in
   let tool_order = ref [] and skipped = ref 0 and bad_usage = ref 0 in
   let uses = ref [] and results = ref [] in
   let session = ref "" and agent = ref "" and prompt = ref None in
   let first_ts = ref "" and last_ts = ref "" in
   let late ts = match until, seconds ts with Some u, Some s -> s > u | _ -> false in
-  List.iter (fun line ->
+  List.iteri (fun line_idx line ->
       if String.trim line <> "" then
         match (try Some (Yojson.Safe.from_string line) with _ -> None) with
         | Some (`Assoc _ as j) when late (str "timestamp" j) -> ()
@@ -115,8 +78,17 @@ let parse ?until text =
                  if !prompt = None then prompt := Some (prompt_text (member "content" message))
                  else (match member "content" message, seconds ts with
                      | `List blocks, Some at ->
-                         List.iter (fun b -> if str "type" b = "tool_result" then
-                                       results := (str "tool_use_id" b, at) :: !results) blocks
+                         List.iter (fun b -> if str "type" b = "tool_result" then begin
+                                       let tid = str "tool_use_id" b in
+                                       let is_err = Tx.bool_of "is_error" b in
+                                       if is_err then incr tool_errors;
+                                       results := (tid, at) :: !results;
+                                       (match Hashtbl.find_opt call_meta tid with
+                                        | Some (name, cmd, start_s, step) ->
+                                            events := { Tx.te_name = name; te_cmd_head = Tx.cmd_head cmd;
+                                                        te_error = is_err; te_start = start_s;
+                                                        te_end = at; te_step = step } :: !events
+                                        | None -> ()) end) blocks
                      | _ -> ())
              | "assistant" ->
                  let id = str "id" message in
@@ -135,6 +107,10 @@ let parse ?until text =
                               let tid = str "id" b in
                               if tid <> "" && not (Hashtbl.mem tools tid) then begin
                                 Hashtbl.replace tools tid (); tool_order := tid :: !tool_order;
+                                let name = str "name" b in
+                                let cmd = str "command" (member "input" b) in
+                                let start_s = Option.value (seconds ts) ~default:0. in
+                                Hashtbl.replace call_meta tid (name, cmd, start_s, line_idx + 1);
                                 (match seconds ts with Some at -> uses := (tid, at) :: !uses | None -> ()) end) blocks
                     | _ -> ())
                  end
@@ -146,6 +122,7 @@ let parse ?until text =
     first_ts = !first_ts; last_ts = !last_ts;
     msgs = List.rev_map (Hashtbl.find by_id) !order;
     tool_use_ids = List.rev !tool_order; tool_spans = paired (List.rev !uses) (List.rev !results);
+    tool_events = List.rev !events; tool_errors = !tool_errors;
     skipped_lines = !skipped; bad_usage = !bad_usage }
 
 (* The .meta.json beside a subagent transcript names the parent's
@@ -155,11 +132,13 @@ let meta_tool_use_id text =
   | Some j -> (match str "toolUseId" j with "" -> None | s -> Some s)
   | None -> None
 
-type cost = {
+type cost = Tx.cost = {
   wall_s : float; tool_calls : int; context_end : int;
   tokens_in : int; tokens_out : int; tokens_cache_read : int; tokens_cache_write : int;
   model : string;
   tool_s : float;   (* union of the paired tool spans (measure.1) *)
+  tool_errors : int;
+  turns : int;
 }
 
 let real_model m = m <> "" && m.[0] <> '<'   (* "<synthetic>" carries no spend *)
@@ -181,39 +160,15 @@ let cost tx =
     model = (match last with
         | Some m -> if Metrics.model_ok m.model then m.model else "other"
         | None -> "unknown");
-    tool_s = ms (measure tx.tool_spans) }
+    tool_s = ms (measure tx.tool_spans);
+    tool_errors = tx.tool_errors;
+    turns = List.length tx.msgs }
 
-(* A grade transcript names its node and the graded commit in its
-   first prompt (past briefs already did), and runs inside the
-   handoff-to-grade window. Ledger times are whole seconds, so the
-   window closes one second after the grade's stamp. *)
-(* No allocation per position: session files are tens of MB. *)
-let find_from s i sub =
-  let n = String.length sub and m = String.length s in
-  let rec at i k = k = n || (s.[i + k] = sub.[k] && at i (k + 1)) in
-  let rec go i = if i + n > m then None else if at i 0 then Some i else go (i + 1) in
-  if n = 0 then None else go i
-
-let contains s sub = find_from s 0 sub <> None
-
-(* The grade join's two rules, on any harness's transcript (pi-metrics
-   scrape.1): the first prompt names the node and the commit's first 7
-   characters, and the transcript lies inside [handoff, grade + 1s). *)
-let prompt_names_grade prompt ~node ~commit =
-  String.length commit >= 7 && contains prompt node && contains prompt (String.sub commit 0 7)
-
-let span_in_window ~first_ts ~last_ts ~handed_at ~graded_at =
-  match seconds first_ts, seconds last_ts, seconds handed_at, seconds graded_at with
-  | Some a, Some b, Some h, Some g -> a >= h && b < g +. 1.
-  | _ -> false
-
-(* The brief's join line (brief.1): its first line names the node and
-   the commit. When several transcripts claim one grade, the one whose
-   first line does wins (measure.1 cycle 2: a cycle-2 brief lists other
-   nodes' commits by node id, so it claims their grades too). *)
-let join_line_names prompt ~node ~commit =
-  let first = match String.index_opt prompt '\n' with Some i -> String.sub prompt 0 i | None -> prompt in
-  prompt_names_grade first ~node ~commit
+let find_from = Tx.find_from
+let contains = Tx.contains
+let prompt_names_grade = Tx.prompt_names_grade
+let span_in_window = Tx.span_in_window
+let join_line_names = Tx.join_line_names
 
 let names_grade tx ~node ~commit = prompt_names_grade tx.first_prompt ~node ~commit
 
@@ -293,6 +248,7 @@ type session = {
   s_bad_at : string list;            (* stamps of usage-less lines, main thread; a window holding one writes nothing *)
   s_marks : (float * bool) list;     (* main-thread assistant and tool-result lines: stamp, ends a turn (measure.1) *)
   s_results_at : (string * float) list;  (* tool_use_id, stamp of its result *)
+  s_events : Tx.tool_event list;
 }
 
 let result_text content =
@@ -304,9 +260,10 @@ let result_text content =
 
 let parse_session text =
   let order = ref [] and by_id = Hashtbl.create 256 and tools = Hashtbl.create 256 in
+  let call_meta = Hashtbl.create 256 and events = ref [] in
   let tool_order = ref [] and bash = ref [] and results = ref [] and bad = ref [] and sid = ref "" in
   let marks = ref [] and results_at = ref [] in
-  List.iter (fun line ->
+  List.iteri (fun line_idx line ->
       if contains line "\"type\":\"assistant\"" || contains line "\"tool_result\"" then
         match (try Some (Yojson.Safe.from_string line) with _ -> None) with
         | Some (`Assoc _ as j) when (match member "isSidechain" j with `Bool b -> b | _ -> false) -> ()
@@ -330,84 +287,44 @@ let parse_session text =
                  List.iter (fun b ->
                      if str "type" b = "tool_use" then begin
                        let tid = str "id" b in
+                       let name = str "name" b in
+                       let cmd = str "command" (member "input" b) in
                        if tid <> "" && not (Hashtbl.mem tools tid) then begin
-                         Hashtbl.replace tools tid (); tool_order := (tid, ts) :: !tool_order end;
-                       if str "name" b = "Bash" then
-                         bash := { call_id = tid; call_ts = ts;
-                                   command = str "command" (member "input" b) } :: !bash
+                         Hashtbl.replace tools tid (); tool_order := (tid, ts) :: !tool_order;
+                         let start_s = Option.value (seconds ts) ~default:0. in
+                         Hashtbl.replace call_meta tid (name, cmd, start_s, line_idx + 1) end;
+                       if name = "Bash" then
+                         bash := { call_id = tid; call_ts = ts; command = cmd } :: !bash
                      end) blocks
              | "user" ->
                  let at = seconds ts in
                  List.iter (fun b ->
                      if str "type" b = "tool_result" then begin
+                       let tid = str "tool_use_id" b in
+                       let is_err = Tx.bool_of "is_error" b in
                        (match at with
-                        | Some a -> marks := (a, false) :: !marks; results_at := (str "tool_use_id" b, a) :: !results_at
+                        | Some a ->
+                            marks := (a, false) :: !marks; results_at := (tid, a) :: !results_at;
+                            (match Hashtbl.find_opt call_meta tid with
+                             | Some (name, cmd, start_s, step) ->
+                                 events := { Tx.te_name = name; te_cmd_head = Tx.cmd_head cmd;
+                                             te_error = is_err; te_start = start_s;
+                                             te_end = a; te_step = step } :: !events
+                             | None -> ())
                         | None -> ());
                        let t = result_text (member "content" b) in
-                       if contains t "handed_off" then results := (str "tool_use_id" b, t) :: !results end) blocks
+                       if contains t "handed_off" then results := (tid, t) :: !results end) blocks
              | _ -> ())
         | _ -> ())
     (String.split_on_char '\n' text);
   { s_id = !sid; s_msgs = List.rev_map (Hashtbl.find by_id) !order; s_tools = List.rev !tool_order;
     s_bash = List.rev !bash; s_results = List.rev !results; s_bad_at = List.rev !bad;
     s_marks = List.stable_sort (fun (a, _) (b, _) -> compare a b) (List.rev !marks);
-    s_results_at = List.rev !results_at }
+    s_results_at = List.rev !results_at; s_events = List.rev !events }
 
-(* w stands as its own word in s: no id character on either side, so
-   node "a" is not found inside "handoff". *)
-let has_word s w =
-  let id_char c = match c with 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '-' | '_' | '.' -> true | _ -> false in
-  let n = String.length w and m = String.length s in
-  let rec from i = match find_from s i w with
-    | None -> false
-    | Some j ->
-        ((j = 0 || not (id_char s.[j - 1])) && (j + n = m || not (id_char s.[j + n]))) || from (j + 1) in
-  n > 0 && from 0
-
-(* Every value a result shows for a JSON key, each with whether it
-   closed: a result cut mid-value (head -c, a display limit) shows a
-   prefix. A result may hold several (a handoff, then a rollup). *)
-let shown t key =
-  List.concat_map (fun o ->
-      let rec from i = match find_from t i o with
-        | None -> []
-        | Some k ->
-            let start = k + String.length o in
-            (* a cut value ends at the line's end, not at the next line *)
-            let rec stop j = if j >= String.length t || t.[j] = '"' || t.[j] = '\n' then j else stop (j + 1) in
-            let j = stop start in
-            let v = String.sub t start (j - start) in
-            if j < String.length t && t.[j] = '"' then (v, true) :: from (j + 1)
-            else (v, false) :: from j in
-      from 0)
-    [ "\"" ^ key ^ "\":\""; "\"" ^ key ^ "\": \"" ]
-
-(* The command casts this quest's node: it holds `q <Q> n <N> e
-   handoff` or `q <Q> u|update <N> handoff`, where <Q> is the quest and
-   <N> the node, each spelled out or as a shell variable ($Q, "$Q",
-   ${Q}) the same command sets to it (induct-inline-as-default measure.1:
-   this quest's first two casts used `n $N`). A node named anywhere else
-   (a --reason, a read) is not the cast. *)
-let casts_node command ~quest ~node =
-  let tok = "\\([^ \t;&|]+\\)" in
-  let re = Str.regexp ("\\(^\\|[ \t;&|(]\\)q[ \t]+" ^ tok ^ "[ \t]+\\(n[ \t]+" ^ tok ^ "[ \t]+e\\|\\(u\\|update\\)[ \t]+"
-                       ^ tok ^ "\\)[ \t]+handoff\\($\\|[ \t;&|)]\\)") in
-  let names value tok =
-    tok = value
-    || (let strip = List.fold_left (fun s (p, q) ->
-            if String.length s >= String.length p + String.length q && String.starts_with ~prefix:p s
-               && String.ends_with ~suffix:q s
-            then String.sub s (String.length p) (String.length s - String.length p - String.length q) else s) in
-        let var = strip tok [ ("\"", "\""); ("$", ""); ("{", "}") ] in
-        var <> tok && var <> "" && String.for_all (function 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' -> true | _ -> false) var
-        && List.exists (fun v -> has_word command (var ^ "=" ^ v)) [ value; "\"" ^ value ^ "\""; "'" ^ value ^ "'" ]) in
-  let group g = try Some (Str.matched_group g command) with Not_found | Invalid_argument _ -> None in
-  let rec from i = match (try Some (Str.search_forward re command i) with Not_found -> None) with
-    | None -> false
-    | Some k ->
-        let q = group 2 and n = (match group 4 with Some n -> Some n | None -> group 6) in
-        (match q, n with Some q, Some n -> names quest q && names node n | _ -> false) || from (k + 1) in
-  from 0
+let has_word = Tx.has_word
+let shown = Tx.shown
+let casts_node = Tx.casts_node
 
 (* The session that cast a handoff made a Bash call that casts this
    quest's node (casts_node), inside that handoff's window
@@ -443,22 +360,29 @@ let casts_handoff s ~quest ~node ~commit ~from ~upto =
    upto) in epoch seconds, holding what is stamped in [from, upto + 1).
    Usage-less lines follow the same rule (usage.1): w_bad counts the
    ones a window holds first, so one bad line fails one window. *)
-type window_spend = { w_key : string; w_msgs : msg list; w_tools : int; w_bad : int }
+type window_spend = {
+  w_key : string; w_msgs : msg list; w_tools : int; w_errors : int; w_bad : int; w_events : Tx.tool_event list
+}
 
 let assign s windows =
   let taken = Hashtbl.create 256 in
   let inside (_, from, upto) ts = match seconds ts with Some t -> t >= from && t < upto +. 1. | None -> false in
+  let inside_f (_, from, upto) t = t >= from && t < upto +. 1. in
   let take k = not (Hashtbl.mem taken k) && (Hashtbl.replace taken k (); true) in
   List.map (fun ((key, _, _) as w) ->
       let msgs = List.filter (fun (m : msg) -> inside w m.ts && take ("m" ^ m.id)) s.s_msgs in
       let tools = List.filter (fun (id, ts) -> inside w ts && take ("t" ^ id)) s.s_tools in
+      let events = List.filteri (fun i (e : Tx.tool_event) -> inside_f w e.te_start && take ("e" ^ string_of_int i)) s.s_events in
+      let errors = List.length (List.filter (fun (e : Tx.tool_event) -> e.te_error) events) in
       let bad = List.filteri (fun i ts -> inside w ts && take ("b" ^ string_of_int i)) s.s_bad_at in
-      { w_key = key; w_msgs = msgs; w_tools = List.length tools; w_bad = List.length bad })
+      { w_key = key; w_msgs = msgs; w_tools = List.length tools; w_errors = errors;
+        w_bad = List.length bad; w_events = events })
     windows
 
-let author_cost msgs tool_calls =
+let author_cost ?(tool_errors = 0) msgs tool_calls =
   let tx = { session = ""; agent = ""; first_prompt = ""; first_ts = ""; last_ts = ""; msgs;
-             tool_use_ids = List.init tool_calls string_of_int; tool_spans = []; skipped_lines = 0; bad_usage = 0 } in
+             tool_use_ids = List.init tool_calls string_of_int; tool_spans = [];
+             tool_events = []; tool_errors; skipped_lines = 0; bad_usage = 0 } in
   cost tx
 
 (* An author window's times (induct-inline-as-default measure.1). Wall is

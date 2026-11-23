@@ -565,27 +565,29 @@ Example: bp3 q my-quest diagram --format mermaid\n"
 let do_metrics quest tail =
   check_slug quest;
   if fold_quest quest = None then not_found "quest" quest;
-  (* --claude-dir and --pi-dir each replace their own default set *)
-  let rec dirs (cl, pi) = function
-    | [] -> (List.rev cl, List.rev pi)
-    | "--claude-dir" :: d :: rest -> dirs (d :: cl, pi) rest
-    | "--pi-dir" :: d :: rest -> dirs (cl, d :: pi) rest
-    | [ ("--claude-dir" | "--pi-dir") as f ] -> usage (f ^ " needs a value")
+  (* --claude-dir, --pi-dir, and --agy-dir each replace their own default set *)
+  let rec dirs (cl, pi, agy) = function
+    | [] -> (List.rev cl, List.rev pi, List.rev agy)
+    | "--claude-dir" :: d :: rest -> dirs (d :: cl, pi, agy) rest
+    | "--pi-dir" :: d :: rest -> dirs (cl, d :: pi, agy) rest
+    | "--agy-dir" :: d :: rest -> dirs (cl, pi, d :: agy) rest
+    | [ ("--claude-dir" | "--pi-dir" | "--agy-dir") as f ] -> usage (f ^ " needs a value")
     | f :: _ -> usage ("unknown metrics scrape argument: " ^ f) in
   match tail with
   | [ ("r" | "read") ] -> print_verdict ~fmt:"json" (Metrics_io.view quest); 0
   | "scrape" :: rest ->
-      let (cl, pi) = dirs ([], []) rest in
+      let (cl, pi, agy) = dirs ([], [], []) rest in
       let ds = match cl with [] -> Metrics_io.default_dirs () | ds -> ds in
       let pds = match pi with [] -> Metrics_io.default_pi_dirs () | ds -> ds in
-      let (v, rc) = Metrics_io.scrape_view quest ~dirs:ds ~pi_dirs:pds in
+      let ads = match agy with [] -> Metrics_io.default_agy_dirs () | ds -> ds in
+      let (v, rc) = Metrics_io.scrape_view quest ~dirs:ds ~pi_dirs:pds ~agy_dirs:ads () in
       print_verdict ~fmt:"json" v; rc
   | _ -> usage "metrics verbs are r and scrape"
 
 let help_metrics = "bp3 q <quest> metrics - what each grade and author cycle cost (metric-collectors):\n\
   bp3 q <quest> metrics r                              samples per node, cycle, and kind (grade, author)\n\
-  bp3 q <quest> metrics scrape [--claude-dir <dir>]... [--pi-dir <dir>]...   collect from Claude Code and pi transcripts; idempotent\n\
-  Samples live in metrics.jsonl on each node's state branch (GENERATED, written only here); a second scrape writes nothing new. Without --claude-dir, scrape reads ~/.claude/projects/<this repo's dir and its desks>; without --pi-dir, ~/.pi/agent/sessions/<the same, by pi's naming>. A pi grade has no harness report: one whose usage adds up and whose tool calls all have results counts as self_checked. Exit 1 when a number could not be checked and was not written: a grade transcript that disagrees with the harness report or a pi grade that fails its self-check (mismatched), or an author window holding a usage-less line (author_bad_usage).\n\
+  bp3 q <quest> metrics scrape [--claude-dir <dir>]... [--pi-dir <dir>]... [--agy-dir <dir>]...   collect from Claude Code, pi, and agy transcripts; idempotent\n\
+  Samples live in metrics.jsonl on each node's state branch (GENERATED, written only here); a second scrape writes nothing new. Without --claude-dir, scrape reads ~/.claude/projects/<this repo's dir and its desks>; without --pi-dir, ~/.pi/agent/sessions/<the same, by pi's naming>; without --agy-dir, ~/.gemini/antigravity-cli/brain. A pi or agy grade has no harness report: one whose usage adds up counts as self_checked. Exit 1 when a number could not be checked and was not written: a grade transcript that disagrees with the harness report or fails its self-check (mismatched), or an author window holding a usage-less line (author_bad_usage).\n\
 Example: bp3 q my-quest metrics scrape && bp3 q my-quest metrics r\n"
 
 let help_update = "bp3 q <quest> u <node> <edge> - edges and their flags:\n\
