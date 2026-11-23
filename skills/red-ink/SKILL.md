@@ -83,11 +83,18 @@ entry frozen.
 
 ## The walk
 
-Before round one: the opening attack (see Red chair at
-the ends) — one strongest attack, named in round one's
-Observe. Output first after that, unless the attack
-reorders the walk. A design whose output is wrong earns
-no internals discussion.
+Before round one:
+1. **TL;DR opener:** a quick greentext-style overview of what this
+   design is and why it exists before starting the walk.
+2. **PRFAQ-style Demo (already built):** in round one's Observe,
+   present the feature as if it already shipped — 2–4 concrete
+   day-to-day use cases showing what you type, what you see, and
+   what pain it kills (honestly labeled `design trace`), before
+   drilling into schemas or flags.
+3. **Opening attack** (see Red chair at the ends) — one strongest
+   attack, named in round one's Observe. Output first after that,
+   unless the attack reorders the walk. A design whose output is
+   wrong earns no internals discussion.
 
 | Slice | Question it answers |
 |---|---|
