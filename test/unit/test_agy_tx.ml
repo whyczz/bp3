@@ -98,12 +98,34 @@ let case_agy_author_window_casts_handoff_and_active_time _ =
   (* tool: [19:00:10..19:00:25] (15s) + [19:05:00..19:05:05] (5s) = 20s *)
   assert_equal ~printer:string_of_float 20. tm.t_tool
 
+let case_subagent_system_message_prompt_unwraps_and_joins _ =
+  let prompt = "Grade nd at abc1234 (full SHA abc1234567) in quest q1, cycle 1.\n\nRules:\n- ok" in
+  let wrapped =
+    "The following is a <SYSTEM_MESSAGE> not actually sent by the user.\n\n<SYSTEM_MESSAGE>\n"
+    ^ "[Message] timestamp=2026-11-23T21:06:45Z sender=parent priority=HIGH content=" ^ prompt ^ "\n</SYSTEM_MESSAGE>" in
+  let compact = [
+    jline [ ("step_index", `Int 0); ("source", s "SYSTEM"); ("type", s "SYSTEM_MESSAGE");
+            ("status", s "DONE"); ("created_at", s "2026-11-23T19:00:00Z");
+            ("content", s "The following is a <SYSTEM_MESSAGE> ... truncated");
+            ("truncated_fields", `List [ s "content" ]) ];
+    planner_line ~step:1 ~ts:"2026-11-23T19:00:10Z" (600, 30, 100);
+  ] in
+  let full = [
+    jline [ ("step_index", `Int 0); ("source", s "SYSTEM"); ("type", s "SYSTEM_MESSAGE");
+            ("status", s "DONE"); ("created_at", s "2026-11-23T19:00:00Z"); ("content", s wrapped) ];
+    planner_line ~step:1 ~ts:"2026-11-23T19:00:10Z" (600, 30, 100);
+  ] in
+  let tx = Agy_tx.parse ~conv_id:"sub-1" ~full_text:(Gen.text full) (Gen.text compact) in
+  assert_equal ~printer:Fun.id prompt tx.first_prompt;
+  assert_bool "join_line_names" (Tx.join_line_names tx.first_prompt ~node:"nd" ~commit:"abc1234567")
+
 let suite =
   "agy_tx" >::: [
     "case_agy_grader_reads_cost_and_tool_events" >:: case_agy_grader_reads_cost_and_tool_events;
     "case_truncated_fields_falls_back_to_full_transcript" >:: case_truncated_fields_falls_back_to_full_transcript;
     "case_missing_usage_fails_self_check" >:: case_missing_usage_fails_self_check;
     "case_agy_author_window_casts_handoff_and_active_time" >:: case_agy_author_window_casts_handoff_and_active_time;
+    "case_subagent_system_message_prompt_unwraps_and_joins" >:: case_subagent_system_message_prompt_unwraps_and_joins;
   ]
 
 let () = run_test_tt_main suite

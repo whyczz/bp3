@@ -396,11 +396,17 @@ mkdir -p "$agy5/conv-auth/.system_generated/logs" "$agy5/conv-grade/.system_gene
   printf '{"step_index":2,"source":"TOOL","type":"GENERIC","status":"DONE","created_at":"%sZ","content":"{\\"ok\\":true,\\"state\\":\\"handed_off\\"}"}\n' "$sec5"
 } > "$agy5/conv-auth/.system_generated/logs/transcript.jsonl"
 {
-  printf '{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"%sZ","content":"Grade aa at %s."}\n' "$sec5" "${sha5:0:7}"
+  printf '{"step_index":0,"source":"SYSTEM","type":"SYSTEM_MESSAGE","status":"DONE","created_at":"%sZ","content":"truncated","truncated_fields":["content"]}\n' "$sec5"
   printf '{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"%sZ","model":"gemini-4-neon-medium","input_tokens":500,"cache_read_tokens":50,"output_tokens":30,"tool_calls":[{"name":"run_command","args":{"CommandLine":"\\"make check-full\\""}}]}\n' "$sec5"
   printf '{"step_index":2,"source":"TOOL","type":"GENERIC","status":"ERROR","created_at":"%sZ","content":"exit 1"}\n' "$sec5"
   printf '{"step_index":3,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"%sZ","model":"gemini-4-neon-medium","input_tokens":600,"cache_read_tokens":100,"output_tokens":20,"tool_calls":[]}\n' "$sec5"
 } > "$agy5/conv-grade/.system_generated/logs/transcript.jsonl"
+{
+  printf '{"step_index":0,"source":"SYSTEM","type":"SYSTEM_MESSAGE","status":"DONE","created_at":"%sZ","content":"<SYSTEM_MESSAGE>\\n[Message] timestamp=%sZ sender=p priority=HIGH content=Grade aa at %s.\\n</SYSTEM_MESSAGE>"}\n' "$sec5" "$sec5" "${sha5:0:7}"
+  printf '{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"%sZ","model":"gemini-4-neon-medium","input_tokens":500,"cache_read_tokens":50,"output_tokens":30,"tool_calls":[{"name":"run_command","args":{"CommandLine":"\\"make check-full\\""}}]}\n' "$sec5"
+  printf '{"step_index":2,"source":"TOOL","type":"GENERIC","status":"ERROR","created_at":"%sZ","content":"exit 1"}\n' "$sec5"
+  printf '{"step_index":3,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"%sZ","model":"gemini-4-neon-medium","input_tokens":600,"cache_read_tokens":100,"output_tokens":20,"tool_calls":[]}\n' "$sec5"
+} > "$agy5/conv-grade/.system_generated/logs/transcript_full.jsonl"
 q q5 u aa grade --verdict ship --verify-verdict pass --reason ok >/dev/null
 rc=0; out=$(q q5 metrics scrape --claude-dir "$work/empty-cl" --pi-dir "$work/empty-pi" --agy-dir "$agy5") || rc=$?
 expect "agy scrape ok" 0 "$rc"

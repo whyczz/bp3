@@ -58,6 +58,22 @@ let has_truncated j =
   | `Assoc (_ :: _) -> true
   | _ -> false
 
+(* agy invoke_subagent sessions deliver their prompt in a SYSTEM_MESSAGE
+   wrapper: "...[Message] ... content=<prompt>\n</SYSTEM_MESSAGE>".
+   Strip the wrapper so Tx.join_line_names and Brief.is_verbatim match
+   the prompt verbatim. *)
+let unwrap_system_prompt s =
+  let marker = " content=" in
+  let body = match Tx.find_from s 0 marker with
+    | Some i ->
+        let start = i + String.length marker in
+        String.sub s start (String.length s - start)
+    | None -> s in
+  let strip_suffix suf x =
+    let n = String.length x and m = String.length suf in
+    if n >= m && String.sub x (n - m) m = suf then String.sub x 0 (n - m) else x in
+  body |> strip_suffix "\n</SYSTEM_MESSAGE>" |> strip_suffix "</SYSTEM_MESSAGE>"
+
 (* Parse an agy transcript.jsonl; when ~full_text is provided and a line
    carries truncated_fields, replace it with the matching line from
    transcript_full.jsonl (by index). *)
@@ -94,6 +110,8 @@ let parse ?(conv_id = "") ?full_text text =
             (match str "type" j with
              | "USER_INPUT" ->
                  if !first_prompt = "" then first_prompt := str "content" j
+             | "SYSTEM_MESSAGE" ->
+                 if !first_prompt = "" then first_prompt := unwrap_system_prompt (str "content" j)
              | "PLANNER_RESPONSE" ->
                  let tcs = match member "tool_calls" j with `List xs -> xs | _ -> [] in
                  let has_tools = tcs <> [] in
