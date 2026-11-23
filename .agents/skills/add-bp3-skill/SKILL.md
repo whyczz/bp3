@@ -2,7 +2,7 @@
 name: add-bp3-skill
 description: Add a bp3 project skill under skills/ and install it per project with bp3 skills install, through overlap, statelessness, and trigger checks.
 ---
-<!-- GENERATED from skills/add-bp3-skill/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+<!-- GENERATED from skills/add-bp3-skill/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->
 
 # Add BP3 Skill
 

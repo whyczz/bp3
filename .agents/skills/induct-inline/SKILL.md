@@ -2,7 +2,7 @@
 name: induct-inline
 description: Run one bp3 quest inside the current session, the default way to run a quest — author each node here, grade each commit with one fresh grader in the background from the brief bp3 renders, cast verdicts at the cast boundary, re-read.
 ---
-<!-- GENERATED from skills/induct-inline/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+<!-- GENERATED from skills/induct-inline/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->
 
 # Induct inline
 
@@ -43,7 +43,9 @@ hand-cast edge.
    - when nothing is being authored, take the first `todo` node in
      `ready` order. Read its NODE.md acceptance gates, make the
      change, run the gates' `prove by` checks, and commit clean.
-     Then cast `bp3 q <quest> n <node> e handoff --commit <sha>
+     Run `./scripts/receipt` on the clean commit (when present in
+     the repo) and pass its receipt summary as `--reason` when
+     casting `bp3 q <quest> n <node> e handoff --commit <sha>
      --reason "..."`, with the quest and node spelled out (or set
      as variables in the same command), so the scrape finds the
      author's window;
@@ -83,10 +85,20 @@ it never words the grader's brief either.
   and `GRADING.md`, which names the grade gate (`make check-full`
   in this repo); no author rationale.
 - **Subagent available** (Claude Code's Agent tool, Muse's
-  `agent()`): spawn one fresh grader in the background with that
-  brief as its whole prompt. It returns the verdict as data and
-  makes no `bp3 q` calls (pure grade, as in `induct`). One grader
-  per grade; never reused across commits.
+  `agent()`, Antigravity's `invoke_subagent`): spawn one fresh
+  grader in the background with that brief as its whole prompt. It
+  returns the verdict as data and makes no `bp3 q` calls (pure
+  grade, as in `induct`). One grader per grade; never reused across
+  commits. On `agy`, tier `invoke_subagent` `Model` by node `Lane`:
+  - `micro` / docs / skill nodes -> `Model: "flash"`
+  - `standard` nodes -> `Model: "flash"` or `"inherit"`
+  - `high-blast-radius` nodes -> `Model: "pro"` or `"inherit"`
+- **Severity gate (read-only grader)**: the grader never edits
+  code and casts `needs_fix` ONLY for `[critical]` or `[major]`
+  findings (broken gate, proven bug, unjustified test deletion or
+  weakening, vacuous test, or `CONSTRAINTS.md` violation).
+  `[minor]` findings ship with follow-ups logged under `FOLLOW-UPS`
+  rather than bouncing the node.
 - **pi grader** (when the owner names pi as the grader runtime):
   run one headless pi per grade from the grade desk,
   `pi -p --tools read,bash --session-id <fresh id> "<cold brief>"`.
@@ -126,6 +138,26 @@ it never words the grader's brief either.
   `induct-yolo` parks it. A diff to `CONSTRAINTS.md` without a
   new dated **owner-words row** in its Sign-off log is
   `needs_fix`.
+
+## Parallel mode on agy (`/swarm`)
+
+Optional on `agy` when `>=2` independent `ready` nodes have
+disjoint file boundaries (`Output` / `Must not touch` do not
+overlap):
+
+- **Warm forked coders**: the coordinator reads the quest and
+  codebase once, then spawns `@coder-*` workers with
+  `fork: "coordinator"` and `workspace: "share"`. Each worker edits
+  its node's files, runs `make check`, commits cleanly on its share
+  branch, runs `./scripts/receipt`, and reports its commit SHA.
+- **Cold non-forked graders**: graders are strictly cold (NEVER
+  forked from the coordinator or coder), running in detached grade
+  desks from the verbatim `bp3 q ... brief`.
+- **Coordinator is the sole `bp3 q` writer and serial merger**:
+  workers never call `bp3 q` (preventing `.git/` sandbox `EPERM`
+  and verdict races). The coordinator merges each worker's clean
+  commit serially into the quest branch, casts `handoff`, spawns
+  the cold grader, and casts verdicts / lands at the cast boundary.
 
 ## Rules
 

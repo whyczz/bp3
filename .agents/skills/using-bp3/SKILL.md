@@ -2,7 +2,7 @@
 name: using-bp3
 description: "Operate bp3 correctly in this repo: quest folders, bp3 q edges, ledger discipline, and verification, for any Controller or Worker session."
 ---
-<!-- GENERATED from skills/using-bp3/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+<!-- GENERATED from skills/using-bp3/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->
 
 # Using bp3
 

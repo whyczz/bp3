@@ -2,7 +2,7 @@
 name: naming
 description: "Choose concrete, short names in bp3's existing vocabulary for quests, nodes, skills, plans, engines, and CLI verbs."
 ---
-<!-- GENERATED from skills/naming/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+<!-- GENERATED from skills/naming/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->
 
 # Naming
 

@@ -2,7 +2,7 @@
 name: quest
 description: Turn a known intent into a bp3 Quest file at docs/quests/<date>-<slug>.md with nodes, acceptance checks, and human touchpoints.
 ---
-<!-- GENERATED from skills/quest/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+<!-- GENERATED from skills/quest/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->
 
 # Quest
 

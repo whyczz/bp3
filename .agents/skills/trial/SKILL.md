@@ -2,7 +2,7 @@
 name: trial
 description: "Land a bp3 Quest with something the owner can watch and try — diligence gate first (unsettled or improperly-done nodes route to red-ink), then the Landing IIUC and a trial: one sandboxed script, recorded with asciinema and runnable live."
 ---
-<!-- GENERATED from skills/trial/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+<!-- GENERATED from skills/trial/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->
 
 # Trial
 

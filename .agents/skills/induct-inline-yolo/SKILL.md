@@ -2,7 +2,7 @@
 name: induct-inline-yolo
 description: Run one bp3 quest inline with no human present — induct-inline's procedure as written, under no-human rails; park owner calls instead of paging, stop new work when a stated budget is spent, and end with the check-in report; never attests, never pages, never promotes or pushes.
 ---
-<!-- GENERATED from skills/induct-inline-yolo/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+<!-- GENERATED from skills/induct-inline-yolo/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->
 
 # Induct inline, no human
 

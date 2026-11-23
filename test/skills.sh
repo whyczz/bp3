@@ -368,4 +368,22 @@ git -C "$agy_host" add -A && git -C "$agy_host" commit -qm init
 BP3_TARGET="$agy_host" BP3_COMPLETIONS_DIR="$work/comp-agy" "$repo/bin/bp3" skills install --harness=agy >/dev/null
 assert jq -e '.bp3.PreToolUse[0].hooks[0].command == "bp3 q hooks || true"' "$agy_host/.agents/hooks.json"
 
+# fast-agy-induct skills.1: induct-inline semantic invariants (receipt,
+# severity gate, agy invoke_subagent model tiering, /swarm coordinator rule)
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  ii="$repo/$dir/induct-inline/SKILL.md"
+  assert grep -qF './scripts/receipt' "$ii"
+  assert grep -qF 'Severity gate' "$ii"
+  assert grep -qF '[critical]' "$ii"
+  assert grep -qF '[minor]' "$ii"
+  assert grep -qF 'invoke_subagent' "$ii"
+  assert grep -qF '"flash"' "$ii"
+  assert grep -qF '"pro"' "$ii"
+  assert grep -qF '/swarm' "$ii"
+  assert grep -qF 'fork: "coordinator"' "$ii"
+  assert grep -qF 'workspace: "share"' "$ii"
+  assert grep -qF 'NEVER' "$ii"
+  assert grep -qF 'sole `bp3 q` writer' "$ii"
+done
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"

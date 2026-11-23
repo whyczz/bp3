@@ -1,0 +1,8 @@
+{
+  "bp3": {
+    "SessionStart": [{"type": "command", "command": "../bin/bp3 q hooks || true"}],
+    "PreToolUse": [{"matcher": "run_command", "hooks": [{"type": "command", "command": "../bin/bp3 q hooks || true"}]}],
+    "PostToolUse": [{"matcher": "run_command", "hooks": [{"type": "command", "command": "../bin/bp3 q hooks || true"}]}],
+    "Stop": [{"type": "command", "command": "../bin/bp3 q hooks || true"}]
+  }
+}

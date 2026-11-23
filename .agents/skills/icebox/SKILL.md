@@ -2,7 +2,7 @@
 name: icebox
 description: Freeze a not-yet-ready idea as a future-quest sketch in docs/icebox with today's context, the smallest workable shape, blockers, and a promotion trigger.
 ---
-<!-- GENERATED from skills/icebox/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+<!-- GENERATED from skills/icebox/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->
 
 # Icebox
 

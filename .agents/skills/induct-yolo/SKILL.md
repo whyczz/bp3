@@ -2,7 +2,7 @@
 name: induct-yolo
 description: Run several bp3 quests with no human present using the induct conductor — fleet preflight, park blocked work in the inbox, and end with the check-in report; never attests, never pages, never promotes.
 ---
-<!-- GENERATED from skills/induct-yolo/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+<!-- GENERATED from skills/induct-yolo/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->
 
 # Induct, no human
 

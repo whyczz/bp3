@@ -2,7 +2,7 @@
 name: induct
 description: Conduct one bp3 quest from the main session — read state with bp3 q r, dispatch the one step that state calls for, re-read, until the quest is terminal or a human decision is owed.
 ---
-<!-- GENERATED from skills/induct/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+<!-- GENERATED from skills/induct/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->
 
 # Induct
 

@@ -2,7 +2,7 @@
 name: red-ink
 description: "Present an existing design back to its owner in rounds until they say they are happy: copy the design first (original untouched), walk output first, then system inputs, then internals (data, state, functions, names, concepts); every round is Observe (teach) -> Orient (what matters) -> Decide (one detailed question, the owner's call) -> Act (one settled edit to the copy), closing with an IIUC playback and, at the end, a red chair of the settled design plus a decision record and proposed nodes (critical/major red-chair concerns appended as nodes). Use for Socratic design review of an existing artifact. Not for one-shot adversarial review (red-chair), authoring a new design (design), or interviewing an unclear request (ask, grill)."
 ---
-<!-- GENERATED from skills/red-ink/SKILL.md by: bp3 skills install --harness=muse. Edit the source, then re-run. -->
+<!-- GENERATED from skills/red-ink/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->
 
 # Red ink
 
