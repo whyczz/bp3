@@ -86,6 +86,7 @@ harness_target() {
     claude) echo ".claude/skills" ;;
     codex)  echo ".agents/skills" ;;
     muse)   echo ".agents/skills" ;;
+    agy)    echo ".agents/skills" ;;
     *) return 1 ;;
   esac
 }
@@ -131,7 +132,7 @@ skills_install() {
 
   local harnesses
   if [ "$harness" = "all" ]; then
-    harnesses="pi claude codex muse"
+    harnesses="pi claude codex muse agy"
   else
     harnesses="$harness"
   fi
@@ -253,6 +254,27 @@ skills_install() {
       echo "installed hooks -> .muse/hooks.json"
       ;;
   esac
+  # Antigravity CLI (agy) hook registration: .agents/hooks.json uses
+  # named top-level hook groups, flat SessionStart/Stop, grouped
+  # PreToolUse/PostToolUse with matcher, and runs with cwd=.agents/.
+  case " $harnesses " in
+    *" agy "*)
+      local agy_hook_cmd="../bin/bp3 q hooks || true"
+      if [ "$mode" = "host" ]; then
+        agy_hook_cmd="bp3 q hooks || true"
+      fi
+      mkdir -p "$target/.agents"
+      {
+        printf '{\n  "bp3": {\n'
+        printf '    "SessionStart": [{"type": "command", "command": "%s"}],\n' "$agy_hook_cmd"
+        printf '    "PreToolUse": [{"matcher": "run_command", "hooks": [{"type": "command", "command": "%s"}]}],\n' "$agy_hook_cmd"
+        printf '    "PostToolUse": [{"matcher": "run_command", "hooks": [{"type": "command", "command": "%s"}]}],\n' "$agy_hook_cmd"
+        printf '    "Stop": [{"type": "command", "command": "%s"}]\n' "$agy_hook_cmd"
+        printf '  }\n}\n'
+      } > "$target/.agents/hooks.json"
+      echo "installed hooks -> .agents/hooks.json"
+      ;;
+  esac
   # Note: codex and muse share .agents/skills; under --harness=all the muse
   # render (same dir) is written last. Invocation text differs only in the
   # trigger line; both harnesses accept the skill by name.
@@ -323,7 +345,7 @@ skills_check() {
   printf '{"ok":true,"fresh":[%s]}\n' "${fresh_json%,}"
 }
 
-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|all>] | bp3 init-repo | bp3 skills install [...] | bp3 skills check | bp3 q ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|agy|all>] | bp3 init-repo | bp3 skills install [...] | bp3 skills check | bp3 q ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
 q_bin() { echo "${BP3_Q_BIN:-$root/_build/default/$ENGINE_SRC/main.exe}"; }
 run_q() {
   local door="$1"; shift

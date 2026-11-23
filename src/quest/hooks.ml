@@ -43,10 +43,20 @@ let payload_strings j =
     ["tool_response"; "tool_output"; "output"; "response"; "result"; "error"])
 
 let command_of j =
-  try match Yojson.Safe.Util.member "tool_input" j with
-    | `Assoc _ as ti -> member_str ti "command"
-    | _ -> ""
-  with _ -> ""
+  let claude_cmd =
+    try match Yojson.Safe.Util.member "tool_input" j with
+      | `Assoc _ as ti -> member_str ti "command"
+      | _ -> ""
+    with _ -> "" in
+  if claude_cmd <> "" then claude_cmd
+  else
+    try match Yojson.Safe.Util.member "toolCall" j with
+      | `Assoc _ as tc ->
+          (match Yojson.Safe.Util.member "args" tc with
+           | `Assoc _ as args -> member_str args "CommandLine"
+           | _ -> "")
+      | _ -> ""
+    with _ -> ""
 
 let extract_preset command key =
   try
@@ -209,6 +219,10 @@ let emit bindings b kind fields dedupe_key =
       Some (`Assoc fields)
     end else None
 
+let agy_reply event =
+  if event = "PreToolUse" then `Assoc [("decision", json_str "allow")]
+  else `Assoc []
+
 (* ---------- the verb ---------- *)
 let handle () =
   try
@@ -220,11 +234,18 @@ let handle () =
       with _ -> `Assoc [] in
     if payload = `Assoc [] then no_write "unparseable payload"
     else
+      let is_agy = member_str payload "conversationId" <> "" in
       let event =
         let e = member_str payload "hook_event_name" in
-        if e <> "" then e else member_str payload "event" in
-      let session = member_str payload "session_id" in
-      if session = "" then no_write "no session_id"
+        if e <> "" then e
+        else
+          let e2 = member_str payload "hookEventName" in
+          if e2 <> "" then e2 else member_str payload "event" in
+      let wrap v = if is_agy then agy_reply event else v in
+      let session =
+        let s = member_str payload "session_id" in
+        if s <> "" then s else member_str payload "conversationId" in
+      if session = "" then wrap (no_write "no session_id")
       else
         let cwd_field = member_str payload "cwd" in
         let gate_root = if cwd_field <> "" then cwd_field else root in
@@ -233,16 +254,16 @@ let handle () =
           List.exists (fun r ->
               try Sys.is_directory (Filename.concat gate_root r) with _ -> false)
             (Layout.quests_root :: Layout.legacy_quests_roots) in
-        if not is_repo then no_write "not a bp3 repo"
+        if not is_repo then wrap (no_write "not a bp3 repo")
         else
           let command = command_of payload in
           if contains_sub command "bp3 q hooks" ||
              contains_sub command "bp3 q hooks"
-          then no_write "reentrant"
+          then wrap (no_write "reentrant")
           else begin
             let bindings = ref (load_registry ()) in
             let find sid = List.find_opt (fun b -> b.session_id = sid) !bindings in
-            let finish v = save_registry !bindings; v in
+            let finish v = save_registry !bindings; wrap v in
             match event with
             | "PreToolUse" ->
                 (match find session with
@@ -301,7 +322,7 @@ let handle () =
                   | None -> no_write "no stale bindings")
             | "PostLLMCall" ->
                 (match find session with
-                 | None -> no_write "no binding witnessed for session"
+                 | None -> wrap (no_write "no binding witnessed for session")
                  | Some b ->
                      let usage =
                        try Yojson.Safe.Util.member "usage" payload with _ -> `Null in
@@ -316,10 +337,10 @@ let handle () =
                      finish (no_write "usage tallied"))
             | "PostToolUse" | "PostToolUseFailure" ->
                 (match find session with
-                 | None -> no_write "no binding witnessed for session"
+                 | None -> wrap (no_write "no binding witnessed for session")
                  | Some b ->
                      touch b;
-                     let failure = event = "PostToolUseFailure" in
+                     let failure = event = "PostToolUseFailure" || member_str payload "error" <> "" in
                      let is_update =
                        contains_sub command "bp3" &&
                        attempted_edge command <> None in
@@ -350,7 +371,7 @@ let handle () =
                            | None -> finish (no_write "nothing to emit"))))
             | "SubagentStop" | "SessionEnd" ->
                 (match find session with
-                 | None -> no_write "no binding witnessed for session"
+                 | None -> wrap (no_write "no binding witnessed for session")
                  | Some b ->
                      if b.settled then finish (no_write "already settled")
                      else begin
@@ -379,7 +400,7 @@ let handle () =
                 (match find session with
                  | Some b -> touch b;
                      finish (no_write "checkpoint only")
-                 | None -> no_write "no binding witnessed for session")
+                 | None -> wrap (no_write "no binding witnessed for session"))
             | "SubagentStart" ->
                 (match find session with
                  | Some b ->
@@ -390,7 +411,7 @@ let handle () =
                         (b.run_id ^ "|run_started") with
                       | Some line -> finish (verdict line None)
                       | None -> finish (no_write "already started"))
-                 | None -> no_write "no binding witnessed for session")
-            | _ -> no_write "unhandled event"
+                 | None -> wrap (no_write "no binding witnessed for session"))
+            | _ -> wrap (no_write "unhandled event")
           end
   with _ -> no_write "emitter error"

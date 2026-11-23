@@ -51,7 +51,7 @@ Why some lines look the way they do:
 | harness extensions | the pi extension (`extensions/bp3-pi`), workflow scripts |
 | not without a quest and sign-off | web app, daemon or service, GUI, hosted database |
 
-bp3 also drives harness CLIs (`claude`, `pi`, `codex`). They are the
+bp3 also drives harness CLIs (`claude`, `pi`, `codex`, `agy`). They are the
 surfaces bp3 runs on, not libraries it uses.
 
 ## How to change
@@ -83,3 +83,4 @@ Removing something works the same way.
 | 2026-11-20 | owner | "Approve as-is" (approval of `docs/quests/2026-11-19-constraints-context/`) | the Languages block and the Surfaces table as written; zsh grandfathered for `completions/_bp3` |
 | 2026-11-20 | owner | "Add a `posix` word" (asked whether base-system utilities need listing one by one) | `posix` in the bash libs line: POSIX and macOS base-system utilities |
 | 2026-11-20 | owner | "The file and its test" (asked what zsh's grandfathering covers) | `runs-in test/completion.sh` on the zsh line: zsh runs there and nowhere else |
+| 2026-11-23 | owner | "okay, let's implement the first quest" (approval of `docs/quests/2026-11-23-fast-agy-induct/`) | `agy` added to driven harness CLIs in Surfaces |

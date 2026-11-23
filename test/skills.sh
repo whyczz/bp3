@@ -347,4 +347,23 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -q '`brief_verbatim` / `brief_edited` (from the last scrape.s tally);' "$iiy"
 done
 
+# fast-agy-induct agy.2: --harness=agy installs .agents/skills and .agents/hooks.json
+agy_self="$work/agy-self"
+mkdir -p "$agy_self/src/quest" "$agy_self/bin"
+git -C "$agy_self" init -q
+touch "$agy_self/src/quest/main.ml" "$agy_self/bin/bp3"
+git -C "$agy_self" add -A && git -C "$agy_self" commit -qm init
+BP3_TARGET="$agy_self" BP3_COMPLETIONS_DIR="$work/comp-agy" "$repo/bin/bp3" skills install --harness=agy >/dev/null
+assert test -f "$agy_self/.agents/skills/induct-inline/SKILL.md"
+assert test -f "$agy_self/.agents/hooks.json"
+assert jq -e '.bp3.PreToolUse[0].hooks[0].command == "../bin/bp3 q hooks || true"' "$agy_self/.agents/hooks.json"
+assert jq -e '.bp3.SessionStart[0].command == "../bin/bp3 q hooks || true"' "$agy_self/.agents/hooks.json"
+agy_host="$work/agy-host"
+mkdir -p "$agy_host"
+git -C "$agy_host" init -q
+touch "$agy_host/README.md"
+git -C "$agy_host" add -A && git -C "$agy_host" commit -qm init
+BP3_TARGET="$agy_host" BP3_COMPLETIONS_DIR="$work/comp-agy" "$repo/bin/bp3" skills install --harness=agy >/dev/null
+assert jq -e '.bp3.PreToolUse[0].hooks[0].command == "bp3 q hooks || true"' "$agy_host/.agents/hooks.json"
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"

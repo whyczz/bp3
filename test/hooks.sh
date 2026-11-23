@@ -187,4 +187,19 @@ ledger parser-fix | jq -e 'select(.event != null) | (. | has("ts") and has("run_
 out=$(q demo r parser-fix)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "fold changed by event lines: $out"
 
+# --- fast-agy-induct agy.2: agy camelCase hook payloads ---
+RUN_AGY=20260101T030000Z-handoff-agy-gemini-4-neon-c1
+mkdir -p "docs/quests/demo/nodes/parser-fix/runs/$RUN_AGY"
+agy_pre=$(printf '{"hookEventName":"PreToolUse","conversationId":"CONV1","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"BP3_RUN_ID=%s BP3_QUEST=demo BP3_NODE=parser-fix echo hi"}}}' "$repo" "$RUN_AGY")
+out=$(hooks "$agy_pre")
+echo "$out" | jq -e '.decision == "allow"' >/dev/null || fail "agy PreToolUse must reply decision allow: $out"
+ledger parser-fix | grep -q "\"run_id\":\"$RUN_AGY\"" || fail "agy PreToolUse did not bind run_started"
+agy_post=$(printf '{"hookEventName":"PostToolUse","conversationId":"CONV1","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"make check"}}}' "$repo")
+out=$(hooks "$agy_post")
+echo "$out" | jq -e '. == {}' >/dev/null || fail "agy PostToolUse must reply {}: $out"
+ledger parser-fix | grep "\"run_id\":\"$RUN_AGY\"" | grep -q '"event":"lint_checked"' || fail "agy PostToolUse did not emit lint_checked"
+agy_stop=$(printf '{"hookEventName":"Stop","conversationId":"CONV1","cwd":"%s"}' "$repo")
+out=$(hooks "$agy_stop")
+echo "$out" | jq -e '. == {}' >/dev/null || fail "agy Stop must reply {}: $out"
+
 echo "hooks tests: ok"
