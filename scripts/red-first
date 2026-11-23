@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# red-first — deterministic BASE_FAIL_HEAD_PASS proof (fast-agy-induct verify.1).
+# Runs a commit's changed test files against its parent's implementation in a
+# temporary detached git worktree and expects red (refactor: expects green).
+#
+# Usage: scripts/red-first [<sha>]
+#   default <sha> is HEAD.
+#   -h / --help prints this docstring, exit 0, reads no state.
+# Exit codes:
+#   0  red (<suite>) | green (refactor) | n/a (<why>)
+#   1  FAIL (<why>)
+#   2  usage error
+set -euo pipefail
+
+usage() {
+  sed -n '2,12s/^# \{0,1\}//p' "$0"
+}
+
+sha="HEAD"
+if [ $# -gt 1 ]; then
+  echo "red-first: expected at most one commit argument" >&2
+  exit 2
+fi
+if [ $# -eq 1 ]; then
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    -*) echo "red-first: unknown flag: $1" >&2; exit 2 ;;
+    *) sha="$1" ;;
+  esac
+fi
+
+root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$root" ]; then
+  echo "red-first: not inside a git repository" >&2
+  exit 2
+fi
+
+full="$(git -C "$root" rev-parse --verify "${sha}^{commit}" 2>/dev/null || true)"
+if [ -z "$full" ]; then
+  echo "red-first: invalid commit: $sha" >&2
+  exit 2
+fi
+
+parent="$(git -C "$root" rev-parse --verify "${full}^" 2>/dev/null || true)"
+if [ -z "$parent" ]; then
+  echo "red-first: n/a (root commit)"
+  exit 0
+fi
+
+subject="$(git -C "$root" show -s --format=%s "$full")"
+is_refactor=0
+case "$subject" in
+  refactor:*|refactor\(*) is_refactor=1 ;;
+esac
+
+test_files=()
+while IFS= read -r p; do
+  [ -n "$p" ] || continue
+  case "$p" in
+    test/*|*_test.ml|test_*.ml|*/test_*.ml|*_test.sh) test_files+=("$p") ;;
+  esac
+done < <(git -C "$root" diff --name-only --diff-filter=AM "$parent" "$full")
+
+if [ "${#test_files[@]}" -eq 0 ]; then
+  echo "red-first: n/a (no test files changed)"
+  exit 0
+fi
+
+wt="$(mktemp -d "${TMPDIR:-/tmp}/bp3-red-first.XXXXXX")"
+# shellcheck disable=SC2329
+cleanup() {
+  git -C "$root" worktree remove --force "$wt" >/dev/null 2>&1 || true
+  rm -rf -- "$wt"
+}
+trap cleanup EXIT
+
+git -C "$root" worktree add --detach --quiet "$wt" "$parent"
+for f in "${test_files[@]}"; do
+  mkdir -p "$wt/$(dirname "$f")"
+  git -C "$root" show "${full}:${f}" > "$wt/$f"
+  if [ -x "$root/$f" ]; then chmod +x "$wt/$f"; fi
+done
+
+failed_step=""
+ran_any=0
+
+# 1. OCaml unit tests (if any test/unit/* file changed)
+need_dune=0
+for f in "${test_files[@]}"; do
+  case "$f" in test/unit/*) need_dune=1 ;; esac
+done
+if [ "$need_dune" -eq 1 ] && [ -f "$wt/dune-project" ]; then
+  ran_any=1
+  if ! make -C "$wt" ocaml >/dev/null 2>&1; then
+    failed_step="ocaml"
+  fi
+fi
+
+# 2. Shell/fixture suites matching the changed test files
+if [ -z "$failed_step" ] && [ -f "$wt/test/suites.tsv" ]; then
+  suites=()
+  if [ -x "$wt/scripts/check-changed.sh" ]; then
+    while IFS= read -r s; do
+      [ -n "$s" ] && [ "$s" != "js-unit" ] && suites+=("$s")
+    done < <("$wt/scripts/check-changed.sh" --list --table "$wt/test/suites.tsv" "${test_files[@]}" 2>/dev/null || true)
+  fi
+  if [ "${#suites[@]}" -gt 0 ]; then
+    # Build main.exe once in parent worktree if needed by fixture suites
+    if [ -f "$wt/dune-project" ] && [ "$need_dune" -eq 0 ]; then
+      make -C "$wt" ocaml >/dev/null 2>&1 || true
+    fi
+    for s in "${suites[@]}"; do
+      cmd="$(awk -F '\t' -v name="$s" '$1 == name {print $3; exit}' "$wt/test/suites.tsv")"
+      [ -n "$cmd" ] || continue
+      ran_any=1
+      if ! (cd "$wt" && bash -c "$cmd") >/dev/null 2>&1; then
+        failed_step="$s"
+        break
+      fi
+    done
+  fi
+fi
+
+# 3. Direct executable test scripts not yet in parent's test/suites.tsv
+if [ -z "$failed_step" ]; then
+  for f in "${test_files[@]}"; do
+    case "$f" in
+      test/*.sh)
+        if [ -f "$wt/$f" ]; then
+          chmod +x "$wt/$f"
+          ran_any=1
+          if ! (cd "$wt" && "./$f") >/dev/null 2>&1; then
+            failed_step="$(basename "$f" .sh)"
+            break
+          fi
+        fi
+        ;;
+    esac
+  done
+fi
+
+if [ "$ran_any" -eq 0 ]; then
+  echo "red-first: n/a (no runnable test suite matched)"
+  exit 0
+fi
+
+parent7="${parent:0:7}"
+if [ "$is_refactor" -eq 1 ]; then
+  if [ -z "$failed_step" ]; then
+    echo "red-first: green (refactor)"
+    exit 0
+  else
+    echo "red-first: FAIL (refactor tests failed on parent $parent7: $failed_step)"
+    exit 1
+  fi
+else
+  if [ -n "$failed_step" ]; then
+    echo "red-first: red ($failed_step)"
+    exit 0
+  else
+    echo "red-first: FAIL (changed tests passed on parent $parent7)"
+    exit 1
+  fi
+fi
