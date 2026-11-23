@@ -32,7 +32,7 @@ Design trace:
 ```text
 $ ./test/skills.sh
   induct-inline (source and every render): "the default way to run a quest"; `bp3 q <quest> n <node> brief`; "verbatim";
-    `bp3 harness worktree prepare <quest> <node> --run grade-<node>-c<cycle>-a<attempt> --commit <sha>`; "cast boundary";
+    `bp3 harness desk prepare <quest> <node> --run grade-<node>-c<cycle>-a<attempt> --commit <sha>`; "cast boundary";
     "clean at the bound commit" before a cast; a void verdict re-dispatches with the next attempt;
     "one session per quest"; no "one node in flight"
   using-bp3 and induct name induct-inline as the default, and induct as the mode for many independent nodes at once
@@ -164,7 +164,8 @@ and the land fixture covers one shape, the one the skill creates.
   desk prepare` (or the alias `bp3 worktree prepare`). The skill and
   the skills.sh assertion use `bp3 harness desk prepare …`, which this
   quest ran 9 times. QUEST.md's Terms row is corrected. The gates text
-  is the owner's to correct.
+  and QUEST.md's Context row were corrected after promotion, on the
+  owner's word (2026-11-22).
 - test/skills.sh: 11 assertions × 4 dirs (source and renders); 305 in
   all. Each pattern is absent from master's text (checked one by one).
 - test/g.sh: stacked-land fixture. In one quest desk, sa is committed and

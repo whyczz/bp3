@@ -1,5 +1,5 @@
 ---
-status: active
+status: landed
 home_repo: bp3
 date: 2026-11-22
 ---
@@ -47,7 +47,7 @@ Ground, read this session:
 | `Metrics.author_spans` already defines each window: the quest's latest edge before the handoff (resume excluded) to the handoff | `src/quest/metrics.ml:164` |
 | `Claude_tx.author_cost` builds its record with empty `first_ts`/`last_ts`, so the window's wall is dropped | `src/quest/claude_tx.ml:395` |
 | `parse_session` reads assistant lines and handed_off results only; assistant lines carry `stop_reason` (`end_turn` 256, `tool_use` 4508 in this session) | `src/quest/claude_tx.ml`, this session's transcript |
-| a detached checkout at a commit already exists: `bp3 harness worktree prepare <quest> <node> --run <id> --commit <sha>` | `src/quest/worktree.ml:279` |
+| a detached checkout at a commit already exists: `bp3 harness desk prepare <quest> <node> --run <id> --commit <sha>` | `src/quest/worktree.ml:279` |
 | land merges (merge-tree) when the quest tip isn't an ancestor of the node tip | `src/quest/main.ml:280-322` |
 | `bp3 q <q> n <n> brief` refuses today (`E_USAGE`) | observed |
 | the hand-written cold briefs: header line naming node id and sha7, hard rules, desk, read-first list, gate, judge list, verdict shape | pi-metrics skills.1 grade session |

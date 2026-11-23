@@ -1,8 +1,9 @@
 # Grading bp3
 
-Every grader brief that `bp3 q <quest> n <node> brief` renders ends
-with this file, verbatim, read at the commit being graded. It holds the
-grade gate and the rules this repo adds to the brief's own.
+Every grader brief that `bp3 q <quest> n <node> brief` renders carries
+this file verbatim, read at the commit being graded, just before the
+verdict shape. It holds the grade gate and the rules this repo adds to
+the brief's own.
 
 ## Gate
 
