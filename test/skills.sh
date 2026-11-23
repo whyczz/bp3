@@ -152,6 +152,11 @@ assert grep -qx '{broken' "$root/.pi/settings.json"
 # Quest red-chair of the source: critical/major concerns settle or become follow-up nodes.
 assert grep -q 'Red-chair the source itself' "$repo/skills/quest/SKILL.md"
 assert grep -q 'appended as a \*\*follow-up node\*\*' "$repo/skills/quest/SKILL.md"
+# Human touchpoints are irreducible: what a machine can do or observe is scripted.
+assert grep -q 'Human touchpoints are irreducible' "$repo/skills/quest/SKILL.md"
+assert grep -q 'one command the human starts' "$repo/skills/quest/SKILL.md"
+# Icebox copy & delete: delete original docs/icebox/ entry right after copying to ICEBOX.md.
+assert grep -q 'delete the original entry from `docs/icebox/` right away' "$repo/skills/quest/SKILL.md"
 assert grep -q 'Risks is not a parking lot' "$repo/skills/quest/SKILL.md"
 assert grep -q 'Red-chair the source itself' "$root/.agents/skills/quest/SKILL.md"
 

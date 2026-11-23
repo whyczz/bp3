@@ -75,6 +75,7 @@ because a gate that starts green certifies nothing.
 | 6 | Break into nodes with failing-today acceptance | a check that cannot fail gets rewritten |
 | 6.5 | Diligence gate per node: design settled (no open questions), acceptance fails today, acceptance gates defined up front | an node with open design questions is not ready for `induct`; settle it with `red-ink` first — Node 4 of the MVP quest shipped unsettled design and the landing review caught it late |
 | 6.6 | Skill changes ride as their own node | if the Quest's changes touch any skill (bp3 `skills/`, yap skills, installed copies), name a skill-change node with its own acceptance (skill tests, render/install assertions); never edit a skill inline during framing, and never fold a skill change into a code node — skills are how children behave, so they get the same gate as code |
+| 6.7 | Human touchpoints are irreducible: each names the one thing only a human can give — an approval (AV, a sign-off), a secret, money, a judgment call | everything a machine can do or observe — running commands, attaching and closing terminals, reading logs, answering what the record already proves — is in the node's scripts, so a live run is one command the human starts and the approval they give; a gate that asks the human to type, click or confirm what a script could check gets rewritten (owner, 2026-11-23: "idk why you're expecting the human to do low value things") |
 | 7 | Red-chair passes on goal, scope, node order, plus two fixed passes. The **constraints pass**: does the plan add a language, library or surface outside `CONSTRAINTS.md`? Each addition needs a `/teach` pitch and the owner's words before approval. The **common-sense pass**: how would another team build this (`CONTEXT.md`), and why do we differ? Re-run a claim's saved search first when it is older than 90 days | strongest attack + what it changed, recorded; both passes recorded, "none" allowed |
 | 7.5 | Red-chair the source itself: the icebox entry or the owner's prompt (its assumptions, wrong problem, boring alternative), before approving the draft built on it | every **critical or major** concern ends in exactly one of two places: settled by a recorded change to the design it attacked, or appended as a **follow-up node** (next numbers on the railway, labeled `(follow-up)`) whose acceptance proves the design addressed it. A critical/major concern left as prose in Risks, or with neither settlement nor node, blocks approval |
 | 8 | Stage fat nodes as substeps inside their milestone (`mvp.1.1`, `mvp.1.2`, ...) | each substep passes on its own |
@@ -95,8 +96,8 @@ only at formal promotion:
 | Trigger check | the entry's stated promotion trigger has observably fired; the owner names the entry |
 | Transcription, not adoption | the entry is research input to step 2, nothing more. This skill's whole procedure still runs: sync, research, names, nodes, red chair. Every assumption the entry made is re-decided here; entry text is never copied in as settled design |
 | Link both ways | the Quest file names the entry in its Context; the entry gains one field (below) |
-| Context copy | at promotion, copy the entry **verbatim** to `ICEBOX.md` in the Quest folder (a straight-up copy, never transcribed into prose): the frozen context travels with the Quest even after the original is deleted. The Quest file links `ICEBOX.md` wherever it would have linked the entry |
-| Marking | when the owner approves the framed Quest (it now governs build), set the entry's `promoted:` to the Quest path, take the `ICEBOX.md` copy, then **delete the entry** (owner rule, 2026-11-15). The Quest file is the living record; git history is the fossil of the day the idea was shelved |
+| Context copy & delete | whenever a Quest is framed from an entry, copy the entry **verbatim** to `ICEBOX.md` in the Quest folder (a straight-up copy, never transcribed into prose) and **delete the original entry from `docs/icebox/` right away** (owner rule, 2026-11-23): the frozen context travels with the Quest, no duplicate stays in `docs/icebox/`, and git history is the fossil of the day the idea was shelved. The Quest file links `ICEBOX.md` wherever it would have linked the entry |
+| Marking | record the promoted entry's original path in `QUEST.md` Context (and `promoted:` if updating an existing entry before deletion); the Quest file is now the living record |
 | Thaw that dies | if the framed Quest is canceled before landing, restore the entry from git history with `promoted:` still set: it records that the thaw happened and where it went |
 
 An entry without a fired trigger is not promotable; a
@@ -233,7 +234,7 @@ human -> resume -> fresh node worker continues.
 ## Goal and why
 ## Success picture
 ## Scope            (In: / Out: as a table)
-## Human touchpoints
+## Human touchpoints  (only what needs a human: an approval, a secret, money, a judgment; step 6.7)
 ## Nodes
 ### Milestone: <milestone>
 ### <milestone>.1 - <slug>   (one TL;DR row + relative link;
@@ -281,4 +282,5 @@ under Success picture.
 | file claims a result never observed | mark it proposed / unmet |
 | new planning vocabulary creeps in | Quest, node, Run carry the load; send the rest back |
 | accepted Quest needs a goal change mid-build | explicit edit, human-approved |
+| a live or e2e check asks the human to type a word, open or close a window, or answer y/N | script it (a pty for a terminal, the log for what happened); the human starts one command and gives only the approval a human must give (step 6.7) |
 | framing session "just quickly fixes" a skill | stop; it becomes a skill-change node (step 6.6). The only direct-now path is the owner explicitly invoking `/add-yap-skill` or `/add-bp3-skill` — that invocation *is* the order; without it, no inline skill edits |
