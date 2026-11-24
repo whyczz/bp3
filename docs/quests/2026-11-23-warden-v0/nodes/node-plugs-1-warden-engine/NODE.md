@@ -5,60 +5,64 @@ node: plugs.1
 status: proposed
 ---
 
-# plugs.1 - warden-engine: pure Elixir-plug rule pipeline in OCaml
+# plugs.1 - warden-engine: pure Elixir-plug rule pipeline in `src/warden/`
 
 ## TL;DR
 
-Implement `src/quest/warden.ml` as a pure, composable two-layer plug pipeline (`evidence -> finding list`) over already-parsed ledger edges, `Metrics.sample` lists, desk status, and joined `Tx` session traces — zero I/O, zero SQLite, zero side effects. Ships **9 deterministic plugs** (**6 Layer-1 git plugs**: `cycle_outlier`, `minor_only_bounce`, `vacuous_test_bounce`, `grade_inversion`, `coverage_gap`, `desk_leak`; **3 Layer-2 session-trace plugs**: `tool_retry_loop`, `full_gate_in_author`, `context_bloat`) with unit tests covering every plug.
+Implement `src/warden/warden.ml` (in a dedicated `bp3_warden` dune library under `src/warden/dune`, one-way dependency on `bp3_quest`) as a pure, composable two-layer plug pipeline (`evidence -> finding list`) over already-parsed ledger edges, `Metrics.sample` lists, `QUEST.md` active statuses, post-land commits, desk status, and joined `Tx` session traces — zero I/O, zero SQLite, zero side effects. Ships **12 deterministic plugs** (**8 Layer-1 git/repo plugs**: `multi_active_quest`, `cycle_outlier`, `minor_only_bounce`, `vacuous_test_bounce`, `grade_inversion`, `coverage_gap`, `desk_leak`, `post_land_bugfix`; **4 Layer-2 session-trace plugs**: `tool_retry_loop`, `full_gate_in_author`, harness-aware `context_bloat`, author-window-scoped `human_steer`), adds `s_user_steps` across `Tx`/`Agy_tx`/`Claude_tx`/`Pi_tx` and `Layout.feedback_file = "FEEDBACK.md"`, and proves every plug + `QCheck2` invariants in `test/unit/test_warden.ml`.
 
 ## Acceptance gates
 
 Observed today:
 
 ```text
-$ ls src/quest/warden.ml
-ls: src/quest/warden.ml: No such file or directory
+$ ls src/warden/warden.ml
+ls: src/warden/warden.ml: No such file or directory
 ```
 
 Design trace:
 
 ```text
-Warden.run evidence   # 6 Layer-1 plugs + 3 Layer-2 plugs (when evidence.traces <> [])
-  -> returns deterministic list of findings, sorted by (severity desc, layer, node, cycle, rule)
-  -> each finding carries { rule; layer; severity; quest; node; cycle; evidence_ref; summary }
+Warden.run evidence   # 8 Layer-1 plugs + 4 Layer-2 plugs (when evidence.traces <> [])
+  -> returns deterministic list of findings, sorted by (severity desc, layer, quest, node, cycle, rule)
+  -> each finding carries { rule; layer; severity; quest; node; cycle; observed; threshold; evidence_ref; summary }
   -> Layer-2 findings cite exact transcript path + step/line (e.g. "tx:<path>#step:14")
   -> evidence.traces = [] (no local transcripts or --no-sessions) -> runs Layer 1 cleanly with zero error
-  -> clean node (1 cycle, grade <= author, no retries, no mid-cycle check-full spam, context <= 150k) -> []
+  -> clean node (1 cycle, grade <= 180s, no retries, <=1 check-full, context within harness limit, 0 mid-node steers, 0 post-land fixes) -> []
 ```
 
 ```yaml
-objective: provide a pure, testable two-layer deterministic plug pipeline detecting 6 git-level and 3 session-trace waste classes
+objective: provide a pure, testable two-layer deterministic plug pipeline in src/warden/ detecting 8 git/repo and 4 session-trace waste classes
 prove by:
-  - test/unit/test_warden.ml: positive + negative unit cases for all 9 plugs (cycle_outlier, minor_only_bounce, vacuous_test_bounce, grade_inversion, coverage_gap, desk_leak, tool_retry_loop, full_gate_in_author, context_bloat), graceful empty-traces case, clean-quest case returning [], and JSON serialization round-trip
+  - test/unit/test_warden.ml: positive + negative known cases for all 12 plugs, harness-aware context_bloat (150k claude/pi vs 400k agy), grade_inversion (>180s & >1.5x), author-window human_steer, post_land_bugfix, multi_active_quest, graceful empty-traces case, clean-quest -> [], JSON + table formatting, and QCheck2 property laws (deterministic sort order & counts.total == List.length findings)
+  - test/unit/test_agy_tx.ml + test/unit/test_metrics.ml: s_user_steps populated across Agy_tx, Claude_tx, Pi_tx
   - make check-full
-done when: test_warden.ml passes in dune test and make check-full passes
+done when: test_warden.ml, test_agy_tx.ml, test_metrics.ml pass in dune test and make check-full passes
 ```
 
 ## Diagram
 
 ```text
-evidence { quest, nodes: [(name, edges, samples, raw_ledger_lines)], open_desks, traces: [Tx.joined_trace] }
+evidence { repo_active_quests, quests: [{ quest, nodes, open_desks, post_land_commits, traces }] }
    │
-   ├─ Layer 1 (git-only — always runs):
-   │   ├─ plug 1: cycle_outlier        (max_cycle > 2 || any grade.wall_s > 300s)
-   │   ├─ plug 2: minor_only_bounce    (needs_fix reason has "[minor]" and no "[critical]"/"[major]")
-   │   ├─ plug 3: vacuous_test_bounce  (needs_fix reason matches "can't fail" | "stays green" | "mutant")
-   │   ├─ plug 4: grade_inversion      (sum grade.wall_s > sum author.wall_s && > 120s, or grade.tokens_out > author.tokens_out)
-   │   ├─ plug 5: coverage_gap         (grade edges > 0 with 0 grade.* samples, or handoffs > 0 with 0 author.* samples)
-   │   └─ plug 6: desk_leak            (grade-* desk still open for landed node, or >=3 identical E_* refusals in raw ledger)
+   ├─ Layer 1 (git/repo — always runs, 8 plugs):
+   │   ├─ 1. multi_active_quest   (> 1 docs/quests/*/QUEST.md has status: active)
+   │   ├─ 2. cycle_outlier        (max_cycle > 2 || any grade.wall_s > 300s)
+   │   ├─ 3. minor_only_bounce    (needs_fix reason has "[minor]" and no "[critical]"/"[major]")
+   │   ├─ 4. vacuous_test_bounce  (needs_fix reason matches "can't fail" | "stays green" | "mutant")
+   │   ├─ 5. grade_inversion      (sum grade.wall_s > 180s && > 1.5x sum author.wall_s, or grade.tokens_out > author.tokens_out)
+   │   ├─ 6. coverage_gap         (grade/handoff edges > 0 with 0 samples; skips legacy pre-metrics quests)
+   │   ├─ 7. desk_leak            (grade-* desk still open for landed node, or >=3 identical E_* refusals)
+   │   └─ 8. post_land_bugfix     (> 0 non-status commits after final node_fin commit)
    │
-   └─ Layer 2 (session-trace — runs automatically when traces <> []):
-       ├─ plug 7: tool_retry_loop      (>=3 consecutive failed tool_events or >=3 identical failing cmd_head in one window)
-       ├─ plug 8: full_gate_in_author  (author window ran `make check-full` > 1x before handoff — Warden catalog row #8)
-       └─ plug 9: context_bloat        (context_end > 150_000 or turns > 30 on a micro/standard node)
+   └─ Layer 2 (session-trace — runs automatically when traces <> [], 4 plugs):
+       ├─ 9.  tool_retry_loop     (>= 3 consecutive failing tool_events or >= 3 identical failing cmd_head)
+       ├─ 10. full_gate_in_author (author window ran `make check-full` > 1x before handoff)
+       ├─ 11. context_bloat       (context_end > 150k claude/pi or > 400k agy, or turns > 30)
+       └─ 12. human_steer         (> 0 mid-node USER_INPUT inside [prev_edge_ts..handoff_ts] excluding kickoff, or Layer-1 block edge)
    │
    ▼
-finding list -> JSON { findings, counts } / table rows
+finding list -> JSON { ok, scope, quests, sessions_scanned, findings, counts } / table rows
 ```
 
 ## Pseudocode
@@ -71,17 +75,15 @@ class Finding:
     severity: str       # "major" | "minor"
     quest: str
     node: str
-    cycle: int          # 0 for node/quest-wide findings
-    evidence_ref: str   # e.g. "ledger:node-brief-2:c3" or "tx:/path/transcript.jsonl#step:14"
+    cycle: int          # 0 for node/quest/repo-wide findings
+    observed: str       # e.g. "4 cycles", "420k tok", "2 commits"
+    threshold: str      # e.g. "> 2 cycles", "> 400k tok", "> 0 commits"
+    evidence_ref: str   # "ledger:<node>:c2" | "tx:<path>#step:14" | "git:<sha7>" | "repo:QUEST.md"
     summary: str
-
-LAYER1_PLUGS = [cycle_outlier, minor_only_bounce, vacuous_test_bounce,
-                grade_inversion, coverage_gap, desk_leak]
-LAYER2_PLUGS = [tool_retry_loop, full_gate_in_author, context_bloat]
 
 def run(evidence):
     out = [f for plug in LAYER1_PLUGS for f in plug(evidence)]
-    if evidence.traces:
+    if any(q.traces for q in evidence.quests):
         out.extend(f for plug in LAYER2_PLUGS for f in plug(evidence))
     return sort_findings(out)
 ```
@@ -90,19 +92,18 @@ def run(evidence):
 
 | Field | Value |
 |---|---|
-| Intent | implement the pure deterministic Warden rules without coupling to git/filesystem I/O |
+| Intent | implement the pure deterministic Warden library in `src/warden/` without coupling to git/filesystem I/O |
 | Lane | standard |
-| Output | `src/quest/warden.ml` (new), `test/unit/test_warden.ml` (new), `test/unit/dune` |
-| Acceptance | fails today (`src/quest/warden.ml` does not exist); passes when `test_warden.ml` and `make check-full` pass |
+| Output | `src/warden/dune` (new, `bp3_warden`), `src/warden/warden.ml` (new), `src/quest/tx.ml`, `src/quest/agy_tx.ml`, `src/quest/claude_tx.ml`, `src/quest/pi_tx.ml`, `src/quest/layout.ml` (`feedback_file`), `test/unit/test_warden.ml` (new), `test/unit/test_agy_tx.ml`, `test/unit/test_metrics.ml`, `test/unit/dune` |
+| Acceptance | fails today (`src/warden/` does not exist); passes when `test_warden.ml` (known + `QCheck2`) and `make check-full` pass |
 | Depends on | none |
 | Must not touch | `skills/*`, `bin/bp3`, `src/quest/main.ml`, `CONSTRAINTS.md` |
 
 ## Prose
 
-Design choices:
-- **Pure core, I/O at the edge:** `Warden` takes already-loaded `Metrics.edge list`, `Metrics.sample list`, raw ledger lines (for `E_*` refusals, since `Metrics.edges_of_text` filters to transitions), and open desk names. That makes every plug fast (<1ms) and trivially unit-testable in `dune test`.
-- **Precision-first heuristics:**
-  - `minor_only_bounce` requires explicit `[minor]` AND absence of `[critical]` and `[major]` (case-insensitive) so untagged legacy reasons never false-fire.
-  - `grade_inversion` guards with a minimum `grade_wall_s > 120s` floor so a 10s trivial edit with a 30s grade doesn't spam noise.
-  - `coverage_gap` skips quests landed before `metrics.jsonl` existed (or tags `severity: "minor"` when zero samples exist across the whole quest) so historical pre-metrics quests don't drown recent ones under `--all-landed`.
-- **Extensible plug list:** adding a 7th rule later is adding one pure function to `Warden.all_plugs` + one unit test case.
+- **Dedicated `bp3_warden` library (`src/warden/dune`):** enforces a clean one-way dependency (`bp3_warden` -> `bp3_quest`), automatically allowed as an internal library by `scripts/check-constraints:115`.
+- **Precision-first calibration (settled in red-ink):**
+  - `context_bloat` is harness-aware (`>150k` Claude/Pi 200k window vs `>400k` `agy` 1M window, or `turns > 30`).
+  - `grade_inversion` uses a `>180s` & `>1.5x` author-wall floor so quick 2-minute grades don't false-fire.
+  - `human_steer` scopes strictly to `USER_INPUT` turns inside each node's `[prev_edge_ts .. handoff_ts]` author window (excluding the kickoff prompt) plus Layer-1 `block` edges, so post-quest chat never false-fires.
+- **Test split:** Known cases (all 12 plugs positive/negative + edge cases) AND `QCheck2` property-based laws (deterministic sort order, `counts.total == List.length findings`).

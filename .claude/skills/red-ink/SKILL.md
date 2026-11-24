@@ -1,6 +1,6 @@
 ---
 name: red-ink
-description: "Present an existing design back to its owner in rounds until they say they are happy: copy the design first (original untouched), walk output first, then system inputs, then internals (data, state, functions, names, concepts); every round is Observe (teach) -> Orient (what matters) -> Decide (one detailed question, the owner's call) -> Act (one settled edit to the copy), closing with an IIUC playback and, at the end, a red chair of the settled design plus a decision record and proposed nodes (critical/major red-chair concerns appended as nodes). Use for Socratic design review of an existing artifact. Not for one-shot adversarial review (red-chair), authoring a new design (design), or interviewing an unclear request (ask, grill)."
+description: "Present an existing design back to its owner in rounds until they say they are happy: copy the design first (original untouched), open with a greentext TL;DR + PRFAQ-style 10k-ft Shape demo, walk output, inputs, internals (data, state, functions, names, concepts), and close with Plan (nodes — with optional zoom-in on any node); every round is Observe -> Orient -> Decide (one question) -> Act -> IIUC, ending with a closing red chair and full Exit pack. Use for Socratic design review of an existing artifact. Not for one-shot adversarial review (red-chair), authoring a new design (design), or interviewing an unclear request (ask, grill)."
 ---
 <!-- GENERATED from skills/red-ink/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->
 
@@ -110,7 +110,7 @@ Shape gate** (`Shape` is slice 1, before `Output`):
 | Internals: functions | edges, who does what |
 | Internals: names | every variable and term, one line each |
 | Internals: concepts | the coined vocabulary a newcomer must learn |
-| Plan (nodes) | how to get there: node breakdown, dependency railway, parallel waves, per-node acceptance & test split |
+| Plan (nodes) | how to get there: node breakdown, dependency railway, parallel waves, per-node acceptance & test split (with optional zoom-in on any node the owner wants to inspect before settling) |
 
 Domain experts supply slice definitions where one exists
 (see Expert index).

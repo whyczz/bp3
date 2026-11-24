@@ -5,96 +5,96 @@ node: cli.1
 status: proposed
 ---
 
-# cli.1 - warden-door: expose `bp3 q <quest> warden` CLI verb
+# cli.1 - warden-door: expose top-level `bp3 warden` CLI door
 
 ## TL;DR
 
-Wire `Warden.run` into the `bp3 q` door as `bp3 q <quest> warden [--no-sessions] [--format json|table]` and `bp3 q warden --all-landed [--no-sessions] [--format json|table]` (plus `-h`/`--help`), **auto-enabling Layer-2 session-trace plugs** via `Metrics_io.joined_traces` whenever local Claude/Pi/`agy` transcripts exist on disk, registering `Names.verb_warden` in `src/quest/names.ml` and `Store.reserved_slugs`, and adding `test/warden.sh` fixture coverage.
+Add `src/warden/warden_io.ml` (read-only I/O edge) and wire top-level **`bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table]`** (plus `-h`/`--help`) through `bin/bp3` -> `main.exe warden ...`. Bare `bp3 warden` runs repo-level health checks (`multi_active_quest`, leaked desks) plus the last 5 unreviewed real quests (quests with `docs/quests/<q>/QUEST.md` and NO `FEEDBACK.md`); `<quest>` or `--all` overrides the `FEEDBACK.md` skip. Auto-enables Layer-2 session traces via `Metrics_io.joined_traces`, updates `CONSTRAINTS.md:49` + owner Sign-off row, completions, `AGENTS.md`/`CLAUDE.md`, and adds `test/warden.sh` (registered in `test/suites.tsv`).
 
 ## Acceptance gates
 
 Observed today:
 
 ```text
-$ ./bin/bp3 q 2026-11-22-induct-inline-as-default-measure-author warden
-{"ok":false,"error":{"code":"E_USAGE",...}}
+$ ./bin/bp3 warden 2026-11-22-induct-inline-as-default-measure-author
+usage: bp3 init ...
 ```
 
 Design trace:
 
 ```text
-$ ./bin/bp3 q 2026-11-22-induct-inline-as-default-measure-author warden
-{"ok":true,"quests":["2026-11-22-induct-inline-as-default-measure-author"],"sessions_scanned":N,"findings":[...],"counts":{"by_rule":{...},"by_layer":{"git":M,"session":K},"total":T}}
+$ ./bin/bp3 warden 2026-11-22-induct-inline-as-default-measure-author
+{"ok":true,"scope":"quest","quests":["2026-11-22-induct-inline-as-default-measure-author"],"sessions_scanned":N,"findings":[...],"counts":{"by_rule":{...},"by_layer":{"git":M,"session":K},"total":T}}
 # exit 0; Layer 2 auto-enabled when local transcripts match, degrades to sessions_scanned: 0 when absent
 
-$ ./bin/bp3 q 2026-11-22-induct-inline-as-default-measure-author warden --no-sessions
+$ ./bin/bp3 warden 2026-11-22-induct-inline-as-default-measure-author --no-sessions
 # Layer 1 git-only (<1s), sessions_scanned: 0, exit 0
 
-$ ./bin/bp3 q 2026-11-22-induct-inline-as-default-measure-author warden --format table
-RULE                  LAYER    SEV    NODE                        CYCLE  SUMMARY
+$ ./bin/bp3 warden 2026-11-22-induct-inline-as-default-measure-author --format table
+RULE                  LAYER    SEV    NODE                        CYCLE  OBSERVED       SUMMARY
 ...
 # exit 0
 
-$ ./bin/bp3 q warden --all-landed
-{"ok":true,"quests":[...],"sessions_scanned":N,"findings":[...],"counts":{...}}
-# exit 0
+$ ./bin/bp3 warden
+# scope: "repo", repo checks + last 5 unreviewed real quests (skips quests with FEEDBACK.md), exit 0
 
-$ ./bin/bp3 q warden -h
-bp3 q <quest> warden [--no-sessions] [--format json|table] | bp3 q warden --all-landed ...
-# exit 0, stdout, reads no state
+$ ./bin/bp3 warden --all
+# scope: "repo", sweeps every real quest regardless of FEEDBACK.md, exit 0
+
+$ ./bin/bp3 warden -h
+# prints docstring + flags on stdout, exit 0, reads no state
 ```
 
 ```yaml
-objective: expose two-layer Warden plugs (with auto-enabled Layer-2 session traces) through bp3 q with JSON/table outputs, reserved slug protection, and fixture tests
+objective: expose two-layer Warden plugs through top-level bp3 warden with FEEDBACK.md reviewed-skip, JSON/table output, CONSTRAINTS.md sign-off, and fixture tests
 prove by:
-  - test/warden.sh: fixture quest with planted Layer-1 issues (minor-only bounce, vacuous-test bounce, 3 cycles, leaked grade desk) AND fixture session transcripts (--agy-dir / --dir) with planted Layer-2 issues (3x tool_retry_loop, 2x make check-full in author, >150k context_end) -> all 9 rules fire; --no-sessions suppresses Layer 2 cleanly; empty transcript dirs degrade cleanly to sessions_scanned=0; --format table, --all-landed, bad flag -> E_USAGE, unknown quest -> E_NOT_FOUND, reserved slug "warden" -> E_USAGE, -h -> stdout rc 0
-  - real run against 2026-11-22-induct-inline-as-default-measure-author completes cleanly
+  - test/warden.sh: planted 12-plug fixture (git + --dir/--agy-dir) fires all 12 rules with observed/threshold/evidence_ref; FEEDBACK.md skip on bare bp3 warden vs --all vs explicit <quest>; --last N; --no-sessions; empty transcript dirs -> sessions_scanned=0; --format table; bad flag -> E_USAGE rc 2; unknown quest -> E_NOT_FOUND rc 2; -h -> stdout rc 0; repo unchanged (read-only)
+  - test/check-constraints.sh + CONSTRAINTS.md:49 bp3 warden surface + owner sign-off row
+  - test/completion.sh + real run against 2026-11-22-induct-inline-as-default-measure-author
   - make check-full
-done when: test/warden.sh (registered in test/suites.tsv) and make check-full pass
+done when: test/warden.sh (in test/suites.tsv), test/check-constraints.sh, test/completion.sh, and make check-full pass
 ```
 
 ## Diagram
 
 ```text
-bp3 q <quest> warden [--no-sessions] [--format json|table]
-bp3 q warden --all-landed [--no-sessions] [--format json|table]
+bin/bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table]
    │
-   ├─ Layer 1 inputs: node ledgers + metrics.jsonl + open desks (Worktree)
-   ├─ Layer 2 inputs (auto unless --no-sessions): Metrics_io.joined_traces (Claude + Pi + agy)
-   └─ Warden.run -> JSON or table on stdout, exit 0 (read-only, never mutates state)
+   ▼ main.exe warden ... -> Warden_io.run
+   ├─ repo checks: docs/quests/*/QUEST.md (status: active count), Worktree.list
+   ├─ target selection: explicit <quest>, OR repo sweep (last N real quests without FEEDBACK.md; --all includes all)
+   ├─ Layer 1 per quest: node ledgers + metrics.jsonl + post-land rev-list (<last_land_sha>..<branch|landed_commit>)
+   ├─ Layer 2 per quest (auto unless --no-sessions): Metrics_io.joined_traces (Claude + Pi + agy)
+   └─ Warden.run -> JSON or table on stdout, exit 0 (strictly read-only)
 ```
 
 ## Pseudocode
 
 ```python
-def do_warden(quest_opt, args):
-    fmt, all_landed, no_sessions, dirs, pi_dirs, agy_dirs = parse_warden_flags(args)
-    if all_landed and quest_opt is not None:
-        usage("pass either <quest> or --all-landed, not both")
-    quests = list_landed_quests() if all_landed else [require_quest(quest_opt)]
-    findings, scanned = [], 0
-    for q in quests:
-        traces = [] if no_sessions else Metrics_io.joined_traces(q, dirs, pi_dirs, agy_dirs)
-        scanned += len(traces)
-        ev = load_evidence(q, traces=traces)
-        findings.extend(Warden.run(ev))
-    return format_table(quests, findings) if fmt == "table" else format_json(quests, scanned, findings)
+def do_warden(args):
+    quest_opt, last_n, all_flag, no_sessions, fmt, dirs, pi_dirs, agy_dirs = parse_flags(args)
+    if quest_opt and (all_flag or last_n is not None):
+        usage("pass either <quest> or --last/--all, not both")
+    scope = "quest" if quest_opt else "repo"
+    quests = [require_quest(quest_opt)] if quest_opt else select_real_quests(last=last_n or 5, include_reviewed=all_flag)
+    ev = Warden_io.load(scope, quests, no_sessions, dirs, pi_dirs, agy_dirs)
+    findings = Warden.run(ev)
+    return format_table(ev, findings) if fmt == "table" else format_json(ev, findings)
 ```
 
 ## Tables
 
 | Field | Value |
 |---|---|
-| Intent | give operators and `/warden` one fast, read-only CLI door to query deterministic waste findings |
+| Intent | give operators and `/warden` one fast, read-only top-level CLI door (`bp3 warden`) |
 | Lane | standard |
-| Output | `src/quest/names.ml` (`verb_warden`), `src/quest/store.ml` (`reserved_slugs`), `src/quest/main.ml` (`do_warden`, help docstring), `completions/_bp3`, `completions/bp3.bash`, `CLAUDE.md`, `AGENTS.md` (1 Commands line), `test/warden.sh` (new), `test/suites.tsv` |
-| Acceptance | fails today (`E_USAGE`); passes when `test/warden.sh` and `make check-full` pass |
+| Output | `src/warden/warden_io.ml` (new), `src/quest/dune` (link `bp3_warden`), `src/quest/main.ml`, `bin/bp3` (`warden)` dispatch), `CONSTRAINTS.md` (`bp3 warden` surface + owner sign-off row), `completions/_bp3`, `completions/bp3.bash`, `AGENTS.md`, `CLAUDE.md`, `test/warden.sh` (new), `test/suites.tsv` |
+| Acceptance | fails today (unknown door `warden`); passes when `test/warden.sh`, `check-constraints.sh`, `completion.sh`, and `make check-full` pass |
 | Depends on | `plugs.1 - warden-engine` |
-| Must not touch | `skills/*`, `bin/bp3` |
+| Must not touch | `skills/*` |
 
 ## Prose
 
-Two important CLI details:
-- **Both `bp3 q <quest> warden` AND `bp3 q warden --all-landed`:** mirrors `bp3 q icebox r` (quest-less sub-door) and `bp3 q <quest> metrics r` (quest-scoped sub-door), with `warden` reserved in `Store.reserved_slugs` so no quest or node can collide with it.
-- **Exit code is always 0 when the read succeeds** (even when findings are non-empty), because Warden is post-hoc evidence, never a blocking gate (`ICEBOX.md:21`). Only usage errors (`E_USAGE`) and missing quests (`E_NOT_FOUND`) exit 2.
-- **Read-only guarantee:** `do_warden` writes zero git refs and zero `.git/bp3/` files, so it even runs cleanly inside `agy`'s default read-only `.git` sandbox!
+- **`CONSTRAINTS.md` sign-off (settled in red-ink closing red chair):** `cli.1` adds `bp3 warden` to `CONSTRAINTS.md:49` (`bp3 CLI`) and records the dated owner-words Sign-off row quoting Round 2 (`"Should Warden be its own top-level command — bp3 warden ... lock"`).
+- **Read-only guarantee:** `Warden_io` writes zero git refs and zero `.git/bp3/` files, so `bp3 warden` runs cleanly inside `agy`'s default read-only `.git` sandbox.
+- **Test split:** Known fixture cases in `test/warden.sh`; property-based tests omitted at the CLI layer (stated decision: core sort/count invariants live in `test/unit/test_warden.ml`).
