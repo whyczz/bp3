@@ -38,9 +38,9 @@ cleanliness	fixture	./test/cleanliness.sh	60	0	-	.gitignore,test/cleanliness.sh
 hooks	fixture	./test/hooks.sh	60	0	-	src/*,bin/bp3,test/hooks.sh
 induct	fixture	./test/induct.sh	60	0	-	skills/induct/*,test/induct.sh,test/induct-*.test.mjs,test/node-loop.test.mjs
 completion	fixture	./test/completion.sh	60	0	-	src/*,bin/bp3,completions/*,test/completion.sh
-release	fixture	./test/release.sh	60	0	-	scripts/release-*,Makefile,src/quest/gitx.ml,test/release.sh
+release	fixture	./test/release.sh	60	0	-	scripts/release-*,scripts/check-bump,Makefile,src/quest/gitx.ml,test/release.sh
 install	fixture	./test/install.sh	60	0	-	scripts/install-bp3.sh,scripts/agy-statusline,scripts/bp3-shim,test/install.sh
-check-tiers	fixture	./test/check-tiers.sh	60	0	-	Makefile,scripts/check-gates,scripts/shell-files,scripts/check-changed.sh,scripts/check-retired-terms.sh,test/check-tiers.sh
+check-tiers	fixture	./test/check-tiers.sh	60	0	-	Makefile,scripts/check-gates,scripts/check-bump,scripts/shell-files,scripts/check-changed.sh,scripts/check-retired-terms.sh,test/check-tiers.sh
 run-suites	fixture	./test/run-suites.sh	150	0	-	scripts/run-suites,src/quest/run_suites.ml,src/quest/suites.ml,test/run-suites.sh,test/run-suites/*,test/suites.tsv
 check-constraints	fixture	./test/check-constraints.sh	60	0	-	scripts/check-constraints,test/check-constraints.sh,CONSTRAINTS.md
 metrics	fixture	./test/metrics.sh	60	0	-	src/*,bin/bp3,test/metrics.sh

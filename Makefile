@@ -31,6 +31,7 @@ ocaml:
 lint:
 	./scripts/check-gates
 	./scripts/check-constraints
+	./scripts/check-bump
 	files=$$(./scripts/shell-files) && [ -n "$$files" ] && shellcheck $$files
 	./scripts/check-skills skills .pi/skills .agents/skills .claude/skills
 	files=$$(./scripts/shell-files --node) && [ -n "$$files" ] && for f in $$files; do node --check "$$f" || exit 1; done

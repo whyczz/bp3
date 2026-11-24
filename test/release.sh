@@ -33,12 +33,13 @@ echo x >> x.txt; git add .; git commit -qm next
 if out=$(./scripts/release-check 2>&1); then fail "release-check accepted stale tag: $out"; fi
 echo "$out" | grep -q "HEAD is" || fail "stale-tag message: $out"
 
-# --version prints exactly the constant
+# --version prints exactly the constant from src/quest/gitx.ml
+bp3_ver=$(sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' "$root/src/quest/gitx.ml" | head -1)
 mkdir -p bin plans
 cp "$root/bin/bp3" bin/
 cp "$root/_build/default/src/quest/main.exe" g-bin
 out=$(BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q --version)
-[ "$out" = "0.2.0" ] || fail "--version: $out"
+[ "$out" = "$bp3_ver" ] || fail "--version: $out (expected $bp3_ver)"
 
 echo "release tests: ok"
 
@@ -63,3 +64,27 @@ out=$(GH_STATE="$work/gh1" PATH="$work/fakebin:$PATH" ./scripts/release-publish 
 echo "$out" | grep -q "published v0.2.0" || fail "publish print: $out"
 if out=$(GH_STATE="$work/gh1" PATH="$work/fakebin:$PATH" ./scripts/release-publish asset.bin 2>&1); then fail "second publish accepted"; fi
 echo "$out" | grep -q "already published" || fail "publish-once message: $out"
+
+# --- scripts/check-bump (forward-only >= 2026-11-22) ---
+cb_ok="$work/cb-ok"
+mkdir -p "$cb_ok/docs/quests/2026-11-18-old" "$cb_ok/docs/quests/2026-11-23-landed" "$cb_ok/docs/quests/2026-11-23-good"
+printf -- '---\nstatus: proposed\ndate: 2026-11-18\n---\n# old\n' > "$cb_ok/docs/quests/2026-11-18-old/QUEST.md"
+printf -- '---\nstatus: landed\ndate: 2026-11-23\n---\n# landed\n' > "$cb_ok/docs/quests/2026-11-23-landed/QUEST.md"
+printf -- '---\nstatus: active\ndate: 2026-11-23\nbump: minor\n---\n# good\n' > "$cb_ok/docs/quests/2026-11-23-good/QUEST.md"
+out=$("$root/scripts/check-bump" --root "$cb_ok") || fail "check-bump valid tree: $out"
+echo "$out" | grep -q "check-bump: ok" || fail "check-bump ok output: $out"
+
+cb_missing="$work/cb-missing"
+mkdir -p "$cb_missing/docs/quests/2026-11-23-missing"
+printf -- '---\nstatus: proposed\ndate: 2026-11-23\n---\n# missing\n' > "$cb_missing/docs/quests/2026-11-23-missing/QUEST.md"
+if out=$("$root/scripts/check-bump" --root "$cb_missing" 2>&1); then fail "check-bump accepted missing bump: $out"; fi
+echo "$out" | grep -q "status proposed needs bump" || fail "check-bump missing msg: $out"
+
+cb_bad="$work/cb-bad"
+mkdir -p "$cb_bad/docs/quests/2026-11-23-bad"
+printf -- '---\nstatus: active\ndate: 2026-11-23\nbump: big\n---\n# bad\n' > "$cb_bad/docs/quests/2026-11-23-bad/QUEST.md"
+if out=$("$root/scripts/check-bump" --root "$cb_bad" 2>&1); then fail "check-bump accepted invalid bump: $out"; fi
+echo "$out" | grep -q "invalid bump: big" || fail "check-bump invalid msg: $out"
+
+# check-bump passes on the real repo
+"$root/scripts/check-bump" >/dev/null || fail "check-bump failed on real repo"

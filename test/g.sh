@@ -14,6 +14,9 @@ git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
+BP3_VER=$(sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' "$root/src/quest/gitx.ml" | head -1)
+IFS=. read -r _bp3_maj _bp3_min _bp3_pat <<< "$BP3_VER"
+NEXT_MINOR="${_bp3_maj}.$((_bp3_min + 1)).0"
 q() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q "$@"; }
 quest_alias() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q "$@"; }
 
@@ -68,7 +71,7 @@ after=$(git show bp3/node/demo/parser-fix:docs/quests/demo/nodes/parser-fix/ledg
 # --- identity: unset -> unknown + warning; invalid -> fail fast ---
 out=$(env -u BP3_HARNESS -u BP3_MODEL BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q demo c id-node)
 echo "$out" | jq -e '.ok == true and (.warnings | index("W_IDENTITY_UNKNOWN") != null)' >/dev/null || fail "identity warning: $out"
-git show bp3/node/demo/id-node:docs/quests/demo/nodes/id-node/ledger.jsonl | tail -1 | jq -e '.harness == "unknown" and .model == "unknown" and .bp3_version == "0.2.0"' >/dev/null || fail "identity ledger unknown"
+git show bp3/node/demo/id-node:docs/quests/demo/nodes/id-node/ledger.jsonl | tail -1 | jq -e --arg v "$BP3_VER" '.harness == "unknown" and .model == "unknown" and .bp3_version == $v' >/dev/null || fail "identity ledger unknown"
 if out=$(BP3_HARNESS=bogus BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q demo r parser-fix 2>&1); then fail "invalid harness accepted"; fi
 echo "$out" | jq -e '.error.code == "E_IDENTITY"' >/dev/null || fail "identity code: $out"
 for h in agy claude pi; do
@@ -667,7 +670,7 @@ stamp_ledger() { # $1 quest $2 node $3 version
 }
 out=$(q demo c vf-node)
 echo "$out" | jq -e '.ok == true' >/dev/null || fail "vf-node create: $out"
-stamp_ledger demo vf-node 0.3.0
+stamp_ledger demo vf-node "$NEXT_MINOR"
 out=$(q demo r vf-node)
 echo "$out" | jq -e '.warnings | index("W_VERSION_AHEAD") != null' >/dev/null || fail "minor-ahead read warning: $out"
 out=$(q demo u vf-node block --reason "minor ahead still writes")
@@ -675,7 +678,7 @@ echo "$out" | jq -e '.ok == true and .state == "blocked" and (.warnings | index(
 stamp_ledger demo parser-fix 99.0.0
 before=$(git rev-parse bp3/node/demo/parser-fix)
 if out=$(q demo u parser-fix block --reason "major ahead must refuse" 2>&1); then fail "major-ahead write accepted: $out"; fi
-echo "$out" | jq -e '.ok == false and .error.code == "E_VERSION_AHEAD" and .error.facts.binary == "0.2.0" and .error.facts.repo == "99.0.0"' >/dev/null || fail "major-ahead refusal: $out"
+echo "$out" | jq -e --arg v "$BP3_VER" '.ok == false and .error.code == "E_VERSION_AHEAD" and .error.facts.binary == $v and .error.facts.repo == "99.0.0"' >/dev/null || fail "major-ahead refusal: $out"
 [ "$(git rev-parse bp3/node/demo/parser-fix)" = "$before" ] || fail "major-ahead refusal wrote"
 # guard.1: the guard sits at the write, so every write form refuses the
 # same way and no ref moves; reads still answer, with the warning.

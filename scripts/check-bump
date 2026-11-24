@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# check-bump (quest-promote-release lint.1): require a legal bump:
+# frontmatter field on every proposed or active QUEST.md dated
+# >= 2026-11-22 (forward-only; historical pre-2026-11-22 files and
+# landed/canceled quests are exempt).
+#   scripts/check-bump [--root <dir>]
+# Exit 0 ok, 1 on any violation, 2 on usage error.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --root)
+      [ $# -ge 2 ] || { echo "check-bump: --root needs a value" >&2; exit 2; }
+      root=$2; shift ;;
+    *)
+      echo "check-bump: unknown argument: $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+cutoff="2026-11-22"
+fails=0
+quests_dir="$root/docs/quests"
+if [ -d "$quests_dir" ]; then
+  for f in "$quests_dir"/*/QUEST.md; do
+    [ -f "$f" ] || continue
+    rel="${f#"$root"/}"
+    # Extract frontmatter fields between the first two --- lines.
+    fm=$(awk '/^---$/ { n++; next } n == 1 { print } n >= 2 { exit }' "$f")
+    status=$(printf '%s\n' "$fm" | awk -F: '$1 ~ /^[[:space:]]*status[[:space:]]*$/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/[[:space:]]*$/, ""); print; exit }')
+    date=$(printf '%s\n' "$fm" | awk -F: '$1 ~ /^[[:space:]]*date[[:space:]]*$/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/[[:space:]]*$/, ""); print; exit }')
+    bump=$(printf '%s\n' "$fm" | awk -F: '$1 ~ /^[[:space:]]*bump[[:space:]]*$/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/[[:space:]]*$/, ""); print; exit }')
+    case "$status" in
+      proposed|active) ;;
+      *) continue ;;
+    esac
+    if [ -n "$date" ] && [[ "$date" < "$cutoff" ]]; then
+      continue
+    fi
+    case "$bump" in
+      major|minor|patch|none) ;;
+      "")
+        echo "check-bump: FAIL $rel: status $status needs bump: major|minor|patch|none" >&2
+        fails=$((fails + 1)) ;;
+      *)
+        echo "check-bump: FAIL $rel: invalid bump: $bump (expected major|minor|patch|none)" >&2
+        fails=$((fails + 1)) ;;
+    esac
+  done
+fi
+
+[ "$fails" -eq 0 ] || exit 1
+echo "check-bump: ok"

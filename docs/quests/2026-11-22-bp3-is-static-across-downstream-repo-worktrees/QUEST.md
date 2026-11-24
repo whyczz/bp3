@@ -285,6 +285,8 @@ repos can't follow it today.
 
 ### Milestone: version
 
+> **Superseded (2026-11-23):** `version.1` (`bump:`, `RELEASING.md`, `scripts/check-bump`, `scripts/bump`) is superseded by [2026-11-23-quest-promote-release](../2026-11-23-quest-promote-release/QUEST.md), which ships top-level `bp3 release`, `scripts/check-bump`, `RELEASING.md`, and unpinned version tests.
+
 | Node | TL;DR |
 |---|---|
 | [version.1 - bump-at-promotion](nodes/node-version-1-bump-at-promotion/NODE.md) | `bump:` in every quest, `RELEASING.md` (node-5's table plus a CLI row), `scripts/bump` commits and tags; tests stop pinning `0.2.0` |
