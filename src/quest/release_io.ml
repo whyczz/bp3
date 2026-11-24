@@ -30,11 +30,6 @@ let help_release =
   Requires BP3_DECIDER=human for any real release (--dry-run is read-only).\n\
   Example: BP3_DECIDER=human bp3 release 2026-11-23-quest-promote-release\n"
 
-(* Hook installed by sync.1 for tag-gated self-mode local $PREFIX install. *)
-let self_install_hook :
-    (tag:string -> version:string -> commit:string -> string option) ref =
-  ref (fun ~tag:_ ~version:_ ~commit:_ -> None)
-
 let parse_args args =
   let init = {
     quest = None; commit = None; bump = None; target = None;
@@ -126,6 +121,42 @@ let run_capture_both ?(env = []) ?input args =
   (String.trim out, String.trim err_s, code)
 
 let opt_json = function Some s -> json_str s | None -> `Null
+
+(* Default self-mode tag-gated local $PREFIX install (sync.1).
+   Runs only on tagged releases in self mode (never on untagged commits). *)
+let default_self_install ~tag ~version ~commit =
+  let prefix =
+    match Sys.getenv_opt "PREFIX" with
+    | Some p when p <> "" -> p
+    | _ ->
+        let home = match Sys.getenv_opt "HOME" with Some h -> h | None -> "." in
+        Filename.concat home ".local" in
+  let install_script = Filename.concat root "scripts/install-bp3.sh" in
+  let env = [ "PREFIX=" ^ prefix ] in
+  let fail detail =
+    err "E_INSTALL_FAILED"
+      (`Assoc [ ("tag", json_str tag); ("version", json_str version);
+                ("commit", json_str commit); ("prefix", json_str prefix);
+                ("local_tagged", `Bool true); ("detail", json_str detail) ])
+      "Local release tag succeeded, but local install to PREFIX failed; run make release && make install." 1 in
+  match Sys.getenv_opt "BP3_RELEASE_ARTIFACT" with
+  | Some art when art <> "" ->
+      let out, err_s, code =
+        run_capture_both ~env [ install_script; art ] in
+      if code <> 0 then fail (if err_s <> "" then err_s else out);
+      Some prefix
+  | _ ->
+      let mout, merr, mcode =
+        run_capture_both ~env [ "make"; "-C"; root; "release" ] in
+      if mcode <> 0 then fail (if merr <> "" then merr else mout);
+      let iout, ierr, icode =
+        run_capture_both ~env [ install_script ] in
+      if icode <> 0 then fail (if ierr <> "" then ierr else iout);
+      Some prefix
+
+let self_install_hook :
+    (tag:string -> version:string -> commit:string -> string option) ref =
+  ref default_self_install
 
 let list_v_tags () =
   let out, code = git_out [ "tag"; "-l"; "v*" ] in
@@ -387,7 +418,7 @@ let do_publish_only opts id =
     | Release.GitHub r -> r
     | Release.Local_tag ->
         usage ("--publish-only requires a GitHub remote on " ^ opts.remote) in
-  let body, _ = git_out [ "tag"; "-l"; "--format=%(contents)"; tag ] in
+  let body, _ = git_out [ "for-each-ref"; "--format=%(contents)"; "refs/tags/" ^ tag ] in
   let title = title_from_tag_body tag body in
   let url =
     push_and_create_gh_release ~remote:opts.remote ~target ~tag ~repo:gh_repo

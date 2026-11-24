@@ -49,3 +49,4 @@ receipt	fixture	./test/receipt.sh	60	0	-	scripts/receipt,scripts/red-first,test/
 agy-statusline	fixture	./test/agy-statusline.sh	60	0	-	scripts/agy-statusline,test/agy-statusline.sh
 warden	fixture	./test/warden.sh	60	0	-	src/*,bin/bp3,test/warden.sh
 release-door	fixture	./test/release-door.sh	60	0	-	src/*,bin/bp3,test/release-door.sh
+release-sync	fixture	./test/release-sync.sh	60	0	-	src/*,bin/bp3,scripts/install-bp3.sh,test/release-sync.sh

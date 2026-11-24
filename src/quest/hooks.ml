@@ -223,6 +223,120 @@ let agy_reply event =
   if event = "PreToolUse" then `Assoc [("decision", json_str "allow")]
   else `Assoc []
 
+(* ---------- host SessionStart tag-gated auto-sync (sync.1) ---------- *)
+
+let resolve_share_dir () =
+  match Sys.getenv_opt "BP3_SHARE_DIR" with
+  | Some d when d <> "" -> d
+  | _ ->
+      let bin_dir = Filename.dirname Sys.executable_name in
+      Filename.concat (Filename.dirname bin_dir) "share/bp3"
+
+let resolve_bp3_bin () =
+  match Sys.getenv_opt "BP3_SYNC_BIN" with
+  | Some b when b <> "" -> b
+  | _ -> Filename.concat (Filename.dirname Sys.executable_name) "bp3"
+
+let read_installed_release share_dir =
+  let path = Filename.concat share_dir "RELEASE" in
+  if not (Sys.file_exists path) then None
+  else
+    try
+      let j = Yojson.Safe.from_string (read_file_or path "") in
+      let tag_s = member_str j "tag" in
+      match Release.parse_semver_tag tag_s with
+      | Some sv -> Some (tag_s, sv)
+      | None -> None
+    with _ -> None
+
+let scan_rendered_skill_headers gate_root =
+  let dirs = [ ".claude/skills"; ".agents/skills"; ".pi/skills" ] in
+  List.concat_map (fun rel ->
+    let base = Filename.concat gate_root rel in
+    if not (Sys.file_exists base && Sys.is_directory base) then []
+    else
+      let entries = try Array.to_list (Sys.readdir base) with _ -> [] in
+      List.filter_map (fun name ->
+        let skill_md = Filename.concat (Filename.concat base name) "SKILL.md" in
+        if not (Sys.file_exists skill_md) then None
+        else
+          let txt = read_file_or skill_md "" in
+          if contains_sub txt "<!-- GENERATED from skills/" then
+            Some (Release.parse_rendered_release_tag txt)
+          else None) entries) dirs
+
+let is_host_git_repo gate_root =
+  let inside, c1 = run_capture [ "git"; "-C"; gate_root; "rev-parse"; "--is-inside-work-tree" ] in
+  if c1 <> 0 || inside <> "true" then false
+  else
+    run_status [ "git"; "-C"; gate_root; "ls-files"; "--error-unmatch"; "--";
+                 Layout.engine_src; "bin/bp3" ] <> 0
+
+let host_can_auto_commit gate_root =
+  let dirty, c1 = run_capture [ "git"; "-C"; gate_root; "status"; "--porcelain" ] in
+  if c1 <> 0 || String.trim dirty <> "" then false
+  else
+    let sym, c2 = run_capture [ "git"; "-C"; gate_root; "symbolic-ref"; "-q"; "HEAD" ] in
+    if c2 <> 0 || not (starts_with sym "refs/heads/") then false
+    else
+      let gd, c3 = run_capture [ "git"; "-C"; gate_root; "rev-parse"; "--absolute-git-dir" ] in
+      if c3 <> 0 || gd = "" then false
+      else
+        not (Sys.file_exists (Filename.concat gd "MERGE_HEAD")
+             || Sys.file_exists (Filename.concat gd "rebase-merge")
+             || Sys.file_exists (Filename.concat gd "rebase-apply"))
+
+let maybe_host_auto_sync gate_root =
+  try
+    if Sys.getenv_opt "BP3_NO_AUTO_SYNC" = Some "1" then None
+    else if not (is_host_git_repo gate_root) then None
+    else
+      let share_dir = resolve_share_dir () in
+      match read_installed_release share_dir with
+      | None -> None
+      | Some (tag_str, installed_sv) ->
+          let rendered = scan_rendered_skill_headers gate_root in
+          if rendered = [] then None
+          else if not (Release.should_auto_sync ~installed:installed_sv ~rendered) then
+            Some (`Assoc [ ("status", json_str "up_to_date"); ("tag", json_str tag_str) ])
+          else if not (host_can_auto_commit gate_root) then
+            Some (`Assoc [ ("status", json_str "dirty_skipped");
+                           ("installed_tag", json_str tag_str);
+                           ("warning", json_str "W_BP3_UPDATE_AVAILABLE") ])
+          else
+            let bp3_bin = resolve_bp3_bin () in
+            let env = [
+              "BP3_TARGET=" ^ gate_root;
+              "BP3_SHARE_DIR=" ^ share_dir;
+              "BP3_SKILLS_DIR=" ^ Filename.concat share_dir "skills";
+              "BP3_CHECK_SKILLS=" ^ Filename.concat share_dir "scripts/check-skills";
+              "BP3_SKIP_COMPLETIONS=1";
+            ] in
+            let rc = run_status ~env [ bp3_bin; "skills"; "install"; "--harness=all" ] in
+            if rc <> 0 then
+              Some (`Assoc [ ("status", json_str "sync_failed"); ("installed_tag", json_str tag_str) ])
+            else begin
+              let skill_roots =
+                List.filter (fun d -> Sys.file_exists (Filename.concat gate_root d))
+                  [ ".claude"; ".agents"; ".pi"; ".muse" ] in
+              if skill_roots <> [] then
+                ignore (run_status ("git" :: "-C" :: gate_root :: "add" :: "--" :: skill_roots));
+              let diff_rc = run_status [ "git"; "-C"; gate_root; "diff"; "--cached"; "--quiet" ] in
+              if diff_rc <> 0 then
+                let c_rc = run_status [ "git"; "-C"; gate_root; "commit"; "--no-verify";
+                                        "-m"; "chore(bp3): sync skills/hooks to " ^ tag_str ] in
+                if c_rc = 0 then
+                  let sha, _ = run_capture [ "git"; "-C"; gate_root; "rev-parse"; "--short=7"; "HEAD" ] in
+                  Some (`Assoc [ ("status", json_str "synced");
+                                 ("tag", json_str tag_str);
+                                 ("commit", json_str sha) ])
+                else
+                  Some (`Assoc [ ("status", json_str "sync_failed"); ("installed_tag", json_str tag_str) ])
+              else
+                Some (`Assoc [ ("status", json_str "up_to_date"); ("tag", json_str tag_str) ])
+            end
+  with _ -> None
+
 (* ---------- the verb ---------- *)
 let handle () =
   try
@@ -254,8 +368,16 @@ let handle () =
           List.exists (fun r ->
               try Sys.is_directory (Filename.concat gate_root r) with _ -> false)
             (Layout.quests_root :: Layout.legacy_quests_roots) in
-        if not is_repo then wrap (no_write "not a bp3 repo")
-        else
+        if not is_repo then begin
+          if event = "SessionStart" then
+            match maybe_host_auto_sync gate_root with
+            | Some sync_j ->
+                wrap (`Assoc [ ("ok", `Bool true); ("event_line", `Null);
+                               ("reason", json_str "host session");
+                               ("auto_sync", sync_j) ])
+            | None -> wrap (no_write "not a bp3 repo")
+          else wrap (no_write "not a bp3 repo")
+        end else
           let command = command_of payload in
           if contains_sub command "bp3 q hooks" ||
              contains_sub command "bp3 q hooks"

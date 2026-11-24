@@ -92,12 +92,23 @@ harness_target() {
 }
 
 install_one() {
-  local skill="$1" harness="$2" target="$3" target_dir dest
+  local skill="$1" harness="$2" target="$3" target_dir dest release_tag=""
+  local release_file="${BP3_SHARE_DIR:-$root/share/bp3}/RELEASE"
+  if [ -f "$release_file" ] && command -v jq >/dev/null 2>&1; then
+    release_tag="$(jq -r '.tag // empty' "$release_file" 2>/dev/null || true)"
+  fi
   target_dir="$(harness_target "$harness")"
   dest="$target/$target_dir/$skill"
   mkdir -p "$dest"
-  awk -v h="$harness" -v s="$skill" '
-    /^---$/ { n++; print; if (n == 2) printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h; next }
+  awk -v h="$harness" -v s="$skill" -v rt="$release_tag" '
+    /^---$/ {
+      n++; print;
+      if (n == 2) {
+        if (rt != "") printf "<!-- GENERATED from skills/%s/SKILL.md (%s) by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, rt, h;
+        else printf "<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=%s. Edit the source, then re-run. -->\n", s, h;
+      }
+      next
+    }
     { print }' "$src_dir/$skill/SKILL.md" > "$dest/SKILL.md"
   echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness)"
 }
@@ -282,7 +293,7 @@ skills_install() {
   # completions dir when one is found (BP3_COMPLETIONS_DIR overrides the
   # search); otherwise print the path to add. Never edit a shell rc file.
   local comp_src="$completions_dir/_bp3" comp_bash_src="$completions_dir/bp3.bash"
-  if [ -f "$comp_src" ]; then
+  if [ "${BP3_SKIP_COMPLETIONS:-}" != "1" ] && [ -f "$comp_src" ]; then
     local comp_dest=''
     if [ -n "${BP3_COMPLETIONS_DIR:-}" ]; then
       comp_dest="$BP3_COMPLETIONS_DIR"
