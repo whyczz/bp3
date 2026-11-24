@@ -101,9 +101,9 @@ copy, owner as gate) and settle it first.
      - **Skip / defer:** mark `skipped` in `FEEDBACK.md`.
      - **Promote / release (owner go only):** run
        `BP3_DECIDER=human bp3 release <quest>` (or
-       `./bin/bp3 release <quest>` in self mode) to atomically CAS-move
-       `master`, tag `vX.Y.Z`, and publish the GitHub Release (or local
-       tag).
+       `BP3_DECIDER=human ./bin/bp3 release <quest>` in self mode) to
+       atomically CAS-move `master`, tag `vX.Y.Z`, and publish the
+       GitHub Release (or local tag).
 
 ## Rules
 

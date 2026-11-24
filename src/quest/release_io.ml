@@ -123,15 +123,17 @@ let run_capture_both ?(env = []) ?input args =
 let opt_json = function Some s -> json_str s | None -> `Null
 
 (* Default self-mode tag-gated local $PREFIX install (sync.1).
-   Runs only on tagged releases in self mode (never on untagged commits). *)
-let default_self_install ~tag ~version ~commit =
+   Runs only on tagged releases in self mode (never on untagged commits),
+   building/installing from install_root (the synced target worktree when
+   checked out, else root) so bp3 release works from either master or a desk. *)
+let default_self_install ~install_root ~tag ~version ~commit =
   let prefix =
     match Sys.getenv_opt "PREFIX" with
     | Some p when p <> "" -> p
     | _ ->
         let home = match Sys.getenv_opt "HOME" with Some h -> h | None -> "." in
         Filename.concat home ".local" in
-  let install_script = Filename.concat root "scripts/install-bp3.sh" in
+  let install_script = Filename.concat install_root "scripts/install-bp3.sh" in
   let env = [ "PREFIX=" ^ prefix ] in
   let fail detail =
     err "E_INSTALL_FAILED"
@@ -147,7 +149,7 @@ let default_self_install ~tag ~version ~commit =
       Some prefix
   | _ ->
       let mout, merr, mcode =
-        run_capture_both ~env [ "make"; "-C"; root; "release" ] in
+        run_capture_both ~env [ "make"; "-C"; install_root; "release" ] in
       if mcode <> 0 then fail (if merr <> "" then merr else mout);
       let iout, ierr, icode =
         run_capture_both ~env [ install_script ] in
@@ -155,7 +157,7 @@ let default_self_install ~tag ~version ~commit =
       Some prefix
 
 let self_install_hook :
-    (tag:string -> version:string -> commit:string -> string option) ref =
+    (install_root:string -> tag:string -> version:string -> commit:string -> string option) ref =
   ref default_self_install
 
 let list_v_tags () =
@@ -684,9 +686,10 @@ let run argv id =
       (* Optional self-mode tag-gated local $PREFIX install (hook wired in sync.1) *)
       let installed_prefix =
         let env_skip = Sys.getenv_opt "BP3_RELEASE_NO_INSTALL" = Some "1" in
+        let install_root = match target_wts with wt :: _ -> wt | [] -> root in
         match repo_mode (), tag_opt, next_ver with
         | "self", Some t, Some nv when not opts.no_install && not env_skip ->
-            !self_install_hook ~tag:t ~version:nv ~commit:new_tip
+            !self_install_hook ~install_root ~tag:t ~version:nv ~commit:new_tip
         | _ -> None in
 
       let v = `Assoc [

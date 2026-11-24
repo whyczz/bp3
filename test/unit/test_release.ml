@@ -35,6 +35,7 @@ let case_parse_semver_tag_is_strict _ =
   assert_equal None (Release.parse_semver_tag "v0.2.0-rc1");
   assert_equal None (Release.parse_semver_tag "v01.2.0");
   assert_equal None (Release.parse_semver_tag "v0.02.0");
+  assert_equal None (Release.parse_semver_tag "v 0.2.0");
   assert_equal None (Release.parse_semver_tag "release-1")
 
 let case_latest_semver_tag_uses_numeric_order_and_ignores_noise _ =
@@ -137,8 +138,12 @@ let case_rendered_release_tag_and_should_auto_sync _ =
   let legacy =
     "---\nname: quest\n---\n\
      <!-- GENERATED from skills/quest/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->\n" in
+  let bogus_paren =
+    "---\nname: quest\n---\n\
+     <!-- GENERATED from skills/quest/SKILL.md by: (v0.9.9) -->\n" in
   assert_equal (Some (sv 0 3 0)) (Release.parse_rendered_release_tag v030);
   assert_equal None (Release.parse_rendered_release_tag legacy);
+  assert_equal None (Release.parse_rendered_release_tag bogus_paren);
   assert_bool "empty never auto-syncs"
     (not (Release.should_auto_sync ~installed:(sv 0 3 0) ~rendered:[]));
   assert_bool "legacy unversioned triggers auto-sync"

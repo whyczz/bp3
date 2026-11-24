@@ -25,8 +25,8 @@ if [ -d "$quests_dir" ]; then
   for f in "$quests_dir"/*/QUEST.md; do
     [ -f "$f" ] || continue
     rel="${f#"$root"/}"
-    # Extract frontmatter fields between the first two --- lines.
-    fm=$(awk '/^---$/ { n++; next } n == 1 { print } n >= 2 { exit }' "$f")
+    # Extract frontmatter fields only when line 1 opens a --- block.
+    fm=$(awk 'NR == 1 && !/^---$/ { exit } /^---$/ { n++; next } n == 1 { print } n >= 2 { exit }' "$f")
     status=$(printf '%s\n' "$fm" | awk -F: '$1 ~ /^[[:space:]]*status[[:space:]]*$/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/[[:space:]]*$/, ""); print; exit }')
     date=$(printf '%s\n' "$fm" | awk -F: '$1 ~ /^[[:space:]]*date[[:space:]]*$/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/[[:space:]]*$/, ""); print; exit }')
     bump=$(printf '%s\n' "$fm" | awk -F: '$1 ~ /^[[:space:]]*bump[[:space:]]*$/ { sub(/^[^:]*:[[:space:]]*/, ""); sub(/[[:space:]]*$/, ""); print; exit }')

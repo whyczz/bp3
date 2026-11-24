@@ -61,7 +61,7 @@ let parse_semver_str s =
 
 let parse_semver_tag tag =
   let t = String.trim tag in
-  if String.length t >= 2 && t.[0] = 'v' then
+  if String.length t >= 2 && t.[0] = 'v' && is_ascii_digit t.[1] then
     parse_semver_str (String.sub t 1 (String.length t - 1))
   else None
 
@@ -267,8 +267,22 @@ let sync_bp3_version ~new_version text =
 
 (* ---------- rendered skill tag parsing & auto-sync predicate ---------- *)
 
+let find_sub ~sub s =
+  let n = String.length s and m = String.length sub in
+  if m = 0 then Some 0
+  else if m > n then None
+  else
+    let rec at i j = j = m || (s.[i + j] = sub.[j] && at i (j + 1)) in
+    let rec loop i =
+      if i + m > n then None
+      else if at i 0 then Some i
+      else loop (i + 1) in
+    loop 0
+
 let parse_rendered_release_tag text =
   let lines = String.split_on_char '\n' text in
+  let marker = "/SKILL.md (" in
+  let mlen = String.length marker in
   let rec go = function
     | [] -> None
     | l :: rest ->
@@ -276,11 +290,14 @@ let parse_rendered_release_tag text =
         (match strip_prefix ~prefix:"<!-- GENERATED from skills/" t with
          | None -> go rest
          | Some tail ->
-             (match String.index_opt tail '(', String.index_opt tail ')' with
-              | Some i, Some j when j > i + 1 ->
-                  let inside = String.sub tail (i + 1) (j - i - 1) in
-                  parse_semver_tag inside
-              | _ -> None)) in
+             (match find_sub ~sub:marker tail with
+              | Some i ->
+                  let start = i + mlen in
+                  (match String.index_from_opt tail start ')' with
+                   | Some j when j > start ->
+                       parse_semver_tag (String.sub tail start (j - start))
+                   | _ -> None)
+              | None -> None)) in
   go lines
 
 let should_auto_sync ~installed ~rendered =
