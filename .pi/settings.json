@@ -13,8 +13,8 @@
     "!**/.agents/skills/induct/SKILL.md",
     "!**/.agents/skills/induct-yolo/SKILL.md",
     "!**/.agents/skills/quest/SKILL.md",
-    "!**/.agents/skills/trial/SKILL.md",
     "!**/.agents/skills/induct-inline/SKILL.md",
-    "!**/.agents/skills/induct-inline-yolo/SKILL.md"
+    "!**/.agents/skills/induct-inline-yolo/SKILL.md",
+    "!**/.agents/skills/warden/SKILL.md"
   ]
 }

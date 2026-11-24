@@ -168,7 +168,7 @@ the whole quest, honestly labeled, and the checks that prove it —
 then the railway. A Quest file with Inputs/Outputs but no
 Acceptance gates is unfinished the same way: the reader must see
 the machine run before reading its parts. A recorded or
-hands-on demo is a different thing: that is `trial`'s job.
+hands-on demo is a different thing: that is `warden`'s job.
 
 | Field | Carries |
 |---|---|
@@ -271,7 +271,7 @@ the clean plan of record.
 Transitions: `proposed -> active -> landed`; `proposed | active -> canceled`.
 Files stay in `docs/quests/` for life — node records point at them.
 
-At `landed`, run `trial` and record its Landing IIUC
+At `landed`, run `warden` to record `FEEDBACK.md` and the Landing IIUC
 (decision record, the trial run, verification, open items)
 under Success picture.
 

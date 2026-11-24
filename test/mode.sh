@@ -18,6 +18,9 @@ export BP3_COMPLETIONS_DIR="$work/completions"
 # Every source skill is in exactly one set (fail-closed hosts).
 core=$(sed -n 's/^CORE_SKILLS="\(.*\)"/\1/p' "$repo/bin/bp3")
 dev=$(sed -n 's/^DEV_SKILLS="\(.*\)"/\1/p' "$repo/bin/bp3")
+# warden-v0 skills.1: warden is in CORE_SKILLS and trial is retired from DEV_SKILLS
+case " $core " in *" warden "*) checks=$((checks + 1)) ;; *) echo "FAIL: warden missing from CORE_SKILLS" >&2; exit 1 ;; esac
+case " $dev " in *" trial "*) echo "FAIL: trial still in DEV_SKILLS" >&2; exit 1 ;; *) checks=$((checks + 1)) ;; esac
 for skill_dir in "$repo"/skills/*/; do
   id=$(basename "$skill_dir")
   n=0

@@ -91,7 +91,7 @@ assert grep -q 'skills/induct/workflows/induct-grade.js' "$work/out"
 "$root/bin/bp3" skills install --harness=all > /dev/null
 "$root/bin/bp3" skills check > "$work/check-rerendered.json"
 assert jq -e '.ok == true' "$work/check-rerendered.json"
-assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/induct-inline/SKILL.md","!**/.agents/skills/induct-inline-yolo/SKILL.md","!**/.agents/skills/induct-yolo/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink/SKILL.md","!**/.agents/skills/trial/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
+assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/induct-inline/SKILL.md","!**/.agents/skills/induct-inline-yolo/SKILL.md","!**/.agents/skills/induct-yolo/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md","!**/.agents/skills/warden/SKILL.md"]' "$root/.pi/settings.json"
 # induct is the one conducting skill; retired traverse/bp3g names render nowhere.
 for h in .pi .agents .claude; do
   assert test -f "$root/$h/skills/induct/SKILL.md"
@@ -398,5 +398,21 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -qF 'NEVER' "$ii"
   assert grep -qF 'sole `bp3 q` writer' "$ii"
 done
+
+# warden-v0 skills.1: unified /warden replaces /trial across all harnesses
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  w="$repo/$dir/warden/SKILL.md"
+  assert test -f "$w"
+  assert test ! -e "$repo/$dir/trial"
+  assert grep -qF 'FEEDBACK.md' "$w"
+  assert grep -qF '<= 3' "$w"
+  assert grep -qF 'Deterministic first' "$w"
+  assert grep -qF 'Pruning check' "$w"
+  assert grep -qF '1–2 files' "$w"
+  assert grep -qF 'docs/icebox/' "$w"
+  assert grep -qF 'owner disposes' "$w"
+done
+assert grep -qF '`warden`' "$repo/skills/quest/SKILL.md"
+assert grep -qF '`warden`' "$repo/skills/induct/SKILL.md"
 
 printf 'skills tests: ok (%s assertions)\n' "$checks"

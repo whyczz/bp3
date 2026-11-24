@@ -25,8 +25,8 @@ should run at once with workflow children, one desk per node.
 Use `quest` instead to frame a new quest. Use `using-bp3`
 instead for a single state operation by hand (one handoff, one
 grade, recovery after a dead session). Use
-`trial` instead when the quest is done and the
-human wants the landing writeup. A design under review is
+`warden` instead when the quest is done and the
+human wants the landing writeup and audit. A design under review is
 `red-ink`'s job, not a induct.
 
 ## Conductor rule
