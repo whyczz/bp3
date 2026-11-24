@@ -9,7 +9,7 @@ Companion living build log for [QUEST.md](QUEST.md). `QUEST.md` stays the plan o
 | [plugs.1 - warden-engine](nodes/node-plugs-1-warden-engine/NODE.md) | `landed` (`node_fin`) | 1 | `f3908a1` | `src/warden/` (`bp3_warden`), 12 pure plugs + `s_user_steps` across Agy/Claude/Pi + `QCheck2` (`test_warden` 16 tests) |
 | [cli.1 - warden-door](nodes/node-cli-1-warden-door/NODE.md) | `landed` (`node_fin`) | 1 | `cc0e075` | `src/warden/warden_io.ml` + top-level `bp3 warden` + `FEEDBACK.md` skip + `CONSTRAINTS.md:49` + `test/warden.sh` (35 assertions) |
 | [skills.1 - warden-skill](nodes/node-skills-1-warden-skill-and-trial-hook/NODE.md) | `landed` (`node_fin`) | 1 | `a03c7a1` | unified `/warden` in `CORE_SKILLS` replacing `/trial` (`DEV_SKILLS`), pruned renders across `.pi`/`.claude`/`.agents` |
-| [dogfood.1 - backtest-recent-quests](nodes/node-dogfood-1-backtest-recent-quests/NODE.md) | `in_progress` | 1 | _(this commit)_ | 4-quest real backtest + 3 calibration fixes (`42.5% -> 0.0%` FP) -> `LOG.md` + `FEEDBACK.md` |
+| [dogfood.1 - backtest-recent-quests](nodes/node-dogfood-1-backtest-recent-quests/NODE.md) | `landed` (`node_fin`) | 1 | `32e7ba1` | 4-quest real backtest + 3 calibration fixes (`42.5% -> 0.0%` FP) -> `LOG.md` + `FEEDBACK.md` |
 
 ## 4-Quest Backtest & Calibration (`dogfood.1`)
 
