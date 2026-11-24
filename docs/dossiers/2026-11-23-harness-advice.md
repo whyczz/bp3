@@ -304,6 +304,163 @@ unread. `@__tinygrad__` is a different account. The blog essays are a
 different surface. Detail and the rejected recaps live in the learn
 report; they are not re-argued here.
 
+### Amp, fetched 2026-11-23
+
+The November forces table cites Amp for "fresh context beats
+compaction"
+([agent-harness-landscape.md](agent-harness-landscape.md) line 510).
+That citation is the 2025-10-23 post, and Amp has since published the
+opposite product decision. The pages below were fetched for this
+dossier. Podcasts were not transcribed. Public threads linked from the
+ball-pit essay were not opened.
+
+**The loop they named.** Lewis Metcalf, 2026-02-05, "Feedback
+Loopable": a problem the agent cannot see (a moving animation) becomes
+a playground the human and the agent share, URL query parameters that
+make a bug repeatable, and a headless CLI that prints text so the
+inner loop is bash
+([feedback loopable](https://ampcode.com/notes/feedback-loopable)).
+He did not tell the CLI which columns to print. The agent added a
+position delta, and frame 20's delta is the bug. He writes that he did
+not read that CLI until the essay. The human reviews the result, not
+the code, and sends the next URL. The same shape on their own product
+is a `widget` CLI, wrapped in a skill, that renders a TUI widget as a
+tree or as ASCII. No token count, no wall time, no count of bugs the
+CLI missed.
+
+Harry Charlesworth, 2026-01-14: the failure mode is under-specification,
+and the speed trap is an agent that outruns the human's ability to
+verify. The prompt he keeps is a reference file plus "run the tests
+after each step." Last line: "Trust isn't a feeling, it's a passing
+test suite"
+([how to pair](https://ampcode.com/notes/how-to-pair-with-an-agent)).
+No measurement.
+
+Permissions, 2025-09-10: agents work best when they can run the tests
+and see the result. Taking tools away makes the agent reach for bash.
+Git makes a wrong edit cheap
+([permissions](https://ampcode.com/notes/permissions)). FIF, notes
+index 2025-04-29, still says edit-by-edit approval "traps you in a
+local maximum by impeding the agentic feedback loop"
+([FIF](https://ampcode.com/notes/fif)). The same page still argues
+against a model selector. The 2026-11-12 post killed the dial and
+shipped one
+([bye bye dial](https://ampcode.com/news/bye-bye-dial)). The
+edit-approval paragraph was not retracted in the page fetched. A model
+switch, that post says, busts the prompt cache, and the first message
+after it costs more.
+
+**Their reviewer is a comment feed.** 2025-12-18: a review agent on
+Gemini 3 Pro replaces a single-shot review. The loop is write, open
+the panel, drag a diff range, read the review while it runs, feed the
+comments back into the writing agent. They say quality improved and
+publish no count. Open questions they leave: reviews are not 1:1 with
+threads, and they have not decided whether accepted or rejected
+comments should land in `AGENTS.md`
+([agentic review](https://ampcode.com/news/agentic-code-review)).
+2026-02-04: `amp review` and an in-thread "review the outstanding
+changes." A check is a markdown file in `.agents/checks/`. The review
+tool starts a separate agent per check, which they say is a stronger
+guarantee than burying the check in `AGENTS.md`. The writing agent can
+be told to fix what came back
+([liberating code review](https://ampcode.com/news/liberating-code-review)).
+That is a second model. It is not a verdict bound to a SHA, and it has
+no round cap.
+
+**They reversed the compaction line.** 2025-10-23: compaction removed,
+replaced by handoff, because compaction "encourages long, meandering
+threads" and they want focused ones. The human edits the drafted next
+prompt before sending
+([handoff](https://ampcode.com/news/handoff)). Lewis, 2025-12-09, one
+feature he shipped: 13 threads connected by mentions, biggest thread
+"151k output tokens and four user messages," average "around 80k."
+"Agents get drunk" on a long thread. He is explicit that he does not
+keep spec files to move context; he mentions the previous thread
+([200k](https://ampcode.com/notes/200k-tokens-is-plenty)). 2026-05-06:
+compaction is back, automatic at 90% full, and handoff is gone, because
+"today's leading frontier models are great at handling compaction."
+They turned it off for a day during a migration and "everyone
+complained." One beta user: "I love having auto-compaction. NOT
+missing handoff"
+([Amp, rebuilt](https://ampcode.com/news/neo)). 2026-07-02: their
+longest thread has been compacted over 68 times and would be over 21
+million tokens without that. The first version of the `read_thread`
+subagent answered from the first hit; in a long thread that hit is
+often an attempt later revised or reverted
+([read bigger threads](https://ampcode.com/news/read-bigger-threads)).
+The November line that treats Amp as a witness for fresh context over
+compaction is the retired post.
+
+**Subagents, then orbs.** Thorsten Ball, 2025-06-10: the search
+subagent was read-only and had been there from the start. Other typed
+subagents failed, either because humans could not tell them apart or
+because the model did the work itself. Sonnet 4 invokes generic
+subagents that can write and run commands, each with its own context
+window, including in parallel. He writes that they do not know whether
+plan files are now obsolete, and they did not crank the system prompt
+([agents for the agent](https://ampcode.com/notes/agents-for-the-agent)).
+No count of tasks those subagents finished. Tim Culverhouse,
+2025-12-18: renaming a function from the agent's `present()` to his
+`swapScreens()` made later turns spin. Letting the agent pick the
+probable name made it faster. "Cost more tokens" is his description,
+not a ledger
+([by an agent](https://ampcode.com/notes/by-an-agent-for-an-agent)).
+
+2026-02-19: with the newest models, the wrapper "is no longer the
+limiting factor" and bash is often enough. The bottleneck he names is
+how the codebase and the org are arranged. Editor extensions
+self-destruct 2026-03-05
+([the coding agent is dead](https://ampcode.com/news/the-coding-agent-is-dead)).
+2026-07-02, putting an agent in an orb: `.agents/setup` is a 428-line
+bash script (database, locked toolchain, `pnpm install`, and an
+orb-local `AGENTS.md`). A `dev-server` skill's script reuses a healthy
+server or restarts a wedged one so the agent does not diagnose that
+itself. Two demos came back "after a couple of minutes" and "after a
+few minutes," with screenshots, and he had not said how to start the
+server or log in
+([putting an agent in an orb](https://ampcode.com/notes/putting-an-agent-in-an-orb)).
+2026-08-04: when a change is about 800 lines he tells the orb he wants
+"100% proof," screenshots, a video, a matrix of cases. "The agent runs
+for eight, ten, twenty, sometimes thirty minutes." He can close the
+laptop. "More things shipped, faster" has no count attached. He spends
+the first half of the essay saying a feature list would not be
+believed
+([what I want to tell you](https://ampcode.com/notes/what-i-want-to-tell-you-about-orbs)).
+2026-08-25: an orb is a remote agent that sleeps when idle, costs only
+while running, can be spawned in the hundreds, can wake on a schedule,
+and can spawn other orbs and message them
+([orbs, explained](https://ampcode.com/notes/orbs-explained)).
+
+The Amp Way, docs page fetched 2026-11-23, no date in the body: core
+team pushes to main, no mandatory PR review, agents "run in a loop,"
+threads are shared for humans to look at. "Feedback loops for the
+agents above everything else." A thread ends when the change has
+landed and they know it works, not when the code is written. "Our
+agents wait on us, not the other way around." A bug report starts an
+orb immediately; most of the time the fix is right and they push it
+([the Amp way](https://ampcode.com/docs/using-amp/how-we-work)). How We
+Build, notes index 2025-05-12: "thesis-driven, not metrics-driven," and
+also "put your numbers on the board." No task longer than a week. A
+branch should not sit and grow to 10,000 lines
+([how we build](https://ampcode.com/how-we-build)). The numbers they
+actually printed are the thread sizes, the 68 compactions, the 428-line
+setup script, and the 8-to-30 minute proof runs. There is no keep-rate
+and no token ledger for a feature.
+
+Against the fork: Amp's published loop is the writer running a fast
+text oracle, plus a human looking at the result, plus an optional
+review agent whose comments go back into the writer. That is closer to
+a receipt script and a watching human than to a fresh grader that
+re-judges the gates for up to ten rounds. Their 8-to-30 minute proof
+run is the same order of magnitude as backpack's later grade medians
+(109s, 201s, 377s, and the 11-minute census), and it is the writer
+producing proof, with the human gone. It is not a second session
+bound to a SHA. The counter-case is the one they leave open: they
+built the review agent because review is the bottleneck, they have not
+measured it, How We Build says they are not metrics-driven, and a
+screenshot the writer produced is an oracle the writer can satisfy.
+"100% proof" is a prompt, not a check the change cannot edit.
+
 ### Where the November file aimed the next quest
 
 The forces table pulls two ways at once: fresh children per step,
@@ -328,7 +485,7 @@ exit survives a dossier: the ranked question points somewhere else.
 | Force | Evidence | What it does to the fork |
 |---|---|---|
 | Owner attention versus the owner's instruction | Dossier line 391: at the cap, ask the owner to reconsider. Owner, 2026-11-21, recorded in AGENTS.md: ten rounds, do not involve me. Escalation at the cap remains. | Raising the cap is a way to be left alone. It multiplies grade wall on a node that does not converge. It does not test the cheap half. |
-| Fresh context versus a narrow brief | November forces, lines 510–514. `brief.ml` lines 81–86: full re-judge plus a diff. Icebox: delta cut later rounds to 7–15 min, unshipped. | A and D. The shipped pull is the expensive one. The unshipped pull is the one with a wall number. |
+| Fresh context versus a narrow brief | November forces, lines 510–514, citing Amp for fresh context over compaction. That Amp post is 2025-10-23. Amp's 2026-05-06 product is automatic compaction, and handoff is gone. `brief.ml` lines 81–86: full re-judge plus a diff. Icebox: delta cut later rounds to 7–15 min, unshipped. | A and D. The shipped pull is the expensive one. The unshipped pull is the one with a wall number. The Amp citation under the shipped pull has been retired by Amp. |
 | The prompt cache | November line 514. The counted grade is ~5.75M tokens, almost all cache reads. | A shorter brief's effect on spend is unmeasured. Wall and spend can move differently. B is not settled by the context-size figure. |
 | Goodhart, in the expensive form | GRADING.md lines 27–29: plant a bug by hand, every round. CONTEXT.md line 100: a change must not edit its check; bp3 does not enforce that. Icebox line 21: findings were precise. | The guard that shipped is grader labor. The guard the dossier ranked first (tests the author cannot edit) is a script that is not on disk. |
 | Dwell versus grade wall | tier.1: 9.4h of 14.3h in `handed_off`. The 2026-11-22 quest's own ground: author ~53–62% on two earlier quests. The active quest's ground for that same quest: 111 min of grade versus 57 min of author. | B depends on which population is "the" quest. They disagree. The half-day story can be waiting on a human, or it can be the grader. |
@@ -411,7 +568,70 @@ OpenAI's unbounded review is a choice to spend agent time instead of
 human time. Wins if the goal is lab throughput with the owner
 optional at merge. The 2026-11-21 instruction makes the owner less
 involved by raising the cap. It does not say to spend more grader
-passes. The keepers with a log did not take this option.
+passes. The keepers with a log did not take this option. Amp's 2026-02-19
+post says the wrapper is no longer the limiting factor, and their
+review product feeds comments back into the writer instead of adding
+rounds.
+
+Amp's published loop, read against (b) and (c): the fast oracle is a
+CLI or a test the writer runs (Metcalf's playground, Charlesworth's
+"run the tests after each step," the orb setup script), and the human
+looks at a URL, a screenshot, or a video. The review agent is optional
+and returns comments, not a `needs_fix` cast. That is (b)'s script and
+(c)'s watching human inside one thread. It does not add an option.
+What would have to be true for it to beat (a) here is the same
+condition as (b) and (c): the catches in the census are the class a
+script or a watching owner already sees. Amp does not supply that
+count. Their open question, whether rejected review comments become
+`AGENTS.md`, is the learning path [CONTEXT.md](../../CONTEXT.md) line
+58 says bp3 does not have yet (`runs/*/notes.md`, no path to a rule).
+
+**If a change is made.** The learn report's proposal 2 is the Amp
+shape of that change, and this dossier does not adopt it. A CLI the
+writer runs prints the gate, whether the new tests fail on the parent,
+and the case that failed. The human reads that output. If a second
+model reviews, it returns comments into the writer for one pass. It
+does not open a fresh session that re-judges every gate, and it does
+not loop until it is satisfied. A grader that still runs still
+withholds `--reason`. Feeding those comments to the writer is not the
+same as pasting the previous verdict into the next grade. The change
+is not `agy`, not `/swarm`, not orbs, not push-to-main, and not a
+change to the cap. `scripts/receipt` and `scripts/red-first` were
+absent when this was written. What would have to be true is the same
+condition as (b) and (c). Amp did not publish the count. The counter
+already written on (b) still applies: a delta that never carries
+findings can miss a bug the writer swept, which is the active quest's
+own red chair. A second counter belongs to this shape and not to (b):
+a CLI the writer owns is an oracle the writer can satisfy. Amp does
+not discuss that.
+
+**Lab pass, same day, does not move this.** A later section of the
+learn report reads the Anthropic, OpenAI, and Google harness posts as
+product copy. It does not add an option, and this dossier does not
+adopt one. Anthropic's published dollar table puts the hours on the
+writer: a solo run at 20 minutes and $9, a three-agent harness at 6
+hours and $200, a later run at 3 hours 50 minutes and $124.70. Each
+QA round on that later run was 6.8 to 9.6 minutes and about $3 to $4,
+and round two still found stubbed features. They then deleted context
+resets and the sprint scaffold when the next model no longer needed
+them ([Harness design](https://www.anthropic.com/research/harness-design-long-running-apps)).
+Their research multi-agent post says most coding tasks are a poor
+fit, and the 90.2% figure is an internal research eval
+([multi-agent research](https://www.anthropic.com/engineering/multi-agent-research-system)).
+The C-compiler team cost just under $20,000 and still called GCC for
+the part it could not do
+([C compiler](https://www.anthropic.com/engineering/building-c-compiler)).
+OpenAI's English essay, fetched 2026-11-23, says the autonomous loop
+should not be assumed to generalize
+([Harness engineering](https://openai.com/index/harness-engineering/)).
+Google's 95% table is labeled illustrative. The sample loop is `go
+test`, one retry, then a human
+([Durable loops](https://cloud.google.com/blog/topics/developers-practitioners/how-to-build-durable-agentic-systems-with-google-antigravity-from-instructions-to-loops)).
+Jules, the previous async agent, is in a published wind-down with no
+keep-rate
+([Jules turndown](https://jules.google/docs/changelog/2026-10-29.md)).
+None of that is a catch-rate for this repo. Copying the lab loop is
+still option (e).
 
 **Lean, labeled.** The grade bill that the active quest itself cites
 (111 minutes of grade wall against 57 of author, on the 2026-11-22
@@ -436,8 +656,9 @@ log they kept do not run that reviewer.
 
 **Its counter-case.** The icebox says the graders were precise and no
 finding was wrong. Cognition's clean-context reviewer is a measured
-~2 bugs per pull request, ~58% severe. Dropping the grader drops a
-check the files call accurate. The files do not say what that
+~2 bugs per pull request, ~58% severe. Amp built a review agent for
+the same reason and published no catch-rate. Dropping the grader drops
+a check the files call accurate. The files do not say what that
 accuracy cost per bug, and they do not say how many of the accurate
 findings a script would have printed first.
 
@@ -465,17 +686,30 @@ findings a script would have printed first.
    The answer is the November condition for review option (b), and the
    condition for a severity gate. It decides (b) versus (c).
 
-4. **Does a shorter brief change the ~5.75M cache-read spend, or only
+4. **Does the review have to be a new session?** Amp's review agent
+   feeds comments back into the writer, and since 2026-05-06 their
+   product compacts inside one thread instead of handing off to a
+   fresh one. bp3's grader is a new session by construction
+   ([induct-inline](../../skills/induct-inline/SKILL.md) lines 84–88),
+   which is also what [CONTEXT.md](../../CONTEXT.md) line 93 records
+   as the defense against a judge favoring its own output. The answer
+   decides whether (b) is a shorter fresh brief or the writer running
+   the oracle with comments coming back. Amp did not publish which of
+   those catches more.
+
+5. **Does a shorter brief change the ~5.75M cache-read spend, or only
    the ending context size?** One grade was counted. The other 24
    were not. The answer decides whether "narrow the brief" is a token
-   fix. Wall time can fall while cache reads stay.
+   fix. Wall time can fall while cache reads stay. Amp's 2026-11-12
+   note that a model switch busts the cache is a different event from
+   a grade whose 5.75M is almost all cache reads inside one session.
 
-5. **Does `plans/direct.yaml`, on a quest the owner is watching,
+6. **Does `plans/direct.yaml`, on a quest the owner is watching,
    finish sooner with a keep-rate the owner accepts?** No timed
    comparison exists. The answer decides (c). It is a plan flag. It
    is not a new engine.
 
-6. **If the active quest lands as one bundle, which piece moved the
+7. **If the active quest lands as one bundle, which piece moved the
    median?** The written scorecard is one before/after for receipt,
    severity, delta, `agy`, and `/swarm` together. Without a split,
    the result cannot close A. The answer decides whether (d) is an
@@ -496,11 +730,23 @@ they are already flagged as unpaired in the learn report.
   authored field, not an engine rollup of where its nodes sit.
 - `make check` and `make check-full` were not re-timed. 9s / 36s is
   the 2026-11-19 framing note. 170.40s is the 2026-11-18 lesson.
-- The November sources were not re-opened. External rows are the
-  2026-11-23 learn report's reading, with the URLs it names. The
-  English OpenAI essay URL was not fetched; the mirror was. The METR
-  PDF was not opened. `@realGeorgeHotz` returned no posts, so that
-  timeline is unread. `@__tinygrad__` is a different account.
+- The November sources were not re-opened. External rows other than
+  Amp, and other than the lab pages linked in the lab-pass paragraph,
+  are the 2026-11-23 learn report's reading, with the URLs it names.
+  Amp's pages listed above, and the lab pages linked above, were
+  fetched on 2026-11-23. Not opened: the three public ball-pit threads, the
+  Raising an Agent podcast episodes, the `widget` CLI in a repo, and
+  any Amp thread used as a run log. The 8-to-30 minute proof range is
+  Thorsten Ball's account of his own use, not a table. The Amp Way
+  page has no date in the body. FIF's model-selector section and the
+  2026-11-12 dial post disagree; the later post is the product, and
+  the FIF page had not been revised to match when it was fetched.
+- The English OpenAI essay was fetched on 2026-11-23 and matched the
+  mirror. The METR PDF was not opened. `@realGeorgeHotz` returned no
+  posts, so that timeline is unread. `@__tinygrad__` is a different
+  account. Antigravity launch posts, `/swarm`, and the arXiv paper
+  behind the 22–29% adoption line were not opened. The lab-pass
+  paragraph above uses only the pages it links.
 - `docs/icebox/2026-11-19-fast-grader.md` was absent. Why it is absent
   was not recovered from git. The verbatim copy in both quest
   `ICEBOX.md` files still says frozen and `promoted: null`, while the
@@ -510,5 +756,7 @@ they are already flagged as unpaired in the learn report.
 - tier.1's six, seven, and eight rounds were not reconciled. They may
   be different cuts of one node. They may be a mistake. The files do
   not say which.
-- The learn report ranks concrete changes. This dossier does not
-  adopt that ranking. The options above are the decision space.
+- The learn report ranks concrete changes. Its proposal 2 is the Amp
+  shape named under "If a change is made." This dossier does not
+  adopt that ranking, and it does not adopt that proposal. The
+  options above are the decision space.
