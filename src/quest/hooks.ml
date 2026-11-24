@@ -362,7 +362,13 @@ let handle () =
       if session = "" then wrap (no_write "no session_id")
       else
         let cwd_field = member_str payload "cwd" in
-        let gate_root = if cwd_field <> "" then cwd_field else root in
+        let raw_gate_root = if cwd_field <> "" then cwd_field else root in
+        let gate_root =
+          if raw_gate_root <> "" && Sys.file_exists raw_gate_root then
+            match run_capture [ "git"; "-C"; raw_gate_root; "rev-parse"; "--show-toplevel" ] with
+            | (top, 0) when top <> "" -> top
+            | _ -> raw_gate_root
+          else raw_gate_root in
         let is_repo =
           Sys.file_exists (Filename.concat gate_root "bin/bp3") &&
           List.exists (fun r ->

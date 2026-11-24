@@ -139,6 +139,17 @@ out=$(printf '%s\n' "$agy_payload" | PATH="$prefix/bin:$PATH" BP3_ROOT="$host" "
 echo "$out" | jq -e 'type == "object"' >/dev/null || fail "agy stdout not JSON: $out"
 [ "$(git -C "$host" show -s --format=%s HEAD)" = "chore(bp3): sync skills/hooks to v0.4.0" ] || fail "agy SessionStart did not sync to v0.4.0"; ok
 
+# --- 7b. SessionStart launched from a nested subdirectory resolves git toplevel and still syncs ---
+mkdir -p "$host/src/nested"
+echo "// nested" > "$host/src/nested/app.py"
+git -C "$host" add src/nested/app.py && git -C "$host" commit --no-verify -qm "feat: nested dir"
+jq '.tag = "v0.4.1" | .version = "0.4.1"' "$prefix/share/bp3/RELEASE" > "$prefix/share/bp3/RELEASE.tmp"
+mv "$prefix/share/bp3/RELEASE.tmp" "$prefix/share/bp3/RELEASE"
+subdir_payload='{"hook_event_name":"SessionStart","session_id":"s-sub","cwd":"'"$host/src/nested"'"}'
+out=$(printf '%s\n' "$subdir_payload" | PATH="$prefix/bin:$PATH" BP3_ROOT="$host" "$prefix/bin/bp3-q" q hooks) || fail "subdir SessionStart failed: $out"
+echo "$out" | jq -e '.ok == true and .auto_sync.status == "synced" and .auto_sync.tag == "v0.4.1"' >/dev/null || fail "subdir auto_sync json: $out"
+[ "$(git -C "$host" show -s --format=%s HEAD)" = "chore(bp3): sync skills/hooks to v0.4.1" ] || fail "subdir SessionStart did not commit v0.4.1"; ok
+
 # --- 8. Host repo with zero bp3-generated skills is never touched ---
 plain="$work/plain-repo"
 mkdir -p "$plain"

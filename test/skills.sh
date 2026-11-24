@@ -79,15 +79,34 @@ assert grep -q 'pruned retired-skill' "$work/prune.out"
 rm -rf "$root/.claude/skills/hand-made"
 
 # Render freshness (followup.2, workflow-birth): a fresh desk
-# passes silently; a backdated render refuses E_RENDER_STALE
-# naming render and source; re-render restores freshness.
+# passes silently; a backdated workflow or SKILL.md render (body
+# drift, missing skill, or missing release tag) refuses
+# E_RENDER_STALE naming render and source; re-render restores freshness.
 "$root/bin/bp3" skills check > "$work/check-fresh.json"
-assert jq -e '.ok == true' "$work/check-fresh.json"
+assert jq -e '.ok == true and .skills_checked > 0' "$work/check-fresh.json"
 printf '\n// backdated render\n' >> "$root/.agents/workflows/induct-grade.js"
 rejects "$root/bin/bp3" skills check
 assert grep -q 'E_RENDER_STALE' "$work/out"
 assert grep -q '.agents/workflows/induct-grade.js' "$work/out"
 assert grep -q 'skills/induct/workflows/induct-grade.js' "$work/out"
+"$root/bin/bp3" skills install --harness=all > /dev/null
+printf '\n<!-- drifted skill body -->\n' >> "$root/.agents/skills/quest/SKILL.md"
+rejects "$root/bin/bp3" skills check
+assert grep -q 'E_RENDER_STALE' "$work/out"
+assert grep -q '.agents/skills/quest/SKILL.md' "$work/out"
+assert grep -q 'skills/quest/SKILL.md' "$work/out"
+"$root/bin/bp3" skills install --harness=all > /dev/null
+rm -rf "$root/.claude/skills/warden"
+rejects "$root/bin/bp3" skills check
+assert grep -q 'E_RENDER_STALE' "$work/out"
+assert grep -q '.claude/skills/warden/SKILL.md' "$work/out"
+mkdir -p "$work/share-rel"
+printf '{"tag":"v0.3.1","version":"0.3.1"}\n' > "$work/share-rel/RELEASE"
+BP3_SHARE_DIR="$work/share-rel" rejects "$root/bin/bp3" skills check
+assert grep -q 'E_RENDER_STALE' "$work/out"
+BP3_SHARE_DIR="$work/share-rel" "$root/bin/bp3" skills install --harness=all > /dev/null
+BP3_SHARE_DIR="$work/share-rel" "$root/bin/bp3" skills check > "$work/check-tagged.json"
+assert jq -e '.ok == true and .skills_checked > 0' "$work/check-tagged.json"
 "$root/bin/bp3" skills install --harness=all > /dev/null
 "$root/bin/bp3" skills check > "$work/check-rerendered.json"
 assert jq -e '.ok == true' "$work/check-rerendered.json"
