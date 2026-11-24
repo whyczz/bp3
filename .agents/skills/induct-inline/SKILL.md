@@ -140,25 +140,36 @@ it never words the grader's brief either.
   new dated **owner-words row** in its Sign-off log is
   `needs_fix`.
 
-## Parallel mode on agy (`/swarm`)
+## Parallel mode on agy (`/swarm`, auto-enabled on Gemini)
 
-Optional on `agy` when `>=2` independent `ready` nodes have
+Auto-enabled on `agy` **when running a Gemini model** and
+`bp3 q r <quest>` shows `>=2` independent `ready` nodes with
 disjoint file boundaries (`Output` / `Must not touch` do not
-overlap):
+overlap), unless the owner asks for serial / no-swarm execution.
+Do **not** auto-enable on non-Gemini models (e.g., Claude, GPT),
+on non-`agy` harnesses, or when `<2` nodes are `ready` (linear
+chains stay single-session inline with zero swarm overhead).
+
+When those conditions hold, **this skill explicitly instructs you
+to call the `swarm` tool** (`title`, then `add`, then `kill` once
+merged) without waiting for the user to invoke `/swarm`:
 
 - **Warm forked coders**: the coordinator reads the quest and
-  codebase once, then spawns `@coder-*` workers with
+  codebase once, then spawns `@coder-*` workers via `swarm` with
   `fork: "coordinator"` and `workspace: "share"`. Each worker edits
   its node's files, runs `make check`, commits cleanly on its share
   branch, runs `./scripts/receipt`, and reports its commit SHA.
 - **Cold non-forked graders**: graders are strictly cold (NEVER
-  forked from the coordinator or coder), running in detached grade
-  desks from the verbatim `bp3 q ... brief`.
+  forked from the coordinator or coder), spawned via
+  `invoke_subagent` in detached grade desks from the verbatim
+  `bp3 q ... brief`.
 - **Coordinator is the sole `bp3 q` writer and serial merger**:
   workers never call `bp3 q` (preventing `.git/` sandbox `EPERM`
   and verdict races). The coordinator merges each worker's clean
-  commit serially into the quest branch, casts `handoff`, spawns
-  the cold grader, and casts verdicts / lands at the cast boundary.
+  commit serially into the quest branch, kills finished `@coder-*`
+  workers after their commit lands in the quest branch, casts
+  `handoff`, spawns the cold grader, and casts verdicts / lands at
+  the cast boundary.
 
 ## Rules
 

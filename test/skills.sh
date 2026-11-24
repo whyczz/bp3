@@ -391,6 +391,8 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -qF '"flash"' "$ii"
   assert grep -qF '"pro"' "$ii"
   assert grep -qF '/swarm' "$ii"
+  assert grep -qF 'Gemini' "$ii"
+  assert grep -qF 'explicitly instructs you' "$ii"
   assert grep -qF 'fork: "coordinator"' "$ii"
   assert grep -qF 'workspace: "share"' "$ii"
   assert grep -qF 'NEVER' "$ii"
