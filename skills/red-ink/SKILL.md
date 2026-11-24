@@ -10,7 +10,7 @@ existing artifact
     |
     +-- copy --> working copy        (original stays untouched)
                      |
-    walk:  shape (10k-ft) -> output -> inputs -> data -> state -> fn -> names -> concepts
+    walk:  shape (10k-ft) -> output -> inputs -> data -> state -> fn -> names -> concepts -> plan (nodes)
                      |
     per slice: Observe -> Orient -> Decide -> Act -> IIUC
                      |
@@ -23,7 +23,7 @@ existing artifact
 def red_ink(artifact, expert=None):
     copy = duplicate(artifact)           # original never edited
     icebox_hits = search_icebox(artifact)  # where we want to get to
-    for slice in [shape, output, inputs, data, state, fn, names, concepts]:
+    for slice in [shape, output, inputs, data, state, fn, names, concepts, plan]:
         teach(slice)                     # Observe
         orient(slice)                    # the 2-4 things that matter
         decision = ask_one(owner)        # Decide: options + recommendation
@@ -109,6 +109,7 @@ Shape gate** (`Shape` is slice 1, before `Output`):
 | Internals: functions | edges, who does what |
 | Internals: names | every variable and term, one line each |
 | Internals: concepts | the coined vocabulary a newcomer must learn |
+| Plan (nodes) | how to get there: node breakdown, dependency railway, parallel waves, per-node acceptance & test split |
 
 Domain experts supply slice definitions where one exists
 (see Expert index).

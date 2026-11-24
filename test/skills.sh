@@ -159,9 +159,10 @@ assert grep -q 'one command the human starts' "$repo/skills/quest/SKILL.md"
 assert grep -q 'delete the original entry from `docs/icebox/` right away' "$repo/skills/quest/SKILL.md"
 # Living run log split: LOG.md beside QUEST.md (never colliding with generated ledger.jsonl).
 assert grep -qF 'companion `LOG.md` beside' "$repo/skills/quest/SKILL.md"
-# Red-ink round 1 opener: 10k-ft Shape gate (context/why + PRFAQ demo + mechanism) before Output.
+# Red-ink round 1 opener & closing plan slice: 10k-ft Shape gate before Output, Plan (nodes) at the end.
 assert grep -qF 'PRFAQ-style Demo' "$repo/skills/red-ink/SKILL.md"
 assert grep -qF 'Shape (10k-ft)' "$repo/skills/red-ink/SKILL.md"
+assert grep -qF 'Plan (nodes)' "$repo/skills/red-ink/SKILL.md"
 assert grep -q 'Risks is not a parking lot' "$repo/skills/quest/SKILL.md"
 assert grep -q 'Red-chair the source itself' "$root/.agents/skills/quest/SKILL.md"
 
