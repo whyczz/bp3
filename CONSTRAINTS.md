@@ -46,7 +46,7 @@ Why some lines look the way they do:
 
 | Surface | Allowed |
 |---|---|
-| bp3 CLI | `bin/bp3`, the `bp3 q` door, `bp3 harness` |
+| bp3 CLI | `bin/bp3`, the `bp3 q` door, `bp3 harness`, `bp3 warden` |
 | skills | markdown, rendered per harness (`.claude`, `.pi`, `.agents`) |
 | harness extensions | the pi extension (`extensions/bp3-pi`), workflow scripts |
 | not without a quest and sign-off | web app, daemon or service, GUI, hosted database |
@@ -84,3 +84,4 @@ Removing something works the same way.
 | 2026-11-20 | owner | "Add a `posix` word" (asked whether base-system utilities need listing one by one) | `posix` in the bash libs line: POSIX and macOS base-system utilities |
 | 2026-11-20 | owner | "The file and its test" (asked what zsh's grandfathering covers) | `runs-in test/completion.sh` on the zsh line: zsh runs there and nowhere else |
 | 2026-11-23 | owner | "okay, let's implement the first quest" (approval of `docs/quests/2026-11-23-fast-agy-induct/`) | `agy` added to driven harness CLIs in Surfaces |
+| 2026-11-23 | owner | "Should Warden be its own top-level command — bp3 warden ... lock" (red-ink Round 2 of `docs/quests/2026-11-23-warden-v0/`) | `bp3 warden` added to `bp3 CLI` in Surfaces |

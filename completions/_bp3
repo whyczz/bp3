@@ -100,7 +100,9 @@ _bp3_candidates() {
 
   if [ "$has_g" -eq 0 ]; then
     if [ "${#a[@]}" -eq 0 ]; then
-      printf '%s\n' q n e init skills harness worktree config | _bp3_filter "$cur"
+      printf '%s\n' q n e warden init skills harness worktree config | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'warden' ]; then
+      { _bp3_quests; printf '%s\n' --last --all --no-sessions --format -h --help; } | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'config' ]; then
       printf '%s\n' --source --format -h --help | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'n' ]; then

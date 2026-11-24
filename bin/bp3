@@ -345,7 +345,7 @@ skills_check() {
   printf '{"ok":true,"fresh":[%s]}\n' "${fresh_json%,}"
 }
 
-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|agy|all>] | bp3 init-repo | bp3 skills install [...] | bp3 skills check | bp3 q ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|agy|all>] | bp3 init-repo | bp3 skills install [...] | bp3 skills check | bp3 q ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
 q_bin() { echo "${BP3_Q_BIN:-$root/_build/default/$ENGINE_SRC/main.exe}"; }
 run_q() {
   local door="$1"; shift
@@ -378,6 +378,7 @@ case "${1:-}" in
   q) shift; run_q q "$@" ;;
   n) shift; run_q n "$@" ;;
   e) shift; run_q e "$@" ;;
+  warden) shift; run_q warden "$@" ;;
   harness) shift; run_q harness "$@" ;;
   config) shift; run_q config "$@" ;;
   worktree) shift; run_q worktree "$@" ;;

@@ -47,3 +47,4 @@ metrics	fixture	./test/metrics.sh	60	0	-	src/*,bin/bp3,test/metrics.sh
 red-first	fixture	./test/red-first.sh	60	0	-	scripts/red-first,test/red-first.sh
 receipt	fixture	./test/receipt.sh	60	0	-	scripts/receipt,scripts/red-first,test/receipt.sh
 agy-statusline	fixture	./test/agy-statusline.sh	60	0	-	scripts/agy-statusline,test/agy-statusline.sh
+warden	fixture	./test/warden.sh	60	0	-	src/*,bin/bp3,test/warden.sh

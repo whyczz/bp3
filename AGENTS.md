@@ -31,12 +31,14 @@ citing it.
 docs/quests/<quest>/     one folder per quest, flat, never moved
   QUEST.md              authored: plan of record (goal, scope, gates, status)
   LOG.md                authored: living run log (nodes, build notes, findings, lessons)
+  FEEDBACK.md           authored: post-quest human feedback, Warden audit, proposals, disposition
   fsm.yaml               authored: the plan (from plans/ at init)
   state.yaml             GENERATED: stage, commit, cycle (a cache)
   ledger.jsonl           GENERATED: every move, append-only (truth)
   runs/<id>/             tape.log (verbatim), notes.md (lessons)
 plans/<type>.yaml        goal_type plans (default: up to ten review rounds)
 src/quest/main.ml        the state engine (OCaml, yojson + unix)
+src/warden/              two-layer deterministic Warden plug engine (bp3_warden)
 docs/dossiers/           research records; they inform, never decide
 nodes/ inside each quest folder: one record per node, plus
   metrics.jsonl          GENERATED: grade and author cost samples (bp3 q <quest> metrics)
@@ -59,6 +61,7 @@ other repos point at it.
 ./bin/bp3 q <quest> n <node> e land --reason "..."
 ./bin/bp3 q <quest> n <node> brief [--desk <path>]   # the grader's cold brief, rendered from the bound commit (GRADING.md)
 ./bin/bp3 q <quest> metrics scrape|r   # collect, then read, what grades and author cycles cost
+./bin/bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table]  # two-layer deterministic plug audit (read-only)
 ./bin/bp3 e                            # claimed edge door: resolved context
 ./bin/bp3 n r                          # claimed node door: read own node
 dune build src/quest/main.exe          # (make check does this)

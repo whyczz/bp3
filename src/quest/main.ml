@@ -533,6 +533,7 @@ let help_q = "bp3 q - quest/node state. Doors:\n\
   bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)\n\
   bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias\n\
   bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)\n\
+  bp3 warden [<quest>] [...]   two-layer deterministic plug audit (git + session traces, read-only)\n\
   bp3 q hooks                  harness hook emitter (fail-open)\n\
 Run bp3 q <door> -h for that door's verbs, edges, and flags.\n"
 
@@ -623,6 +624,69 @@ let help_worktree = "bp3 worktree - documented alias of bp3 harness desk, machin
   bp3 harness desk list [--quest <quest>]\n\
 Example: bp3 harness desk prepare my-quest node-1 --run R1\n"
 
+let help_warden = "bp3 warden - two-layer deterministic plug audit (git + session traces, read-only):\n\
+  bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table]\n\
+    [--dir <claude-dir>] [--pi-dir <pi-dir>] [--agy-dir <agy-dir>]\n\
+  With <quest>, audits that quest (always, even if FEEDBACK.md exists).\n\
+  With no <quest>, runs repo checks (>1 active quest, leaked desks) plus the last N (default 5)\n\
+  unreviewed real quests (with docs/quests/<q>/QUEST.md and no FEEDBACK.md); --all sweeps all real quests.\n\
+  Layer 2 (session traces) auto-enables when local Claude/Pi/agy transcripts match; --no-sessions runs Layer 1 only.\n\
+  Always read-only; exit 0 on clean read (findings are evidence, never a gate), exit 2 on usage/not-found.\n\
+Example: bp3 warden 2026-11-22-induct-inline-as-default-measure-author --format table\n"
+
+let do_warden rest =
+  if List.exists is_help rest then (print_string help_warden; 0)
+  else
+    let rec parse pos last_n all_flag no_sessions fmt dirs pi_dirs agy_dirs = function
+      | [] -> (List.rev pos, last_n, all_flag, no_sessions, fmt, List.rev dirs, List.rev pi_dirs, List.rev agy_dirs)
+      | "--all" :: tl -> parse pos last_n true no_sessions fmt dirs pi_dirs agy_dirs tl
+      | "--no-sessions" :: tl -> parse pos last_n all_flag true fmt dirs pi_dirs agy_dirs tl
+      | "--last" :: n :: tl ->
+          (match int_of_string_opt n with
+           | Some k when k >= 1 -> parse pos (Some k) all_flag no_sessions fmt dirs pi_dirs agy_dirs tl
+           | _ -> usage ("--last must be a positive integer: " ^ n))
+      | [ "--last" ] -> usage "--last needs a value"
+      | "--format" :: f :: tl ->
+          if f <> "json" && f <> "table" then usage ("--format must be json or table: " ^ f);
+          parse pos last_n all_flag no_sessions f dirs pi_dirs agy_dirs tl
+      | [ "--format" ] -> usage "--format needs a value"
+      | s :: tl when String.starts_with ~prefix:"--format=" s ->
+          let f = String.sub s 9 (String.length s - 9) in
+          if f <> "json" && f <> "table" then usage ("--format must be json or table: " ^ f);
+          parse pos last_n all_flag no_sessions f dirs pi_dirs agy_dirs tl
+      | ("--dir" | "--claude-dir") :: d :: tl ->
+          parse pos last_n all_flag no_sessions fmt (d :: dirs) pi_dirs agy_dirs tl
+      | "--pi-dir" :: d :: tl ->
+          parse pos last_n all_flag no_sessions fmt dirs (d :: pi_dirs) agy_dirs tl
+      | "--agy-dir" :: d :: tl ->
+          parse pos last_n all_flag no_sessions fmt dirs pi_dirs (d :: agy_dirs) tl
+      | [ ("--dir" | "--claude-dir" | "--pi-dir" | "--agy-dir") as f ] -> usage (f ^ " needs a value")
+      | f :: _ when String.length f > 0 && f.[0] = '-' -> usage ("unknown warden flag: " ^ f)
+      | p :: tl -> parse (p :: pos) last_n all_flag no_sessions fmt dirs pi_dirs agy_dirs tl in
+    let (pos, last_n, all_flag, no_sessions, fmt, dirs, pi_dirs, agy_dirs) =
+      parse [] None false false "json" [] [] [] rest in
+    let quest_opt = match pos with
+      | [] -> None
+      | [ q ] -> Some q
+      | _ -> usage "bp3 warden takes at most one <quest>" in
+    if quest_opt <> None && (all_flag || last_n <> None) then
+      usage "pass either <quest> or --last/--all, not both";
+    if all_flag && last_n <> None then
+      usage "pass either --last or --all, not both";
+    let (scope, quests) = match quest_opt with
+      | Some q ->
+          check_slug q;
+          if fold_quest q = None then not_found "quest" q;
+          ("quest", [ q ])
+      | None ->
+          let last = Option.value last_n ~default:5 in
+          ("repo", Warden_io.select_real_quests ~last ~all:all_flag) in
+    let ev = Warden_io.load ~scope ~quests ~no_sessions ~dirs ~pi_dirs ~agy_dirs in
+    let findings = Warden.run ev in
+    if fmt = "table" then print_string (Warden.to_table ev findings)
+    else print_endline (Yojson.Safe.to_string (Warden.to_json ev findings));
+    0
+
 let help_config = "bp3 config - view the machine-local bp3 config store (<git-common-dir>/bp3/, never committed):\n\
   bp3 config [--source] [--format json|table]   thresholds plus contexts folded from runs/<run_id>.json\n\
   config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. The depth cap is enforced at link mint (mvp.1, E_DEPTH); W_SETUP_SLOW fires on the quest rollup when a claimed Run's setup_wall_s exceeds setup_slow_s (mvp.3, local only). First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
@@ -651,7 +715,7 @@ let rec run argv =
     List.exists is_help (List.filteri (fun i _ -> i < 3) argv) in
   let context_door = match argv with
     | "harness" :: _ | "config" :: _ | "worktree" :: _ | "hooks" :: _
-    | "init-repo" :: _ | [] -> false
+    | "init-repo" :: _ | "warden" :: _ | [] -> false
     | _ -> not help_invoked in
   let (ctx_rc, ctx_source, ctx_amb) =
     if not context_door then (None, "", None)
@@ -691,6 +755,7 @@ let rec run argv =
   | "config" :: rest ->
       let (source, fmt) = parse_config_flags rest in
       print_verdict ~fmt (Config.view ~source); 0
+  | "warden" :: rest -> do_warden rest
   | "e" :: (h :: _) when is_help h -> print_string help_e; 0
   | "e" :: _edge :: (h :: _) when is_help h -> print_string help_e; 0
   | "e" :: rest -> do_e ctx_rc ctx_source ctx_amb id rest
