@@ -75,12 +75,17 @@ let open_desks_for q =
 (* ---------- post-land bugfix commits ---------- *)
 
 let is_status_only_path q path =
-  let prefix = Layout.quests_root ^ "/" ^ q ^ "/" in
-  if not (String.starts_with ~prefix path) then false
+  let root_prefix = Layout.quests_root ^ "/" in
+  if not (String.starts_with ~prefix:root_prefix path) then false
   else
-    let rel = String.sub path (String.length prefix) (String.length path - String.length prefix) in
-    rel = Layout.quest_file || rel = Layout.log_file || rel = Layout.feedback_file
-    || String.starts_with ~prefix:"trial/" rel
+    let rest = String.sub path (String.length root_prefix) (String.length path - String.length root_prefix) in
+    match String.index_opt rest '/' with
+    | None -> false
+    | Some i ->
+        let slug = String.sub rest 0 i in
+        let rel = String.sub rest (i + 1) (String.length rest - i - 1) in
+        rel = Layout.quest_file || rel = Layout.log_file || rel = Layout.feedback_file
+        || (slug = q && String.starts_with ~prefix:"trial/" rel)
 
 let commit_is_status_only q sha =
   let out, code = git_out [ "diff-tree"; "--no-commit-id"; "--name-only"; "-r"; sha ] in

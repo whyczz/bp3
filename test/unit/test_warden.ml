@@ -159,12 +159,18 @@ let case_plug_5_grade_inversion _ =
       sample "grade.tokens_out" 100.; sample "author.tokens_out" 500.;
     ] () in
   assert_bool "wall inversion fires" (has_rule "grade_inversion" (Warden.run (mk_ev [ mk_quest ~nodes:[ slow_inv ] () ])));
-  (* tokens_out inversion fires even when wall <= 180s *)
+  (* tokens_out inversion requires > 25k floor; small thinking-model grades do not false-fire *)
+  let tok_small = clean_node ~samples:[
+      sample "grade.wall_s" 100.; sample "author.wall_s" 120.;
+      sample "grade.tokens_out" 12_000.; sample "author.tokens_out" 6_000.;
+    ] () in
+  assert_bool "below 25k tok floor does not invert"
+    (not (has_rule "grade_inversion" (Warden.run (mk_ev [ mk_quest ~nodes:[ tok_small ] () ]))));
   let tok_inv = clean_node ~samples:[
       sample "grade.wall_s" 100.; sample "author.wall_s" 120.;
-      sample "grade.tokens_out" 900.; sample "author.tokens_out" 400.;
+      sample "grade.tokens_out" 30_000.; sample "author.tokens_out" 15_000.;
     ] () in
-  assert_bool "token inversion fires" (has_rule "grade_inversion" (Warden.run (mk_ev [ mk_quest ~nodes:[ tok_inv ] () ])));
+  assert_bool "token inversion > 25k fires" (has_rule "grade_inversion" (Warden.run (mk_ev [ mk_quest ~nodes:[ tok_inv ] () ])));
   (* missing author metrics (0.) must NOT false-fire *)
   let no_author = clean_node ~samples:[ sample "grade.wall_s" 250.; sample "grade.tokens_out" 900. ] () in
   assert_bool "missing author does not invert"
@@ -251,7 +257,17 @@ let case_plug_11_context_bloat_harness_aware _ =
     (not (has_rule "context_bloat" (Warden.run (mk_ev [ mk_quest ~traces:[ mk_trace ~run:"pi:p1" ~ctx:140_000 () ] () ]))));
   (* turns > 30 fires regardless of token count *)
   assert_bool "turns > 30 fires"
-    (has_rule "context_bloat" (Warden.run (mk_ev [ mk_quest ~traces:[ mk_trace ~run:"agy:a1" ~ctx:50_000 ~turns:35 () ] () ])))
+    (has_rule "context_bloat" (Warden.run (mk_ev [ mk_quest ~traces:[ mk_trace ~run:"agy:a1" ~ctx:50_000 ~turns:35 () ] () ])));
+  (* deduplicated per (quest, jt_run): multi-cycle inline author session emits 1 peak finding *)
+  let dup_traces = [
+    mk_trace ~node:"n1" ~cycle:1 ~run:"agy:same" ~ctx:420_000 ~turns:10 ();
+    mk_trace ~node:"n2" ~cycle:1 ~run:"agy:same" ~ctx:490_000 ~turns:8 ();
+    mk_trace ~node:"n2" ~cycle:1 ~role:"grade" ~run:"agy:g1" ~ctx:50_000 ~turns:34 ();
+  ] in
+  let fs_dup = List.filter (fun (f : Warden.finding) -> f.rule = "context_bloat")
+      (Warden.run (mk_ev [ mk_quest ~traces:dup_traces () ])) in
+  assert_equal ~printer:string_of_int 2 (List.length fs_dup);
+  assert_bool "peak 490k kept" (List.exists (fun (f : Warden.finding) -> Tx.contains f.observed "490k") fs_dup)
 
 let case_plug_12_human_steer _ =
   (* session mid-node USER_INPUT fires *)

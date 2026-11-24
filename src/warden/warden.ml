@@ -238,7 +238,7 @@ let plug_vacuous_test_bounce ev =
               else None) (grade_entries_with_cycle ne.ne_entries)) qe.qe_nodes) ev.ev_quests
 
 (* 5. grade_inversion: sum(grade.wall_s) > 180s && > 1.5x sum(author.wall_s),
-      or sum(grade.tokens_out) > sum(author.tokens_out) when both > 0 *)
+      or sum(grade.tokens_out) > 25k && > sum(author.tokens_out) when both > 0 *)
 let plug_grade_inversion ev =
   List.concat_map (fun qe ->
       List.filter_map (fun ne ->
@@ -247,7 +247,7 @@ let plug_grade_inversion ev =
           let go = Metrics.sum_metric ne.ne_samples "grade.tokens_out" in
           let ao = Metrics.sum_metric ne.ne_samples "author.tokens_out" in
           let wall_inv = gw > 180. && aw > 0. && gw > 1.5 *. aw in
-          let tok_inv = go > 0. && ao > 0. && go > ao in
+          let tok_inv = go > 25_000. && ao > 0. && go > ao in
           if wall_inv then
             let ratio = gw /. aw in
             Some { rule = "grade_inversion"; layer = Git; severity = Major;
@@ -260,7 +260,7 @@ let plug_grade_inversion ev =
             Some { rule = "grade_inversion"; layer = Git; severity = Major;
                    quest = qe.qe_quest; node = ne.ne_node; cycle = 0;
                    observed = Printf.sprintf "grade %.0f vs author %.0f tok_out" go ao;
-                   threshold = "grade.tokens_out > author.tokens_out";
+                   threshold = "> 25k & grade.tokens_out > author.tokens_out";
                    evidence_ref = Printf.sprintf "metrics:%s" ne.ne_node;
                    summary = Printf.sprintf "grader output tokens (%.0f) exceeded author output tokens (%.0f)" go ao }
           else None) qe.qe_nodes) ev.ev_quests
@@ -438,32 +438,46 @@ let plug_full_gate_in_author ev =
                      summary = Printf.sprintf "author ran make check-full %dx in one cycle; use make check for inner loop" n }
             else None) qe.qe_traces) ev.ev_quests
 
-(* 11. context_bloat: harness-aware (>150k claude/pi, >400k agy) or turns > 30 *)
+(* 11. context_bloat: harness-aware (>150k claude/pi, >400k agy) or turns > 30.
+       Deduplicated per (quest, jt_run) keeping peak context/turns so one
+       multi-node inline author session emits one peak finding, not one per cycle. *)
 let plug_context_bloat ev =
   List.concat_map (fun qe ->
-      List.filter_map (fun (tr : Tx.joined_trace) ->
+      let best_by_run = Hashtbl.create 8 in
+      List.iter (fun (tr : Tx.joined_trace) ->
           let is_agy = String.starts_with ~prefix:"agy:" tr.jt_run in
           let ctx_limit = if is_agy then 400_000 else 150_000 in
           let turn_limit = 30 in
           let last_step = match List.rev tr.jt_events with
             | e :: _ -> e.te_step
             | [] -> tr.jt_turns in
-          if tr.jt_context_end > ctx_limit then
-            Some { rule = "context_bloat"; layer = Session; severity = Minor;
-                   quest = qe.qe_quest; node = tr.jt_node; cycle = tr.jt_cycle;
-                   observed = Printf.sprintf "%dk tok (%d turns)" (tr.jt_context_end / 1000) tr.jt_turns;
-                   threshold = Printf.sprintf "> %dk tok (%s)" (ctx_limit / 1000) (if is_agy then "agy" else "claude/pi");
-                   evidence_ref = Printf.sprintf "tx:%s#step:%d" tr.jt_path last_step;
-                   summary = Printf.sprintf "%s context reached %dk tokens (> %dk %s limit)"
-                               tr.jt_role (tr.jt_context_end / 1000) (ctx_limit / 1000) (if is_agy then "agy" else "claude/pi") }
-          else if tr.jt_turns > turn_limit then
-            Some { rule = "context_bloat"; layer = Session; severity = Minor;
-                   quest = qe.qe_quest; node = tr.jt_node; cycle = tr.jt_cycle;
-                   observed = Printf.sprintf "%d turns (%dk tok)" tr.jt_turns (tr.jt_context_end / 1000);
-                   threshold = "> 30 turns";
-                   evidence_ref = Printf.sprintf "tx:%s#step:%d" tr.jt_path last_step;
-                   summary = Printf.sprintf "%s session took %d turns (> 30)" tr.jt_role tr.jt_turns }
-          else None) qe.qe_traces) ev.ev_quests
+          let cand =
+            if tr.jt_context_end > ctx_limit then
+              Some ((tr.jt_context_end, tr.jt_turns),
+                    { rule = "context_bloat"; layer = Session; severity = Minor;
+                      quest = qe.qe_quest; node = tr.jt_node; cycle = tr.jt_cycle;
+                      observed = Printf.sprintf "%dk tok (%d turns)" (tr.jt_context_end / 1000) tr.jt_turns;
+                      threshold = Printf.sprintf "> %dk tok (%s)" (ctx_limit / 1000) (if is_agy then "agy" else "claude/pi");
+                      evidence_ref = Printf.sprintf "tx:%s#step:%d" tr.jt_path last_step;
+                      summary = Printf.sprintf "%s context reached %dk tokens (> %dk %s limit)"
+                                  tr.jt_role (tr.jt_context_end / 1000) (ctx_limit / 1000) (if is_agy then "agy" else "claude/pi") })
+            else if tr.jt_turns > turn_limit then
+              Some ((tr.jt_context_end, tr.jt_turns),
+                    { rule = "context_bloat"; layer = Session; severity = Minor;
+                      quest = qe.qe_quest; node = tr.jt_node; cycle = tr.jt_cycle;
+                      observed = Printf.sprintf "%d turns (%dk tok)" tr.jt_turns (tr.jt_context_end / 1000);
+                      threshold = "> 30 turns";
+                      evidence_ref = Printf.sprintf "tx:%s#step:%d" tr.jt_path last_step;
+                      summary = Printf.sprintf "%s session took %d turns (> 30)" tr.jt_role tr.jt_turns })
+            else None in
+          match cand with
+          | None -> ()
+          | Some (score, finding) ->
+              let key = if tr.jt_run <> "" then tr.jt_run else tr.jt_node ^ "|" ^ string_of_int tr.jt_cycle in
+              (match Hashtbl.find_opt best_by_run key with
+               | Some (prev_score, _) when prev_score >= score -> ()
+               | _ -> Hashtbl.replace best_by_run key (score, finding))) qe.qe_traces;
+      Hashtbl.fold (fun _ (_, f) acc -> f :: acc) best_by_run []) ev.ev_quests
 
 (* 12. human_steer (Layer 2 session side): > 0 mid-node USER_INPUT inside author window *)
 let plug_human_steer_session ev =

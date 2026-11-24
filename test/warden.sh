@@ -92,13 +92,13 @@ mkdir -p "$auth_dir"
   printf '{"step_index":13,"source":"TOOL","type":"GENERIC","status":"DONE","created_at":"%s.750Z","content":"{\\"ok\\":true,\\"state\\":\\"handed_off\\"}"}\n' "$t_prev"
 } > "$auth_dir/transcript.jsonl"
 
-# Grade transcript for na c3: wall_s = 0.8s (within 1s window) and grade.tokens_out = 5000 > author.tokens_out = 350 -> grade_inversion
+# Grade transcript for na c3: wall_s = 0.8s (within 1s window) and grade.tokens_out = 30000 (>25k floor) > author.tokens_out = 350 -> grade_inversion
 t_grade=$(date -u +%Y-%m-%dT%H:%M:%S)
 grade_dir="$work/agy/conv-grade/.system_generated/logs"
 mkdir -p "$grade_dir"
 {
   printf '{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"%s.100Z","content":"Grade na at %s in quest 2026-11-23-q1, cycle 3."}\n' "$t_grade" "$short3"
-  printf '{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"%s.800Z","model":"gemini-3-pro","tool_calls":[],"input_tokens":10000,"output_tokens":5000,"cache_read_tokens":1000}\n' "$t_grade"
+  printf '{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"%s.800Z","model":"gemini-3-pro","tool_calls":[],"input_tokens":10000,"output_tokens":30000,"cache_read_tokens":1000}\n' "$t_grade"
 } > "$grade_dir/transcript.jsonl"
 
 # Leave a grade-* desk open on na after landing -> desk_leak
