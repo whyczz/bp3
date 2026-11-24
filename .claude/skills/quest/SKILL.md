@@ -71,7 +71,7 @@ because a gate that starts green certifies nothing.
 | 2 | Research the ground: MVP doc, home repo state, prior Quests in `docs/quests/`, and the root `CONSTRAINTS.md` (the owner-signed stack) and `CONTEXT.md` (how others build this, sourced and dated) | every claim traces to a file read this session |
 | 3 | Ask questions whose answers change the shape: home repo, success picture, lane, first node | the rest become assumptions or open questions in the file |
 | 4 | Names first, under a Concepts/Terms header, with `naming` | every term defined in one line before any node spends it |
-| 5 | Draft `docs/quests/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) | one Quest per file |
+| 5 | Draft `docs/quests/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) with `bump: major \| minor \| patch \| none` per `RELEASING.md` (`scripts/check-bump` enforces it in `make lint`) | one Quest per file |
 | 6 | Break into nodes with failing-today acceptance | a check that cannot fail gets rewritten |
 | 6.5 | Diligence gate per node: design settled (no open questions), acceptance fails today, acceptance gates defined up front | an node with open design questions is not ready for `induct`; settle it with `red-ink` first — Node 4 of the MVP quest shipped unsettled design and the landing review caught it late |
 | 6.6 | Skill changes ride as their own node | if the Quest's changes touch any skill (bp3 `skills/`, yap skills, installed copies), name a skill-change node with its own acceptance (skill tests, render/install assertions); never edit a skill inline during framing, and never fold a skill change into a code node — skills are how children behave, so they get the same gate as code |
@@ -185,6 +185,7 @@ hands-on demo is a different thing: that is `warden`'s job.
 status: proposed | active | landed | canceled
 home_repo: <repo>
 date: <YYYY-MM-DD>
+bump: major | minor | patch | none
 ---
 
 # <Quest name>

@@ -80,6 +80,17 @@ General coding in this repo does not need this skill.
    a finding to report, not a failed step. Its samples
    live in `metrics.jsonl` on each node's state branch,
    GENERATED like `ledger.jsonl`: never hand-edit it.
+9. Promote and release only on explicit owner go (`BP3_DECIDER=human`):
+   - Quest promotion: `BP3_DECIDER=human ./bin/bp3 release <quest>`
+     (preview anytime with `--dry-run`, override level with
+     `--bump major|minor|patch|none`, force local tag with `--no-gh`,
+     skip `$PREFIX` install with `--no-install`, or recover failed
+     GitHub publishing with `--publish-only`).
+   - Small bugfix release (no quest): `BP3_DECIDER=human ./bin/bp3
+     release --commit <sha>` (defaults to `--bump patch`).
+   - In self mode, tagged releases refresh `$PREFIX` (`share/bp3/RELEASE`);
+     clean host repos auto-sync on `SessionStart` (`BP3_NO_AUTO_SYNC=1`
+     disables). See `RELEASING.md`.
 
 ## Rules
 

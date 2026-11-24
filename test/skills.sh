@@ -415,4 +415,15 @@ done
 assert grep -qF '`warden`' "$repo/skills/quest/SKILL.md"
 assert grep -qF '`warden`' "$repo/skills/induct/SKILL.md"
 
+# quest-promote-release skills.1: bump: frontmatter and bp3 release across harnesses
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  assert grep -qF 'bump: major | minor | patch | none' "$repo/$dir/quest/SKILL.md"
+  assert grep -qF 'RELEASING.md' "$repo/$dir/quest/SKILL.md"
+  assert grep -qF 'bp3 release <quest> --dry-run' "$repo/$dir/warden/SKILL.md"
+  assert grep -qF 'BP3_DECIDER=human bp3 release <quest>' "$repo/$dir/warden/SKILL.md"
+  assert grep -qF 'bp3 release' "$repo/$dir/using-bp3/SKILL.md"
+  assert grep -qF -- '--commit <sha>' "$repo/$dir/using-bp3/SKILL.md"
+  assert grep -qF 'BP3_DECIDER=human' "$repo/$dir/using-bp3/SKILL.md"
+done
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"

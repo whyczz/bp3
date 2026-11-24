@@ -47,6 +47,9 @@ copy, owner as gate) and settle it first.
      the settled one-diagram map, decision record (`before -> after`),
      files touched, exact verification run (and what was not run),
      and deliberately open items.
+   - Run `bp3 release <quest> --dry-run` (read-only) to preview the
+     next semver tag, `release_kind` (`github` vs `git_tag`), and
+     rendered "What changed" notes inside the Landing IIUC.
    - Write `docs/quests/<quest>/trial/trial.sh` (scratch sandbox,
      never this repo's state; exercises happy path, refusal path, and
      recovery where one exists; echoes commands and fails non-zero on
@@ -96,6 +99,11 @@ copy, owner as gate) and settle it first.
        `/icebox` or frame as a follow-up quest via `/quest`, and
        record the path in `FEEDBACK.md`.
      - **Skip / defer:** mark `skipped` in `FEEDBACK.md`.
+     - **Promote / release (owner go only):** run
+       `BP3_DECIDER=human bp3 release <quest>` (or
+       `./bin/bp3 release <quest>` in self mode) to atomically CAS-move
+       `master`, tag `vX.Y.Z`, and publish the GitHub Release (or local
+       tag).
 
 ## Rules
 
