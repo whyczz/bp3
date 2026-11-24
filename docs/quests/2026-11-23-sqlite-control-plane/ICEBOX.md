@@ -1,7 +1,7 @@
 ---
 status: frozen
 date: 2026-11-18
-promoted: null
+promoted: 2026-11-23-sqlite-control-plane
 ---
 
 # SQLite store: runtime state off JSON files, maybe off git
