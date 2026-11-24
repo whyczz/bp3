@@ -87,9 +87,11 @@ has "$out" json; has "$out" table; has "$out" tree
 out=$(_bp3_candidates q toy-drive "")
 has "$out" r; has "$out" u
 out=$(_bp3_candidates "")
-has "$out" harness; has "$out" worktree; has "$out" config; has "$out" warden
+has "$out" harness; has "$out" worktree; has "$out" config; has "$out" warden; has "$out" release
 out=$(_bp3_candidates warden "")
 has "$out" toy-drive; has "$out" --no-sessions; has "$out" --all; has "$out" --last
+out=$(_bp3_candidates release "")
+has "$out" toy-drive; has "$out" --commit; has "$out" --bump; has "$out" --no-gh; has "$out" --no-install; has "$out" --dry-run; has "$out" --publish-only
 out=$(_bp3_candidates config "")
 has "$out" --source; has "$out" --format
 out=$(_bp3_candidates harness "")

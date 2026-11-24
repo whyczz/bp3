@@ -715,7 +715,7 @@ let rec run argv =
     List.exists is_help (List.filteri (fun i _ -> i < 3) argv) in
   let context_door = match argv with
     | "harness" :: _ | "config" :: _ | "worktree" :: _ | "hooks" :: _
-    | "init-repo" :: _ | "warden" :: _ | [] -> false
+    | "init-repo" :: _ | "warden" :: _ | "release" :: _ | [] -> false
     | _ -> not help_invoked in
   let (ctx_rc, ctx_source, ctx_amb) =
     if not context_door then (None, "", None)
@@ -756,6 +756,7 @@ let rec run argv =
       let (source, fmt) = parse_config_flags rest in
       print_verdict ~fmt (Config.view ~source); 0
   | "warden" :: rest -> do_warden rest
+  | "release" :: rest -> Release_io.run rest id
   | "e" :: (h :: _) when is_help h -> print_string help_e; 0
   | "e" :: _edge :: (h :: _) when is_help h -> print_string help_e; 0
   | "e" :: rest -> do_e ctx_rc ctx_source ctx_amb id rest

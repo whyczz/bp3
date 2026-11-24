@@ -62,6 +62,7 @@ other repos point at it.
 ./bin/bp3 q <quest> n <node> brief [--desk <path>]   # the grader's cold brief, rendered from the bound commit (GRADING.md)
 ./bin/bp3 q <quest> metrics scrape|r   # collect, then read, what grades and author cycles cost
 ./bin/bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table]  # two-layer deterministic plug audit (read-only)
+./bin/bp3 release (<quest> | --commit <sha>) [--bump ...] [--no-gh] [--dry-run]     # owner-gated atomic CAS promote & semver release
 ./bin/bp3 e                            # claimed edge door: resolved context
 ./bin/bp3 n r                          # claimed node door: read own node
 dune build src/quest/main.exe          # (make check does this)

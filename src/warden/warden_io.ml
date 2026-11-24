@@ -87,6 +87,17 @@ let is_status_only_path q path =
         rel = Layout.quest_file || rel = Layout.log_file || rel = Layout.feedback_file
         || (slug = q && String.starts_with ~prefix:"trial/" rel)
 
+let is_release_commit_subject sha =
+  let subj, code = git_out [ "show"; "-s"; "--format=%s"; sha ] in
+  code = 0 &&
+  (String.starts_with ~prefix:"chore(release): v" subj
+   || String.starts_with ~prefix:"chore(promote): " subj)
+
+let is_release_only_path q path =
+  is_status_only_path q path
+  || path = "src/quest/gitx.ml"
+  || path = "VERSION"
+
 let commit_is_status_only q sha =
   let out, code = git_out [ "diff-tree"; "--no-commit-id"; "--name-only"; "-r"; sha ] in
   if code <> 0 then true
@@ -95,7 +106,9 @@ let commit_is_status_only q sha =
       String.split_on_char '\n' out
       |> List.map String.trim
       |> List.filter (fun s -> s <> "") in
-    files = [] || List.for_all (is_status_only_path q) files
+    files = []
+    || List.for_all (is_status_only_path q) files
+    || (is_release_commit_subject sha && List.for_all (is_release_only_path q) files)
 
 let last_land_commit (nodes : Warden.node_evidence list) =
   let all_terminal = nodes <> [] && List.for_all (fun (ne : Warden.node_evidence) ->
