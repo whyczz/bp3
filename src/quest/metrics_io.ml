@@ -237,7 +237,7 @@ let grade_pass q node edges graders =
           let samples () = grade_samples q node sp ~run ~at:tx.last_ts c in
           let tr = { Tx.jt_node = node; jt_cycle = sp.g_cycle; jt_role = "grade"; jt_path = path;
                      jt_run = run; jt_context_end = c.context_end; jt_turns = c.turns;
-                     jt_tool_errors = c.tool_errors; jt_events = tx.tool_events } in
+                     jt_tool_errors = c.tool_errors; jt_events = tx.tool_events; jt_user_steps = [] } in
           let covered r = Claude_tx.parse ?until:(Tx.seconds r.Claude_tx.r_at) (read_file path) in
           (match report_for path tx with
            | Some r when not (Claude_tx.checks (covered r) r) -> (batch, traces, { t with mismatched = t.mismatched + 1 })
@@ -249,7 +249,7 @@ let grade_pass q node edges graders =
             let c = Pi_tx.cost tx and run = pi_run_of_path path tx in
             let tr = { Tx.jt_node = node; jt_cycle = sp.g_cycle; jt_role = "grade"; jt_path = path;
                        jt_run = run; jt_context_end = c.context_end; jt_turns = c.turns;
-                       jt_tool_errors = c.tool_errors; jt_events = tx.tool_events } in
+                       jt_tool_errors = c.tool_errors; jt_events = tx.tool_events; jt_user_steps = [] } in
             (batch @ grade_samples q node sp ~run ~at:tx.last_ts c,
              tr :: traces,
              brief_check q node sp tx.first_prompt { t with self_checked = t.self_checked + 1 })
@@ -260,7 +260,7 @@ let grade_pass q node edges graders =
             let c = Agy_tx.cost tx and run = "agy:" ^ tx.conv_id in
             let tr = { Tx.jt_node = node; jt_cycle = sp.g_cycle; jt_role = "grade"; jt_path = path;
                        jt_run = run; jt_context_end = c.context_end; jt_turns = c.turns;
-                       jt_tool_errors = c.tool_errors; jt_events = tx.tool_events } in
+                       jt_tool_errors = c.tool_errors; jt_events = tx.tool_events; jt_user_steps = [] } in
             (batch @ grade_samples q node sp ~run ~at:tx.last_ts c,
              tr :: traces,
              brief_check q node sp tx.first_prompt { t with self_checked = t.self_checked + 1 })
@@ -327,14 +327,14 @@ let author_pass q all sessions =
                 author_missing = t0.author_missing + t.author_missing;
                 author_ambiguous = t0.author_ambiguous + t.author_ambiguous;
                 author_bad_usage = t0.author_bad_usage + t.author_bad_usage }) in
-  let emit_author n (sp : Metrics.author_span) ~run ~path (c : Tx.cost) ~t_wall ~t_active ~t_tool events =
+  let emit_author n (sp : Metrics.author_span) ~run ~path (c : Tx.cost) ~t_wall ~t_active ~t_tool events user_steps =
     let mkf m v = { Metrics.metric = "author." ^ m; quest = q; node = n; cycle = sp.a_cycle;
                     run; model = c.model; value = v; at = sp.a_upto;
                     source = Metrics.author_window.c_name } in
     let mk m v = mkf m (float_of_int v) in
     let tr = { Tx.jt_node = n; jt_cycle = sp.a_cycle; jt_role = "author"; jt_path = path;
                jt_run = run; jt_context_end = c.context_end; jt_turns = c.turns;
-               jt_tool_errors = c.tool_errors; jt_events = events } in
+               jt_tool_errors = c.tool_errors; jt_events = events; jt_user_steps = user_steps } in
     ([ mk "tool_calls" c.tool_calls; mk "tokens_in" c.tokens_in; mk "tokens_out" c.tokens_out;
        mk "tokens_cache_read" c.tokens_cache_read; mk "tokens_cache_write" c.tokens_cache_write;
        mkf "wall_s" t_wall; mkf "active_s" t_active; mkf "tool_s" t_tool;
@@ -352,7 +352,7 @@ let author_pass q all sessions =
           let c = Claude_tx.author_cost ~tool_errors:w.w_errors w.w_msgs w.w_tools in
           let tm = Claude_tx.window_times cs ~from:(secs sp.a_from) ~upto:(secs sp.a_upto) in
           let batch, trs = emit_author n sp ~run:("claude:" ^ cs.s_id) ~path c
-            ~t_wall:tm.t_wall ~t_active:tm.t_active ~t_tool:tm.t_tool w.w_events in
+            ~t_wall:tm.t_wall ~t_active:tm.t_active ~t_tool:tm.t_tool w.w_events w.w_user_steps in
           add n (batch, trs, { one with authored = 1 })
       | [ Agy_s _ ] ->
           let key = n ^ "|" ^ string_of_int sp.a_cycle ^ "|" ^ sp.a_upto in
@@ -362,7 +362,7 @@ let author_pass q all sessions =
           let c = Agy_tx.author_cost w.w_msgs w.w_tools w.w_errors in
           let tm = Agy_tx.window_times ax ~from:(secs sp.a_from) ~upto:(secs sp.a_upto) in
           let batch, trs = emit_author n sp ~run:("agy:" ^ ax.conv_id) ~path c
-            ~t_wall:tm.t_wall ~t_active:tm.t_active ~t_tool:tm.t_tool w.w_events in
+            ~t_wall:tm.t_wall ~t_active:tm.t_active ~t_tool:tm.t_tool w.w_events w.w_user_steps in
           add n (batch, trs, { one with authored = 1 })) found;
   out
 

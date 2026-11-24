@@ -455,7 +455,7 @@ let law_each_usage_less_line_fails_at_most_one_window =
        let secs o = Option.get (Claude_tx.seconds (stamp o)) in
        let windows = List.mapi (fun i (a, b) -> (string_of_int i, secs (min a b), secs (max a b))) spans in
        let s = { Claude_tx.s_id = "s"; s_msgs = []; s_tools = []; s_bash = []; s_results = [];
-                 s_bad_at = List.map stamp bad; s_marks = []; s_results_at = []; s_events = [] } in
+                 s_bad_at = List.map stamp bad; s_marks = []; s_results_at = []; s_events = []; s_user_steps = [] } in
        let held o = List.exists (fun (_, f, u) -> secs o >= f && secs o < u +. 1.) windows in
        let total = List.fold_left (fun acc (w : Claude_tx.window_spend) -> acc + w.w_bad) 0 (Claude_tx.assign s windows) in
        total = List.length (List.filter held bad))
@@ -643,10 +643,31 @@ let law_author_times_are_ordered =
                  s_marks = List.sort compare (List.map (fun (o, e) -> (base +. float_of_int o, e)) marks);
                  s_tools = List.mapi (fun i (o, _) -> (string_of_int i, iso o)) calls;
                  s_results_at = List.mapi (fun i (o, d) -> (string_of_int i, base +. float_of_int (o + d))) calls;
-                 s_events = [] } in
+                 s_events = []; s_user_steps = [] } in
        let w = Claude_tx.window_times s ~from:(base +. float_of_int from) ~upto:(base +. float_of_int (from + len)) in
        let summed = float_of_int (List.fold_left (fun acc (_, d) -> acc + d) 0 calls) in
        0. <= w.t_tool && w.t_tool <= w.t_active +. 1e-6 && w.t_active <= w.t_wall +. 1e-6 && w.t_tool <= summed +. 1e-6)
+
+let case_claude_session_tracks_human_user_steps_and_drops_kickoff _ =
+  let u_prompt ?(meta = false) ~ts txt =
+    let base = [ ("type", `String "user"); ("timestamp", `String ts); ("isSidechain", `Bool false);
+                 ("sessionId", `String "s1");
+                 ("message", `Assoc [ ("role", `String "user"); ("content", `String txt) ]) ] in
+    jl (if meta then ("isMeta", `Bool true) :: base else base) in
+  let s = Claude_tx.parse_session (String.concat "\n" [
+      u_prompt ~ts:(at "10:00:00") "kickoff prompt";
+      a_line ~id:"w1" ~tools:[ "t1" ] "10:00:05";
+      r_line ~tool:"t1" "10:00:10";
+      u_prompt ~meta:true ~ts:(at "10:00:15") "meta injection";
+      u_prompt ~ts:(at "10:00:20") "<task-notification>done</task-notification>";
+      u_prompt ~ts:(at "10:01:00") "mid-node steer";
+    ]) in
+  (* line 1 (kickoff) and line 6 (mid-node steer); tool_result, isMeta, and task-notification excluded *)
+  assert_equal ~printer:(fun xs -> String.concat "," (List.map string_of_int xs))
+    [ 1; 6 ] (List.map fst s.s_user_steps);
+  let ws = Claude_tx.assign s [ ("nd|1", secs "10:00:00", secs "10:02:00") ] in
+  assert_equal ~printer:(fun xs -> String.concat "," (List.map string_of_int xs))
+    [ 6 ] (List.map fst (List.hd ws).w_user_steps)
 
 let () =
   run_test_tt_main
@@ -685,5 +706,6 @@ let () =
        "case_author_window_times_follow_the_trace" >:: case_author_window_times_follow_the_trace;
        "case_grade_tool_time_is_the_union_of_paired_calls" >:: case_grade_tool_time_is_the_union_of_paired_calls;
        "case_author_pass_writes_the_window_times" >:: case_author_pass_writes_the_window_times;
+       "case_claude_session_tracks_human_user_steps_and_drops_kickoff" >:: case_claude_session_tracks_human_user_steps_and_drops_kickoff;
        QCheck_ounit.to_ounit2_test law_author_times_are_ordered;
      ] @ pending_tests)

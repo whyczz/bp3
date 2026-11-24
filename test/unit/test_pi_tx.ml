@@ -113,6 +113,12 @@ let law_cost_sums_the_lines_and_one_bad_total_fails_the_check =
        && c.tokens_cache_read = sum (fun (_, _, cr, _) -> cr) && c.tokens_cache_write = sum (fun (_, _, _, cw) -> cw)
        && not (Pi_tx.self_checks (Pi_tx.parse (Gen.text bad))))
 
+let case_pi_records_user_steps _ =
+  let lines = grader @ [ user ~ts:"2026-11-21T12:00:50.000Z" "steer: check edge case" ] in
+  let tx = Pi_tx.parse (Gen.text lines) in
+  assert_equal ~printer:(fun xs -> String.concat "," (List.map string_of_int xs))
+    [ 3; 8 ] (List.map fst tx.s_user_steps)
+
 let () =
   run_test_tt_main
     ("pi_tx" >::: [
@@ -120,5 +126,6 @@ let () =
        "case_self_check_fails_on_a_bad_total_a_missing_count_or_an_unpaired_call" >:: case_self_check_fails_on_a_bad_total_a_missing_count_or_an_unpaired_call;
        "case_junk_lines_are_skipped_never_read_as_zero" >:: case_junk_lines_are_skipped_never_read_as_zero;
        "case_model_ok_knows_four_families_and_nothing_else" >:: case_model_ok_knows_four_families_and_nothing_else;
+       "case_pi_records_user_steps" >:: case_pi_records_user_steps;
        QCheck_ounit.to_ounit2_test law_cost_sums_the_lines_and_one_bad_total_fails_the_check;
      ])

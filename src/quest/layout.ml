@@ -11,6 +11,7 @@ let quests_root = "docs/quests"
 let legacy_quests_roots = ["docs/graphs"; "docs/goals"]
 let quest_file = "QUEST.md"
 let log_file = "LOG.md"
+let feedback_file = "FEEDBACK.md"
 let nodes_dir = "nodes"
 let legacy_nodes_dirs = ["experiments"]
 let ledger_file = "ledger.jsonl"

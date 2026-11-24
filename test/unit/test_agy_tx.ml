@@ -119,6 +119,27 @@ let case_subagent_system_message_prompt_unwraps_and_joins _ =
   assert_equal ~printer:Fun.id prompt tx.first_prompt;
   assert_bool "join_line_names" (Tx.join_line_names tx.first_prompt ~node:"nd" ~commit:"abc1234567")
 
+let case_agy_user_steps_skips_kickoff_and_captures_mid_node_steers _ =
+  let lines = [
+    user_line ~step:0 ~ts:"2026-11-23T19:00:00Z" "kickoff: implement nd";
+    planner_line ~step:1 ~ts:"2026-11-23T19:00:10Z" ~calls:[ ("run_command", "make check") ] (800, 40, 100);
+    generic_line ~step:2 ~ts:"2026-11-23T19:00:20Z" "ok";
+    user_line ~step:3 ~ts:"2026-11-23T19:01:00Z" "/compact";
+    user_line ~step:4 ~ts:"2026-11-23T19:02:00Z" "mid-node steer: fix edge case";
+    planner_line ~step:5 ~ts:"2026-11-23T19:02:10Z" ~calls:[ ("run_command", "./bin/bp3 q q1 n nd e handoff --commit abc1234 --reason ok") ] (900, 30, 100);
+    generic_line ~step:6 ~ts:"2026-11-23T19:02:15Z" "{\"ok\":true,\"state\":\"handed_off\"}";
+  ] in
+  let tx = Agy_tx.parse ~conv_id:"auth-steer" (Gen.text lines) in
+  (* /compact is excluded; kickoff (step 0) + mid-node steer (step 4) are recorded *)
+  assert_equal ~printer:(fun xs -> String.concat "," (List.map string_of_int xs))
+    [ 0; 4 ] (List.map fst tx.s_user_steps);
+  let from = Option.get (Tx.seconds "2026-11-23T19:00:00Z") in
+  let upto = Option.get (Tx.seconds "2026-11-23T19:02:15Z") in
+  let ws = Agy_tx.assign tx [ ("nd|1", from, upto) ] in
+  (* assign drops the session kickoff prompt (step 0) and keeps only mid-node steer (step 4) *)
+  assert_equal ~printer:(fun xs -> String.concat "," (List.map string_of_int xs))
+    [ 4 ] (List.map fst (List.hd ws).w_user_steps)
+
 let suite =
   "agy_tx" >::: [
     "case_agy_grader_reads_cost_and_tool_events" >:: case_agy_grader_reads_cost_and_tool_events;
@@ -126,6 +147,7 @@ let suite =
     "case_missing_usage_fails_self_check" >:: case_missing_usage_fails_self_check;
     "case_agy_author_window_casts_handoff_and_active_time" >:: case_agy_author_window_casts_handoff_and_active_time;
     "case_subagent_system_message_prompt_unwraps_and_joins" >:: case_subagent_system_message_prompt_unwraps_and_joins;
+    "case_agy_user_steps_skips_kickoff_and_captures_mid_node_steers" >:: case_agy_user_steps_skips_kickoff_and_captures_mid_node_steers;
   ]
 
 let () = run_test_tt_main suite

@@ -19,6 +19,7 @@ type tx = {
   tool_results : string list;  (* toolResult toolCallIds *)
   tool_spans : (float * float) list;   (* [toolCall entry, toolResult entry) per paired call (measure.1) *)
   tool_events : Tx.tool_event list;
+  s_user_steps : (int * float) list;   (* (line_1based, epoch_s) of role=user messages *)
   tool_errors : int;
   skipped_lines : int;     (* not JSON, or JSON that is not an object *)
   bad_usage : int;         (* usage lacking a count, or whose totalTokens is not their sum *)
@@ -49,7 +50,7 @@ let parse text =
   let session = ref "" and cwd = ref "" and first_prompt = ref "" and first_ts = ref "" and last_ts = ref "" in
   let entries = ref [] and calls = ref [] and results = ref [] and skipped = ref 0 and bad = ref 0 in
   let seen_call = Hashtbl.create 64 and call_meta = Hashtbl.create 64 in
-  let uses = ref [] and results_at = ref [] and events = ref [] and tool_errors = ref 0 in
+  let uses = ref [] and results_at = ref [] and events = ref [] and user_steps = ref [] and tool_errors = ref 0 in
   let add_usage ~assistant ~model j u_json =
     match usage_of u_json with
     | Some u -> entries := { e_id = str "id" j; e_ts = str "timestamp" j; e_model = model; e_usage = u;
@@ -67,7 +68,11 @@ let parse text =
                  let m = member "message" j in
                  (match str "role" m with
                   | "user" ->
-                      if !first_ts = "" then begin first_prompt := text_of (member "content" m); first_ts := ts end
+                      let txt = text_of (member "content" m) in
+                      if !first_ts = "" then begin first_prompt := txt; first_ts := ts end;
+                      (match Tx.seconds ts with
+                       | Some at when String.trim txt <> "" -> user_steps := (line_idx + 1, at) :: !user_steps
+                       | _ -> ())
                   | "assistant" ->
                       (* an assistant message always carries usage: none is a bad read *)
                       add_usage ~assistant:true ~model:(str "model" m) j (member "usage" m);
@@ -106,7 +111,7 @@ let parse text =
   { session = !session; cwd = !cwd; first_prompt = !first_prompt; first_ts = !first_ts; last_ts = !last_ts;
     entries = List.rev !entries; tool_calls = List.rev !calls; tool_results = List.rev !results;
     tool_spans = Tx.paired (List.rev !uses) (List.rev !results_at);
-    tool_events = List.rev !events; tool_errors = !tool_errors;
+    tool_events = List.rev !events; s_user_steps = List.rev !user_steps; tool_errors = !tool_errors;
     skipped_lines = !skipped; bad_usage = !bad }
 
 (* The read agrees with itself: every usage line added up, and every

@@ -35,6 +35,7 @@ type joined_trace = {
   jt_turns : int;
   jt_tool_errors : int;
   jt_events : tool_event list;
+  jt_user_steps : (int * float) list;  (* (step_or_line, epoch_s) of mid-window human inputs *)
 }
 
 (* Milliseconds matter: a grade's wall is the span of its lines. *)

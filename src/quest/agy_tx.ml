@@ -29,6 +29,7 @@ type tx = {
   results : (int * string * bool) list; (* step_index, content, is_error *)
   tool_spans : (float * float) list;
   tool_events : Tx.tool_event list;
+  s_user_steps : (int * float) list;    (* (step_index, epoch_s) of USER_INPUT lines *)
   marks : (float * bool) list;          (* stamp, ends_turn *)
   bad_at : string list;
   skipped_lines : int;
@@ -85,7 +86,7 @@ let parse ?(conv_id = "") ?full_text text =
     | Some ft -> Array.of_list (String.split_on_char '\n' ft)) in
   let first_prompt = ref "" and first_ts = ref "" and last_ts = ref "" in
   let msgs = ref [] and calls = ref [] and results = ref [] in
-  let tool_spans = ref [] and tool_events = ref [] and marks = ref [] in
+  let tool_spans = ref [] and tool_events = ref [] and user_steps = ref [] and marks = ref [] in
   let bad_at = ref [] and skipped = ref 0 and bad_usage = ref 0 in
   (* pending tool batch from the most recent PLANNER_RESPONSE *)
   let pending : (string * string * float * int) list ref = ref [] in
@@ -109,7 +110,13 @@ let parse ?(conv_id = "") ?full_text text =
             end;
             (match str "type" j with
              | "USER_INPUT" ->
-                 if !first_prompt = "" then first_prompt := str "content" j
+                 let content = str "content" j in
+                 if !first_prompt = "" then first_prompt := content;
+                 let trimmed = String.trim content in
+                 (match Tx.seconds ts with
+                  | Some at when trimmed <> "" && not (String.starts_with ~prefix:"/compact" trimmed) ->
+                      user_steps := (step, at) :: !user_steps
+                  | _ -> ())
              | "SYSTEM_MESSAGE" ->
                  if !first_prompt = "" then first_prompt := unwrap_system_prompt (str "content" j)
              | "PLANNER_RESPONSE" ->
@@ -156,6 +163,7 @@ let parse ?(conv_id = "") ?full_text text =
     first_prompt = !first_prompt; first_ts = !first_ts; last_ts = !last_ts;
     msgs = List.rev !msgs; calls = List.rev !calls; results = List.rev !results;
     tool_spans = List.rev !tool_spans; tool_events = List.rev !tool_events;
+    s_user_steps = List.rev !user_steps;
     marks = List.stable_sort (fun (a, _) (b, _) -> compare a b) (List.rev !marks);
     bad_at = List.rev !bad_at; skipped_lines = !skipped; bad_usage = !bad_usage }
 
@@ -205,6 +213,7 @@ type window_spend = {
   w_errors : int;
   w_bad : int;
   w_events : Tx.tool_event list;
+  w_user_steps : (int * float) list;
 }
 
 let assign tx windows =
@@ -212,14 +221,16 @@ let assign tx windows =
   let inside (_, from, upto) ts = match Tx.seconds ts with Some t -> t >= from && t < upto +. 1. | None -> false in
   let inside_f (_, from, upto) t = t >= from && t < upto +. 1. in
   let take k = not (Hashtbl.mem taken k) && (Hashtbl.replace taken k (); true) in
+  let non_kickoff = match tx.s_user_steps with [] -> [] | _ :: rest -> rest in
   List.map (fun ((key, _, _) as w) ->
       let msgs = List.filter (fun (m : msg) -> inside w m.m_ts && take ("m" ^ string_of_int m.m_step)) tx.msgs in
       let calls = List.filteri (fun i (c : call) -> inside w c.c_ts && take ("c" ^ string_of_int i)) tx.calls in
       let events = List.filteri (fun i (e : Tx.tool_event) -> inside_f w e.te_start && take ("e" ^ string_of_int i)) tx.tool_events in
+      let usteps = List.filteri (fun i (_, at) -> inside_f w at && take ("u" ^ string_of_int i)) non_kickoff in
       let errors = List.length (List.filter (fun (e : Tx.tool_event) -> e.te_error) events) in
       let bad = List.filteri (fun i ts -> inside w ts && take ("b" ^ string_of_int i)) tx.bad_at in
       { w_key = key; w_msgs = msgs; w_tools = List.length calls; w_errors = errors;
-        w_bad = List.length bad; w_events = events })
+        w_bad = List.length bad; w_events = events; w_user_steps = usteps })
     windows
 
 let author_cost msgs tool_calls tool_errors =

@@ -1,0 +1,6 @@
+; Warden deterministic plug engine (warden-v0 plugs.1): one-way
+; dependency on bp3_quest; pure rules in Warden, read-only IO in Warden_io.
+(library
+ (name bp3_warden)
+ (wrapped false)
+ (libraries bp3_quest yojson str))

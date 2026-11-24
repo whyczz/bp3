@@ -17,6 +17,7 @@ type tx = {
   tool_use_ids : string list;
   tool_spans : (float * float) list;   (* [tool_use, tool_result) per paired call, epoch seconds *)
   tool_events : Tx.tool_event list;
+  s_user_steps : (int * float) list;   (* (line_1based, epoch_s) of human prompt lines *)
   tool_errors : int;
   skipped_lines : int;    (* not JSON, or an assistant line with no message.id or bad usage *)
   bad_usage : int;        (* assistant lines whose usage lacks one of its four counts *)
@@ -50,11 +51,25 @@ let prompt_text content =
           | `String s -> Some s | _ -> None) blocks)
   | _ -> ""
 
+let is_human_user content j =
+  if Tx.bool_of "isMeta" j then false
+  else
+    let has_tool_result = match content with
+      | `List blocks -> List.exists (fun b -> str "type" b = "tool_result") blocks
+      | _ -> false in
+    if has_tool_result then false
+    else
+      let txt = String.trim (prompt_text content) in
+      txt <> ""
+      && not (String.starts_with ~prefix:"<task-notification>" txt)
+      && not (String.starts_with ~prefix:"<local-command" txt)
+      && not (String.starts_with ~prefix:"<command-name>" txt)
+
 (* ~until (epoch seconds) reads only the lines stamped at or before it:
    the part of a transcript a harness report covers. *)
 let parse ?until text =
   let order = ref [] and by_id = Hashtbl.create 64 and tools = Hashtbl.create 64 in
-  let call_meta = Hashtbl.create 64 and events = ref [] and tool_errors = ref 0 in
+  let call_meta = Hashtbl.create 64 and events = ref [] and user_steps = ref [] and tool_errors = ref 0 in
   let tool_order = ref [] and skipped = ref 0 and bad_usage = ref 0 in
   let uses = ref [] and results = ref [] in
   let session = ref "" and agent = ref "" and prompt = ref None in
@@ -75,21 +90,25 @@ let parse ?until text =
             let message = member "message" j in
             (match str "type" j with
              | "user" ->
-                 if !prompt = None then prompt := Some (prompt_text (member "content" message))
-                 else (match member "content" message, seconds ts with
-                     | `List blocks, Some at ->
-                         List.iter (fun b -> if str "type" b = "tool_result" then begin
-                                       let tid = str "tool_use_id" b in
-                                       let is_err = Tx.bool_of "is_error" b in
-                                       if is_err then incr tool_errors;
-                                       results := (tid, at) :: !results;
-                                       (match Hashtbl.find_opt call_meta tid with
-                                        | Some (name, cmd, start_s, step) ->
-                                            events := { Tx.te_name = name; te_cmd_head = Tx.cmd_head cmd;
-                                                        te_error = is_err; te_start = start_s;
-                                                        te_end = at; te_step = step } :: !events
-                                        | None -> ()) end) blocks
-                     | _ -> ())
+                 let content = member "content" message in
+                 if !prompt = None then prompt := Some (prompt_text content);
+                 (match seconds ts with
+                  | Some at when is_human_user content j -> user_steps := (line_idx + 1, at) :: !user_steps
+                  | _ -> ());
+                 (match content, seconds ts with
+                  | `List blocks, Some at ->
+                      List.iter (fun b -> if str "type" b = "tool_result" then begin
+                                    let tid = str "tool_use_id" b in
+                                    let is_err = Tx.bool_of "is_error" b in
+                                    if is_err then incr tool_errors;
+                                    results := (tid, at) :: !results;
+                                    (match Hashtbl.find_opt call_meta tid with
+                                     | Some (name, cmd, start_s, step) ->
+                                         events := { Tx.te_name = name; te_cmd_head = Tx.cmd_head cmd;
+                                                     te_error = is_err; te_start = start_s;
+                                                     te_end = at; te_step = step } :: !events
+                                     | None -> ()) end) blocks
+                  | _ -> ())
              | "assistant" ->
                  let id = str "id" message in
                  let usage = usage_of (member "usage" message) in
@@ -122,7 +141,7 @@ let parse ?until text =
     first_ts = !first_ts; last_ts = !last_ts;
     msgs = List.rev_map (Hashtbl.find by_id) !order;
     tool_use_ids = List.rev !tool_order; tool_spans = paired (List.rev !uses) (List.rev !results);
-    tool_events = List.rev !events; tool_errors = !tool_errors;
+    tool_events = List.rev !events; s_user_steps = List.rev !user_steps; tool_errors = !tool_errors;
     skipped_lines = !skipped; bad_usage = !bad_usage }
 
 (* The .meta.json beside a subagent transcript names the parent's
@@ -249,6 +268,7 @@ type session = {
   s_marks : (float * bool) list;     (* main-thread assistant and tool-result lines: stamp, ends a turn (measure.1) *)
   s_results_at : (string * float) list;  (* tool_use_id, stamp of its result *)
   s_events : Tx.tool_event list;
+  s_user_steps : (int * float) list;     (* (line_1based, epoch_s) of human prompt lines *)
 }
 
 let result_text content =
@@ -260,11 +280,11 @@ let result_text content =
 
 let parse_session text =
   let order = ref [] and by_id = Hashtbl.create 256 and tools = Hashtbl.create 256 in
-  let call_meta = Hashtbl.create 256 and events = ref [] in
+  let call_meta = Hashtbl.create 256 and events = ref [] and user_steps = ref [] in
   let tool_order = ref [] and bash = ref [] and results = ref [] and bad = ref [] and sid = ref "" in
   let marks = ref [] and results_at = ref [] in
   List.iteri (fun line_idx line ->
-      if contains line "\"type\":\"assistant\"" || contains line "\"tool_result\"" then
+      if contains line "\"type\":\"assistant\"" || contains line "\"tool_result\"" || contains line "\"type\":\"user\"" then
         match (try Some (Yojson.Safe.from_string line) with _ -> None) with
         | Some (`Assoc _ as j) when (match member "isSidechain" j with `Bool b -> b | _ -> false) -> ()
         | Some (`Assoc _ as j) ->
@@ -298,6 +318,10 @@ let parse_session text =
                      end) blocks
              | "user" ->
                  let at = seconds ts in
+                 let content = member "content" message in
+                 (match at with
+                  | Some a when is_human_user content j -> user_steps := (line_idx + 1, a) :: !user_steps
+                  | _ -> ());
                  List.iter (fun b ->
                      if str "type" b = "tool_result" then begin
                        let tid = str "tool_use_id" b in
@@ -320,7 +344,8 @@ let parse_session text =
   { s_id = !sid; s_msgs = List.rev_map (Hashtbl.find by_id) !order; s_tools = List.rev !tool_order;
     s_bash = List.rev !bash; s_results = List.rev !results; s_bad_at = List.rev !bad;
     s_marks = List.stable_sort (fun (a, _) (b, _) -> compare a b) (List.rev !marks);
-    s_results_at = List.rev !results_at; s_events = List.rev !events }
+    s_results_at = List.rev !results_at; s_events = List.rev !events;
+    s_user_steps = List.rev !user_steps }
 
 let has_word = Tx.has_word
 let shown = Tx.shown
@@ -361,7 +386,8 @@ let casts_handoff s ~quest ~node ~commit ~from ~upto =
    Usage-less lines follow the same rule (usage.1): w_bad counts the
    ones a window holds first, so one bad line fails one window. *)
 type window_spend = {
-  w_key : string; w_msgs : msg list; w_tools : int; w_errors : int; w_bad : int; w_events : Tx.tool_event list
+  w_key : string; w_msgs : msg list; w_tools : int; w_errors : int; w_bad : int;
+  w_events : Tx.tool_event list; w_user_steps : (int * float) list
 }
 
 let assign s windows =
@@ -369,20 +395,22 @@ let assign s windows =
   let inside (_, from, upto) ts = match seconds ts with Some t -> t >= from && t < upto +. 1. | None -> false in
   let inside_f (_, from, upto) t = t >= from && t < upto +. 1. in
   let take k = not (Hashtbl.mem taken k) && (Hashtbl.replace taken k (); true) in
+  let non_kickoff = match s.s_user_steps with [] -> [] | _ :: rest -> rest in
   List.map (fun ((key, _, _) as w) ->
       let msgs = List.filter (fun (m : msg) -> inside w m.ts && take ("m" ^ m.id)) s.s_msgs in
       let tools = List.filter (fun (id, ts) -> inside w ts && take ("t" ^ id)) s.s_tools in
       let events = List.filteri (fun i (e : Tx.tool_event) -> inside_f w e.te_start && take ("e" ^ string_of_int i)) s.s_events in
+      let usteps = List.filteri (fun i (_, at) -> inside_f w at && take ("u" ^ string_of_int i)) non_kickoff in
       let errors = List.length (List.filter (fun (e : Tx.tool_event) -> e.te_error) events) in
       let bad = List.filteri (fun i ts -> inside w ts && take ("b" ^ string_of_int i)) s.s_bad_at in
       { w_key = key; w_msgs = msgs; w_tools = List.length tools; w_errors = errors;
-        w_bad = List.length bad; w_events = events })
+        w_bad = List.length bad; w_events = events; w_user_steps = usteps })
     windows
 
 let author_cost ?(tool_errors = 0) msgs tool_calls =
   let tx = { session = ""; agent = ""; first_prompt = ""; first_ts = ""; last_ts = ""; msgs;
              tool_use_ids = List.init tool_calls string_of_int; tool_spans = [];
-             tool_events = []; tool_errors; skipped_lines = 0; bad_usage = 0 } in
+             tool_events = []; s_user_steps = []; tool_errors; skipped_lines = 0; bad_usage = 0 } in
   cost tx
 
 (* An author window's times (induct-inline-as-default measure.1). Wall is
