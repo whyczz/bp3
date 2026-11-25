@@ -101,28 +101,30 @@ let add ?db_path ?path ?name () =
     match path with Some p when p <> "" -> p | _ -> default_caller_path ()
   in
   let root_path = resolve_main_root target in
-  let repo_name =
-    match name with
-    | Some n ->
-        if Db.valid_slug n then n
-        else Db.usage ("invalid repo name (must be kebab-case [a-z0-9-]): " ^ n)
-    | None -> (
-        match Db.slugify (Filename.basename root_path) with
-        | Ok s -> s
-        | Error m -> Db.usage m)
-  in
+  (match name with
+   | Some n when not (Db.valid_slug n) ->
+       Db.usage ("invalid repo name (must be kebab-case [a-z0-9-]): " ^ n)
+   | _ -> ());
   let ts = Db.now_ts () in
   Db.with_db ?path:db_path (fun db ->
       Db.with_tx_immediate db (fun db ->
           (* When --name is omitted and root_path is already registered (e.g. under a
-             custom alias), refresh last_seen_at on the existing entry instead of
-             failing E_EXISTS on auto-register. *)
+             custom alias, even if the directory basename has no alphanumerics),
+             refresh last_seen_at on the existing entry instead of failing. *)
           match (name, find_by_path_in db root_path) with
           | None, Some existing ->
               Db.exec_params db "UPDATE repos SET last_seen_at = ? WHERE name = ?;"
                 [ Sqlite3.Data.TEXT ts; Sqlite3.Data.TEXT existing.name ];
               { existing with last_seen_at = ts }
           | _ -> (
+              let repo_name =
+                match name with
+                | Some n -> n
+                | None -> (
+                    match Db.slugify (Filename.basename root_path) with
+                    | Ok s -> s
+                    | Error m -> Db.usage m)
+              in
               (match find_by_name_in db repo_name with
                | Some existing when existing.root_path <> root_path ->
                    Db.verdict_err "E_EXISTS"

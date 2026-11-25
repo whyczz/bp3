@@ -121,7 +121,15 @@ let case_project_with_spaces_regression _ =
       assert_equal (Ok "project-with-spaces") (Db.slugify "project with spaces");
       let r = Repo_store.add ~db_path ~path:spaced () in
       assert_equal ~printer:Fun.id "project-with-spaces" r.name;
-      assert_equal ~printer:Fun.id (Unix.realpath spaced) r.root_path)
+      assert_equal ~printer:Fun.id (Unix.realpath spaced) r.root_path;
+      (* Aliased repo with punctuation-only basename refreshes cleanly when --name is omitted *)
+      let punct = Filename.concat d "___" in
+      init_git_repo punct;
+      let a = Repo_store.add ~db_path ~path:punct ~name:"punct-alias" () in
+      assert_equal ~printer:Fun.id "punct-alias" a.name;
+      let refreshed = Repo_store.add ~db_path ~path:punct () in
+      assert_equal ~printer:Fun.id "punct-alias" refreshed.name;
+      assert_equal ~printer:Fun.id a.root_path refreshed.root_path)
 
 let law_slugify_always_produces_valid_slug_or_error =
   let open QCheck2.Gen in
