@@ -15,10 +15,25 @@ rejects() {
   if "$@" > "$work/out" 2> "$work/error"; then printf 'FAIL: expected rejection: %s\n' "$*" >&2; exit 1; fi
   checks=$((checks + 1))
 }
-# A fresh checkout must carry the project-scope discovery exclusions for DEV_SKILLS.
+# A fresh checkout must carry backpack.toml, DEV_SKILLS-only local renders,
+# zero local CORE_SKILLS/hooks, and DEV_SKILLS discovery exclusions.
+assert test -f "$repo/backpack.toml"
 for id in add-bp3-skill add-yap-skill using-bp3; do
   assert jq -e --arg pattern "!**/.agents/skills/$id/SKILL.md" '.skills | index($pattern) != null' "$repo/.pi/settings.json"
+  for d in .agents/skills .claude/skills .pi/skills; do
+    assert test -f "$repo/$d/$id/SKILL.md"
+  done
 done
+for core in induct induct-yolo quest icebox naming red-ink warden; do
+  assert grep -qF 'backpack.toml' "$repo/skills/$core/SKILL.md"
+  for d in .agents/skills .claude/skills .pi/skills; do
+    assert test ! -e "$repo/$d/$core"
+  done
+done
+assert test ! -e "$repo/.agents/hooks.json"
+assert test ! -e "$repo/.claude/hooks.json"
+assert test ! -e "$repo/.muse/hooks.json"
+assert test ! -e "$repo/.claude/settings.json"
 
 mkdir -p "$work/project with spaces/bin" "$work/project with spaces/scripts"
 root="$work/project with spaces"
@@ -262,10 +277,13 @@ for s in induct induct-yolo using-bp3; do
   assert grep -q 'make check-full' "$repo/skills/$s/SKILL.md"
 done
 
+core_dirs=("$repo/skills" "$work/home/.claude/skills" "$work/home/.pi/agent/skills" "$work/home/.gemini/config/skills")
+dev_dirs=("$repo/skills" "$repo/.claude/skills" "$repo/.pi/skills" "$repo/.agents/skills")
+
 # constraints-context read.1: plans and grades read CONSTRAINTS.md and
 # CONTEXT.md, in the sources and in every harness render. One rule each.
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  q="$repo/$dir/quest/SKILL.md" r="$repo/$dir/red-ink/SKILL.md" i="$repo/$dir/induct/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  q="$dir/quest/SKILL.md" r="$dir/red-ink/SKILL.md" i="$dir/induct/SKILL.md"
   assert grep -q '^| 2 | Research the ground.*`CONSTRAINTS.md`.*`CONTEXT.md`' "$q"
   assert grep -q '^| 7 | .*\*\*constraints pass\*\*.*`/teach` pitch and the owner.s words before approval' "$q"
   assert grep -q '^| 7 | .*\*\*common-sense pass\*\*.*older than 90 days' "$q"
@@ -281,13 +299,16 @@ assert grep -q '\[CONTEXT.md\](CONTEXT.md)' "$repo/CLAUDE.md"
 # metric-collectors read.1: conductors measure every grade, as evidence
 # and never as a gate; the docs name the metrics door and its GENERATED
 # file. In the sources and in every harness render.
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  ic="$repo/$dir/induct/SKILL.md" ub="$repo/$dir/using-bp3/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  ic="$dir/induct/SKILL.md"
   assert grep -q '^  `bp3 q <quest> metrics scrape`. It finds the grader' "$ic"
   assert grep -q 'evidence, never a gate: a `mismatched` grade' "$ic"
+  assert grep -q 'samples and' "$ic"
+done
+for dir in "${dev_dirs[@]}"; do
+  ub="$dir/using-bp3/SKILL.md"
   assert grep -q 'Measure with `./bin/bp3 q <quest> metrics r`' "$ub"
   assert grep -q '`metrics.jsonl` on each node.s state branch' "$ub"
-  assert grep -q 'samples and' "$ic"
   assert grep -q 'a finding to report, not a failed step' "$ub"
 done
 assert grep -q '^  metrics.jsonl          GENERATED' "$repo/CLAUDE.md"
@@ -297,14 +318,20 @@ assert grep -q '^\./bin/bp3 q <quest> metrics scrape|r' "$repo/CLAUDE.md"
 # metric-followups skills.1: the skills describe the engine that exists.
 # induct-yolo names the scrape as its one non-edge write, as induct does;
 # using-bp3 lists real edges and doors only. Sources and every render.
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  iy="$repo/$dir/induct-yolo/SKILL.md" ub="$repo/$dir/using-bp3/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  iy="$dir/induct-yolo/SKILL.md"
   assert grep -q '`metrics.jsonl` samples and move no edge' "$iy"
+  assert test -z "$(grep -n '`cancel`' "$dir"/*/SKILL.md || true)"
+  assert test -z "$(grep -nE 'q (show|list)|q create |--engine|bp3-writer' "$iy" || true)"
+  assert test -z "$(grep -nE 'induct-grade|node-loop|induct-node|induct-land|induct-inline' "$dir"/*/SKILL.md || true)"
+done
+for dir in "${dev_dirs[@]}"; do
+  ub="$dir/using-bp3/SKILL.md"
   assert grep -q '`block` from any of the three' "$ub"
   assert grep -q '^   `--mechanical` `needs_fix` (an exact file, line and text fix,$' "$ub"
-  assert test -z "$(grep -n '`cancel`' "$repo/$dir"/*/SKILL.md || true)"
-  assert test -z "$(grep -nE 'q (show|list)|q create |--engine|bp3-writer' "$ub" "$iy" || true)"
-  assert test -z "$(grep -nE 'induct-grade|node-loop|induct-node|induct-land|induct-inline' "$repo/$dir"/*/SKILL.md || true)"
+  assert test -z "$(grep -n '`cancel`' "$dir"/*/SKILL.md || true)"
+  assert test -z "$(grep -nE 'q (show|list)|q create |--engine|bp3-writer' "$ub" || true)"
+  assert test -z "$(grep -nE 'induct-grade|node-loop|induct-node|induct-land|induct-inline' "$dir"/*/SKILL.md || true)"
   assert test -z "$(grep -nE 'outside quest folders|descend from the recorded|live in .fsm\.yaml.|Judgment moves need|move.s commit message' "$ub" || true)"
   assert grep -q '^   node dependency is `landed` or `deleted`' "$ub"
 done
@@ -312,8 +339,8 @@ done
 # pi-metrics skills.1: induct names pi as a grader runtime, with
 # the command, one session per grade, the join's first line, and the
 # verdict cast as printed. In the source and every render.
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  ic="$repo/$dir/induct/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  ic="$dir/induct/SKILL.md"
   assert grep -q '^  `pi -p --tools read,bash --session-id <fresh id> "<cold brief>"`\.$' "$ic"
   assert grep -q '^  session per grade: a fresh `--session-id` each time, never$' "$ic"
   assert grep -q 'whose first line names the node id$' "$ic"
@@ -325,8 +352,8 @@ done
 # single conducting skill, with background grades in grade desks, the
 # rendered brief passed verbatim, the cast boundary, verify-then-cast,
 # and one session per quest. using-bp3 points to it.
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  ic="$repo/$dir/induct/SKILL.md" ub="$repo/$dir/using-bp3/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  ic="$dir/induct/SKILL.md"
   assert grep -qF '`bp3 q <quest> n <node> brief --desk <grade desk path>` and pass' "$ic"
   assert grep -qF 'its `brief` text verbatim, adding nothing and leaving nothing' "$ic"
   assert grep -qF '`bp3 harness desk prepare <quest> <node> --run grade-<node>-c<cycle>-a<attempt> --commit <sha>`.' "$ic"
@@ -342,13 +369,16 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -qF 'per quest: this session runs this quest and no other' "$ic"
   assert grep -qF '(running, or finished with its verdict not yet cast): start one' "$ic"
   assert grep -qF 'seconds for graders, and counts `brief_verbatim` or' "$ic"
+done
+for dir in "${dev_dirs[@]}"; do
+  ub="$dir/using-bp3/SKILL.md"
   assert grep -q '^use `induct`, the default: this session authors each$' "$ub"
 done
 
 # central-desks-dir skills.1: induct prepares a central quest desk in both
 # self and host modes (no self-only split). Sources and every render.
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  ic="$repo/$dir/induct/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  ic="$dir/induct/SKILL.md"
   assert test -z "$(grep -n 'host mode works in the repo' "$ic" || true)"
   assert test -z "$(grep -n 'In self mode,' "$ic" || true)"
   assert grep -qF 'Prepare the quest desk' "$ic"
@@ -359,8 +389,8 @@ done
 # no-human rails; follows induct as written and carries no numbered
 # procedure of its own. Sources and every render.
 assert grep -Eq '^CORE_SKILLS="([^"]* )?induct-yolo( [^"]*)?"$' "$repo/bin/bp3"
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  iy="$repo/$dir/induct-yolo/SKILL.md" ic="$repo/$dir/induct/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  iy="$dir/induct-yolo/SKILL.md" ic="$dir/induct/SKILL.md"
   assert test -f "$iy"
   assert grep -q '^name: induct-yolo$' "$iy"
   assert grep -qF 'Follow the `induct` skill (`skills/induct/SKILL.md`)' "$iy"
@@ -412,8 +442,8 @@ assert jq -e '.bp3.PreToolUse[0].hooks[0].command == "bp3 q hooks || true"' "$ag
 
 # fast-agy-induct skills.1: induct semantic invariants (receipt,
 # severity gate, agy invoke_subagent model tiering, /swarm coordinator rule)
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  ic="$repo/$dir/induct/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  ic="$dir/induct/SKILL.md"
   assert grep -qF './scripts/receipt' "$ic"
   assert grep -qF 'Severity gate' "$ic"
   assert grep -qF '[critical]' "$ic"
@@ -431,10 +461,10 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
 done
 
 # warden-v0 skills.1: unified /warden replaces /trial across all harnesses
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  w="$repo/$dir/warden/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  w="$dir/warden/SKILL.md"
   assert test -f "$w"
-  assert test ! -e "$repo/$dir/trial"
+  assert test ! -e "$dir/trial"
   assert grep -qF 'FEEDBACK.md' "$w"
   assert grep -qF '<= 3' "$w"
   assert grep -qF 'Deterministic first' "$w"
@@ -442,28 +472,37 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -qF '1–2 files' "$w"
   assert grep -qF 'docs/icebox/' "$w"
   assert grep -qF 'owner disposes' "$w"
+  assert grep -qF 'missing_repo_config' "$w"
+  assert grep -qF 'bp3 init-repo' "$w"
+  assert grep -qF 'bp3 skills prune-local' "$w"
 done
 assert grep -qF '`warden`' "$repo/skills/quest/SKILL.md"
 assert grep -qF '`warden`' "$repo/skills/induct/SKILL.md"
 
 # quest-promote-release skills.1: bump: frontmatter and bp3 release across harnesses
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  assert grep -qF 'bump: major | minor | patch | none' "$repo/$dir/quest/SKILL.md"
-  assert grep -qF 'RELEASING.md' "$repo/$dir/quest/SKILL.md"
-  assert grep -qF 'bp3 release <quest> --dry-run' "$repo/$dir/warden/SKILL.md"
-  assert grep -qF 'BP3_DECIDER=human bp3 release <quest>' "$repo/$dir/warden/SKILL.md"
-  assert grep -qF 'bp3 release' "$repo/$dir/using-bp3/SKILL.md"
-  assert grep -qF -- '--commit <sha>' "$repo/$dir/using-bp3/SKILL.md"
-  assert grep -qF 'BP3_DECIDER=human' "$repo/$dir/using-bp3/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  assert grep -qF 'bump: major | minor | patch | none' "$dir/quest/SKILL.md"
+  assert grep -qF 'RELEASING.md' "$dir/quest/SKILL.md"
+  assert grep -qF 'bp3 release <quest> --dry-run' "$dir/warden/SKILL.md"
+  assert grep -qF 'BP3_DECIDER=human bp3 release <quest>' "$dir/warden/SKILL.md"
+done
+for dir in "${dev_dirs[@]}"; do
+  assert grep -qF 'bp3 release' "$dir/using-bp3/SKILL.md"
+  assert grep -qF -- '--commit <sha>' "$dir/using-bp3/SKILL.md"
+  assert grep -qF 'BP3_DECIDER=human' "$dir/using-bp3/SKILL.md"
+  assert grep -qF 'W_LOCAL_SKILLS_LEGACY' "$dir/using-bp3/SKILL.md"
+  assert grep -qF 'bp3 skills prune-local' "$dir/using-bp3/SKILL.md"
 done
 
 # sqlite-control-plane skills.1: cross-repo bp3 ticket / repo / db across harnesses
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  assert grep -qF 'bp3 ticket add --to bp3' "$repo/$dir/warden/SKILL.md"
-  assert grep -qF 'bp3 ticket list --to bp3' "$repo/$dir/warden/SKILL.md"
-  assert grep -qF 'bp3 ticket' "$repo/$dir/using-bp3/SKILL.md"
-  assert grep -qF 'bp3 repo' "$repo/$dir/using-bp3/SKILL.md"
-  assert grep -qF 'bp3 db info' "$repo/$dir/using-bp3/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  assert grep -qF 'bp3 ticket add --to bp3' "$dir/warden/SKILL.md"
+  assert grep -qF 'bp3 ticket list --to bp3' "$dir/warden/SKILL.md"
+done
+for dir in "${dev_dirs[@]}"; do
+  assert grep -qF 'bp3 ticket' "$dir/using-bp3/SKILL.md"
+  assert grep -qF 'bp3 repo' "$dir/using-bp3/SKILL.md"
+  assert grep -qF 'bp3 db info' "$dir/using-bp3/SKILL.md"
 done
 
 printf 'skills tests: ok (%s assertions)\n' "$checks"

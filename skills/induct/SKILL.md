@@ -16,6 +16,8 @@ Use `induct-yolo` to run one quest this way with no human present,
 `warden` once the quest reaches `goal_fin` to run the diligence gate
 and post-quest audit, and `using-bp3` for one hand-cast edge.
 
+Scope: active in git repos with `backpack.toml` at root (or when explicitly invoked to bootstrap via `bp3 init-repo`); stay dormant in non-bp3 repos.
+
 ## Procedure
 
 1. `bp3 q r <quest>` must answer JSON, or stop. Prepare the quest desk

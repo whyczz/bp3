@@ -87,9 +87,14 @@ General coding in this repo does not need this skill.
      GitHub publishing with `--publish-only`).
    - Small bugfix release (no quest): `BP3_DECIDER=human ./bin/bp3
      release --commit <sha>` (defaults to `--bump patch`).
-   - In self mode, tagged releases refresh `$PREFIX` (`share/bp3/RELEASE`);
-     clean host repos auto-sync on `SessionStart` (`BP3_NO_AUTO_SYNC=1`
-     disables). See `RELEASING.md`.
+   - In self mode, tagged releases refresh `$PREFIX` (`share/bp3/RELEASE`)
+     and user-global `CORE_SKILLS` + hooks in `~/` (`~/.claude`,
+     `~/.gemini/config`, `~/.pi/agent`, `~/.codex`, `~/.muse`). Host repos
+     activate via `backpack.toml` (`bp3 init-repo`, inspect with `bp3 config`)
+     and remove legacy local skill copies with `bp3 skills prune-local`
+     (`SessionStart` emits read-only `W_LOCAL_SKILLS_LEGACY` instead of
+     auto-committing). `bp3 warden` flags `missing_repo_config` when
+     `backpack.toml` is absent. See `RELEASING.md`.
 10. Cross-repo SQLite control plane (`~/.local/share/bp3/bp3.sqlite`, `BP3_DB` override):
     - `./bin/bp3 db info [--format json|table]` — DB path, WAL status, and counts.
     - `./bin/bp3 repo add [<path>] [--name <slug>] | list | remove <name>` —

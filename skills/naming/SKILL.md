@@ -15,6 +15,8 @@ Use `quest` for framing a quest (it delegates naming here),
 `using-bp3` for operating the CLI, and general judgment for
 ordinary code identifiers with no bp3 meaning.
 
+Scope: active in git repos with `backpack.toml` at root (or when explicitly invoked to bootstrap via `bp3 init-repo`); stay dormant in non-bp3 repos.
+
 ## The vocabulary (reuse before inventing)
 
 - Planning: quest, node, Run. The conducting skill family is
