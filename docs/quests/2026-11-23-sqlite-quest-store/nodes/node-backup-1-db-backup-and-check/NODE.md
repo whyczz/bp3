@@ -92,7 +92,7 @@ def db_backup(db, to_opt, keep=14):
 |---|---|
 | Intent | establish schema v2 and a verified cloud-safe backup/check safety net before moving quest truth into SQLite |
 | Lane | standard |
-| Output | `src/quest/db.ml` (schema v2 migration + `backup` + `check`), `src/quest/main.ml`, `bin/bp3`, `test/unit/test_db.ml`, `test/db-backup.sh`, `test/suites.tsv` |
+| Output | `src/db/db.ml`, `src/db/db_cli.ml` (schema v2 migration + `backup` + `check`), `bin/bp3`, `test/unit/test_db.ml`, `test/db-backup.sh`, `test/suites.tsv` |
 | Acceptance | fails today (`bp3 db backup` / `bp3 db check` unknown); passes when `test/db-backup.sh` and `make check-full` pass |
 | Depends on | Quest 1 (`2026-11-23-sqlite-control-plane`) |
 | Must not touch | `refs/heads/bp3/*` behavior, `skills/*` |
@@ -102,7 +102,7 @@ def db_backup(db, to_opt, keep=14):
 Putting `backup.1` first guarantees that before a single quest ledger moves off git refs, the backup mechanism works end-to-end. Running `VACUUM INTO` into a local APFS temp file (not directly inside `~/Library/CloudStorage/GoogleDrive-...` or `~/Library/Mobile Documents/com~apple~CloudDocs/`) avoids Apple FileProvider partial-sync or locking issues during SQLite page writes.
 
 Edge cases:
-- **Existing v1 DB upgrade:** Upgrading a DB created by Quest 1 (`user_version = 1`) with existing `repos` and `drops` rows must preserve every row untouched inside a single `BEGIN IMMEDIATE` migration to `user_version = 2`.
+- **Existing v1 DB upgrade:** Upgrading a DB created by Quest 1 (`user_version = 1`) with existing `repos` and `tickets` rows must preserve every row untouched inside a single `BEGIN IMMEDIATE` migration to `user_version = 2`.
 - **Snapshot overwrite on same day:** Running `bp3 db backup` twice on `2026-11-23` cleanly replaces `bp3-2026-11-23.sqlite` and `bp3-latest.sqlite` without leaving temp files behind.
 - **Live DB guard:** If `BP3_DB` points inside `CloudDocs` or `CloudStorage`, emit `W_DB_IN_CLOUD_SYNC` warning on `bp3 db info` / `bp3 db check` so nobody accidentally puts the live WAL DB inside iCloud/Google Drive.
 - **Pruning safety:** Only delete files matching strict `^bp3-[0-9]{4}-[0-9]{2}-[0-9]{2}\.sqlite$` — never touch `bp3-latest.sqlite` or unrelated files in `backup_dir`.

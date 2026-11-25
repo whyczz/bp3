@@ -9,7 +9,7 @@ status: proposed
 
 ## TL;DR
 
-Implement `src/quest/db_migrate.ml` with **`bp3 db import-refs [--repo <path>]`** (reads every canonical and legacy `refs/heads/bp3/{quest,node,graph,goal,exp}/*` ledger and `metrics.jsonl` from a git repo into `bp3.sqlite`, idempotent on re-run, verifying 100% folded state/cycle/commit/metrics parity against the existing git-ref `Store` fold before committing) and **`bp3 db export-quest <quest> [--out <dir>]`** (writes clean flat `ledger.jsonl` and `metrics.jsonl` snapshots from SQLite). Never deletes local git refs. Proved by `test/db-migrate.sh`.
+Implement `src/db/db_migrate.ml` with **`bp3 db import-refs [--repo <path>]`** (reads every canonical and legacy `refs/heads/bp3/{quest,node,graph,goal,exp}/*` ledger and `metrics.jsonl` from a git repo into `bp3.sqlite`, idempotent on re-run, verifying 100% folded state/cycle/commit/metrics parity against the existing git-ref `Store` fold before committing) and **`bp3 db export-quest <quest> [--out <dir>]`** (writes clean flat `ledger.jsonl` and `metrics.jsonl` snapshots from SQLite). Never deletes local git refs. Proved by `test/db-migrate.sh`.
 
 ## Acceptance gates
 
@@ -93,7 +93,7 @@ def import_refs(db, repo_path):
 |---|---|
 | Intent | provide a lossless, idempotent migration bridge from git refs to SQLite plus flat JSONL export |
 | Lane | standard |
-| Output | `src/quest/db_migrate.ml`, `src/quest/main.ml`, `test/db-migrate.sh`, `test/suites.tsv` |
+| Output | `src/db/db_migrate.ml`, `src/db/db_cli.ml`, `test/db-migrate.sh`, `test/suites.tsv` |
 | Acceptance | fails today (`import-refs` / `export-quest` unknown); passes when `test/db-migrate.sh`, live 34-quest temp-DB smoke test, and `make check-full` pass |
 | Depends on | `backup.1 - db-backup-and-check` |
 | Must not touch | existing `bp3 q` read/write paths (still on git refs until `store.1`), `skills/*` |

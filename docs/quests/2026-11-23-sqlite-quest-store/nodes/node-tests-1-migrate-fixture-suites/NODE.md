@@ -9,7 +9,7 @@ status: proposed
 
 ## TL;DR
 
-Flip SQLite to the **sole** backend (removing the temporary `BP3_STORE` switch), delete the retired git-ref ledger plumbing (`commit_files`, `move_ref`, `create_branch_commit`, `cat-file --batch` in `src/quest/gitx.ml`, plus `legacy_*` ref/path folding in `src/quest/store.ml` and `src/quest/layout.ml`), make `src/quest/run_suites.ml` inject a fresh per-suite temp `BP3_DB` for every suite automatically, and migrate the 12 test suites (68 direct `refs/heads/bp3/*` assertions) to assert through `bp3 q` / `bp3 db`. Keep the read-only git-ref scanner inside `src/quest/db_migrate.ml` so `bp3 db import-refs` continues to work for downstream repos.
+Flip SQLite to the **sole** backend (removing the temporary `BP3_STORE` switch), delete the retired git-ref ledger plumbing (`commit_files`, `move_ref`, `create_branch_commit`, `cat-file --batch` in `src/quest/gitx.ml`, plus `legacy_*` ref/path folding in `src/quest/store.ml` and `src/quest/layout.ml`), verify `src/quest/run_suites.ml`'s per-suite temp `BP3_DB` isolation covers every suite, and migrate the 12 test suites (68 direct `refs/heads/bp3/*` assertions) to assert through `bp3 q` / `bp3 db`. Keep the read-only git-ref scanner inside `src/db/db_migrate.ml` so `bp3 db import-refs` continues to work for downstream repos.
 
 ## Acceptance gates
 
@@ -77,7 +77,7 @@ def run_one_suite(suite):
 |---|---|
 | Intent | complete the cutover cleanly by removing the old git-ref writer/reader and migrating every fixture suite with full DB isolation |
 | Lane | high-blast-radius |
-| Output | `src/quest/gitx.ml`, `src/quest/store.ml`, `src/quest/layout.ml`, `src/quest/db_migrate.ml`, `src/quest/run_suites.ml`, migrated `test/*.sh` and `test/unit/test_layout.ml` |
+| Output | `src/quest/gitx.ml`, `src/quest/store.ml`, `src/quest/layout.ml`, `src/db/db_migrate.ml`, `src/quest/run_suites.ml`, migrated `test/*.sh` and `test/unit/test_layout.ml` |
 | Acceptance | fails today (68 direct ref checks in `test/`, `commit_files` in `gitx.ml`); passes when plumbing is deleted and `make check-full` passes |
 | Depends on | `store.1 - sqlite-quest-and-metrics-engine` |
 | Must not touch | `skills/*` (handled in `skills.1`) |

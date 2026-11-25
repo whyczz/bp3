@@ -11,14 +11,14 @@ TL;DR
 Complete the move off hidden git refs (`refs/heads/bp3/{quest,node}/*`) and untracked local JSON dirs (`.git/bp3/*`, `.bp3/desks/*.json`) into the single machine-local SQLite database (`~/.local/share/bp3/bp3.sqlite`) built in Quest 1 (`2026-11-23-sqlite-control-plane`). Ship **`bp3 db backup`** (`VACUUM INTO` clean snapshot copied to a configured Google Drive / iCloud Drive / local `backup_dir` with rolling retention) and **`bp3 db check`** FIRST so the safety net is live before any migration. Then ship an idempotent ref importer (`bp3 db import-refs`) and optional flat quest exporter (`bp3 db export-quest`), cut `Store`, `Metrics_io`, `Config`, `Worktree` desk registry, `Warden_io`, and `scripts/agy-statusline` over to SQLite (`quests`, `nodes`, append-only `ledger_events`, `metrics`, `desks`, `kv_config`), delete the `hash-object`/`commit-tree`/`update-ref` + legacy-ref fold plumbing, migrate the 12 ref-reading test suites to `BP3_DB`-isolated assertions, and update docs/skills. Git keeps code, worktrees, and authored docs (`QUEST.md`, `NODE.md`, `LOG.md`, `FEEDBACK.md`, `plans/`).
 
 ELI5
-Today `bp3` secretly maintains 195 hidden git branches (`refs/heads/bp3/*`) just to store quest state and metrics — spawning 6 git commands per write even though 192 of those 195 branches are never pushed to GitHub. After Quest 1 stands up `bp3.sqlite` for cross-repo drops, this quest moves all quest ledgers, metrics, config, and desk metadata into that same SQLite database, adds one-command safe backups (`bp3 db backup`) to Google Drive or iCloud Drive, imports your existing local quest history, and deletes the git-as-a-database plumbing. Git goes back to doing what git is best at: code, worktrees, and markdown docs.
+Today `bp3` secretly maintains 195 hidden git branches (`refs/heads/bp3/*`) just to store quest state and metrics — spawning 6 git commands per write even though 192 of those 195 branches are never pushed to GitHub. After Quest 1 stands up `bp3.sqlite` for cross-repo tickets, this quest moves all quest ledgers, metrics, config, and desk metadata into that same SQLite database, adds one-command safe backups (`bp3 db backup`) to Google Drive or iCloud Drive, imports your existing local quest history, and deletes the git-as-a-database plumbing. Git goes back to doing what git is best at: code, worktrees, and markdown docs.
 
 ## Context
 
 Companion to `docs/quests/2026-11-23-sqlite-control-plane/QUEST.md` (which holds the verbatim promoted icebox entry at `docs/quests/2026-11-23-sqlite-control-plane/ICEBOX.md`, originally `docs/icebox/2026-11-18-sqlite-store.md`).
 
 Sequenced **after**:
-1. `docs/quests/2026-11-23-sqlite-control-plane/` (provides OCaml `sqlite3`, `src/quest/db.ml`, `BP3_DB`, schema v1, and `repos`).
+1. `docs/quests/2026-11-23-sqlite-control-plane/` (provides OCaml `sqlite3`, `src/db/` [`bp3_db`], `BP3_DB`, schema v1, `repos`, and `tickets`).
 2. `docs/quests/2026-11-23-codebase-diet/` (deletes ~2,600 LOC of unused `harness.ml` supervisor/link/tape/watch subsystems so we do not migrate dead `.git/bp3/` directories).
 3. `docs/quests/2026-11-23-warden-v0/` (so `Warden_io` cutover happens once cleanly).
 
@@ -51,7 +51,7 @@ Measured ground (read 2026-11-23):
 
 | Input | Source |
 |---|---|
-| `BP3_DB` / `~/.local/share/bp3/bp3.sqlite` | from Quest 1 (`src/quest/db.ml`) |
+| `BP3_DB` / `~/.local/share/bp3/bp3.sqlite` | from Quest 1 (`src/db/db.ml`) |
 | `BP3_BACKUP_DIR` / `--to <dir>` / `kv_config.backup_dir` | precedence: `--to` > `BP3_BACKUP_DIR` > `kv_config.backup_dir` |
 | `--keep <N>` | `bp3 db backup` daily snapshot retention count (default `14`, must be `>= 1`) |
 | `bp3 db import-refs [--repo <path>]` | reads legacy & canonical `refs/heads/bp3/*` refs from target git repo (default current repo) |
