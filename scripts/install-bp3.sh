@@ -73,7 +73,7 @@ if [ "${BP3_SKIP_GLOBAL_SKILLS:-}" != "1" ]; then
 fi
 
 # Wire agy statusLine (stacked below default) when agy config dir exists or BP3_AGY_SETTINGS is set.
-agy_settings="${BP3_AGY_SETTINGS:-$HOME/.gemini/antigravity-cli/settings.json}"
+agy_settings="${BP3_AGY_SETTINGS:-${BP3_GLOBAL_HOME:-$HOME}/.gemini/antigravity-cli/settings.json}"
 agy_dir="$(dirname "$agy_settings")"
 if command -v jq >/dev/null 2>&1 && { [ -n "${BP3_AGY_SETTINGS:-}" ] || [ -d "$agy_dir" ]; }; then
   mkdir -p "$agy_dir"

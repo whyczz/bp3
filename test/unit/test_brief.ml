@@ -100,19 +100,21 @@ let case_previous_round_is_cut_at_the_bound_handoff _ =
   assert_equal ~printer:Fun.id "c1 | x(nx)" (show (pick "c2" (Some "2026-11-22T10:00:09Z")));
   assert_equal ~printer:Fun.id "c1 | x(nx)" (show (pick "c2" None))
 
-(* Law: any absolute one-line desk renders verbatim; any added paragraph
-   anywhere after the join line reads as edited. *)
+(* Law: any absolute one-line desk and optional repo gate renders verbatim;
+   any added paragraph anywhere after the join line reads as edited. *)
 let law_is_verbatim_exact =
   let open QCheck2.Gen in
   let seg = string_size ~gen:(char_range 'a' 'z') (int_range 1 6) in
   let path = list_size (int_range 1 4) seg >|= fun ss -> "/" ^ String.concat "/" ss in
-  QCheck2.Test.make ~count:300 ~name:"law_is_verbatim_exact" (triple path seg (int_range 1 10))
-    (fun (desk, word, k) ->
-       let r = Brief.render ~desk base in
+  let gate_gen = oneof [ return None; map (fun s -> Some ("make " ^ s)) seg ] in
+  QCheck2.Test.make ~count:300 ~name:"law_is_verbatim_exact" (quad path seg (int_range 1 10) gate_gen)
+    (fun (desk, word, k, gate) ->
+       let inp = { base with gate } in
+       let r = Brief.render ~desk inp in
        let paras = Str.split (Str.regexp_string "\n\n") r in
        let k = 1 + (k mod (List.length paras - 1)) in
        let edited = String.concat "\n\n" (List.filteri (fun j _ -> j < k) paras @ [ "Also " ^ word ^ "." ] @ List.filteri (fun j _ -> j >= k) paras) in
-       Brief.is_verbatim r base && not (Brief.is_verbatim edited base))
+       Brief.is_verbatim r inp && not (Brief.is_verbatim edited inp))
 
 (* Law: the gates part is the section verbatim, and the first line
    always carries the join key (node id and the commit's first 7). *)

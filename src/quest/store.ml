@@ -96,7 +96,7 @@ let plan_knobs_from_text text =
   { max_cycles; grade_required; verify_required }
 
 let load_plan_file path =
-  let full = Filename.concat root path in
+  let full = Filename.concat (current_root ()) path in
   if not (Sys.file_exists full) then
     err Names.e_invalid_plan (`Assoc [("plan", json_str path)]) ("Plan file missing: " ^ path) 1;
   plan_knobs_from_text (read_file_or full "")

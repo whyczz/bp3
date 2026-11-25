@@ -70,15 +70,16 @@ out=$(cd "$self_repo" && PREFIX="$prefix2" BP3_RELEASE_ARTIFACT="$qbin" BP3_DECI
 echo "$out" | jq -e '.ok == true and .tag == "v0.3.1" and .installed_prefix == null' >/dev/null || fail "no-install json: $out"
 [ ! -e "$prefix2/share/bp3/RELEASE" ] || fail "--no-install still wrote prefix2"; ok
 
-# Untagged commit + manual install-bp3.sh removes stale RELEASE
+# Untagged commit + manual install-bp3.sh removes stale RELEASE and respects BP3_GLOBAL_HOME for agy settings
 echo untagged >> "$self_repo/untagged.txt" && git -C "$self_repo" add . && git -C "$self_repo" commit -qm "wip: untagged"
 prefix_untagged="$work/prefix-untagged"
-mkdir -p "$prefix_untagged/share/bp3"
+mkdir -p "$prefix_untagged/share/bp3" "$work/home-iso/.gemini/antigravity-cli"
 printf '{"tag":"v0.1.0"}\n' > "$prefix_untagged/share/bp3/RELEASE"
-PREFIX="$prefix_untagged" "$self_repo/scripts/install-bp3.sh" "$qbin" >/dev/null
-[ ! -e "$prefix_untagged/share/bp3/RELEASE" ] || fail "untagged install kept stale RELEASE"; ok
+env -u BP3_AGY_SETTINGS BP3_GLOBAL_HOME="$work/home-iso" PREFIX="$prefix_untagged" "$self_repo/scripts/install-bp3.sh" "$qbin" >/dev/null
+[ ! -e "$prefix_untagged/share/bp3/RELEASE" ] || fail "untagged install kept stale RELEASE"
+jq -e '.statusLine.enabled == true' "$work/home-iso/.gemini/antigravity-cli/settings.json" >/dev/null || fail "BP3_GLOBAL_HOME did not isolate agy settings.json"; ok
 
-# --- 2. Clean host repo with legacy unversioned skills -> auto-syncs & commits on SessionStart ---
+# --- 2. Clean host repo with legacy unversioned skills -> read-only W_LOCAL_SKILLS_LEGACY on SessionStart ---
 host="$work/predictor-like"
 mkdir -p "$host/.claude/skills/quest" "$host/.agents/skills/quest" "$host/.pi/skills/quest"
 git -C "$host" init -q -b master
@@ -95,11 +96,7 @@ old content
 MD
 cp "$host/.agents/skills/quest/SKILL.md" "$host/.claude/skills/quest/SKILL.md"
 cp "$host/.agents/skills/quest/SKILL.md" "$host/.pi/skills/quest/SKILL.md"
-# Install a failing pre-commit hook to prove --no-verify avoids blocking SessionStart
-mkdir -p "$host/.git/hooks"
-printf '#!/usr/bin/env bash\nexit 1\n' > "$host/.git/hooks/pre-commit"
-chmod +x "$host/.git/hooks/pre-commit"
-git -C "$host" add . && git -C "$host" commit --no-verify -qm "chore: old skills"
+git -C "$host" add . && git -C "$host" commit -qm "chore: old skills"
 
 before_sha=$(git -C "$host" rev-parse HEAD)
 payload='{"hook_event_name":"SessionStart","session_id":"s1","cwd":"'"$host"'"}'
