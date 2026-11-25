@@ -62,6 +62,16 @@ fi
 echo "installed bp3-q $version -> $prefix/bin/bp3-q (was: $old)"
 echo "installed bp3 tool + skills -> $prefix/bin/bp3, $prefix/share/bp3/skills"
 
+# Install user-global CORE_SKILLS + non-clobbering hooks in lockstep with bp3-q (global.1).
+if [ "${BP3_SKIP_GLOBAL_SKILLS:-}" != "1" ]; then
+  BP3_SKIP_COMPLETIONS=1 \
+  BP3_SHARE_DIR="$prefix/share/bp3" \
+  BP3_SKILLS_DIR="$prefix/share/bp3/skills" \
+  BP3_CHECK_SKILLS="$prefix/share/bp3/scripts/check-skills" \
+  "$prefix/bin/bp3" skills install --global --harness=all >/dev/null
+  echo "installed global bp3 skills + hooks -> ${BP3_GLOBAL_HOME:-$HOME}"
+fi
+
 # Wire agy statusLine (stacked below default) when agy config dir exists or BP3_AGY_SETTINGS is set.
 agy_settings="${BP3_AGY_SETTINGS:-$HOME/.gemini/antigravity-cli/settings.json}"
 agy_dir="$(dirname "$agy_settings")"

@@ -135,7 +135,7 @@ _bp3_candidates() {
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'config' ]; then
       printf '%s\n' --source --format -h --help | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'skills' ]; then
-      printf '%s\n' install check | _bp3_filter "$cur"
+      printf '%s\n' install check prune-local | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'harness' ]; then
       printf '%s\n' desk d | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'harness' ] && { [ "${a[1]}" = 'desk' ] || [ "${a[1]}" = 'd' ]; }; then

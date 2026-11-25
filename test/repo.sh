@@ -7,6 +7,7 @@ work=$(mktemp -d "${TMPDIR:-/tmp}/bp3-repo-tests.XXXXXX")
 trap 'rm -rf -- "$work"' EXIT
 export BP3_DB="${BP3_DB:-$work/bp3.sqlite}"
 export BP3_COMPLETIONS_DIR="$work/completions"
+export BP3_GLOBAL_HOME="$work/home"
 export BP3_Q_BIN="$repo/_build/default/src/quest/main.exe"
 [ -x "$BP3_Q_BIN" ] || { echo "build first: dune build src/quest/main.exe" >&2; exit 1; }
 

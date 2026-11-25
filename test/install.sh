@@ -5,6 +5,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
+export BP3_DB="${BP3_DB:-$work/bp3.sqlite}"
 
 # simulate a release artifact from the built binary
 version=$(sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' "$root/src/quest/gitx.ml" | head -1)
@@ -14,19 +15,28 @@ art="$work/dist/bp3-q-v$version-$os-$arch"
 cp "$root/_build/default/src/quest/main.exe" "$art"
 (cd "$work/dist" && shasum -a 256 "$(basename "$art")" > "$(basename "$art").sha256")
 
-mkdir -p "$work/agy"
+mkdir -p "$work/agy" "$work/home"
 printf '{"keepMe":true}\n' > "$work/agy/settings.json"
-out=$(PREFIX="$work/prefix" BP3_AGY_SETTINGS="$work/agy/settings.json" "$root/scripts/install-bp3.sh" "$art")
+out=$(PREFIX="$work/prefix" BP3_GLOBAL_HOME="$work/home" BP3_AGY_SETTINGS="$work/agy/settings.json" "$root/scripts/install-bp3.sh" "$art")
 echo "$out" | grep -q "installed bp3-q $version" || fail "install print: $out"
 echo "$out" | grep -q "(was: none)" || fail "install old: $out"
+echo "$out" | grep -q "installed global bp3 skills + hooks" || fail "install global print: $out"
 [ -x "$work/prefix/bin/bp3-q" ] || fail "bp3-q not installed"
 [ -x "$work/prefix/bin/bp3" ] || fail "bp3 shim not installed"
 [ -x "$work/prefix/share/bp3/scripts/agy-statusline" ] || fail "agy-statusline not installed"
+[ -f "$work/home/.gemini/config/skills/warden/SKILL.md" ] || fail "global agy warden skill not installed"
+[ -f "$work/home/.claude/skills/warden/SKILL.md" ] || fail "global claude warden skill not installed"
+[ -f "$work/home/.pi/agent/skills/warden/SKILL.md" ] || fail "global pi warden skill not installed"
+[ -f "$work/home/.claude/settings.json" ] && [ -f "$work/home/.gemini/config/hooks.json" ] || fail "global hooks not installed"
 jq -e --arg cmd "$work/prefix/share/bp3/scripts/agy-statusline" \
   '.keepMe == true and .statusLine.type == "command" and .statusLine.command == $cmd and .statusLine.enabled == true and .statusLine.stack_with_default == true' \
   "$work/agy/settings.json" >/dev/null || fail "agy statusLine settings: $(cat "$work/agy/settings.json")"
-out=$(PREFIX="$work/prefix" BP3_AGY_SETTINGS="$work/agy/settings.json" "$root/scripts/install-bp3.sh" "$art")
+out=$(PREFIX="$work/prefix" BP3_GLOBAL_HOME="$work/home" BP3_AGY_SETTINGS="$work/agy/settings.json" "$root/scripts/install-bp3.sh" "$art")
 echo "$out" | grep -q "(was: $version)" || fail "reinstall old->new: $out"
+# global.1: BP3_SKIP_GLOBAL_SKILLS=1 skips global skill/hook install cleanly
+mkdir -p "$work/home-skip"
+PREFIX="$work/prefix" BP3_GLOBAL_HOME="$work/home-skip" BP3_SKIP_GLOBAL_SKILLS=1 BP3_AGY_SETTINGS="$work/agy/settings.json" "$root/scripts/install-bp3.sh" "$art" >/dev/null
+[ ! -e "$work/home-skip/.gemini" ] && [ ! -e "$work/home-skip/.claude" ] || fail "BP3_SKIP_GLOBAL_SKILLS=1 still wrote global dirs"
 
 # dogfood: full quest loop in a scratch repo on the installed binary only
 mkdir -p "$work/esc3" && cd "$work/esc3"
