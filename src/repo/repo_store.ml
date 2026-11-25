@@ -114,45 +114,54 @@ let add ?db_path ?path ?name () =
   let ts = Db.now_ts () in
   Db.with_db ?path:db_path (fun db ->
       Db.with_tx_immediate db (fun db ->
-          (match find_by_name_in db repo_name with
-           | Some existing when existing.root_path <> root_path ->
-               Db.verdict_err "E_EXISTS"
-                 (`Assoc
-                    [
-                      ("name", Db.json_str repo_name);
-                      ("existing_path", Db.json_str existing.root_path);
-                      ("requested_path", Db.json_str root_path);
-                    ])
-                 (Printf.sprintf "Repo name %S already points to %s." repo_name existing.root_path)
-                 1
-           | _ -> ());
-          (match find_by_path_in db root_path with
-           | Some existing when existing.name <> repo_name ->
-               Db.verdict_err "E_EXISTS"
-                 (`Assoc
-                    [
-                      ("root_path", Db.json_str root_path);
-                      ("existing_name", Db.json_str existing.name);
-                      ("requested_name", Db.json_str repo_name);
-                    ])
-                 (Printf.sprintf "Repo path %s is already registered as %S." root_path existing.name)
-                 1
-           | _ -> ());
-          match find_by_name_in db repo_name with
-          | Some existing ->
+          (* When --name is omitted and root_path is already registered (e.g. under a
+             custom alias), refresh last_seen_at on the existing entry instead of
+             failing E_EXISTS on auto-register. *)
+          match (name, find_by_path_in db root_path) with
+          | None, Some existing ->
               Db.exec_params db "UPDATE repos SET last_seen_at = ? WHERE name = ?;"
-                [ Sqlite3.Data.TEXT ts; Sqlite3.Data.TEXT repo_name ];
+                [ Sqlite3.Data.TEXT ts; Sqlite3.Data.TEXT existing.name ];
               { existing with last_seen_at = ts }
-          | None ->
-              Db.exec_params db
-                "INSERT INTO repos (name, root_path, added_at, last_seen_at) VALUES (?, ?, ?, ?);"
-                [
-                  Sqlite3.Data.TEXT repo_name;
-                  Sqlite3.Data.TEXT root_path;
-                  Sqlite3.Data.TEXT ts;
-                  Sqlite3.Data.TEXT ts;
-                ];
-              { name = repo_name; root_path; added_at = ts; last_seen_at = ts }))
+          | _ -> (
+              (match find_by_name_in db repo_name with
+               | Some existing when existing.root_path <> root_path ->
+                   Db.verdict_err "E_EXISTS"
+                     (`Assoc
+                        [
+                          ("name", Db.json_str repo_name);
+                          ("existing_path", Db.json_str existing.root_path);
+                          ("requested_path", Db.json_str root_path);
+                        ])
+                     (Printf.sprintf "Repo name %S already points to %s." repo_name existing.root_path)
+                     1
+               | _ -> ());
+              (match find_by_path_in db root_path with
+               | Some existing when existing.name <> repo_name ->
+                   Db.verdict_err "E_EXISTS"
+                     (`Assoc
+                        [
+                          ("root_path", Db.json_str root_path);
+                          ("existing_name", Db.json_str existing.name);
+                          ("requested_name", Db.json_str repo_name);
+                        ])
+                     (Printf.sprintf "Repo path %s is already registered as %S." root_path existing.name)
+                     1
+               | _ -> ());
+              match find_by_name_in db repo_name with
+              | Some existing ->
+                  Db.exec_params db "UPDATE repos SET last_seen_at = ? WHERE name = ?;"
+                    [ Sqlite3.Data.TEXT ts; Sqlite3.Data.TEXT repo_name ];
+                  { existing with last_seen_at = ts }
+              | None ->
+                  Db.exec_params db
+                    "INSERT INTO repos (name, root_path, added_at, last_seen_at) VALUES (?, ?, ?, ?);"
+                    [
+                      Sqlite3.Data.TEXT repo_name;
+                      Sqlite3.Data.TEXT root_path;
+                      Sqlite3.Data.TEXT ts;
+                      Sqlite3.Data.TEXT ts;
+                    ];
+                  { name = repo_name; root_path; added_at = ts; last_seen_at = ts })))
 
 let list ?db_path () = Db.with_db ?path:db_path list_in
 

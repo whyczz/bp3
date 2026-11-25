@@ -62,7 +62,7 @@ let run_inner ?db_path = function
   | h :: _ when is_help h ->
       print_string help_text;
       0
-  | ("add" | "list" | "remove") :: h :: _ when is_help h ->
+  | ("add" | "list" | "remove") :: rest when List.exists is_help rest ->
       print_string help_text;
       0
   | "add" :: rest ->

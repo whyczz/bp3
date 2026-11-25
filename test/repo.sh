@@ -50,6 +50,21 @@ assert jq -e --arg p "$canon_pred" '.repo.root_path == $p' <<< "$res" >/dev/null
 res_wt=$("$repo/bin/bp3" repo add "$wt")
 assert jq -e --arg p "$canon_pred" '.ok == true and .repo.name == "predictor" and .repo.root_path == $p' <<< "$res_wt" >/dev/null
 
+# 2b. cwd default (no <path>) via bin/bp3 registers caller's cwd repo, NOT bp3
+cwd_repo="$work/cwd-default-app"
+mk_repo "$cwd_repo"
+canon_cwd=$(cd "$cwd_repo" && pwd -P)
+res_cwd=$(cd "$cwd_repo" && "$repo/bin/bp3" repo add)
+assert jq -e --arg p "$canon_cwd" '.ok == true and .repo.name == "cwd-default-app" and .repo.root_path == $p' <<< "$res_cwd" >/dev/null
+
+# 2c. Aliased repo refreshed cleanly by subsequent `bp3 init` (omitted --name)
+aliased="$work/aliased-dir"
+mk_repo "$aliased"
+"$repo/bin/bp3" repo add "$aliased" --name custom-alias >/dev/null
+BP3_TARGET="$aliased" "$repo/bin/bp3" init --harness=claude >/dev/null
+alias_list=$("$repo/bin/bp3" repo list)
+assert jq -e '([.repos[].name] | index("custom-alias") != null) and ([.repos[].name] | index("aliased-dir") == null)' <<< "$alias_list" >/dev/null
+
 # 3. Duplicate name conflict -> exit 1 E_EXISTS
 other="$work/other-app"
 mk_repo "$other"

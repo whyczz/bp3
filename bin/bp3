@@ -446,10 +446,18 @@ run_q() {
   local gb
   gb="$(q_bin)"
   if [[ -x $gb ]]; then
-    BP3_ROOT="$root" exec "$gb" "$door" "$@"
+    if [[ $door == db || $door == repo || $door == ticket ]]; then
+      exec "$gb" "$door" "$@"
+    else
+      BP3_ROOT="$root" exec "$gb" "$door" "$@"
+    fi
   elif command -v bp3-q >/dev/null 2>&1; then
     # Installed tool (host mode): the binary roots at the caller's repo.
-    BP3_ROOT="$(target_root)" exec bp3-q "$door" "$@"
+    if [[ $door == db || $door == repo || $door == ticket ]]; then
+      exec bp3-q "$door" "$@"
+    else
+      BP3_ROOT="$(target_root)" exec bp3-q "$door" "$@"
+    fi
   elif [[ $door == q && ${1:-} == hooks ]]; then
     # Hooks fail open (hooks.ml): exit 2 would block every tool,
     # including the build that fixes this. Drain the payload.
