@@ -98,7 +98,7 @@ for v in add list read claim unclaim "done" dismiss; do has "$out" "$v"; done
 out=$(_bp3_candidates warden "")
 has "$out" toy-drive; has "$out" --no-sessions; has "$out" --all; has "$out" --last
 out=$(_bp3_candidates release "")
-has "$out" toy-drive; has "$out" --commit; has "$out" --bump; has "$out" --no-gh; has "$out" --no-install; has "$out" --dry-run; has "$out" --publish-only
+has "$out" toy-drive; has "$out" --commit; has "$out" --bump; has "$out" --ff-only; has "$out" --no-gh; has "$out" --no-install; has "$out" --dry-run; has "$out" --publish-only
 out=$(_bp3_candidates config "")
 has "$out" --source; has "$out" --format
 out=$(_bp3_candidates harness "")
@@ -129,6 +129,8 @@ if command -v zsh >/dev/null 2>&1; then
   has "$out" land
   out=$(zcand worktree "")
   has "$out" land
+  out=$(zcand release "")
+  has "$out" --ff-only
 fi
 
 # --- silent failure: unbuilt binary / non-bp3 cwd says nothing ---

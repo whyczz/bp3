@@ -142,41 +142,84 @@ out=$(BP3_DECIDER=human run_bp3 "$r1" release q-none) || fail "bump none failed:
 echo "$out" | jq -e '.ok == true and .bump == "none" and .tag == null and .release_kind == "none"' >/dev/null || fail "bump none json: $out"
 [ "$(git -C "$r1" tag -l 'v*' | wc -l | tr -d ' ')" = "2" ] || fail "bump none created a tag"; ok
 
-# --- 5. Parallel quests CAS: E_NOT_FAST_FORWARD + atomic E_STALE_WORLD ---
+# --- 5. Parallel quests CAS: merge-tree auto-merge, --ff-only, doc-only vs code verify, conflicts, E_STALE_WORLD ---
 r2="$work/parallel"
 make_host_repo "$r2"
+export BP3_DESKS_DIR="$work/desks-rel"
 m0=$(git -C "$r2" rev-parse master)
 
-# Branch quest/q1 and quest/q2 off M0
+# Branch quest/q1 and quest/q2 off M0 (disjoint files)
 git -C "$r2" checkout -q -b quest/q1 "$m0"
 land_one_node "$r2" q1 n1 "feat: q1" "minor"
 git -C "$r2" checkout -q -b quest/q2 "$m0"
 land_one_node "$r2" q2 n1 "feat: q2" "minor"
+q2_graded_sha=$(git -C "$r2" rev-parse quest/q2)
 git -C "$r2" checkout -q master
 
-# q1 releases first -> v0.1.0
+# q1 releases first via fast-forward -> v0.1.0
 out=$(BP3_DECIDER=human run_bp3 "$r2" release q1) || fail "q1 release failed: $out"
-echo "$out" | jq -e '.ok == true and .tag == "v0.1.0"' >/dev/null || fail "q1 json: $out"; ok
+echo "$out" | jq -e '.ok == true and .tag == "v0.1.0" and .strategy == "fast_forward" and .drift_kind == "none" and .attempts == 1' >/dev/null || fail "q1 json: $out"; ok
 
-# q2 (still based on M0) refuses E_NOT_FAST_FORWARD
-if out=$(BP3_DECIDER=human run_bp3 "$r2" release q2 2>&1); then fail "non-ff q2 accepted"; fi
-echo "$out" | jq -e '.error.code == "E_NOT_FAST_FORWARD"' >/dev/null || fail "non-ff code: $out"; ok
-
-# Rebase q2 onto master, then simulate concurrent CAS lock on refs/tags/v0.2.0 -> atomic E_STALE_WORLD
-git -C "$r2" checkout -q quest/q2
-git -C "$r2" rebase -q master
-git -C "$r2" checkout -q master
+# q2 --dry-run previews merge strategy read-only without mutating master
 before_m=$(git -C "$r2" rev-parse master)
+out=$(run_bp3 "$r2" release q2 --dry-run) || fail "q2 dry-run failed: $out"
+echo "$out" | jq -e '.ok == true and .dry_run == true and .tag == "v0.2.0" and .strategy == "merge" and .drift_kind == "code" and .conflicts == []' >/dev/null || fail "q2 dry-run json: $out"
+[ "$(git -C "$r2" rev-parse master)" = "$before_m" ] || fail "q2 dry-run moved master"; ok
+
+# q2 --ff-only still refuses E_NOT_FAST_FORWARD
+if out=$(BP3_DECIDER=human run_bp3 "$r2" release q2 --ff-only 2>&1); then fail "ff-only q2 accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FAST_FORWARD"' >/dev/null || fail "ff-only code: $out"; ok
+
+# q2 with failing BP3_RELEASE_VERIFY_CMD on code drift refuses E_VERIFY_FAILED, leaves master & worktrees clean
+wt_before=$(git -C "$r2" worktree list --porcelain | grep -c '^worktree ')
+if out=$(BP3_RELEASE_VERIFY_CMD="false" BP3_DECIDER=human run_bp3 "$r2" release q2 2>&1); then fail "failing verify q2 accepted"; fi
+echo "$out" | jq -e '.error.code == "E_VERIFY_FAILED" and .error.facts.drift_kind == "code"' >/dev/null || fail "verify fail code: $out"
+[ "$(git -C "$r2" rev-parse master)" = "$before_m" ] || fail "failed verify moved master"
+[ "$(git -C "$r2" worktree list --porcelain | grep -c '^worktree ')" = "$wt_before" ] || fail "failed verify leaked ephemeral worktree"; ok
+
+# Atomic CAS lock on refs/tags/v0.2.0 -> retries 3x and fails E_STALE_WORLD with master unchanged
 mkdir -p "$r2/.git/refs/tags"
 : > "$r2/.git/refs/tags/v0.2.0.lock"
-if out=$(BP3_DECIDER=human run_bp3 "$r2" release q2 2>&1); then fail "locked CAS accepted"; fi
-echo "$out" | jq -e '.error.code == "E_STALE_WORLD"' >/dev/null || fail "stale world code: $out"
-[ "$(git -C "$r2" rev-parse master)" = "$before_m" ] || fail "atomic CAS moved master despite tag lock!"
-rm -f "$r2/.git/refs/tags/v0.2.0.lock"; ok
+if out=$(BP3_RELEASE_VERIFY_CMD="true" BP3_DECIDER=human run_bp3 "$r2" release q2 2>&1); then
+  rm -f "$r2/.git/refs/tags/v0.2.0.lock"
+  fail "locked CAS accepted"
+fi
+rm -f "$r2/.git/refs/tags/v0.2.0.lock"
+echo "$out" | jq -e '.error.code == "E_STALE_WORLD" and .error.facts.attempts == 3' >/dev/null || fail "stale world code: $out"
+[ "$(git -C "$r2" rev-parse master)" = "$before_m" ] || fail "atomic CAS moved master despite tag lock!"; ok
 
-# Retry q2 now succeeds cleanly at v0.2.0
-out=$(BP3_DECIDER=human run_bp3 "$r2" release q2) || fail "q2 retry failed: $out"
-echo "$out" | jq -e '.ok == true and .previous_tag == "v0.1.0" and .tag == "v0.2.0"' >/dev/null || fail "q2 retry json: $out"; ok
+# Retry q2 with passing verify succeeds via 2-parent merge commit, preserving exact graded SHA as HEAD^2!
+out=$(BP3_RELEASE_VERIFY_CMD="test -f work-q1.txt && test -f work-q2.txt" BP3_DECIDER=human run_bp3 "$r2" release q2) || fail "q2 cas merge failed: $out"
+echo "$out" | jq -e '.ok == true and .previous_tag == "v0.1.0" and .tag == "v0.2.0" and .strategy == "merge" and .drift_kind == "code" and .verified_merged == "custom" and .attempts == 1' >/dev/null || fail "q2 cas merge json: $out"
+[ "$(git -C "$r2" rev-parse master^2)" = "$q2_graded_sha" ] || fail "q2 graded SHA not preserved as master^2"
+[ -f "$r2/work-q1.txt" ] && [ -f "$r2/work-q2.txt" ] || fail "master checkout missing merged files"
+[ -z "$(git -C "$r2" status --short)" ] || fail "master dirty after cas merge"
+[ "$(git -C "$r2" worktree list --porcelain | grep -c '^worktree ')" = "$wt_before" ] || fail "cas merge leaked ephemeral worktree"; ok
+
+# Doc-only drift on master (docs/icebox/*.md): code verify command is NOT invoked!
+m2=$(git -C "$r2" rev-parse master)
+git -C "$r2" checkout -q -b quest/q3 "$m2"
+land_one_node "$r2" q3 n1 "feat: q3" "patch"
+git -C "$r2" checkout -q master
+mkdir -p "$r2/docs/icebox"
+echo "frozen idea" > "$r2/docs/icebox/2026-11-25-side.md"
+git -C "$r2" add docs/icebox/2026-11-25-side.md && git -C "$r2" commit -qm "docs(icebox): side"
+out=$(BP3_RELEASE_VERIFY_CMD="false" BP3_DECIDER=human run_bp3 "$r2" release q3) || fail "doc-only drift q3 failed: $out"
+echo "$out" | jq -e '.ok == true and .tag == "v0.2.1" and .strategy == "merge" and .drift_kind == "doc_only" and .verified_merged == "skipped_no_gate"' >/dev/null || fail "doc-only drift json: $out"
+[ -f "$r2/docs/icebox/2026-11-25-side.md" ] && [ -f "$r2/work-q3.txt" ] || fail "doc-only merge missing files"; ok
+
+# Textual merge conflict -> E_MERGE_CONFLICT with conflicting path in facts.conflicts, master untouched
+m3=$(git -C "$r2" rev-parse master)
+git -C "$r2" checkout -q -b quest/q4 "$m3"
+echo "quest-line" > "$r2/README.md"
+land_one_node "$r2" q4 n1 "feat: conflict q4" "patch"
+git -C "$r2" checkout -q master
+echo "master-line" > "$r2/README.md"
+git -C "$r2" add README.md && git -C "$r2" commit -qm "docs: master conflict"
+before_m=$(git -C "$r2" rev-parse master)
+if out=$(BP3_DECIDER=human run_bp3 "$r2" release q4 2>&1); then fail "conflicting q4 accepted"; fi
+echo "$out" | jq -e '.error.code == "E_MERGE_CONFLICT" and (.error.facts.conflicts | index("README.md") != null)' >/dev/null || fail "conflict code: $out"
+[ "$(git -C "$r2" rev-parse master)" = "$before_m" ] || fail "conflict release moved master"; ok
 
 # --- 6. GitHub remote mode (bare remote + insteadOf + stubbed gh) + --no-gh + --publish-only ---
 bare="$work/gh-bare.git"

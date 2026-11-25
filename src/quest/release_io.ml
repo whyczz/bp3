@@ -16,6 +16,7 @@ type opts = {
   tag : string option;
   no_gh : bool;
   no_install : bool;
+  ff_only : bool;
   dry_run : bool;
   publish_only : bool;
   fmt : string;
@@ -24,8 +25,8 @@ type opts = {
 
 let help_release =
   "bp3 release - atomic CAS quest promotion and semver release (GitHub Release or annotated git tag):\n\
-  \  bp3 release <quest> [--bump major|minor|patch|none] [--target <branch>] [--remote <name>] [--reason <text>] [--no-gh] [--no-install] [--dry-run] [--format json|table]\n\
-  \  bp3 release --commit <sha> [--bump patch|minor|major] [--target <branch>] [--remote <name>] [--reason <text>] [--no-gh] [--no-install] [--dry-run] [--format json|table]\n\
+  \  bp3 release <quest> [--bump major|minor|patch|none] [--target <branch>] [--remote <name>] [--reason <text>] [--ff-only] [--no-gh] [--no-install] [--dry-run] [--format json|table]\n\
+  \  bp3 release --commit <sha> [--bump patch|minor|major] [--target <branch>] [--remote <name>] [--reason <text>] [--ff-only] [--no-gh] [--no-install] [--dry-run] [--format json|table]\n\
   \  bp3 release (<quest> | --tag <vX.Y.Z>) --publish-only [--target <branch>] [--remote <name>] [--format json|table]\n\
   Requires BP3_DECIDER=human for any real release (--dry-run is read-only).\n\
   Example: BP3_DECIDER=human bp3 release 2026-11-23-quest-promote-release\n"
@@ -34,7 +35,8 @@ let parse_args args =
   let init = {
     quest = None; commit = None; bump = None; target = None;
     remote = "origin"; reason = None; tag = None;
-    no_gh = false; no_install = false; dry_run = false; publish_only = false;
+    no_gh = false; no_install = false; ff_only = false;
+    dry_run = false; publish_only = false;
     fmt = "json"; help = false;
   } in
   let seen_remote = ref false and seen_fmt = ref false in
@@ -71,6 +73,9 @@ let parse_args args =
     | "--no-install" :: rest ->
         if acc.no_install then usage "duplicate flag --no-install";
         loop { acc with no_install = true } rest
+    | "--ff-only" :: rest ->
+        if acc.ff_only then usage "duplicate flag --ff-only";
+        loop { acc with ff_only = true } rest
     | "--dry-run" :: rest ->
         if acc.dry_run then usage "duplicate flag --dry-run";
         loop { acc with dry_run = true } rest
@@ -243,7 +248,7 @@ let commits_since prev_tag source_tip =
   if code <> 0 || out = "" then []
   else String.split_on_char '\n' out |> List.map String.trim |> List.filter (fun s -> s <> "")
 
-let plumbing_commit ~base_tip ~files ~msg =
+let plumbing_commit ~base_tree ~parents ~files ~msg =
   !Gitx.write_guard ();
   let idx = tmp_path "rel-index" in
   let env = [ "GIT_INDEX_FILE=" ^ idx ] in
@@ -252,7 +257,7 @@ let plumbing_commit ~base_tip ~files ~msg =
     cleanup ();
     err Names.e_stale_world (`Assoc [ ("detail", json_str detail) ])
       "Failed to assemble release commit in plumbing." 1 in
-  if run_status ~env (git [ "read-tree"; base_tip ]) <> 0 then fail "read-tree";
+  if run_status ~env (git [ "read-tree"; base_tree ]) <> 0 then fail "read-tree";
   List.iter (fun (path, content) ->
     let blob, code = git_out ~input:content [ "hash-object"; "-w"; "--stdin" ] in
     if code <> 0 || blob = "" then fail ("hash-object " ^ path);
@@ -262,10 +267,99 @@ let plumbing_commit ~base_tip ~files ~msg =
   ) files;
   let tree, code = git_out ~env [ "write-tree" ] in
   if code <> 0 || tree = "" then fail "write-tree";
-  let new_tip, code = git_out ~input:msg [ "commit-tree"; tree; "-p"; base_tip ] in
+  let parent_args = List.concat_map (fun p -> [ "-p"; p ]) parents in
+  let new_tip, code = git_out ~input:msg (("commit-tree" :: tree :: parent_args)) in
   cleanup ();
   if code <> 0 || new_tip = "" then fail "commit-tree";
   new_tip
+
+let git_merge_tree ~ours ~theirs =
+  let out, err_s, code =
+    run_capture_both
+      (git [ "merge-tree"; "--write-tree"; "--name-only"; "--no-messages"; ours; theirs ]) in
+  let lines =
+    String.split_on_char '\n' out
+    |> List.map String.trim
+    |> List.filter (fun s -> s <> "") in
+  match code, lines with
+  | 0, tree :: _ -> Ok tree
+  | 1, _ :: conflicts ->
+      let uniq = List.sort_uniq String.compare conflicts in
+      Error (`Conflict uniq)
+  | _ ->
+      let detail = if err_s <> "" then err_s else out in
+      Error (`Git_error detail)
+
+let git_drifted_files ~source_tip ~target_tip =
+  let mb, mb_code = git_out [ "merge-base"; target_tip; source_tip ] in
+  if mb_code <> 0 || mb = "" then []
+  else
+    let out, dcode = git_out [ "diff"; "--name-only"; mb ^ ".." ^ target_tip ] in
+    if dcode <> 0 || out = "" then []
+    else
+      String.split_on_char '\n' out
+      |> List.map String.trim
+      |> List.filter (fun s -> s <> "")
+
+let verify_merged_tree ~merged_tree ~parents ~drift ~attempt =
+  let mk_opt = git_show merged_tree "Makefile" in
+  let (label, cmd_opt) =
+    match drift with
+    | Release.None_drift -> ("none", None)
+    | Release.Doc_only ->
+        (match mk_opt with
+         | Some mk when Release.makefile_has_target ~target:"lint" mk ->
+             ("lint", Some (`Make "lint"))
+         | _ -> ("skipped_no_gate", None))
+    | Release.Code ->
+        (match Sys.getenv_opt "BP3_RELEASE_VERIFY_CMD" with
+         | Some c when String.trim c <> "" -> ("custom", Some (`Shell c))
+         | _ ->
+             (match mk_opt with
+              | Some mk when Release.makefile_has_target ~target:"check-full" mk ->
+                  ("full", Some (`Make "check-full"))
+              | _ -> ("skipped_no_gate", None))) in
+  match cmd_opt with
+  | None -> label
+  | Some spec ->
+      let parent_args = List.concat_map (fun p -> [ "-p"; p ]) parents in
+      let tmp_commit, ccode =
+        git_out ~input:"bp3: ephemeral release verify" ("commit-tree" :: merged_tree :: parent_args) in
+      if ccode <> 0 || tmp_commit = "" then
+        err Names.e_verify_failed
+          (`Assoc [ ("drift_kind", json_str (Release.drift_kind_to_string drift));
+                    ("verify_mode", json_str label);
+                    ("detail", json_str "failed to create ephemeral verification commit") ])
+          "Merged tree verification setup failed; target branch untouched." 1;
+      let mr = Worktree.main_root () in
+      let ephem =
+        Layout.run_desk_dir (Worktree.repo_desks_dir ())
+          "_release-verify" "merge"
+          (Printf.sprintf "p%d-a%d" (Unix.getpid ()) attempt) in
+      Util.mkdir_p (Filename.dirname ephem);
+      let _wout, werr, wcode =
+        run_capture_both [ "git"; "-C"; mr; "worktree"; "add"; "--detach"; ephem; tmp_commit ] in
+      if wcode <> 0 then
+        err Names.e_verify_failed
+          (`Assoc [ ("drift_kind", json_str (Release.drift_kind_to_string drift));
+                    ("verify_mode", json_str label);
+                    ("detail", json_str werr) ])
+          "Failed to check out ephemeral verification worktree; target branch untouched." 1;
+      let cleanup () =
+        ignore (run_status [ "git"; "-C"; mr; "worktree"; "remove"; "--force"; ephem ]) in
+      Fun.protect ~finally:cleanup (fun () ->
+        let argv = match spec with
+          | `Make tgt -> [ "make"; "-C"; ephem; tgt ]
+          | `Shell c -> [ "sh"; "-c"; "cd \"$1\" && sh -c \"$2\""; "_"; ephem; c ] in
+        let out, err_s, code = run_capture_both ~env:[ "BP3_ROOT=" ^ ephem ] argv in
+        if code <> 0 then begin
+          let detail = if err_s <> "" then err_s else out in
+          err Names.e_verify_failed
+            (`Assoc [ ("drift_kind", json_str (Release.drift_kind_to_string drift));
+                      ("verify_mode", json_str label);
+                      ("detail", json_str detail) ])
+            "Merged tree failed verification gate; target branch untouched." 1
+        end else label)
 
 let plumbing_mktag ~commit ~tag ~message =
   let name =
@@ -284,7 +378,7 @@ let plumbing_mktag ~commit ~tag ~message =
       "Failed to create annotated tag object via git mktag." 1;
   out
 
-let atomic_cas_update ~target ~new_tip ~old_target_tip ~tag_opt ~tag_obj_opt =
+let try_atomic_cas_update ~target ~new_tip ~old_target_tip ~tag_opt ~tag_obj_opt =
   !Gitx.write_guard ();
   let buf = Buffer.create 256 in
   Buffer.add_string buf "start\n";
@@ -295,12 +389,8 @@ let atomic_cas_update ~target ~new_tip ~old_target_tip ~tag_opt ~tag_obj_opt =
   Buffer.add_string buf "commit\n";
   let _out, err_s, code =
     run_capture_both ~input:(Buffer.contents buf) (git [ "update-ref"; "--stdin" ]) in
-  if code <> 0 then
-    err Names.e_stale_world
-      (`Assoc [ ("target", json_str target); ("tag", opt_json tag_opt);
-                ("detail", json_str err_s) ])
-      "Target branch moved or release tag already exists; re-read and retry." 1;
-  invalidate_ref_caches ()
+  invalidate_ref_caches ();
+  if code = 0 then Ok () else Error err_s
 
 let sync_clean_worktrees wts =
   List.iter (fun wt ->
@@ -371,7 +461,8 @@ let format_table_verdict v =
         | Some (`Bool b) -> string_of_bool b
         | Some `Null | None -> "-"
         | Some other -> Yojson.Safe.to_string other in
-      let keys = [ "mode"; "quest"; "target"; "bump"; "previous_tag"; "tag";
+      let keys = [ "mode"; "quest"; "target"; "strategy"; "drift_kind";
+                   "verified_merged"; "attempts"; "bump"; "previous_tag"; "tag";
                    "commit"; "release_kind"; "repo"; "release_url";
                    "installed_prefix"; "dry_run" ] in
       List.iter (fun k -> Printf.printf "%-18s %s\n" k (get k)) keys;
@@ -476,7 +567,6 @@ let run argv id =
         "Releasing requires a human decision (BP3_DECIDER=human); use --dry-run to preview." 1;
     let target = detect_target_branch opts.target in
     let target_ref = "refs/heads/" ^ target in
-    let target_tip = match ref_tip target_ref with Some s -> s | None -> not_found "branch" target in
 
     (* Mode-specific validation and source resolution *)
     let (source_tip, qs_from_st, node_summaries, quest_md_path_opt, quest_md_text_opt, meta_opt) =
@@ -533,21 +623,6 @@ let run argv id =
           (full, "", [], None, None, None)
       | _ -> usage "invalid release arguments" in
 
-    (* Clean worktree checks (current + every worktree on target branch) *)
-    let target_wts = worktrees_on_branch target_ref in
-    if not opts.dry_run then begin
-      check_clean_dir root;
-      List.iter check_clean_dir target_wts
-    end;
-
-    (* Fast-forward ancestry check *)
-    if not (is_ancestor target_tip source_tip) then
-      err Names.e_not_fast_forward
-        (`Assoc [ ("target", json_str target); ("target_tip", json_str target_tip);
-                  ("source_tip", json_str source_tip) ])
-        ("Target branch " ^ target ^ " moved ahead of source commit (parallel release). Rebase onto "
-         ^ target ^ ", re-verify, and retry.") 1;
-
     (* Bump resolution *)
     let bump =
       match mode, opts.bump, meta_opt with
@@ -574,142 +649,205 @@ let run argv id =
       | "commit", None, _ -> Release.Patch
       | _ -> usage "unable to resolve bump" in
 
-    let prev_sv = Release.latest_semver_tag (list_v_tags ()) in
-    let prev_tag = Option.map Release.format_tag prev_sv in
-    let next_sv = Release.next_semver prev_sv bump in
-    let next_ver = Option.map Release.format_semver next_sv in
-    let tag_opt = Option.map Release.format_tag next_sv in
-    let gh_repo =
-      if opts.no_gh || tag_opt = None then None
-      else match Release.classify_remote (remote_url opts.remote) with
-        | Release.GitHub r -> Some r
-        | Release.Local_tag -> None in
-    let release_kind =
-      match tag_opt, gh_repo with
-      | None, _ -> "none"
-      | Some _, Some _ -> "github"
-      | Some _, None -> "git_tag" in
+    let max_attempts = 3 in
+    let rec try_release attempt =
+      let target_tip =
+        match ref_tip target_ref with
+        | Some s -> s
+        | None -> not_found "branch" target in
+      let target_wts = worktrees_on_branch target_ref in
+      if not opts.dry_run then begin
+        check_clean_dir root;
+        List.iter check_clean_dir target_wts
+      end;
 
-    let commits = commits_since prev_tag source_tip in
-    let notes =
-      match opts.quest, meta_opt with
-      | Some q, Some meta ->
-          Release.render_what_changed ~quest:q
-            ~tag:(Option.value tag_opt ~default:q) ~prev_tag ~meta
-            ~nodes:node_summaries ~commit_subjects:commits
-      | _ ->
-          Release.render_commit_what_changed ~sha:source_tip
-            ~subject:(commit_subject source_tip) ~body:(commit_body source_tip)
-            ~tag:(Option.value tag_opt ~default:(Release.short_sha source_tip))
-            ~prev_tag ~commit_subjects:commits in
+      let (strategy, drift, base_tree, parents, verified_merged) =
+        if is_ancestor target_tip source_tip then
+          ("fast_forward", Release.None_drift, source_tip, [ source_tip ], "none")
+        else begin
+          if opts.ff_only then
+            err Names.e_not_fast_forward
+              (`Assoc [ ("target", json_str target); ("target_tip", json_str target_tip);
+                        ("source_tip", json_str source_tip) ])
+              ("Target branch " ^ target ^ " moved ahead of source commit (--ff-only). Rebase onto "
+               ^ target ^ ", re-verify, and retry.") 1;
+          match git_merge_tree ~ours:target_tip ~theirs:source_tip with
+          | Error (`Conflict cs) ->
+              err Names.e_merge_conflict
+                (`Assoc [ ("target", json_str target); ("target_tip", json_str target_tip);
+                          ("source_tip", json_str source_tip);
+                          ("conflicts", `List (List.map json_str cs)) ])
+                ("In-memory merge with " ^ target ^ " conflicted; resolve conflicts and retry.") 1
+          | Error (`Git_error detail) ->
+              err Names.e_stale_world
+                (`Assoc [ ("target", json_str target); ("detail", json_str detail) ])
+                "git merge-tree failed while preparing CAS merge." 1
+          | Ok merged_tree ->
+              let drifted = git_drifted_files ~source_tip ~target_tip in
+              let d = Release.classify_drift ~quest:opts.quest drifted in
+              let verified =
+                if opts.dry_run then "none"
+                else verify_merged_tree ~merged_tree ~parents:[ target_tip; source_tip ] ~drift:d ~attempt in
+              ("merge", d, merged_tree, [ target_tip; source_tip ], verified)
+        end in
 
-    if opts.dry_run then begin
-      let v = `Assoc [
-        ("ok", `Bool true);
-        ("mode", json_str mode);
-        ("quest", opt_json opts.quest);
-        ("state", (if opts.quest <> None then json_str "landed" else `Null));
-        ("target", json_str target);
-        ("previous_tag", opt_json prev_tag);
-        ("version", opt_json next_ver);
-        ("tag", opt_json tag_opt);
-        ("bump", json_str (Release.bump_to_string bump));
-        ("commit", json_str source_tip);
-        ("release_kind", json_str release_kind);
-        ("repo", opt_json gh_repo);
-        ("release_url", `Null);
-        ("installed_prefix", `Null);
-        ("dry_run", `Bool true);
-        ("notes", json_str notes.Release.body);
-      ] in
-      emit_verdict ~fmt:opts.fmt v; 0
-    end else begin
-      (* Assemble files for plumbing release commit *)
-      let files = ref [] in
-      (match quest_md_path_opt, quest_md_text_opt with
-       | Some p, Some txt ->
-           let updated = Release.set_quest_status_landed txt in
-           if updated <> txt then files := (p, updated) :: !files
-       | _ -> ());
-      (match next_ver with
-       | Some nv ->
-           if repo_mode () = "self" then begin
-             match git_show source_tip "src/quest/gitx.ml" with
-             | Some gitx_txt ->
-                 (match Release.sync_bp3_version ~new_version:nv gitx_txt with
-                  | Ok updated -> files := ("src/quest/gitx.ml", updated) :: !files
-                  | Error msg ->
-                      err Names.e_stale_world (`Assoc [ ("detail", json_str msg) ]) msg 1)
-             | None -> ()
-           end else begin
-             match git_show source_tip "VERSION" with
-             | Some _ -> files := ("VERSION", nv ^ "\n") :: !files
-             | None -> ()
-           end
-       | None -> ());
-      let files = List.rev !files in
-      let new_tip =
-        if files = [] then source_tip
-        else
-          let msg =
-            release_commit_msg ~quest_opt:opts.quest ~tag_opt
-              ~subject:(commit_subject source_tip) ~body_summary:notes.Release.body in
-          plumbing_commit ~base_tip:source_tip ~files ~msg in
-      let tag_obj_opt =
-        match tag_opt with
-        | Some t -> Some (plumbing_mktag ~commit:new_tip ~tag:t ~message:notes.Release.body)
-        | None -> None in
-
-      (* Atomic CAS over target branch + new tag *)
-      atomic_cas_update ~target ~new_tip ~old_target_tip:target_tip ~tag_opt ~tag_obj_opt;
-      sync_clean_worktrees target_wts;
-
-      (* Record quest ledger promote line *)
-      (match opts.quest with
-       | Some q ->
-           let reason = match opts.reason with
-             | Some r when r <> "" -> r
-             | _ -> "release " ^ q in
-           append_quest_promote_line ~quest:q ~from_st:qs_from_st ~commit:new_tip
-             ~tag:tag_opt ~bump_str:(Release.bump_to_string bump) ~target
-             ~release_kind ~reason ~id
-       | None -> ());
-
-      (* Optional GitHub push + release *)
-      let release_url =
+      let prev_sv = Release.latest_semver_tag (list_v_tags ()) in
+      let prev_tag = Option.map Release.format_tag prev_sv in
+      let next_sv = Release.next_semver prev_sv bump in
+      let next_ver = Option.map Release.format_semver next_sv in
+      let tag_opt = Option.map Release.format_tag next_sv in
+      let gh_repo =
+        if opts.no_gh || tag_opt = None then None
+        else match Release.classify_remote (remote_url opts.remote) with
+          | Release.GitHub r -> Some r
+          | Release.Local_tag -> None in
+      let release_kind =
         match tag_opt, gh_repo with
-        | Some t, Some r ->
-            push_and_create_gh_release ~remote:opts.remote ~target ~tag:t ~repo:r
-              ~title:notes.Release.title ~body:notes.Release.body ~commit:new_tip
-        | _ -> None in
+        | None, _ -> "none"
+        | Some _, Some _ -> "github"
+        | Some _, None -> "git_tag" in
 
-      (* Optional self-mode tag-gated local $PREFIX install (hook wired in sync.1) *)
-      let installed_prefix =
-        let env_skip = Sys.getenv_opt "BP3_RELEASE_NO_INSTALL" = Some "1" in
-        let install_root = match target_wts with wt :: _ -> wt | [] -> root in
-        match repo_mode (), tag_opt, next_ver with
-        | "self", Some t, Some nv when not opts.no_install && not env_skip ->
-            !self_install_hook ~install_root ~tag:t ~version:nv ~commit:new_tip
-        | _ -> None in
+      let commits = commits_since prev_tag source_tip in
+      let notes =
+        match opts.quest, meta_opt with
+        | Some q, Some meta ->
+            Release.render_what_changed ~quest:q
+              ~tag:(Option.value tag_opt ~default:q) ~prev_tag ~meta
+              ~nodes:node_summaries ~commit_subjects:commits
+        | _ ->
+            Release.render_commit_what_changed ~sha:source_tip
+              ~subject:(commit_subject source_tip) ~body:(commit_body source_tip)
+              ~tag:(Option.value tag_opt ~default:(Release.short_sha source_tip))
+              ~prev_tag ~commit_subjects:commits in
 
-      let v = `Assoc [
-        ("ok", `Bool true);
-        ("mode", json_str mode);
-        ("quest", opt_json opts.quest);
-        ("state", (if opts.quest <> None then json_str "landed" else `Null));
-        ("target", json_str target);
-        ("previous_tag", opt_json prev_tag);
-        ("version", opt_json next_ver);
-        ("tag", opt_json tag_opt);
-        ("bump", json_str (Release.bump_to_string bump));
-        ("commit", json_str new_tip);
-        ("release_kind", json_str release_kind);
-        ("repo", opt_json gh_repo);
-        ("release_url", opt_json release_url);
-        ("installed_prefix", opt_json installed_prefix);
-        ("dry_run", `Bool false);
-        ("notes", json_str notes.Release.body);
-      ] in
-      emit_verdict ~fmt:opts.fmt v; 0
-    end
+      if opts.dry_run then begin
+        let v = `Assoc [
+          ("ok", `Bool true);
+          ("mode", json_str mode);
+          ("quest", opt_json opts.quest);
+          ("state", (if opts.quest <> None then json_str "landed" else `Null));
+          ("target", json_str target);
+          ("strategy", json_str strategy);
+          ("drift_kind", json_str (Release.drift_kind_to_string drift));
+          ("verified_merged", json_str verified_merged);
+          ("conflicts", `List []);
+          ("attempts", `Int attempt);
+          ("previous_tag", opt_json prev_tag);
+          ("version", opt_json next_ver);
+          ("tag", opt_json tag_opt);
+          ("bump", json_str (Release.bump_to_string bump));
+          ("commit", json_str source_tip);
+          ("release_kind", json_str release_kind);
+          ("repo", opt_json gh_repo);
+          ("release_url", `Null);
+          ("installed_prefix", `Null);
+          ("dry_run", `Bool true);
+          ("notes", json_str notes.Release.body);
+        ] in
+        emit_verdict ~fmt:opts.fmt v; 0
+      end else begin
+        (* Assemble files for plumbing release commit, reading from base_tree *)
+        let files = ref [] in
+        (match quest_md_path_opt with
+         | Some p ->
+             let cur_txt = match git_show base_tree p with Some t -> Some t | None -> quest_md_text_opt in
+             (match cur_txt with
+              | Some txt ->
+                  let updated = Release.set_quest_status_landed txt in
+                  if updated <> txt then files := (p, updated) :: !files
+              | None -> ())
+         | None -> ());
+        (match next_ver with
+         | Some nv ->
+             if repo_mode () = "self" then begin
+               match git_show base_tree "src/quest/gitx.ml" with
+               | Some gitx_txt ->
+                   (match Release.sync_bp3_version ~new_version:nv gitx_txt with
+                    | Ok updated -> files := ("src/quest/gitx.ml", updated) :: !files
+                    | Error msg ->
+                        err Names.e_stale_world (`Assoc [ ("detail", json_str msg) ]) msg 1)
+               | None -> ()
+             end else begin
+               match git_show base_tree "VERSION" with
+               | Some _ -> files := ("VERSION", nv ^ "\n") :: !files
+               | None -> ()
+             end
+         | None -> ());
+        let files = List.rev !files in
+        let new_tip =
+          if strategy = "fast_forward" && files = [] then source_tip
+          else
+            let msg =
+              release_commit_msg ~quest_opt:opts.quest ~tag_opt
+                ~subject:(commit_subject source_tip) ~body_summary:notes.Release.body in
+            plumbing_commit ~base_tree ~parents ~files ~msg in
+        let tag_obj_opt =
+          match tag_opt with
+          | Some t -> Some (plumbing_mktag ~commit:new_tip ~tag:t ~message:notes.Release.body)
+          | None -> None in
+
+        match try_atomic_cas_update ~target ~new_tip ~old_target_tip:target_tip ~tag_opt ~tag_obj_opt with
+        | Error err_s ->
+            if attempt >= max_attempts then
+              err Names.e_stale_world
+                (`Assoc [ ("target", json_str target); ("tag", opt_json tag_opt);
+                          ("attempts", `Int attempt); ("detail", json_str err_s) ])
+                "Target branch moved or release tag already exists; re-read and retry." 1
+            else try_release (attempt + 1)
+        | Ok () ->
+            sync_clean_worktrees target_wts;
+
+            (* Record quest ledger promote line *)
+            (match opts.quest with
+             | Some q ->
+                 let reason = match opts.reason with
+                   | Some r when r <> "" -> r
+                   | _ -> "release " ^ q in
+                 append_quest_promote_line ~quest:q ~from_st:qs_from_st ~commit:new_tip
+                   ~tag:tag_opt ~bump_str:(Release.bump_to_string bump) ~target
+                   ~release_kind ~reason ~id
+             | None -> ());
+
+            (* Optional GitHub push + release *)
+            let release_url =
+              match tag_opt, gh_repo with
+              | Some t, Some r ->
+                  push_and_create_gh_release ~remote:opts.remote ~target ~tag:t ~repo:r
+                    ~title:notes.Release.title ~body:notes.Release.body ~commit:new_tip
+              | _ -> None in
+
+            (* Optional self-mode tag-gated local $PREFIX install (hook wired in sync.1) *)
+            let installed_prefix =
+              let env_skip = Sys.getenv_opt "BP3_RELEASE_NO_INSTALL" = Some "1" in
+              let install_root = match target_wts with wt :: _ -> wt | [] -> root in
+              match repo_mode (), tag_opt, next_ver with
+              | "self", Some t, Some nv when not opts.no_install && not env_skip ->
+                  !self_install_hook ~install_root ~tag:t ~version:nv ~commit:new_tip
+              | _ -> None in
+
+            let v = `Assoc [
+              ("ok", `Bool true);
+              ("mode", json_str mode);
+              ("quest", opt_json opts.quest);
+              ("state", (if opts.quest <> None then json_str "landed" else `Null));
+              ("target", json_str target);
+              ("strategy", json_str strategy);
+              ("drift_kind", json_str (Release.drift_kind_to_string drift));
+              ("verified_merged", json_str verified_merged);
+              ("attempts", `Int attempt);
+              ("previous_tag", opt_json prev_tag);
+              ("version", opt_json next_ver);
+              ("tag", opt_json tag_opt);
+              ("bump", json_str (Release.bump_to_string bump));
+              ("commit", json_str new_tip);
+              ("release_kind", json_str release_kind);
+              ("repo", opt_json gh_repo);
+              ("release_url", opt_json release_url);
+              ("installed_prefix", opt_json installed_prefix);
+              ("dry_run", `Bool false);
+              ("notes", json_str notes.Release.body);
+            ] in
+            emit_verdict ~fmt:opts.fmt v; 0
+      end in
+    try_release 1
   end

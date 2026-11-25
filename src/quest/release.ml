@@ -4,6 +4,42 @@
 
 type bump = Major | Minor | Patch | None_bump
 
+type drift_kind = None_drift | Doc_only | Code
+
+let drift_kind_to_string = function
+  | None_drift -> "none"
+  | Doc_only -> "doc_only"
+  | Code -> "code"
+
+let has_bad_segment path =
+  if path = "" then true
+  else
+    List.exists
+      (fun seg -> seg = "" || seg = "." || seg = "..")
+      (String.split_on_char '/' path)
+
+let is_doc_only_path ~quest path =
+  if has_bad_segment path then false
+  else if Util.strip_prefix ~prefix:"docs/icebox/" path <> None then true
+  else if Util.strip_prefix ~prefix:"docs/dossiers/" path <> None then true
+  else
+    match Util.strip_prefix ~prefix:"docs/quests/" path with
+    | None -> false
+    | Some rest ->
+        (match String.split_on_char '/' rest with
+         | slug :: _ :: _ when slug <> "" ->
+             (match quest with Some q -> slug <> q | None -> true)
+         | _ -> false)
+
+let classify_drift ~quest drifted_files =
+  if List.for_all (is_doc_only_path ~quest) drifted_files then Doc_only
+  else Code
+
+let makefile_has_target ~target text =
+  let prefix = target ^ ":" in
+  String.split_on_char '\n' text
+  |> List.exists (fun line -> Util.strip_prefix ~prefix line <> None)
+
 type semver = { major : int; minor : int; patch : int }
 
 type release_target = GitHub of string | Local_tag

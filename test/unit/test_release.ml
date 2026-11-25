@@ -180,7 +180,60 @@ let case_render_what_changed_quest_and_commit _ =
   assert_bool "commit body" (contains_sub rc.Release.body "Guard empty stdin.");
   assert_bool "commit sha7" (contains_sub rc.Release.body "Commit: `1234567`")
 
+(* ---------- drift classification & Makefile target check ---------- *)
+
+let case_is_doc_only_path_and_classify_drift _ =
+  let q = Some "2026-11-25-my-q" in
+  assert_bool "icebox is doc_only" (Release.is_doc_only_path ~quest:q "docs/icebox/2026-11-25-foo.md");
+  assert_bool "dossiers is doc_only" (Release.is_doc_only_path ~quest:q "docs/dossiers/landscape.md");
+  assert_bool "other quest is doc_only" (Release.is_doc_only_path ~quest:q "docs/quests/2026-11-25-other/QUEST.md");
+  assert_bool "own quest is NOT doc_only" (not (Release.is_doc_only_path ~quest:q "docs/quests/2026-11-25-my-q/QUEST.md"));
+  assert_bool "bare docs/quests file is NOT doc_only" (not (Release.is_doc_only_path ~quest:q "docs/quests/README.md"));
+  List.iter (fun p ->
+    assert_bool ("must NOT be doc_only: " ^ p) (not (Release.is_doc_only_path ~quest:q p)))
+    [ "src/quest/main.ml"; "test/worktree.sh"; "skills/quest/SKILL.md"; "AGENTS.md";
+      "CLAUDE.md"; "CONSTRAINTS.md"; "Makefile"; "plans/default.yaml";
+      "docs/icebox/../src/x.ml"; "/docs/icebox/a.md"; "docs/icebox/"; "" ];
+  assert_equal Release.Doc_only
+    (Release.classify_drift ~quest:q [ "docs/icebox/a.md"; "docs/quests/other/QUEST.md" ]);
+  assert_equal Release.Code
+    (Release.classify_drift ~quest:q [ "docs/icebox/a.md"; "src/quest/main.ml" ]);
+  assert_equal "none" (Release.drift_kind_to_string Release.None_drift);
+  assert_equal "doc_only" (Release.drift_kind_to_string Release.Doc_only);
+  assert_equal "code" (Release.drift_kind_to_string Release.Code);
+  assert_bool "makefile has lint" (Release.makefile_has_target ~target:"lint" "check: lint\nlint:\n\techo ok\n");
+  assert_bool "makefile lacks check-full" (not (Release.makefile_has_target ~target:"check-full" "check: lint\n"))
+
 (* ---------- QCheck2 properties ---------- *)
+
+let gen_seg =
+  QCheck2.Gen.(string_size ~gen:(oneof [ char_range 'a' 'z'; char_range '0' '9'; return '-'; return '.' ]) (int_range 1 10))
+
+let law_non_docs_prefix_never_doc_only =
+  QCheck2.Test.make ~count:300 ~name:"law_non_docs_prefix_never_doc_only"
+    ~print:Fun.id
+    QCheck2.Gen.(map2 (fun a b -> a ^ "/" ^ b)
+      (oneof_list [ "src"; "test"; "skills"; "scripts"; "plans"; "completions"; "bin" ])
+      gen_seg)
+    (fun p -> not (Release.is_doc_only_path ~quest:(Some "q1") p))
+
+let law_dotdot_never_doc_only =
+  QCheck2.Test.make ~count:200 ~name:"law_dotdot_never_doc_only"
+    ~print:Fun.id
+    QCheck2.Gen.(map (fun s -> "docs/icebox/../" ^ s) gen_seg)
+    (fun p -> not (Release.is_doc_only_path ~quest:(Some "q1") p))
+
+let law_classify_drift_monotonic =
+  QCheck2.Test.make ~count:200 ~name:"law_classify_drift_monotonic"
+    ~print:(fun (xs, bad) -> String.concat "," xs ^ " + " ^ bad)
+    QCheck2.Gen.(pair
+      (list_size (int_range 0 5) (map (fun s -> "docs/icebox/" ^ s ^ ".md")
+        (string_size ~gen:(char_range 'a' 'z') (int_range 1 8))))
+      (map (fun s -> "src/" ^ s ^ ".ml")
+        (string_size ~gen:(char_range 'a' 'z') (int_range 1 8))))
+    (fun (docs, code_file) ->
+      Release.classify_drift ~quest:(Some "q1") docs = Release.Doc_only
+      && Release.classify_drift ~quest:(Some "q1") (code_file :: docs) = Release.Code)
 
 let gen_sv =
   QCheck2.Gen.(map3 sv (int_range 0 99) (int_range 0 99) (int_range 0 99))
@@ -221,6 +274,10 @@ let () =
        "case_sync_bp3_version_replaces_exact_line_and_fails_closed" >:: case_sync_bp3_version_replaces_exact_line_and_fails_closed;
        "case_rendered_release_tag_and_should_auto_sync" >:: case_rendered_release_tag_and_should_auto_sync;
        "case_render_what_changed_quest_and_commit" >:: case_render_what_changed_quest_and_commit;
+       "case_is_doc_only_path_and_classify_drift" >:: case_is_doc_only_path_and_classify_drift;
        QCheck_ounit.to_ounit2_test law_semver_tag_roundtrip;
        QCheck_ounit.to_ounit2_test law_next_semver_is_strictly_greater_and_obeys_reset_laws;
+       QCheck_ounit.to_ounit2_test law_non_docs_prefix_never_doc_only;
+       QCheck_ounit.to_ounit2_test law_dotdot_never_doc_only;
+       QCheck_ounit.to_ounit2_test law_classify_drift_monotonic;
      ])

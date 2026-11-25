@@ -108,7 +108,7 @@ _bp3_candidates() {
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'warden' ]; then
       { _bp3_quests; printf '%s\n' --last --all --no-sessions --format -h --help; } | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'release' ]; then
-      { _bp3_quests; printf '%s\n' --commit --bump --target --remote --reason --tag --no-gh --no-install --dry-run --publish-only --format -h --help; } | _bp3_filter "$cur"
+      { _bp3_quests; printf '%s\n' --commit --bump --target --remote --reason --tag --ff-only --no-gh --no-install --dry-run --publish-only --format -h --help; } | _bp3_filter "$cur"
     # SQLite control-plane doors: bp3 db, bp3 repo, bp3 ticket
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'db' ]; then
       printf '%s\n' info -h --help | _bp3_filter "$cur"
