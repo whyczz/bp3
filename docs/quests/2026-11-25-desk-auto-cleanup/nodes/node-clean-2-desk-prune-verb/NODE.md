@@ -2,7 +2,7 @@
 date: 2026-11-25
 quest: ../../QUEST.md
 node: clean.2
-status: proposed
+status: active
 ---
 
 # clean.2 - desk-prune-verb: add `bp3 harness desk prune [--dry-run]` (+ completions and empty legacy `.bp3/` sweep)

@@ -2,7 +2,7 @@
 date: 2026-11-25
 quest: ../../QUEST.md
 node: clean.1
-status: proposed
+status: active
 ---
 
 # clean.1 - release-auto-cleanup: auto-release quest desks & merged `quest/<q>` branch on `bp3 release` + prune empty parent dirs

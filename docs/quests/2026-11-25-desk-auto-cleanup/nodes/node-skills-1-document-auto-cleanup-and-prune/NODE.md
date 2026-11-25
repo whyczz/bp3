@@ -2,7 +2,7 @@
 date: 2026-11-25
 quest: ../../QUEST.md
 node: skills.1
-status: proposed
+status: active
 ---
 
 # skills.1 - document-auto-cleanup-and-prune: update `using-bp3` and `warden` skills for automatic release cleanup and `desk prune`
