@@ -18,6 +18,17 @@ Use `red-ink` when an existing design needs a decision walk.
 
 ## Procedure
 
+0. **Clean-runway guard:** before writing any file, check the current
+   branch. If already inside a non-master worktree (`quest/*` or
+   `draft/*`), proceed directly. If on `master`/`main`, run
+   `bp3 harness desk list` and inspect `target_dirty`:
+   - `target_dirty == false`: write the entry and **commit immediately**
+     on `master` in the same turn (0s dirty window; parallel quests
+     merge cleanly over `docs/icebox/` drift via CAS `merge-tree`).
+   - `target_dirty == true`: run
+     `bp3 harness desk prepare --draft icebox-<slug>`, write and commit
+     there, and land with `bp3 harness desk land --draft icebox-<slug>`
+     once `master` is clean.
 1. Capture today's context first: what was being designed, the
    decision just settled or deferred, and links to the files
    that hold it. Context is written for a reader who was not
@@ -66,5 +77,5 @@ before the delete.
   copy the entry **verbatim** to `ICEBOX.md` in the
   quest/quest folder before any delete — never transcribed
   into prose (owner rule, 2026-11-17).
-- Instructions only: this skill writes docs. It creates no
-  branches, ledger lines, or Board records.
+- Instructions only: this skill writes docs (and commits cleanly per
+  the clean-runway guard). It creates no ledger lines or Board records.

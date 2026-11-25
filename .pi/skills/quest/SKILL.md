@@ -67,6 +67,7 @@ because a gate that starts green certifies nothing.
 
 | # | Step | Gate before moving on |
 |---|---|---|
+| 0 | Clean-runway guard: if already in a non-master worktree (`quest/*` or `draft/*`), proceed directly; if on `master`/`main`, run `bp3 harness desk prepare --draft quest-<slug>` before writing any file — never leave uncommitted multi-turn quest drafts on `master` | draft desk active (or non-master worktree); on approval, commit cleanly and run `bp3 harness desk land --draft quest-<slug>` |
 | 1 | Sync: play the intent back (iiuc) when it can be read two ways | human confirms the read |
 | 2 | Research the ground: MVP doc, home repo state, prior Quests in `docs/quests/`, and the root `CONSTRAINTS.md` (the owner-signed stack) and `CONTEXT.md` (how others build this, sourced and dated) | every claim traces to a file read this session |
 | 3 | Ask questions whose answers change the shape: home repo, success picture, lane, first node | the rest become assumptions or open questions in the file |

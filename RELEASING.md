@@ -32,23 +32,35 @@ bp3 release <quest> --dry-run
 # Promote, flip QUEST.md status -> landed, sync version file, atomically CAS
 # master + annotated tag vX.Y.Z, and publish a GitHub Release when a GitHub
 # remote exists (or local annotated git tag only otherwise):
-BP3_DECIDER=human bp3 release <quest> [--bump major|minor|patch|none] [--no-gh] [--no-install]
+BP3_DECIDER=human bp3 release <quest> [--bump major|minor|patch|none] [--ff-only] [--no-gh] [--no-install]
 ```
 
 ### 2. Cut a bugfix release from a commit hash (no quest required)
 
 ```sh
 # Defaults to --bump patch; supports --bump minor|major as well:
-BP3_DECIDER=human bp3 release --commit <sha> [--bump patch|minor|major] [--no-gh]
+BP3_DECIDER=human bp3 release --commit <sha> [--bump patch|minor|major] [--ff-only] [--no-gh]
 ```
 
-### 3. Parallel quests and atomic CAS
+### 3. Parallel quests and Tiered CAS (`merge-tree`)
 
 Quest branches never hardcode the next version number. At release time, `bp3 release`
-verifies `target` is an ancestor of the source commit (`E_NOT_FAST_FORWARD` if another
-quest promoted first—rebase, re-verify, and retry) and updates `refs/heads/<target>`
-and `refs/tags/v<new>` in **one atomic `git update-ref --stdin` transaction**
-(`E_STALE_WORLD` on a concurrent race, with zero partial ref writes).
+keeps strict fast-forward (`strategy: "fast_forward"`) as the instant fast path when
+`target` is an ancestor of `source_tip`. When `target` moved concurrently on disjoint
+work (unless `--ff-only` is passed, which refuses `E_NOT_FAST_FORWARD`), `bp3 release`:
+
+1. Computes an in-memory 3-way merge via `git merge-tree --write-tree` (refusing
+   `E_MERGE_CONFLICT` with `facts.conflicts` on textual conflict, `target` untouched).
+2. Classifies `merge_base..target` drift: `doc_only` (`docs/icebox/**`, `docs/dossiers/**`,
+   `docs/quests/<other>/**`) runs fast `make lint` when present; `code` drift runs
+   `BP3_RELEASE_VERIFY_CMD` (or `make check-full` when present) inside an ephemeral
+   detached worktree (always removed on exit; failing emits `E_VERIFY_FAILED`, `target`
+   untouched).
+3. Assembles a 2-parent plumbing merge commit (`-p target -p source_tip`, preserving every
+   graded node commit SHA as `HEAD^2`) and updates `refs/heads/<target>` and
+   `refs/tags/v<new>` in **one atomic `git update-ref --stdin` transaction**, retrying
+   up to 3 times on concurrent movement (re-reading tags each attempt; `E_STALE_WORLD`
+   if exhausted, with zero partial ref writes).
 
 ### 4. Recovery (`--publish-only`)
 

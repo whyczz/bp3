@@ -333,6 +333,7 @@ A quest proposing only design traces must say so plainly.
 
 | Rule | Why it exists |
 |---|---|
+| clean-runway guard: if on `master`/`main`, run `bp3 harness desk prepare --draft red-ink-<slug>` before creating the working copy; on settle/adopt, commit and run `bp3 harness desk land --draft red-ink-<slug>` | multi-turn reviews and `*.red-ink.md` working copies never dirty `master` (`E_DIRTY_TREE`); already-isolated `quest/*` or `draft/*` worktrees proceed directly |
 | copy first; name both paths in round one | the original never takes an edit |
 | research before asking | never ask a question the artifact or codebase already answers |
 | non-obvious questions, options + recommendation | the owner corrects concrete bets instead of answering trivia or blank pages; use the harness's ask tool when available |

@@ -431,4 +431,23 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -qF 'bp3 db info' "$repo/$dir/using-bp3/SKILL.md"
 done
 
+# draft-desk-guard skills.1: clean-runway draft desk guards across icebox,
+# quest, red-ink, RELEASING.md, and AGENTS.md/CLAUDE.md. Sources and every render.
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  ib="$repo/$dir/icebox/SKILL.md" qf="$repo/$dir/quest/SKILL.md" ri="$repo/$dir/red-ink/SKILL.md"
+  assert grep -qF 'target_dirty' "$ib"
+  assert grep -qF 'bp3 harness desk prepare --draft' "$ib"
+  assert grep -qF 'bp3 harness desk land --draft' "$ib"
+  assert test -z "$(grep -n 'branches, ledger lines' "$ib" || true)"
+  assert grep -qF 'bp3 harness desk prepare --draft' "$qf"
+  assert grep -qF 'bp3 harness desk land --draft' "$qf"
+  assert grep -qF 'bp3 harness desk prepare --draft' "$ri"
+  assert grep -qF 'bp3 harness desk land --draft' "$ri"
+done
+assert grep -qF 'merge-tree' "$repo/RELEASING.md"
+assert grep -qF -- '--ff-only' "$repo/RELEASING.md"
+assert cmp -s "$repo/AGENTS.md" "$repo/CLAUDE.md"
+assert grep -qF 'prepare|land|release --draft' "$repo/AGENTS.md"
+assert grep -qF 'prepare --draft' "$repo/AGENTS.md"
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"

@@ -65,7 +65,8 @@ other repos point at it.
 ./bin/bp3 q <quest> n <node> brief [--desk <path>]   # the grader's cold brief, rendered from the bound commit (GRADING.md)
 ./bin/bp3 q <quest> metrics scrape|r   # collect, then read, what grades and author cycles cost
 ./bin/bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table]  # two-layer deterministic plug audit (read-only)
-./bin/bp3 release (<quest> | --commit <sha>) [--bump ...] [--no-gh] [--dry-run]     # owner-gated atomic CAS promote & semver release
+./bin/bp3 release (<quest> | --commit <sha>) [--bump ...] [--ff-only] [--no-gh] [--dry-run]  # owner-gated Tiered CAS promote & semver release
+./bin/bp3 harness desk prepare|land|release --draft <slug> [--target <branch>]      # isolated draft worktree & CAS rebase land
 ./bin/bp3 db info [--format json|table]                                             # machine-local SQLite control plane status
 ./bin/bp3 repo add|list|remove [...]                                                # local repo registry (auto-registered on bp3 init)
 ./bin/bp3 ticket add|list|read|claim|unclaim|done|dismiss [...]                     # cross-repo ticket queue
@@ -95,8 +96,11 @@ to the exact commit reviewed.
   never state.
 - Tape is evidence, never parsed into facts. Ledger lines are
   emitted deliberately at the moment a fact happens.
-- Integration branch is `master`. Quest work lives on
-  `quest/<slug>` branches until the human promotes it. Commits
+- Integration branch is `master`. Keep `master` clean: multi-turn
+  planning (`/quest`, `/red-ink`) uses `bp3 harness desk prepare --draft`
+  and lands via `land --draft`; `/icebox` commits directly on `master`
+  only when `target_dirty == false` (else draft desk). Quest work lives
+  on `quest/<slug>` branches until the human promotes it. Commits
   use the bp3 format (TL;DR, For humans, For LLMs) via `/commit`.
 - Verify with `make check` while working and `make check-full`
   before handoff (the grade/land gate); say plainly what was not run.
