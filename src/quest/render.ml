@@ -415,26 +415,31 @@ let emit_mermaid fields generated_at =
     Printf.bprintf b "  %%%% %s starves: %s\n" blocked (String.concat ", " ids)) starved;
   Buffer.contents b
 
+let warning_has_code code = function
+  | `String s -> s = code
+  | `Assoc fs -> (match List.assoc_opt "code" fs with Some (`String s) -> s = code | _ -> false)
+  | _ -> false
+
+let merge_warnings ~version_ahead_active v =
+  match v with
+  | `Assoc fs ->
+      let existing = match List.assoc_opt "warnings" fs with
+        | Some (`List xs) -> xs
+        | _ -> [] in
+      let merged =
+        if version_ahead_active && not (List.exists (warning_has_code "W_VERSION_AHEAD") existing) then
+          existing @ [ json_str "W_VERSION_AHEAD" ]
+        else existing in
+      if merged = [] then v
+      else `Assoc (List.filter (fun (k, _) -> k <> "warnings") fs
+                   @ [("warnings", `List merged)])
+  | _ -> v
+
 let print_verdict ~fmt v =
   let v = stamp_run_id v in
-  (* Warnings merge once, in order: the verdict's own, the
-     context warnings (mvp.2), then Node 5's version warning.
-     No warnings anywhere keeps the field absent. *)
-  let v = match v with
-    | `Assoc fs ->
-        let existing = match List.assoc_opt "warnings" fs with
-          | Some (`List xs) ->
-              List.filter_map (function `String s -> Some s | _ -> None) xs
-          | _ -> [] in
-        let merged =
-          List.fold_left (fun acc w ->
-            if List.mem w acc then acc else acc @ [w]) existing
-            (match version_ahead () with
-             | Some _ -> ["W_VERSION_AHEAD"] | None -> []) in
-        if merged = [] then v
-        else `Assoc (List.filter (fun (k, _) -> k <> "warnings") fs
-                     @ [("warnings", `List (List.map json_str merged))])
-    | _ -> v in
+  (* Warnings merge once, in order: the verdict's own (string or structured
+     object), then Node 5's version warning. No warnings keeps the field absent. *)
+  let v = merge_warnings ~version_ahead_active:(version_ahead () <> None) v in
   match fmt, v with
   | "tree", `Assoc fields when List.mem_assoc "nodes" fields ->
       render_tree fields

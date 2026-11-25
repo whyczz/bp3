@@ -39,11 +39,17 @@ echo "$out" | jq -e '.ok == true and .manifest == "backpack.toml" and .manifest_
 grep -q '^version = 1$' backpack.toml || fail "backpack.toml version: $(cat backpack.toml)"
 grep -q '^repo = "esc3"$' backpack.toml || fail "backpack.toml repo: $(cat backpack.toml)"
 [ -f plans/default.yaml ] && [ -f plans/direct.yaml ] || fail "plans not scaffolded"
-# manifest.1: second init-repo preserves user edits to backpack.toml idempotently
+# manifest.1: second init-repo preserves user edits to backpack.toml byte-for-byte
 printf 'version = 1\nrepo = "esc3"\n\n[warden]\ngrade_wall_s = 600\n' > backpack.toml
+cp backpack.toml "$work/backpack.want"
 out2=$(bp3-q init-repo) || fail "init-repo 2nd run: $out2"
 echo "$out2" | jq -e '.ok == true and .manifest_created == false' >/dev/null || fail "init-repo 2nd verdict: $out2"
-grep -q '^grade_wall_s = 600$' backpack.toml || fail "init-repo clobbered backpack.toml"
+cmp -s backpack.toml "$work/backpack.want" || fail "init-repo modified backpack.toml"
+# malformed existing backpack.toml refuses E_INVALID_CONFIG before touching plans/
+printf 'version = 99\n' > backpack.toml
+if bad_out=$(bp3-q init-repo 2>&1); then fail "init-repo accepted malformed backpack.toml"; fi
+echo "$bad_out" | jq -e '.ok == false and .error.code == "E_INVALID_CONFIG"' >/dev/null || fail "bad manifest code: $bad_out"
+cp "$work/backpack.want" backpack.toml
 # init.1: a new host repo gets this repo's plans, byte for byte (max_cycles 10)
 for p in default direct; do
   cmp -s "plans/$p.yaml" "$root/plans/$p.yaml" || fail "scaffolded plans/$p.yaml differs from bp3's: $(cat "plans/$p.yaml")"

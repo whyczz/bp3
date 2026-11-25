@@ -658,8 +658,17 @@ let rec run argv =
          same verdicts; new callers use bp3 harness desk *)
       print_verdict ~fmt:"json" (Worktree.run rest); 0
   | "init-repo" :: _ ->
-      (* Node 6 + manifest.1: scaffold plans/ and minimal backpack.toml into the
-         caller's repo; never clobber differing plans or an existing valid backpack.toml *)
+      (* Node 6 + manifest.1: validate existing backpack.toml before mutating plans/;
+         scaffold plans/ and minimal backpack.toml into the caller's repo idempotently *)
+      let manifest_path = Filename.concat root Layout.manifest_file in
+      let manifest_exists = Sys.file_exists manifest_path in
+      if manifest_exists then
+        (match Backpack.load_opt root with
+         | Ok (Some _) | Ok None -> ()
+         | Error detail ->
+             err Names.e_invalid_config
+               (`Assoc [("file", json_str Layout.manifest_file); ("detail", json_str detail)])
+               ("Existing " ^ Layout.manifest_file ^ " is invalid: " ^ detail) 1);
       let plans = [("plans/default.yaml", "goal_type: default\nmax_cycles: 10\ngrade:\n  required: true\nverify: required\n");
                    ("plans/direct.yaml", "goal_type: direct\nmax_cycles: 0\ngrade:\n  required: false\nverify: required\n")] in
       (try Unix.mkdir (Filename.concat root "plans") 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
@@ -674,17 +683,9 @@ let rec run argv =
         end else begin
           let oc = open_out_bin path in output_string oc content; close_out oc
         end) plans;
-      let manifest_path = Filename.concat root Layout.manifest_file in
       let manifest_created =
-        if Sys.file_exists manifest_path then begin
-          (match Backpack.load_opt root with
-           | Ok (Some _) -> false
-           | Ok None -> false
-           | Error detail ->
-               err Names.e_invalid_config
-                 (`Assoc [("file", json_str Layout.manifest_file); ("detail", json_str detail)])
-                 ("Existing " ^ Layout.manifest_file ^ " is invalid: " ^ detail) 1)
-        end else begin
+        if manifest_exists then false
+        else begin
           let repo_slug = Layout.sanitize_repo_slug (Filename.basename (Worktree.main_root ())) in
           let target_br =
             if ref_tip "refs/heads/master" <> None then "master"
