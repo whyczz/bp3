@@ -42,11 +42,28 @@ let append q node batch =
 (* ---------- where Claude Code keeps transcripts ---------- *)
 
 (* Claude Code names a project dir after the session's cwd, with "/"
-   and "." as "-". Sessions in this repo's desks land under the
-   desk's own dir, so both are scanned; nothing else is. The cwd may
-   be the logical or the real path (/var vs /private/var), so both
-   spellings of the repo root match. *)
+   and "." as "-". Sessions in this repo's central desks
+   ($BP3_DESKS_DIR / ~/.bp3/desks/<repo>-<hash8>/...) and legacy
+   .bp3/worktrees/ desks land under each desk's dir, so all three
+   (main repo, central bucket, legacy worktrees) are scanned; nothing
+   else is. The cwd may be the logical or the real path (/var vs
+   /private/var), so both spellings match even if the desk dir no
+   longer exists on disk. *)
 let slug_of_path p = String.map (function '/' | '.' -> '-' | c -> c) p
+
+let realpath_best p =
+  let rec go cur tail =
+    try
+      let real = Unix.realpath cur in
+      List.fold_left Filename.concat real tail
+    with Unix.Unix_error _ ->
+      let parent = Filename.dirname cur in
+      if parent = cur then p
+      else go parent (Filename.basename cur :: tail) in
+  go p []
+
+let candidate_roots p =
+  List.sort_uniq compare [ p; realpath_best p ]
 
 let main_root () =
   match git_common_dir () with
@@ -55,11 +72,14 @@ let main_root () =
 
 let default_dirs () =
   let base = Filename.concat (match Sys.getenv_opt "HOME" with Some h -> h | None -> "") ".claude/projects" in
-  let m = main_root () in
-  let mains = List.sort_uniq compare
-      (List.map slug_of_path [ m; (try Unix.realpath m with Unix.Unix_error _ -> m) ]) in
-  let desk_tail = "-" ^ slug_of_path Layout.desks_root ^ "-" in
-  let ours d = List.exists (fun main -> d = main || String.starts_with ~prefix:(main ^ desk_tail) d) mains in
+  let mains = List.sort_uniq compare (List.map slug_of_path (candidate_roots (main_root ()))) in
+  let central_prefixes =
+    List.sort_uniq compare
+      (List.map (fun r -> slug_of_path r ^ "-") (candidate_roots (Worktree.repo_desks_dir ()))) in
+  let legacy_tail = "-" ^ slug_of_path Layout.legacy_desks_root ^ "-" in
+  let ours d =
+    List.exists (fun main -> d = main || String.starts_with ~prefix:(main ^ legacy_tail) d) mains
+    || List.exists (fun cp -> String.starts_with ~prefix:cp d) central_prefixes in
   if not (Sys.file_exists base && Sys.is_directory base) then []
   else
     Sys.readdir base |> Array.to_list |> List.sort compare |> List.filter ours
@@ -67,23 +87,33 @@ let default_dirs () =
 
 (* pi names a session dir after its cwd too, by its own rule (pi docs
    session-format.md): drop the leading separator, turn / \ : into -,
-   and wrap in --...--. Dots stay, so a desk is
-   --<repo>-.bp3-worktrees-<slug>--. pi writes the files flat in that
-   dir. Logical and real paths both match, as for Claude. *)
+   and wrap in --...--. Dots stay, so a legacy desk is
+   --<repo>-.bp3-worktrees-<slug>-- and a central desk is
+   --<desks_base>-<repo_key>-<subpath>--. pi writes the files flat in
+   that dir. Logical and real paths both match, as for Claude. *)
 let pi_slug p =
   let p = if String.length p > 0 && (p.[0] = '/' || p.[0] = '\\') then String.sub p 1 (String.length p - 1) else p in
   "--" ^ String.map (function '/' | '\\' | ':' -> '-' | c -> c) p ^ "--"
 
+let pi_dir_prefix p =
+  let s = pi_slug (p ^ "/") in
+  String.sub s 0 (String.length s - 2)
+
+let pi_matches_prefix d pref =
+  String.starts_with ~prefix:pref d
+  && String.ends_with ~suffix:"--" d
+  && String.length d > String.length pref + 2
+
 let default_pi_dirs () =
   let base = Filename.concat (match Sys.getenv_opt "HOME" with Some h -> h | None -> "") ".pi/agent/sessions" in
-  let m = main_root () in
-  let roots = List.sort_uniq compare [ m; (try Unix.realpath m with Unix.Unix_error _ -> m) ] in
-  let ours d = List.exists (fun r ->
-      let main = pi_slug r in
-      let desk = pi_slug (r ^ "/" ^ Layout.desks_root ^ "/") in   (* --<repo>-.bp3-worktrees---; less its -- *)
-      let desk_prefix = String.sub desk 0 (String.length desk - 2) in
-      d = main || (String.starts_with ~prefix:desk_prefix d && String.ends_with ~suffix:"--" d
-                   && String.length d > String.length desk_prefix + 2)) roots in
+  let roots = candidate_roots (main_root ()) in
+  let centrals = candidate_roots (Worktree.repo_desks_dir ()) in
+  let ours d =
+    List.exists (fun r ->
+        let main = pi_slug r in
+        let legacy_pref = pi_dir_prefix (r ^ "/" ^ Layout.legacy_desks_root) in
+        d = main || pi_matches_prefix d legacy_pref) roots
+    || List.exists (fun c -> pi_matches_prefix d (pi_dir_prefix c)) centrals in
   if not (Sys.file_exists base && Sys.is_directory base) then []
   else
     Sys.readdir base |> Array.to_list |> List.sort compare |> List.filter ours

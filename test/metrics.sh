@@ -18,7 +18,7 @@ git init -q -b master
 git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
-export BP3_HARNESS=muse-code BP3_MODEL=test-model HOME="$work/home"
+export BP3_HARNESS=muse-code BP3_MODEL=test-model HOME="$work/home" BP3_DESKS_DIR="$work/desks"
 q() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 n=0
@@ -239,20 +239,36 @@ expect "rescrape written" 0 "$(jq -r .nodes.na.written <<< "$out")"
 expect "rescrape skipped" 20 "$(jq -r .nodes.na.skipped <<< "$out")"
 expect "rescrape no commit" "$t" "$(tip na)"
 
-# --- default dirs: this repo's project dir and its desks, nothing else ---
+# --- default dirs: main repo, central desks bucket, and legacy .bp3/worktrees/, nothing else ---
 slug=$(git rev-parse --show-toplevel | tr '/.' '--')
+central_derived=$(BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness desk derive q1 na R1 | jq -r '.path')
+central_bucket="${central_derived%/runs/q1/na/R1}"
+central_slug=$(printf '%s' "$central_bucket" | tr '/.' '--')
+other_slug=$(printf '%s' "$work/desks/other-deadbeef" | tr '/.' '--')
 projects="$HOME/.claude/projects"
 mkdir -p "$projects"
 out=$(q q1 metrics scrape)
 expect "no projects dir entries" 0 "$(jq -r '.dirs | length' <<< "$out")"
-mkdir -p "$projects/$slug--bp3-worktrees-q1" "$projects/$slug-sibling"
-cp -R "$claude/s1" "$projects/$slug--bp3-worktrees-q1/"      # a desk's dir: scanned
-cp -R "$claude/s2" "$projects/$slug-sibling/"                # another repo's: never scanned
+mkdir -p \
+  "$projects/$slug" \
+  "$projects/$central_slug-quests-q1" \
+  "$projects/$central_slug-runs-q1-na-r1" \
+  "$projects/$slug--bp3-worktrees-q1" \
+  "$projects/$slug-sibling" \
+  "$projects/$other_slug-quests-q1"
+cp -R "$claude/s1" "$projects/$slug--bp3-worktrees-q1/"      # legacy desk's dir: scanned
+cp -R "$claude/s2" "$projects/$slug-sibling/"                # sibling repo's: never scanned
+cp -R "$claude/s2" "$projects/$other_slug-quests-q1/"        # other repo's central bucket: never scanned
 out=$(q q1 metrics scrape)
-expect "desk dir scanned" "$projects/$slug--bp3-worktrees-q1" "$(jq -r '.dirs | join(",")' <<< "$out")"
+want_claude=$(printf '%s\n' \
+  "$projects/$slug" \
+  "$projects/$central_slug-quests-q1" \
+  "$projects/$central_slug-runs-q1-na-r1" \
+  "$projects/$slug--bp3-worktrees-q1" | LC_ALL=C sort | paste -sd, -)
+expect "default Claude dirs: main + central + legacy only" "$want_claude" "$(jq -r '.dirs | join(",")' <<< "$out")"
 expect "desk transcript already counted" 10 "$(jq -r .nodes.na.skipped <<< "$out")"
 expect "no parent session copied: unchecked" 1 "$(jq -r .nodes.na.unchecked <<< "$out")"
-expect "sibling stays out" 1 "$(jq -r .nodes.nc.owner <<< "$out")"
+expect "sibling and other central bucket stay out" 1 "$(jq -r .nodes.nc.owner <<< "$out")"
 
 # --- a transcript that disagrees with its report writes nothing, exit 1 ---
 nd0=$(git rev-list --count refs/heads/bp3/node/q2/nd)
@@ -373,12 +389,26 @@ expect "ve: a later handoff in range changes neither side: verbatim" "1 1 0" "$(
 expect "vg: a Claude subagent given the brief, checked: verbatim" "1 1 0" "$(jq -r '.nodes.vg | "\(.checked) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
 expect "vh: a Claude subagent given one more line: edited" "1 0 1" "$(jq -r '.nodes.vh | "\(.unchecked) \(.brief_verbatim) \(.brief_edited)"' <<< "$out")"
 
-# default pi dirs: pi's own naming of this repo and its desks, nothing else
+# default pi dirs: pi's own naming of main repo, central desks bucket, and legacy .bp3/worktrees/, nothing else
 pslug="--$(git rev-parse --show-toplevel | sed 's#^/##; s#[/:\\]#-#g')--"
+pcentral="--$(printf '%s' "$central_bucket" | sed 's#^/##; s#[/:\\]#-#g')--"
+pother="--$(printf '%s' "$work/desks/other-deadbeef" | sed 's#^/##; s#[/:\\]#-#g')--"
 pisessions="$HOME/.pi/agent/sessions"
-mkdir -p "$pisessions/$pslug" "$pisessions/${pslug%--}-.bp3-worktrees-q3--" "$pisessions/${pslug%--}-sibling--" "$pisessions/${pslug%--}-.bp3-worktreesX--"
+mkdir -p \
+  "$pisessions/$pslug" \
+  "$pisessions/${pcentral%--}-quests-q3--" \
+  "$pisessions/${pcentral%--}-runs-q3-pa-r1--" \
+  "$pisessions/${pslug%--}-.bp3-worktrees-q3--" \
+  "$pisessions/${pslug%--}-sibling--" \
+  "$pisessions/${pslug%--}-.bp3-worktreesX--" \
+  "$pisessions/${pother%--}-quests-q3--"
 rc=0; out=$(q q3 metrics scrape --claude-dir "$claude3") || rc=$?
-expect "default pi dirs: the repo and its desk only" "$pisessions/$pslug,$pisessions/${pslug%--}-.bp3-worktrees-q3--" "$(jq -r '.pi_dirs | join(",")' <<< "$out")"
+want_pi=$(printf '%s\n' \
+  "$pisessions/$pslug" \
+  "$pisessions/${pcentral%--}-quests-q3--" \
+  "$pisessions/${pcentral%--}-runs-q3-pa-r1--" \
+  "$pisessions/${pslug%--}-.bp3-worktrees-q3--" | LC_ALL=C sort | paste -sd, -)
+expect "default pi dirs: main + central + legacy only" "$want_pi" "$(jq -r '.pi_dirs | join(",")' <<< "$out")"
 expect "nd writes nothing" "$nd0" "$(git rev-list --count refs/heads/bp3/node/q2/nd)"
 
 # --- fast-agy-induct agy.1: agy grader + author sessions via --agy-dir ---
