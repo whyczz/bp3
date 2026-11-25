@@ -130,6 +130,11 @@ out_c="$(printf '%s' "$pay_c" | NO_COLOR=1 "$script")"
 assert_contains "$out_c" "bp3: idle" "unbound sess-C not hijacked by stale 2b-reviewed"
 assert_contains "$out_c" "ctx 200k/1.0M (20%)" "unbound sess-C ctx"
 
+# 6b2. Malformed session_id (../evil) fails safe to bp3: idle (never falls back to global red-ink glob)
+pay_bad="$(printf '{"session_id":"../evil","cwd":"%s","context_window":{"context_window_size":1000000,"used_percentage":20.0}}' "$proj")"
+out_bad="$(printf '%s' "$pay_bad" | NO_COLOR=1 "$script")"
+assert_contains "$out_bad" "bp3: idle" "invalid session_id fails safe to idle"
+
 # 6c. Deleting q-beta/QUEST.red-ink.md immediately unfreezes sess-B -> bp3: idle
 rm -f "$proj/docs/quests/q-beta/QUEST.red-ink.md"
 out_b2="$(printf '%s' "$pay_b" | NO_COLOR=1 "$script")"

@@ -151,8 +151,12 @@ fi
 if [ -z "$sid" ]; then
   sid="${AGY_CONVERSATION_ID:-${CLAUDE_SESSION_ID:-}}"
 fi
-if [ -n "$sid" ] && ! valid_sid "$sid"; then
-  sid=""
+had_sid_input=0
+if [ -n "$sid" ]; then
+  had_sid_input=1
+  if ! valid_sid "$sid"; then
+    sid=""
+  fi
 fi
 
 # Locate bp3 repo root
@@ -211,9 +215,9 @@ fi
 quest=""
 mode=""
 branch="$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-if [ -n "$sid" ]; then
+if [ "$had_sid_input" -eq 1 ]; then
   sfile=""
-  [ -n "$common_dir" ] && sfile="$common_dir/bp3/sessions/${sid}.json"
+  [ -n "$sid" ] && [ -n "$common_dir" ] && sfile="$common_dir/bp3/sessions/${sid}.json"
   if [ -n "$sfile" ] && [ -f "$sfile" ]; then
     IFS=$'\t' read -r s_quest s_mode s_rpath <<< "$(
       jq -r '[
