@@ -2,7 +2,7 @@
 date: 2026-11-25
 quest: ../../QUEST.md
 node: session.1
-status: proposed
+status: active
 ---
 
 # session.1 - hook-session-quest-binding: write `<git-common-dir>/bp3/sessions/<sid>.json` from `bp3 q hooks` (self & host repos)

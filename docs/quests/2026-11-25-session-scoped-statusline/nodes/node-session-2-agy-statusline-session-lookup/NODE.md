@@ -2,7 +2,7 @@
 date: 2026-11-25
 quest: ../../QUEST.md
 node: session.2
-status: proposed
+status: active
 ---
 
 # session.2 - agy-statusline-session-lookup: switch `scripts/agy-statusline` to per-session lookup and kill global `[red-ink]` hijack
