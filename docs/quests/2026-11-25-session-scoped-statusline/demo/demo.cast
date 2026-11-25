@@ -1,0 +1,8 @@
+{"version":3,"term":{"cols":80,"rows":24},"timestamp":1795644347,"command":"./demo.sh","env":{"SHELL":"/bin/zsh"}}
+[0.522, "o", "== 1. Bind conv-A (induct q-alpha) and conv-B (red-ink q-beta) via bp3 q hooks ==\r\n"]
+[0.266, "o", "conv-A:  bp3: q-alpha [████░░░░] 1/2 (50%) | 2 (todo c1) | 1s | ctx 200k/1.0M (20%)\r\nconv-B:  bp3: q-beta [red-ink] | ctx 200k/1.0M (20%)\r\nconv-C:  bp3: idle | ctx 200k/1.0M (20%)\r\n"]
+[0.000, "o", "bad sid: bp3: idle | ctx 200k/1.0M (20%)\r\n"]
+[0.008, "o", "== 2. Delete q-beta/QUEST.red-ink.md and release q-alpha -> both sessions drop to idle ==\r\n"]
+[0.110, "o", "conv-A after release: bp3: idle | ctx 200k/1.0M (20%)\r\nconv-B after rm:      bp3: idle | ctx 200k/1.0M (20%)\r\n"]
+[0.004, "o", "demo ok: session-scoped statusline isolated and unfreezes cleanly!\r\n"]
+[0.016, "x", "0"]
