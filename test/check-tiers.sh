@@ -35,15 +35,14 @@ T=$(printf '\t')
 "$sel" --table "$work/planted.tsv" --list docs/keep.md src/y skills/s/SKILL.md | expect_list planted-order u1 a b c
 # 2. A path no row claims selects the unit tier alone: never zero suites.
 "$sel" --table "$work/planted.tsv" --list docs/other.md | expect_list planted-unclaimed u1
-# 3. The real table: src/** reaches the binary suites and the drift
-# check, never the skills render; docs/** is the unit tier alone.
+# 3. The real table: src/** reaches the binary suites and never the
+# skills render; docs/** selects no extra suites beyond make check.
 "$sel" --list src/quest/main.ml > "$work/src.txt"
-for s in g bp3-pi transcripts; do grep -qx "$s" "$work/src.txt" || fail "src/quest/main.ml did not select $s"; done
+for s in g metrics warden; do grep -qx "$s" "$work/src.txt" || fail "src/quest/main.ml did not select $s"; done
 grep -qx skills "$work/src.txt" && fail "src/quest/main.ml selected the skills render" || checks=$((checks + 1))
-units=()
-while IFS= read -r u; do units+=("$u"); done < <(awk -F'\t' '$2 == "unit" { print $1 }' "$repo/test/suites.tsv")
-[ ${#units[@]} -gt 0 ] || fail "the suite table has no unit tier"
-"$sel" --list docs/quests/some-quest/QUEST.md | expect_list real-docs "${units[@]}"
+real_docs=$("$sel" --list docs/quests/some-quest/QUEST.md)
+[ -z "$real_docs" ] || fail "real-docs: expected empty selection, got [$real_docs]"
+checks=$((checks + 1))
 # 4. The gates' wiring is checked from lint (scripts/check-gates), which
 # both gates run first; lint must keep running it, and each planted
 # break must fail it by name.
@@ -66,18 +65,19 @@ gates_fail() { # name expected-message
   grep -qF -- "$2" "$work/gates-$1.out" || fail "gates-$1: wrong reason: $(cat "$work/gates-$1.out")"
   checks=$((checks + 1))
 }
-unit=$'\t./scripts/run-suites --tier unit'; every=$'\t./scripts/run-suites'
-plant_drop no-unit "$unit";                                   gates_fail no-unit 'make check stops after 8 of 9 steps'
-plant_swap unit-or-true "$unit" "$unit || true";              gates_fail unit-or-true 'the Makefile ignores errors'
+every=$'\t./scripts/run-suites'
+dune_test=$'\t$(DUNE_TEST)'
+plant_drop no-dune-test "$dune_test";                         gates_fail no-dune-test 'make check stops after 6 of 7 steps'
+plant_swap dune-or-true "$dune_test" "$dune_test || true";    gates_fail dune-or-true 'the Makefile ignores errors'
 plant_swap full-ignore "$every" $'\t-./scripts/run-suites';  gates_fail full-ignore "ignores errors ('-' prefix)"
 plant_append dot-ignore '.IGNORE:';                           gates_fail dot-ignore 'the Makefile ignores errors'
-plant_swap full-one-tier "$every" "$every --tier slow";       gates_fail full-one-tier 'make check-full step 9 is not the'
+plant_swap full-one-tier "$every" "$every --tier slow";       gates_fail full-one-tier 'make check-full step 8 is not the'
 plant_swap full-no-lint 'check-full: lint ocaml' 'check-full: ocaml';  gates_fail full-no-lint 'make check-full step 1 is not the'
-plant_swap full-no-dune 'check-full: lint ocaml' 'check-full: lint';   gates_fail full-no-dune 'make check-full step 7 is not the'
+plant_swap full-no-dune 'check-full: lint ocaml' 'check-full: lint';   gates_fail full-no-dune 'make check-full step 6 is not the'
 plant_swap fast-differs 'check-fast: check' 'check-fast: lint';        gates_fail fast-differs 'make check-fast is not make check'
-plant_after suite-bash "$unit" $'\tbash test/g.sh';           gates_fail suite-bash 'make check has an extra step: bash test/g.sh'
-plant_after suite-dot "$unit" $'\t./test/./g.sh';             gates_fail suite-dot 'make check has an extra step: ./test/./g.sh'
-plant_swap check-only "$unit" $'\t./scripts/check-retired-terms.sh';   gates_fail check-only 'make check step 9 is not the'
+plant_after suite-bash 'check: lint ocaml' $'\tbash test/g.sh';        gates_fail suite-bash 'make check has an extra step: bash test/g.sh'
+plant_after suite-dot 'check: lint ocaml' $'\t./test/./g.sh';          gates_fail suite-dot 'make check has an extra step: ./test/./g.sh'
+plant_after check-only 'check: lint ocaml' $'\t./scripts/check-retired-terms.sh'; gates_fail check-only 'make check has an extra step: ./scripts/check-retired-terms.sh'
 plant_drop no-stack $'\t./scripts/check-constraints';           gates_fail no-stack 'make check step 2 is not the'
 plant_drop no-bump $'\t./scripts/check-bump';                   gates_fail no-bump 'make check step 3 is not the'
 # 5. Lint's targets are derived and cover every suite's script.

@@ -85,17 +85,23 @@ assert grep -q 'pruned retired-skill' "$work/prune.out"
 rm -rf "$root/.claude/skills/hand-made"
 
 # Render freshness (followup.2, workflow-birth): a fresh desk
-# passes silently; a backdated workflow or SKILL.md render (body
-# drift, missing skill, or missing release tag) refuses
+# passes silently; a backdated SKILL.md render (body drift,
+# missing skill, or missing release tag) refuses
 # E_RENDER_STALE naming render and source; re-render restores freshness.
 "$root/bin/bp3" skills check > "$work/check-fresh.json"
 assert jq -e '.ok == true and .skills_checked > 0' "$work/check-fresh.json"
-printf '\n// backdated render\n' >> "$root/.agents/workflows/induct-grade.js"
-rejects "$root/bin/bp3" skills check
-assert grep -q 'E_RENDER_STALE' "$work/out"
-assert grep -q '.agents/workflows/induct-grade.js' "$work/out"
-assert grep -q 'skills/induct/workflows/induct-grade.js' "$work/out"
-"$root/bin/bp3" skills install --harness=all > /dev/null
+# Retired Muse JS workflows in downstream repos are pruned on skills install,
+# and an empty .agents/workflows/ directory is removed cleanly.
+mkdir -p "$root/.agents/workflows"
+for wf in node-loop induct-grade induct-land induct-node bp3g-node; do
+  printf '// legacy\n' > "$root/.agents/workflows/$wf.js"
+done
+"$root/bin/bp3" skills install --harness=all > "$work/prune-wf.out"
+for wf in node-loop induct-grade induct-land induct-node bp3g-node; do
+  assert test ! -e "$root/.agents/workflows/$wf.js"
+  assert grep -q "pruned $wf" "$work/prune-wf.out"
+done
+assert test ! -e "$root/.agents/workflows"
 printf '\n<!-- drifted skill body -->\n' >> "$root/.agents/skills/quest/SKILL.md"
 rejects "$root/bin/bp3" skills check
 assert grep -q 'E_RENDER_STALE' "$work/out"
@@ -132,17 +138,7 @@ for h in .pi .agents .claude; do
   assert test "$(yq --front-matter=extract '.description' "$root/$h/skills/add-yap-skill/SKILL.md")" = "$(yq --front-matter=extract '.description' "$source")"
   assert test -f "$root/$h/skills/quest/SKILL.md"
 done
-assert test -f "$root/.agents/workflows/node-loop.js"
-assert cmp "$root/skills/induct/workflows/node-loop.js" "$root/.agents/workflows/node-loop.js"
-assert test -f "$root/.agents/workflows/induct-node.js"
-assert cmp "$root/skills/induct/workflows/induct-node.js" "$root/.agents/workflows/induct-node.js"
-assert test ! -e "$root/.agents/workflows/induct-exp.js"
-assert test ! -e "$root/.agents/workflows/bp3g-node.js"
-assert test ! -e "$root/.agents/workflows/quest-land.js"
-assert test -f "$root/.agents/workflows/induct-grade.js"
-assert cmp "$root/skills/induct/workflows/induct-grade.js" "$root/.agents/workflows/induct-grade.js"
-assert test -f "$root/.agents/workflows/induct-land.js"
-assert cmp "$root/skills/induct/workflows/induct-land.js" "$root/.agents/workflows/induct-land.js"
+assert test ! -e "$root/.agents/workflows"
 assert test -f "$root/.claude/hooks.json"
 assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks || true" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.claude/hooks.json"
 assert test -f "$root/.muse/hooks.json"
@@ -158,9 +154,6 @@ assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./
 cp "$root/.pi/settings.json" "$work/settings.before"
 "$root/bin/bp3" skills install --harness=pi > /dev/null
 assert cmp "$work/settings.before" "$root/.pi/settings.json"
-assert cmp "$root/skills/induct/workflows/node-loop.js" "$root/.agents/workflows/node-loop.js"
-assert cmp "$root/skills/induct/workflows/induct-grade.js" "$root/.agents/workflows/induct-grade.js"
-assert cmp "$root/skills/induct/workflows/induct-land.js" "$root/.agents/workflows/induct-land.js"
 
 # Corrupt settings must fail BEFORE rewriting any installed files.
 printf 'sentinel\n' > "$root/.pi/skills/quest/SKILL.md"
@@ -250,7 +243,7 @@ assert grep -q 'Disjoint quests run in parallel' "$root/.agents/skills/induct-yo
 # grep -h: the filter must see the line only, never its file name
 # (induct-grade.js, induct-land.js) or the repo path.
 gate_grep() { grep -hnE 'make check([^-]|$)' "$@" | grep -iE 'grade|land|handoff|gate' || true; }
-gate_lines=$(gate_grep "$repo"/skills/*/SKILL.md "$repo"/skills/induct/workflows/*.js)
+gate_lines=$(gate_grep "$repo"/skills/*/SKILL.md)
 [ -z "$gate_lines" ] || { echo "FAIL: a grade/land instruction names plain make check: $gate_lines" >&2; exit 1; }
 checks=$((checks + 1))
 # metric-followups skills.1: a plain line in a file whose name says

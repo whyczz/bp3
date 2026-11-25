@@ -7,8 +7,6 @@
 # files count; docs/ (quest records, run notes) does not. Sorted,
 # one path per line.
 #   scripts/shell-files          shell scripts (shellcheck targets)
-#   scripts/shell-files --node   JS for `node --check`: .js and .mjs files
-#                                and node-shebang scripts
 set -euo pipefail
 mode=${1:-shell}
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -22,19 +20,6 @@ is_shell() {
   [[ $first =~ ^#\![[:space:]]*/usr/bin/env[[:space:]]+(ba)?sh([[:space:]]|$) ]] && return 0
   return 1
 }
-is_node() {
-  case "$1" in *.js|*.mjs) return 0 ;; esac
-  local first
-  first=$(head -c 64 "$1" 2>/dev/null | head -1) || return 1
-  [[ $first =~ ^#\![[:space:]]*/usr/bin/env[[:space:]]+node([[:space:]]|$) ]]
-}
-if [ "$mode" = --node ]; then
-  git ls-files --cached --others --exclude-standard | while IFS= read -r f; do
-    case "$f" in docs/*) continue ;; esac
-    if [ -f "$f" ] && is_node "$f"; then echo "$f"; fi
-  done | LC_ALL=C sort -u
-  exit 0
-fi
 [ "$mode" = shell ] || { echo "shell-files: unknown mode: $mode" >&2; exit 2; }
 {
   # the suites' own scripts: the first path-like word of each cmd

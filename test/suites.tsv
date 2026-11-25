@@ -29,14 +29,10 @@ config	fixture	./test/config.sh	60	0	-	src/*,bin/bp3,test/config.sh
 link	fixture	./test/link.sh	60	0	-	src/*,bin/bp3,test/link.sh
 mode	fixture	./test/mode.sh	60	0	-	src/*,bin/bp3,skills/*,test/mode.sh
 context	fixture	./test/context.sh	60	0	-	src/*,bin/bp3,test/context.sh
-bp3-pi	fixture	node --test extensions/bp3-pi/test/bp3-pi-real.test.mjs	60	0	-	extensions/*,src/*
-js-unit	unit	./test/js-unit.sh	60	0	-	extensions/*,test/fake-bp3/*,test/js-unit.sh
-transcripts	fixture	./test/transcripts.sh	60	0	-	extensions/*,src/*,test/fake-bp3/*,scripts/record-transcripts,test/transcripts.sh
 worktree	fixture	./test/worktree.sh	60	0	-	src/*,bin/bp3,test/worktree.sh
 tape	fixture	./test/tape.sh	60	0	-	src/*,bin/bp3,test/tape.sh
 cleanliness	fixture	./test/cleanliness.sh	60	0	-	.gitignore,test/cleanliness.sh
 hooks	fixture	./test/hooks.sh	60	0	-	src/*,bin/bp3,test/hooks.sh
-induct	fixture	./test/induct.sh	60	0	-	skills/induct/*,test/induct.sh,test/induct-*.test.mjs,test/node-loop.test.mjs
 completion	fixture	./test/completion.sh	60	0	-	src/*,bin/bp3,completions/*,test/completion.sh
 release	fixture	./test/release.sh	60	0	-	scripts/release-*,scripts/check-bump,Makefile,src/quest/gitx.ml,test/release.sh
 install	fixture	./test/install.sh	60	0	-	scripts/install-bp3.sh,scripts/agy-statusline,scripts/bp3-shim,test/install.sh

@@ -68,7 +68,7 @@ BP3_TARGET="$host" "$repo/bin/bp3" skills install --harness=muse > /dev/null
 for id in $core; do assert test -f "$host/.agents/skills/$id/SKILL.md"; done
 for id in $dev; do assert test ! -e "$host/.agents/skills/$id"; done
 assert grep -q '"command": "bp3 q hooks || true"' "$host/.claude/hooks.json"
-assert test -f "$host/.agents/workflows/node-loop.js"
+assert test ! -e "$host/.agents/workflows"
 
 # Self fixture: tracked src/quest + bin/bp3 derives self and
 # renders the bp3-dev overlay too, with the desk hook command.
@@ -84,10 +84,5 @@ git -C "$self" commit -qm base
 BP3_TARGET="$self" "$repo/bin/bp3" skills install --harness=muse > /dev/null
 for id in $core $dev; do assert test -f "$self/.agents/skills/$id/SKILL.md"; done
 assert grep -q '"command": "./bin/bp3 q hooks || true"' "$self/.claude/hooks.json"
-
-# Mode-aware reads: desk presence derives the read path.
-for wf in node-loop induct-node induct-grade induct-land; do
-  assert grep -q 'desk ? "./bin/bp3" : "bp3"' "$repo/skills/induct/workflows/$wf.js"
-done
 
 printf 'mode tests: ok (%s assertions)\n' "$checks"

@@ -39,12 +39,10 @@ DEV_SKILLS="add-bp3-skill add-yap-skill using-bp3"
 # Layout: every path and name this script spells, named here only
 # (the engine's twin is src/quest/layout.ml). A rename edits these.
 ENGINE_SRC="src/quest"
-WORKFLOW_SKILL="induct"
-WORKFLOW_NAMES="node-loop induct-grade induct-land induct-node"
 WORKFLOWS_DIR=".agents/workflows"
-# Workflow renders are plain copies (no notice to key on), so renamed
-# ones are pruned by explicit name.
-RETIRED_WORKFLOWS="bp3g-grade bp3g-land bp3g-node"
+# Workflow renders are retired plain copies (no notice to key on), so
+# legacy ones in downstream repos are pruned by explicit name.
+RETIRED_WORKFLOWS="bp3g-grade bp3g-land bp3g-node node-loop induct-grade induct-land induct-node"
 
 # Target repo: BP3_TARGET wins; else the cwd repo when it is not
 # this script's own repo; else this script's repo (self conduct
@@ -182,12 +180,6 @@ skills_install() {
       ;;
   esac
 
-  # The induct saved workflows ship with the induct skill (core, both
-  # modes). They are plain copies (no render notice); the target is
-  # the project workflows dir every harness discovers. Absent source
-  # means nothing to copy.
-  local workflow_names="$WORKFLOW_NAMES"
-
   local skill
   for skill in $skills; do
     [ -f "$src_dir/$skill/SKILL.md" ] || continue
@@ -203,19 +195,15 @@ skills_install() {
     printf '%s\n' "$settings_plan" | jq . > "$target/.pi/settings.json"
   fi
   local workflow_name
-  for workflow_name in $workflow_names; do
-    if [ -f "$src_dir/$WORKFLOW_SKILL/workflows/$workflow_name.js" ]; then
-      mkdir -p "$target/$WORKFLOWS_DIR"
-      cp "$src_dir/$WORKFLOW_SKILL/workflows/$workflow_name.js" "$target/$WORKFLOWS_DIR/$workflow_name.js"
-      echo "installed $workflow_name -> $WORKFLOWS_DIR/$workflow_name.js"
-    fi
-  done
   for workflow_name in $RETIRED_WORKFLOWS; do
     if [ -f "$target/$WORKFLOWS_DIR/$workflow_name.js" ]; then
       rm -f "$target/$WORKFLOWS_DIR/$workflow_name.js"
       echo "pruned $workflow_name -> $WORKFLOWS_DIR/$workflow_name.js (retired workflow)"
     fi
   done
+  if [ -d "$target/$WORKFLOWS_DIR" ]; then
+    rmdir "$target/$WORKFLOWS_DIR" 2>/dev/null || true
+  fi
   # Muse hook registration: one fail-open emitter command for
   # every event. Repos without this file never fire hooks. The
   # command is mode-aware (dogfood.3): self reads via the desk
@@ -375,18 +363,7 @@ skills_check() {
   if [ -f "$release_file" ] && command -v jq >/dev/null 2>&1; then
     release_tag="$(jq -r '.tag // empty' "$release_file" 2>/dev/null || true)"
   fi
-  local workflow_name src_file render_file
-  local stale_json="" stale_count=0 fresh_json=""
-  for workflow_name in $WORKFLOW_NAMES; do
-    fresh_json="${fresh_json}\"$workflow_name\","
-    src_file="$src_dir/$WORKFLOW_SKILL/workflows/$workflow_name.js"
-    [ -f "$src_file" ] || continue
-    render_file="$target/$WORKFLOWS_DIR/$workflow_name.js"
-    if [ ! -f "$render_file" ] || ! cmp -s "$src_file" "$render_file"; then
-      stale_count=$((stale_count + 1))
-      stale_json="${stale_json}{\"workflow\":\"$workflow_name\",\"render\":\"$WORKFLOWS_DIR/$workflow_name.js\",\"source\":\"skills/$WORKFLOW_SKILL/workflows/$workflow_name.js\"},"
-    fi
-  done
+  local stale_json="" stale_count=0
   local skill_dirs="" d skill src_skill render_skill notice skills_checked=0 is_stale
   for d in .pi/skills .claude/skills .agents/skills; do
     if [ -d "$target/$d" ]; then
@@ -436,7 +413,7 @@ skills_check() {
     fi
     exit 1
   fi
-  printf '{"ok":true,"fresh":[%s],"skills_checked":%d}\n' "${fresh_json%,}" "$skills_checked"
+  printf '{"ok":true,"fresh":[],"skills_checked":%d}\n' "$skills_checked"
 }
 
 usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|agy|all>] | bp3 init-repo | bp3 skills install [...] | bp3 skills check | bp3 q ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table] | bp3 release (<quest> | --commit <sha>) [...] | bp3 db info [--format json|table] | bp3 repo add|list|remove [...] | bp3 ticket add|list|read|claim|unclaim|done|dismiss [...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'

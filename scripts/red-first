@@ -101,7 +101,7 @@ if [ -z "$failed_step" ] && [ -f "$wt/test/suites.tsv" ]; then
   suites=()
   if [ -x "$wt/scripts/check-changed.sh" ]; then
     while IFS= read -r s; do
-      [ -n "$s" ] && [ "$s" != "js-unit" ] && suites+=("$s")
+      [ -n "$s" ] && suites+=("$s")
     done < <("$wt/scripts/check-changed.sh" --list --table "$wt/test/suites.tsv" "${test_files[@]}" 2>/dev/null || true)
   fi
   if [ "${#suites[@]}" -gt 0 ]; then

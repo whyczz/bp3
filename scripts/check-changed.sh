@@ -54,15 +54,15 @@ while IFS=$'\t' read -r name tier _cmd _budget _serial _why globs; do
   [ "$hit" = 1 ] && selected+=("$name")
 done < "$table"
 
-if [ "$list_only" = 1 ]; then printf '%s\n' "${selected[@]}"; exit 0; fi
-echo "check-changed: suites: ${selected[*]}"
+if [ "$list_only" = 1 ]; then [ ${#selected[@]} -eq 0 ] || printf '%s\n' "${selected[@]}"; exit 0; fi
+echo "check-changed: suites: ${selected[*]:-(none; make check only)}"
 echo "check-changed: run make check"
 make check
 rest=()
 while IFS=$'\t' read -r name tier _; do
   case "$name" in ''|'#'*) continue ;; esac
   [ "$tier" = unit ] && continue
-  for s in "${selected[@]}"; do [ "$s" = "$name" ] && rest+=("$name"); done
+  for s in "${selected[@]:-}"; do [ -n "$s" ] && [ "$s" = "$name" ] && rest+=("$name"); done
 done < "$table"
 if [ ${#rest[@]} -gt 0 ]; then
   only=$(IFS=,; echo "${rest[*]}")
