@@ -1,12 +1,14 @@
 ---
 goal_type: default
 engine: single
-status: proposed
+status: canceled
 home_repo: bp3
 date: 2026-11-09
 ---
 
 # bp3-land-verdicts: the binary outputs for landing
+
+> **Canceled (2026-11-25):** Superseded by [2026-11-23-quest-promote-release](../2026-11-23-quest-promote-release/QUEST.md) (`bp3 release`, `v0.4.0`) and [2026-11-25-draft-desk-guard](../2026-11-25-draft-desk-guard/QUEST.md) (Tiered CAS `merge-tree` promotion + draft desks, `v0.8.0`).
 
 TL;DR
 The binary learns to feed the landing loop: one verdict shape

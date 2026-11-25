@@ -1,12 +1,14 @@
 ---
 goal_type: default
 engine: single
-status: proposed
+status: canceled
 home_repo: bp3
 date: 2026-11-09
 ---
 
 # bp3-mvp-plugin-git-cas-lands: the landing clerk as a skill
+
+> **Canceled (2026-11-25):** Superseded by [2026-11-23-quest-promote-release](../2026-11-23-quest-promote-release/QUEST.md) (`bp3 release`, `v0.4.0`) and [2026-11-25-draft-desk-guard](../2026-11-25-draft-desk-guard/QUEST.md) (Tiered CAS `merge-tree` promotion + draft desks, `v0.8.0`).
 
 TL;DR
 A `/land` skill lands one quest at a time onto a moving master:

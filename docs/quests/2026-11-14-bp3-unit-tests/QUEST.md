@@ -1,10 +1,12 @@
 ---
-status: proposed
+status: canceled
 home_repo: bp3
 date: 2026-11-14
 ---
 
 # bp3-unit-tests: the test split, standard and backfill
+
+> **Canceled (2026-11-25):** Abandoned by owner on 2026-11-15 (`bp3 q` rollup state `deleted`) and superseded by [2026-11-18-test-pyramid](../2026-11-18-test-pyramid/QUEST.md) (merged `73130841`).
 
 TL;DR
 bp3 gains the missing bottom layer of its test pyramid —
