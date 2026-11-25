@@ -63,6 +63,307 @@ let command_of j =
       | _ -> ""
     with _ -> ""
 
+let file_path_of j =
+  let claude_path =
+    try match Yojson.Safe.Util.member "tool_input" j with
+      | `Assoc _ as ti ->
+          let p = member_str ti "file_path" in
+          if p <> "" then p else member_str ti "path"
+      | _ -> ""
+    with _ -> "" in
+  if claude_path <> "" then claude_path
+  else
+    try match Yojson.Safe.Util.member "toolCall" j with
+      | `Assoc _ as tc ->
+          (match Yojson.Safe.Util.member "args" tc with
+           | `Assoc _ as args ->
+               let p = member_str args "Path" in
+               if p <> "" then p
+               else
+                 let p2 = member_str args "TargetFile" in
+                 if p2 <> "" then p2 else member_str args "path"
+           | _ -> "")
+      | _ -> ""
+    with _ -> ""
+
+(* ---------- per-session quest binding (<git-common-dir>/bp3/sessions/<sid>.json) ---------- *)
+let session_ttl_s = 86400
+
+type session_action =
+  | Session_bind of { quest : string; mode : string; red_ink_path : string option }
+  | Session_clear of string
+
+let sanitize_session_id sid =
+  let n = String.length sid in
+  if n = 0 || n > 128 || sid.[0] = '.' || contains_sub sid ".." then None
+  else
+    let ok c =
+      (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+      || (c >= '0' && c <= '9') || c = '.' || c = '_' || c = '-' in
+    let rec loop i = if i >= n then true else ok sid.[i] && loop (i + 1) in
+    if loop 0 then Some sid else None
+
+let strip_matching_quotes s =
+  let n = String.length s in
+  if n >= 2 && ((s.[0] = '"' && s.[n - 1] = '"') || (s.[0] = '\'' && s.[n - 1] = '\''))
+  then String.sub s 1 (n - 2)
+  else s
+
+let split_shell_segments cmd =
+  let n = String.length cmd in
+  let buf = Buffer.create 64 in
+  let segs = ref [] in
+  let flush () =
+    let s = String.trim (Buffer.contents buf) in
+    Buffer.clear buf;
+    if s <> "" then segs := s :: !segs in
+  let i = ref 0 in
+  let in_sq = ref false and in_dq = ref false in
+  while !i < n do
+    let c = cmd.[!i] in
+    if !in_sq then begin
+      if c = '\'' then in_sq := false;
+      Buffer.add_char buf c;
+      incr i
+    end else if !in_dq then begin
+      if c = '"' then in_dq := false;
+      Buffer.add_char buf c;
+      incr i
+    end else if c = '\'' then begin
+      in_sq := true; Buffer.add_char buf c; incr i
+    end else if c = '"' then begin
+      in_dq := true; Buffer.add_char buf c; incr i
+    end else if c = '\n' || c = ';' then begin
+      flush (); incr i
+    end else if c = '&' && !i + 1 < n && cmd.[!i + 1] = '&' then begin
+      flush (); i := !i + 2
+    end else if c = '|' then begin
+      flush ();
+      if !i + 1 < n && cmd.[!i + 1] = '|' then i := !i + 2 else incr i
+    end else begin
+      Buffer.add_char buf c; incr i
+    end
+  done;
+  flush ();
+  List.rev !segs
+
+let tokenize_segment seg =
+  let n = String.length seg in
+  let buf = Buffer.create 32 in
+  let toks = ref [] in
+  let flush () =
+    let s = Buffer.contents buf in
+    Buffer.clear buf;
+    if s <> "" then toks := strip_matching_quotes s :: !toks in
+  let i = ref 0 in
+  let in_sq = ref false and in_dq = ref false in
+  while !i < n do
+    let c = seg.[!i] in
+    if !in_sq then begin
+      if c = '\'' then in_sq := false;
+      Buffer.add_char buf c; incr i
+    end else if !in_dq then begin
+      if c = '"' then in_dq := false;
+      Buffer.add_char buf c; incr i
+    end else if c = '\'' then begin
+      in_sq := true; Buffer.add_char buf c; incr i
+    end else if c = '"' then begin
+      in_dq := true; Buffer.add_char buf c; incr i
+    end else if c = ' ' || c = '\t' || c = '\r' then begin
+      flush (); incr i
+    end else begin
+      Buffer.add_char buf c; incr i
+    end
+  done;
+  flush ();
+  List.rev !toks
+
+let is_env_assign tok =
+  match String.index_opt tok '=' with
+  | Some idx when idx > 0 ->
+      let k = String.sub tok 0 idx in
+      let ok c =
+        (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+        || (c >= '0' && c <= '9') || c = '_' in
+      let rec loop i = i >= idx || (ok k.[i] && loop (i + 1)) in
+      k.[0] <> '-' && loop 0
+  | _ -> false
+
+let rec drop_env_prefix = function
+  | "env" :: rest -> drop_env_prefix rest
+  | tok :: rest when is_env_assign tok -> drop_env_prefix rest
+  | toks -> toks
+
+let is_bp3_bin tok =
+  tok = "bp3"
+  || (let n = String.length tok in n > 4 && String.sub tok (n - 4) 4 = "/bp3")
+
+let reserved_q_verbs =
+  [ "c"; "create"; "r"; "read"; "hooks"; "metrics"; "help"; "-h"; "--help"; "version"; "--version" ]
+
+let rec find_quest_flag = function
+  | "--quest" :: q :: _ -> Some q
+  | tok :: rest ->
+      (match strip_prefix ~prefix:"--quest=" tok with
+       | Some q -> Some q
+       | None -> find_quest_flag rest)
+  | [] -> None
+
+let extract_release_quest args =
+  if List.exists (fun a -> a = "--dry-run" || a = "--commit" || starts_with a "--commit=") args
+  then None
+  else
+    let rec go = function
+      | [] -> None
+      | "--bump" :: _ :: rest -> go rest
+      | tok :: rest when starts_with tok "-" -> go rest
+      | q :: _ -> if valid_slug q then Some q else None in
+    go args
+
+let extract_action_from_segment seg =
+  match drop_env_prefix (tokenize_segment seg) with
+  | cmd :: rest when is_bp3_bin cmd ->
+      (match rest with
+       | "release" :: args ->
+           (match extract_release_quest args with
+            | Some q -> Some (Session_clear q)
+            | None -> None)
+       | "harness" :: "desk" :: "prepare" :: args
+       | "worktree" :: "prepare" :: args ->
+           (match find_quest_flag args with
+            | Some q when valid_slug q ->
+                Some (Session_bind { quest = q; mode = "induct"; red_ink_path = None })
+            | _ -> None)
+       | "q" :: q_args ->
+           (match q_args with
+            | ("c" | "create" | "r" | "read") :: q :: _ when valid_slug q && not (List.mem q reserved_q_verbs) ->
+                Some (Session_bind { quest = q; mode = "induct"; red_ink_path = None })
+            | q :: _sub :: _ when valid_slug q && not (List.mem q reserved_q_verbs) ->
+                Some (Session_bind { quest = q; mode = "induct"; red_ink_path = None })
+            | _ -> None)
+       | _ -> None)
+  | _ -> None
+
+let extract_red_ink_from_path file_path =
+  let norm = String.map (fun c -> if c = '\\' then '/' else c) (String.trim file_path) in
+  let marker = "docs/quests/" in
+  let mlen = String.length marker in
+  let n = String.length norm in
+  let rec find_marker i =
+    if i + mlen > n then None
+    else if String.sub norm i mlen = marker && (i = 0 || norm.[i - 1] = '/') then
+      Some (String.sub norm (i + mlen) (n - i - mlen))
+    else find_marker (i + 1) in
+  match find_marker 0 with
+  | None -> None
+  | Some tail ->
+      (match String.split_on_char '/' tail with
+       | [ q; fname ]
+         when valid_slug q && (fname = "QUEST.red-ink.md" || fname = "QUEST.2b-reviewed.md") ->
+           Some (Session_bind {
+             quest = q;
+             mode = "red-ink";
+             red_ink_path = Some (marker ^ q ^ "/" ^ fname);
+           })
+       | _ -> None)
+
+let extract_session_action ~command ~file_path =
+  match extract_red_ink_from_path file_path with
+  | Some _ as act -> act
+  | None ->
+      if String.trim command = "" then None
+      else
+        List.fold_left (fun acc seg ->
+          match extract_action_from_segment seg with
+          | Some _ as act -> act
+          | None -> acc) None (split_shell_segments command)
+
+let canon_path p = try Unix.realpath p with _ -> p
+
+let session_dir_of gate_root =
+  match run_capture [ "git"; "-C"; gate_root; "rev-parse"; "--git-common-dir" ] with
+  | (raw, 0) when raw <> "" ->
+      let abs =
+        if Filename.is_relative raw then Filename.concat gate_root raw else raw in
+      Some (Filename.concat (Filename.concat (canon_path abs) "bp3") "sessions")
+  | _ -> None
+
+let has_quests_dir gate_root =
+  List.exists (fun r ->
+    try Sys.is_directory (Filename.concat gate_root r) with _ -> false)
+    (Layout.quests_root :: Layout.legacy_quests_roots)
+
+let prune_stale_sessions ~sdir ~now ~ttl_s =
+  if Sys.file_exists sdir && Sys.is_directory sdir then
+    let entries = try Array.to_list (Sys.readdir sdir) with _ -> [] in
+    List.iter (fun name ->
+      let len = String.length name in
+      if len > 5 && String.sub name (len - 5) 5 = ".json" then
+        let path = Filename.concat sdir name in
+        try
+          let txt = read_file_or path "" in
+          let ts_opt =
+            try
+              match Yojson.Safe.from_string txt with
+              | `Assoc _ as j -> Util.get_int_opt j "updated_ts"
+              | _ -> None
+            with _ -> None in
+          let stale =
+            match ts_opt with
+            | Some ts -> now - ts > ttl_s
+            | None ->
+                let st = Unix.stat path in
+                float_of_int now -. st.Unix.st_mtime > float_of_int ttl_s in
+          if stale then (try Unix.unlink path with _ -> ())
+        with _ -> ()) entries
+
+let unlink_session_if_quest path quest =
+  if Sys.file_exists path then
+    try
+      let txt = read_file_or path "" in
+      match Yojson.Safe.from_string txt with
+      | `Assoc _ as j when member_str j "quest" = quest ->
+          (try Unix.unlink path with _ -> ())
+      | _ -> ()
+    with _ -> ()
+
+let update_session_binding ~gate_root ~sid ~event ~command ~file_path ~is_failure ~has_refusal =
+  try
+    match sanitize_session_id sid with
+    | None -> ()
+    | Some clean_sid ->
+        if not (has_quests_dir gate_root) then ()
+        else
+          (match session_dir_of gate_root with
+           | None -> ()
+           | Some sdir ->
+               let now = int_of_float (Clock.time ()) in
+               match event with
+               | "SessionStart" ->
+                   prune_stale_sessions ~sdir ~now ~ttl_s:session_ttl_s
+               | "PreToolUse" | "PostToolUse" ->
+                   let spath = Filename.concat sdir (clean_sid ^ ".json") in
+                   (match extract_session_action ~command ~file_path with
+                    | None -> ()
+                    | Some (Session_clear q) ->
+                        if event = "PostToolUse" && not is_failure && not has_refusal then
+                          unlink_session_if_quest spath q
+                    | Some (Session_bind { quest; mode; red_ink_path }) ->
+                        if not is_failure then begin
+                          Util.mkdir_p sdir;
+                          let j = `Assoc [
+                            ("session_id", json_str clean_sid);
+                            ("quest", json_str quest);
+                            ("mode", json_str mode);
+                            ("desk", `Null);
+                            ("red_ink_path", (match red_ink_path with Some p -> json_str p | None -> `Null));
+                            ("updated_ts", `Int now);
+                          ] in
+                          Util.write_file_atomic spath (Yojson.Safe.to_string j ^ "\n")
+                        end)
+               | _ -> ())
+  with _ -> ()
+
 let extract_preset command key =
   try
     let re = Str.regexp (key ^ "=\\([^ \t\"']+\\)") in
@@ -320,6 +621,14 @@ let handle () =
       else
         let raw_gate_root = payload_cwd ~fallback:(current_root ()) payload in
         let gate_root = resolve_gate_root raw_gate_root in
+        let command = command_of payload in
+        let file_path = file_path_of payload in
+        let is_reentrant = contains_sub command "bp3 q hooks" in
+        if not is_reentrant then begin
+          let is_failure = event = "PostToolUseFailure" || member_str payload "error" <> "" in
+          let has_refusal = refusal_code payload <> None in
+          update_session_binding ~gate_root ~sid:session ~event ~command ~file_path ~is_failure ~has_refusal
+        end;
         if not (is_bp3_repo gate_root) then begin
           if event = "SessionStart" then
             match detect_legacy_local_skills gate_root with
@@ -329,8 +638,7 @@ let handle () =
           else wrap (no_write "not a bp3 repo")
         end else begin
           set_root gate_root;
-          let command = command_of payload in
-          if contains_sub command "bp3 q hooks"
+          if is_reentrant
           then wrap (no_write "reentrant")
           else begin
             let bindings = ref (load_registry ()) in

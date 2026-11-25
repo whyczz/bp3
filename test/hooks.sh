@@ -263,4 +263,85 @@ echo "$out" | jq -e '.ok == true and .event_line == null and .reason == "not a b
 [ "$(git -C "$non_bp3" rev-parse HEAD)" = "$non_before" ] || fail "non-bp3 git repo HEAD changed"
 [ ! -e "$non_bp3/.git/bp3-run-registry.json" ] || fail "non-bp3 git repo created registry"
 
+# --- session-scoped-statusline session.1: per-session quest binding (self + host) ---
+sess_dir="$(cd "$(git rev-parse --git-common-dir)" && pwd -P)/bp3/sessions"
+
+# 1. Self repo: parallel sessions conv-A (induct) and conv-B (red-ink) isolated, zero repo dirt
+s_pre_a=$(printf '{"hookEventName":"PreToolUse","conversationId":"conv-A","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"bp3 harness desk prepare --quest q-alpha"}}}' "$repo")
+out=$(hooks "$s_pre_a")
+echo "$out" | jq -e '.decision == "allow"' >/dev/null || fail "session PreToolUse agy reply: $out"
+[ -f "$sess_dir/conv-A.json" ] || fail "conv-A.json not written"
+jq -e '.session_id == "conv-A" and .quest == "q-alpha" and .mode == "induct" and .red_ink_path == null and (.updated_ts | type == "number")' "$sess_dir/conv-A.json" >/dev/null || fail "conv-A.json content: $(cat "$sess_dir/conv-A.json")"
+
+s_post_b=$(printf '{"hookEventName":"PostToolUse","conversationId":"conv-B","cwd":"%s","toolCall":{"name":"edit_file","args":{"Path":"%s/docs/quests/q-beta/QUEST.red-ink.md"}}}' "$repo" "$repo")
+out=$(hooks "$s_post_b")
+echo "$out" | jq -e '. == {}' >/dev/null || fail "session PostToolUse agy reply: $out"
+[ -f "$sess_dir/conv-B.json" ] || fail "conv-B.json not written"
+jq -e '.session_id == "conv-B" and .quest == "q-beta" and .mode == "red-ink" and .red_ink_path == "docs/quests/q-beta/QUEST.red-ink.md"' "$sess_dir/conv-B.json" >/dev/null || fail "conv-B.json content: $(cat "$sess_dir/conv-B.json")"
+# conv-A must remain intact
+jq -e '.quest == "q-alpha" and .mode == "induct"' "$sess_dir/conv-A.json" >/dev/null || fail "conv-A clobbered by conv-B"
+
+# 2. Release clear: --dry-run and PostToolUseFailure do NOT clear; successful PostToolUse clears only matching session
+s_dry=$(printf '{"hookEventName":"PostToolUse","conversationId":"conv-A","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"BP3_DECIDER=human bp3 release q-alpha --dry-run"}}}' "$repo")
+hooks "$s_dry" >/dev/null
+[ -f "$sess_dir/conv-A.json" ] || fail "--dry-run must not clear conv-A.json"
+
+s_fail=$(printf '{"hookEventName":"PostToolUseFailure","conversationId":"conv-A","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"BP3_DECIDER=human bp3 release q-alpha"}},"error":"exit 1"}' "$repo")
+hooks "$s_fail" >/dev/null
+[ -f "$sess_dir/conv-A.json" ] || fail "PostToolUseFailure must not clear conv-A.json"
+
+s_pre_rel=$(printf '{"hookEventName":"PreToolUse","conversationId":"conv-A","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"BP3_DECIDER=human bp3 release q-alpha"}}}' "$repo")
+hooks "$s_pre_rel" >/dev/null
+[ -f "$sess_dir/conv-A.json" ] || fail "PreToolUse release must not clear conv-A.json before completion"
+
+s_rel=$(printf '{"hookEventName":"PostToolUse","conversationId":"conv-A","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"BP3_DECIDER=human bp3 release q-alpha"}}}' "$repo")
+hooks "$s_rel" >/dev/null
+[ ! -e "$sess_dir/conv-A.json" ] || fail "successful PostToolUse bp3 release did not clear conv-A.json"
+[ -f "$sess_dir/conv-B.json" ] || fail "clearing conv-A touched conv-B.json"
+
+# 3. Path traversal session_id is rejected safely (no file written outside sessions/)
+s_bad=$(printf '{"hookEventName":"PostToolUse","conversationId":"../escape","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"bp3 q q-alpha r"}}}' "$repo")
+hooks "$s_bad" >/dev/null
+[ ! -e "$(dirname "$sess_dir")/escape.json" ] || fail "traversal session_id wrote outside sessions/"
+
+# 4. SessionStart prunes >24h stale session JSON while preserving fresh session JSON
+printf '{"session_id":"stale-old","quest":"old-q","mode":"induct","desk":null,"red_ink_path":null,"updated_ts":1000}\n' > "$sess_dir/stale-old.json"
+s_start=$(printf '{"hookEventName":"SessionStart","conversationId":"conv-C","cwd":"%s"}' "$repo")
+hooks "$s_start" >/dev/null
+[ ! -e "$sess_dir/stale-old.json" ] || fail "SessionStart did not prune stale >24h session file"
+[ -f "$sess_dir/conv-B.json" ] || fail "SessionStart pruned fresh conv-B.json"
+
+# 5. Host repo (docs/quests present, NO bin/bp3): session binding, clear, and 24h GC all work identically
+host="$work/host-repo"
+mkdir -p "$host/docs/quests/host-q"
+git -C "$host" init -q -b master
+git -C "$host" config user.email t@t.t; git -C "$host" config user.name t
+echo hi > "$host/README.md"
+git -C "$host" add README.md
+git -C "$host" commit -qm init
+host_sess="$(cd "$host" && cd "$(git rev-parse --git-common-dir)" && pwd -P)/bp3/sessions"
+
+h_bind=$(printf '{"hookEventName":"PreToolUse","conversationId":"host-A","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"bp3 harness desk prepare --quest host-q"}}}' "$host")
+out=$(hooks "$h_bind")
+echo "$out" | jq -e '.decision == "allow"' >/dev/null || fail "host PreToolUse agy reply: $out"
+[ -f "$host_sess/host-A.json" ] || fail "host repo did not write host-A.json"
+jq -e '.quest == "host-q" and .mode == "induct"' "$host_sess/host-A.json" >/dev/null || fail "host-A.json content"
+
+h_red=$(printf '{"hookEventName":"PostToolUse","conversationId":"host-B","cwd":"%s","toolCall":{"name":"edit_file","args":{"Path":"%s/docs/quests/host-q/QUEST.2b-reviewed.md"}}}' "$host" "$host")
+out=$(hooks "$h_red")
+echo "$out" | jq -e '. == {}' >/dev/null || fail "host PostToolUse agy reply: $out"
+jq -e '.quest == "host-q" and .mode == "red-ink" and .red_ink_path == "docs/quests/host-q/QUEST.2b-reviewed.md"' "$host_sess/host-B.json" >/dev/null || fail "host-B.json content"
+
+h_rel=$(printf '{"hookEventName":"PostToolUse","conversationId":"host-A","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"BP3_DECIDER=human bp3 release host-q"}}}' "$host")
+hooks "$h_rel" >/dev/null
+[ ! -e "$host_sess/host-A.json" ] || fail "host release did not clear host-A.json"
+[ -f "$host_sess/host-B.json" ] || fail "host release touched host-B.json"
+
+printf '{"session_id":"host-stale","quest":"old","mode":"induct","desk":null,"red_ink_path":null,"updated_ts":1000}\n' > "$host_sess/host-stale.json"
+h_start=$(printf '{"hookEventName":"SessionStart","conversationId":"host-C","cwd":"%s"}' "$host")
+hooks "$h_start" >/dev/null
+[ ! -e "$host_sess/host-stale.json" ] || fail "host SessionStart did not prune stale session"
+[ -f "$host_sess/host-B.json" ] || fail "host SessionStart pruned fresh host-B.json"
+[ -z "$(git -C "$host" status --porcelain)" ] || fail "host repo dirtied by session binding"
+
 echo "hooks tests: ok"

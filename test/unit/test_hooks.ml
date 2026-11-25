@@ -122,6 +122,91 @@ let case_legacy_skills_warning_shape_and_verdict_attachment _ =
    | `List [ _ ] -> ()
    | _ -> assert_failure "expected 1 warning in verdict")
 
+let session_action_printer = function
+  | None -> "None"
+  | Some (Hooks.Session_clear q) -> "Clear(" ^ q ^ ")"
+  | Some (Hooks.Session_bind { quest; mode; red_ink_path }) ->
+      Printf.sprintf "Bind(%s,%s,%s)" quest mode (match red_ink_path with Some p -> p | None -> "null")
+
+let case_extract_session_action_matches_explicit_quest_commands_and_red_ink_edits _ =
+  let cases = [
+    ("bp3 harness desk prepare --quest q1", "",
+     Some (Hooks.Session_bind { quest = "q1"; mode = "induct"; red_ink_path = None }));
+    ("./bin/bp3 worktree prepare --quest=q-alpha", "",
+     Some (Hooks.Session_bind { quest = "q-alpha"; mode = "induct"; red_ink_path = None }));
+    ("./bin/bp3 q q1 n node-1 e handoff --commit abc", "",
+     Some (Hooks.Session_bind { quest = "q1"; mode = "induct"; red_ink_path = None }));
+    ("./bin/bp3 q c q1 --type default", "",
+     Some (Hooks.Session_bind { quest = "q1"; mode = "induct"; red_ink_path = None }));
+    ("./bin/bp3 q r q1", "",
+     Some (Hooks.Session_bind { quest = "q1"; mode = "induct"; red_ink_path = None }));
+    ("cd /tmp/desk && ./bin/bp3 q q-compound metrics r", "",
+     Some (Hooks.Session_bind { quest = "q-compound"; mode = "induct"; red_ink_path = None }));
+    ("./bin/bp3 q r", "", None);
+    ("./bin/bp3 q hooks", "", None);
+    ("./bin/bp3 warden q1", "", None);
+    ("BP3_DECIDER=human ./bin/bp3 release q1", "",
+     Some (Hooks.Session_clear "q1"));
+    ("BP3_DECIDER=human bp3 release --bump minor q1 --no-gh", "",
+     Some (Hooks.Session_clear "q1"));
+    ("bp3 release q1 --dry-run", "", None);
+    ("BP3_DECIDER=human bp3 release --commit abc1234", "", None);
+    ("", "/repo/docs/quests/q1/QUEST.red-ink.md",
+     Some (Hooks.Session_bind { quest = "q1"; mode = "red-ink"; red_ink_path = Some "docs/quests/q1/QUEST.red-ink.md" }));
+    ("", "docs/quests/q-beta/QUEST.2b-reviewed.md",
+     Some (Hooks.Session_bind { quest = "q-beta"; mode = "red-ink"; red_ink_path = Some "docs/quests/q-beta/QUEST.2b-reviewed.md" }));
+    ("", "/repo/docs/quests/q1/QUEST.md", None);
+    ("", "/repo/my_docs/quests/q1/QUEST.red-ink.md", None);
+  ] in
+  List.iter (fun (command, file_path, want) ->
+    assert_equal ~msg:(command ^ " | " ^ file_path) ~printer:session_action_printer
+      want (Hooks.extract_session_action ~command ~file_path)) cases
+
+let case_file_path_of_reads_claude_and_agy_file_arguments _ =
+  let j s = Yojson.Safe.from_string s in
+  table "file_path_of" [
+    ({|{"tool_input": {"file_path": "/a/QUEST.red-ink.md"}}|}, "/a/QUEST.red-ink.md");
+    ({|{"tool_input": {"path": "/b/QUEST.2b-reviewed.md"}}|}, "/b/QUEST.2b-reviewed.md");
+    ({|{"toolCall": {"name": "edit_file", "args": {"Path": "/c/QUEST.red-ink.md"}}}|}, "/c/QUEST.red-ink.md");
+    ({|{"toolCall": {"name": "write_file", "args": {"TargetFile": "/d/QUEST.red-ink.md"}}}|}, "/d/QUEST.red-ink.md");
+    ({|{"tool_input": {"command": "ls"}}|}, "") ]
+    (fun s -> Hooks.file_path_of (j s)) Fun.id
+
+let law_sanitize_session_id_prevents_path_traversal =
+  let gen_sid =
+    let open QCheck2.Gen in
+    oneof [
+      string_size ~gen:(oneof_list [ 'a'; 'Z'; '0'; '.'; '_'; '-'; '/'; '\\'; ' '; ':' ]) (int_range 0 140);
+      map (fun s -> "../" ^ s) (string_size ~gen:(char_range 'a' 'z') (int_range 0 10));
+      map (fun s -> "." ^ s) (string_size ~gen:(char_range 'a' 'z') (int_range 0 10));
+      string_size ~gen:(oneof [ char_range 'a' 'z'; char_range '0' '9'; return '-' ]) (int_range 1 64);
+    ] in
+  QCheck2.Test.make ~count:500 ~name:"law_sanitize_session_id_prevents_path_traversal"
+    ~print:Fun.id gen_sid
+    (fun raw ->
+      let allowed c =
+        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+        || (c >= '0' && c <= '9') || c = '.' || c = '_' || c = '-' in
+      let all_allowed s =
+        let n = String.length s in
+        let rec go i = i >= n || (allowed s.[i] && go (i + 1)) in
+        go 0 in
+      match Hooks.sanitize_session_id raw with
+      | Some s ->
+          s = raw
+          && String.length s >= 1 && String.length s <= 128
+          && s.[0] <> '.'
+          && not (String.contains s '/')
+          && not (String.contains s '\\')
+          && not (Util.contains_sub s "..")
+          && all_allowed s
+      | None ->
+          String.length raw = 0
+          || String.length raw > 128
+          || raw.[0] = '.'
+          || Util.contains_sub raw ".."
+          || not (all_allowed raw))
+
 let gen_binding =
   let open QCheck2.Gen in
   let s = string_size ~gen:printable (int_range 0 12) in
@@ -169,6 +254,9 @@ let () =
        "case_binding_of_json_falls_back_to_started_epoch_when_last_seen_is_missing" >:: case_binding_of_json_falls_back_to_started_epoch_when_last_seen_is_missing;
        "case_payload_cwd_prefers_cwd_then_workspace_paths_then_fallback" >:: case_payload_cwd_prefers_cwd_then_workspace_paths_then_fallback;
        "case_legacy_skills_warning_shape_and_verdict_attachment" >:: case_legacy_skills_warning_shape_and_verdict_attachment;
+       "case_extract_session_action_matches_explicit_quest_commands_and_red_ink_edits" >:: case_extract_session_action_matches_explicit_quest_commands_and_red_ink_edits;
+       "case_file_path_of_reads_claude_and_agy_file_arguments" >:: case_file_path_of_reads_claude_and_agy_file_arguments;
        QCheck_ounit.to_ounit2_test law_binding_json_round_trips;
        QCheck_ounit.to_ounit2_test law_parse_edge_cycle_reads_the_cycle_from_any_generated_run_id;
+       QCheck_ounit.to_ounit2_test law_sanitize_session_id_prevents_path_traversal;
      ])
