@@ -111,3 +111,18 @@ let run_desk_dir repo_dir quest node run_id =
 
 let desks_meta_dir repo_dir =
   join_path repo_dir desks_meta_subdir
+
+(* Ordered ancestor directories strictly below [stop_at] from the parent
+   of [path] upward. Never includes [stop_at] itself, "/", or anything
+   outside [stop_at]/ — empty when [path] is not under [stop_at]/. *)
+let empty_parent_candidates ~stop_at path =
+  let stop = strip_trailing_slashes stop_at in
+  let prefix = if stop = "/" then "/" else stop ^ "/" in
+  let p = strip_trailing_slashes path in
+  if not (String.starts_with ~prefix p) || p = stop then []
+  else
+    let rec go cur acc =
+      if cur = "" || cur = "/" || cur = stop || not (String.starts_with ~prefix cur)
+      then List.rev acc
+      else go (Filename.dirname cur) (cur :: acc) in
+    go (Filename.dirname p) []

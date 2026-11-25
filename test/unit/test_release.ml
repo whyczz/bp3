@@ -235,6 +235,16 @@ let law_next_semver_is_strictly_greater_and_obeys_reset_laws =
               | Release.Patch -> n.major = v.major && n.minor = v.minor && n.patch = v.patch + 1
               | Release.None_bump -> false))
 
+let case_classify_desk_cleanup_covers_all_states _ =
+  assert_equal Release.Release_desk (Release.classify_desk_cleanup Release.Desk_missing);
+  assert_equal Release.Release_desk (Release.classify_desk_cleanup Release.Desk_clean);
+  assert_equal
+    (Release.Keep_desk { reason = "dirty"; warning = "W_DESK_DIRTY_KEPT" })
+    (Release.classify_desk_cleanup Release.Desk_dirty);
+  assert_equal
+    (Release.Keep_desk { reason = "cleanup_failed"; warning = "W_DESK_CLEANUP_FAILED" })
+    (Release.classify_desk_cleanup Release.Desk_corrupt)
+
 let () =
   run_test_tt_main
     ("release" >::: [
@@ -248,6 +258,7 @@ let () =
        "case_sync_bp3_version_replaces_exact_line_and_fails_closed" >:: case_sync_bp3_version_replaces_exact_line_and_fails_closed;
        "case_render_what_changed_quest_and_commit" >:: case_render_what_changed_quest_and_commit;
        "case_is_doc_only_path_and_classify_drift" >:: case_is_doc_only_path_and_classify_drift;
+       "case_classify_desk_cleanup_covers_all_states" >:: case_classify_desk_cleanup_covers_all_states;
        QCheck_ounit.to_ounit2_test law_semver_tag_roundtrip;
        QCheck_ounit.to_ounit2_test law_next_semver_is_strictly_greater_and_obeys_reset_laws;
        QCheck_ounit.to_ounit2_test law_non_docs_prefix_never_doc_only;

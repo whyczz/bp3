@@ -195,16 +195,14 @@ let canon_best p =
    (never removing stop_at itself or anything outside stop_at/). *)
 let prune_empty_parents ~stop_at path =
   let stop = canon_best stop_at in
-  let start = Filename.dirname (canon_best (abs_path path)) in
-  let rec go cur acc =
-    if cur = "" || cur = "/" || cur = stop
-       || not (String.starts_with ~prefix:(stop ^ "/") cur)
-    then List.rev acc
-    else
-      match Unix.rmdir cur with
-      | () -> go (Filename.dirname cur) (cur :: acc)
-      | exception Unix.Unix_error _ -> List.rev acc in
-  go start []
+  let target = canon_best (abs_path path) in
+  let rec go acc = function
+    | [] -> List.rev acc
+    | cur :: rest ->
+        (match Unix.rmdir cur with
+         | () -> go (cur :: acc) rest
+         | exception Unix.Unix_error _ -> List.rev acc) in
+  go [] (Layout.empty_parent_candidates ~stop_at:stop target)
 
 let prune_desk_empty_parents path =
   let c_abs = canon_best (abs_path path) in
@@ -487,7 +485,7 @@ let delete_merged_branch ?(exclude_paths = []) ?(assume_merged = false)
   let mr = main_root () in
   let br_ref = "refs/heads/" ^ branch in
   let tgt_ref = "refs/heads/" ^ target in
-  let c_excl = List.map canon exclude_paths in
+  let c_excl = List.map canon_best exclude_paths in
   if not (git_in_ok mr [ "rev-parse"; "--verify"; "-q"; br_ref ^ "^{commit}" ]) then
     false
   else
@@ -502,44 +500,50 @@ let delete_merged_branch ?(exclude_paths = []) ?(assume_merged = false)
     else git_in_ok mr [ "branch"; "-d"; branch ]
 
 (* Post-release quest cleanup (clean.1): release clean or missing desks for
-   [quest], preserve dirty desks with W_DESK_DIRTY_KEPT, and delete the
-   merged local quest/<quest> branch. Fail-safe: never aborts a completed
-   release. Under [dry_run], computes exact preview without mutating disk. *)
+   [quest], preserve dirty desks with W_DESK_DIRTY_KEPT, prune stale git
+   worktree registrations after missing desks, and delete the merged local
+   quest/<quest> branch. Fail-safe: never aborts a completed release. *)
 let cleanup_quest ~quest ~target ~source_tip ~dry_run =
   let records =
     load_records () |> List.filter (fun r -> r.r_quest = quest) in
   let released = ref [] and released_paths = ref [] in
   let kept = ref [] and warnings = ref [] in
+  let saw_missing = ref false in
   let add_warn w = if not (List.mem w !warnings) then warnings := w :: !warnings in
   List.iter (fun r ->
     let ap = abs_path r.r_path in
-    if not (Sys.file_exists ap) then begin
-      if not dry_run then
-        (try delete_record r.r_run; ignore (prune_desk_empty_parents r.r_path) with _ -> ());
-      released := r.r_run :: !released;
-      released_paths := ap :: !released_paths
-    end else begin
-      let is_dirty =
-        try (inspect_info r.r_path).idirty
-        with _ -> false in
-      if is_dirty then begin
-        kept := (r.r_run, r.r_path, "dirty") :: !kept;
-        add_warn "W_DESK_DIRTY_KEPT"
-      end else if dry_run then begin
-        released := r.r_run :: !released;
-        released_paths := ap :: !released_paths
-      end else begin
-        try
-          ignore (release_record r false);
+    let state =
+      if not (Sys.file_exists ap) then Release.Desk_missing
+      else
+        try if (inspect_info r.r_path).idirty then Release.Desk_dirty else Release.Desk_clean
+        with _ -> Release.Desk_corrupt in
+    match Release.classify_desk_cleanup state with
+    | Release.Keep_desk { reason; warning } ->
+        kept := (r.r_run, r.r_path, reason) :: !kept;
+        add_warn warning
+    | Release.Release_desk ->
+        if state = Release.Desk_missing then begin
+          saw_missing := true;
+          if not dry_run then
+            (try delete_record r.r_run; ignore (prune_desk_empty_parents r.r_path) with _ -> ());
           released := r.r_run :: !released;
           released_paths := ap :: !released_paths
-        with _ ->
-          kept := (r.r_run, r.r_path, "cleanup_failed") :: !kept;
-          add_warn "W_DESK_CLEANUP_FAILED"
-      end
-    end) records;
-  let br = Layout.work_branch quest in
+        end else if dry_run then begin
+          released := r.r_run :: !released;
+          released_paths := ap :: !released_paths
+        end else begin
+          try
+            ignore (release_record r false);
+            released := r.r_run :: !released;
+            released_paths := ap :: !released_paths
+          with _ ->
+            kept := (r.r_run, r.r_path, "cleanup_failed") :: !kept;
+            add_warn "W_DESK_CLEANUP_FAILED"
+        end) records;
   let mr = main_root () in
+  if !saw_missing && not dry_run then
+    ignore (git_in_ok mr [ "worktree"; "prune" ]);
+  let br = Layout.work_branch quest in
   let assume_merged =
     dry_run
     && git_in_ok mr [ "merge-base"; "--is-ancestor"; "refs/heads/" ^ br; source_tip ] in

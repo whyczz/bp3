@@ -132,15 +132,42 @@ let law_repo_key_matches_slug_dash_8hex =
           && String.for_all is_slug_char slug_part
           && String.for_all is_lower_hex hex_part))
 
+let case_empty_parent_candidates_stops_at_boundary _ =
+  let eq_list = assert_equal ~printer:(String.concat ", ") in
+  let stop = "/d/bp3-01234567" in
+  eq_list
+    [ "/d/bp3-01234567/runs/q1/n1"; "/d/bp3-01234567/runs/q1"; "/d/bp3-01234567/runs" ]
+    (Layout.empty_parent_candidates ~stop_at:stop "/d/bp3-01234567/runs/q1/n1/R1");
+  eq_list [ "/d/bp3-01234567/quests" ]
+    (Layout.empty_parent_candidates ~stop_at:(stop ^ "/") "/d/bp3-01234567/quests/q1");
+  eq_list [] (Layout.empty_parent_candidates ~stop_at:stop stop);
+  eq_list [] (Layout.empty_parent_candidates ~stop_at:stop "/d/bp3-01234567-other/quests/q1");
+  eq_list [] (Layout.empty_parent_candidates ~stop_at:stop "/tmp/outside/q1")
+
+let law_empty_parent_candidates_stay_strictly_below_stop_at =
+  QCheck2.Test.make ~count:200 ~name:"law_empty_parent_candidates_stay_strictly_below_stop_at"
+    ~print:(fun (q, n, r) -> Printf.sprintf "%s %s %s" q n r)
+    QCheck2.Gen.(triple slug slug slug)
+    (fun (q, n, r) ->
+      let stop = "/tmp/desks/bp3-01234567" in
+      let rd = Layout.run_desk_dir stop q n r in
+      let cands = Layout.empty_parent_candidates ~stop_at:stop rd in
+      List.length cands = 3
+      && not (List.mem stop cands)
+      && not (List.mem rd cands)
+      && List.for_all (fun c -> String.starts_with ~prefix:(stop ^ "/") c) cands)
+
 let () =
   run_test_tt_main
     ("layout" >::: [
        "case_layout_derives_quest_node_ref_branch_and_desk_paths" >:: case_layout_derives_quest_node_ref_branch_and_desk_paths;
        "case_central_desks_base_and_repo_key" >:: case_central_desks_base_and_repo_key;
+       "case_empty_parent_candidates_stops_at_boundary" >:: case_empty_parent_candidates_stops_at_boundary;
        "case_layout_names_the_legacy_ref_kinds_and_the_per_quest_files" >:: case_layout_names_the_legacy_ref_kinds_and_the_per_quest_files;
        "case_legacy_quest_ledger_paths_cover_the_graphs_and_goals_roots_only" >:: case_legacy_quest_ledger_paths_cover_the_graphs_and_goals_roots_only;
        QCheck_ounit.to_ounit2_test law_every_legacy_node_path_folds_to_its_canonical_id;
        QCheck_ounit.to_ounit2_test law_run_desk_never_nests_inside_quest_desk;
        QCheck_ounit.to_ounit2_test law_draft_quest_run_desks_are_pairwise_non_nesting;
        QCheck_ounit.to_ounit2_test law_repo_key_matches_slug_dash_8hex;
+       QCheck_ounit.to_ounit2_test law_empty_parent_candidates_stay_strictly_below_stop_at;
      ])

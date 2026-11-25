@@ -344,3 +344,16 @@ let render_commit_what_changed ~sha ~subject ~body ~tag ~prev_tag ~commit_subjec
   Printf.bprintf buf "\nCommit: `%s`\n" (short_sha sha);
   Printf.bprintf buf "Previous tag: %s\n" (Option.value prev_tag ~default:"none");
   { tag; title; body = Buffer.contents buf }
+
+(* ---------- post-release desk cleanup classification (clean.1) ---------- *)
+
+type desk_state = Desk_missing | Desk_clean | Desk_dirty | Desk_corrupt
+
+type desk_cleanup_action =
+  | Release_desk
+  | Keep_desk of { reason : string; warning : string }
+
+let classify_desk_cleanup = function
+  | Desk_missing | Desk_clean -> Release_desk
+  | Desk_dirty -> Keep_desk { reason = "dirty"; warning = "W_DESK_DIRTY_KEPT" }
+  | Desk_corrupt -> Keep_desk { reason = "cleanup_failed"; warning = "W_DESK_CLEANUP_FAILED" }

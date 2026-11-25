@@ -366,6 +366,7 @@ git -C "$r7" show-ref --verify --quiet refs/heads/quest/q-clean || fail "dry-run
 out=$(cd "$qdesk" && env -u BP3_ROOT BP3_DECIDER=human "$qbin" release q-clean --no-gh --no-install) || fail "release from quest desk failed: $out"
 echo "$out" | jq -e '.ok == true and (.released_desks | sort) == ["grade-n1-c1-a1","quest-q-clean"] and .kept_desks == [] and .branch_deleted == true' >/dev/null || fail "clean release json: $out"
 [ ! -e "$qdesk" ] || fail "quest desk still exists after release"
+[ ! -e "$(dirname "$qdesk")" ] || fail "empty quests/ parent dir not pruned"
 [ ! -e "$gdesk" ] || fail "grade desk still exists after release"
 [ ! -e "$(dirname "$gdesk")" ] || fail "empty runs/<q>/<n> parent dir not pruned"
 [ ! -e "$(dirname "$(dirname "$gdesk")")" ] || fail "empty runs/<q> parent dir not pruned"
@@ -379,5 +380,22 @@ out=$(BP3_DECIDER=human run_bp3 "$r7" release q-dirty --no-gh --no-install) || f
 echo "$out" | jq -e '.ok == true and .released_desks == [] and (.kept_desks | length) == 1 and .kept_desks[0].run_id == "quest-q-dirty" and .kept_desks[0].reason == "dirty" and .branch_deleted == false and (.warnings | index("W_DESK_DIRTY_KEPT") != null)' >/dev/null || fail "dirty release json: $out"
 [ -f "$qdirty/wip.txt" ] || fail "dirty desk file lost!"
 git -C "$r7" show-ref --verify --quiet refs/heads/quest/q-dirty || fail "branch deleted while dirty desk still holds it!"; ok
+
+# 9c. Missing quest desk on disk: --dry-run and real release both prune worktree registration and delete merged quest/<q> branch
+qmiss=$(run_bp3 "$r6" worktree prepare --quest q-miss | jq -r '.path')
+land_one_node "$qmiss" q-miss n1 "feat: missing desk work" "patch"
+rm -rf "$qmiss"
+dry_miss=$(run_bp3 "$r6" release q-miss --dry-run) || fail "missing dry-run failed: $dry_miss"
+echo "$dry_miss" | jq -e '.ok == true and .dry_run == true and .released_desks == ["quest-q-miss"] and .kept_desks == [] and .branch_deleted == true' >/dev/null || fail "missing dry-run json: $dry_miss"
+out_miss=$(BP3_DECIDER=human run_bp3 "$r6" release q-miss --no-gh --no-install) || fail "missing release failed: $out_miss"
+echo "$out_miss" | jq -e '.ok == true and .released_desks == ["quest-q-miss"] and .kept_desks == [] and .branch_deleted == true' >/dev/null || fail "missing release json: $out_miss"
+if git -C "$r6" show-ref --verify --quiet refs/heads/quest/q-miss; then fail "merged quest/q-miss branch left behind after missing-desk release"; fi; ok
+
+# 9d. --commit release leaves cleanup fields empty
+echo "hotfix" >> "$r6/README.md"
+git -C "$r6" add README.md && git -C "$r6" commit -qm "fix: hotfix"
+hsha=$(git -C "$r6" rev-parse HEAD)
+out_c=$(BP3_DECIDER=human run_bp3 "$r6" release --commit "$hsha" --no-gh --no-install) || fail "commit release failed: $out_c"
+echo "$out_c" | jq -e '.ok == true and .released_desks == [] and .kept_desks == [] and .branch_deleted == false' >/dev/null || fail "commit release cleanup fields: $out_c"; ok
 
 echo "release-door tests: ok ($checks checks)"
