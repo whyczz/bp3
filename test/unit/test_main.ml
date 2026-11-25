@@ -94,11 +94,6 @@ let case_verbs_normalize_long_and_short_spellings_and_help_flags _ =
   assert_bool "dep is not a verb" (not (Cli.is_verb "dep"));
   assert_bool "-h" (Cli.is_help "-h"); assert_bool "--help" (Cli.is_help "--help"); assert_bool "help" (not (Cli.is_help "help"))
 
-let case_valid_index_key_refuses_paths_and_dot_names _ =
-  List.iter (fun (k, ok) -> assert_equal ~msg:(Printf.sprintf "%S" k) ok (Config.valid_index_key k))
-    [ ("S-abc123", true); ("sess.1", true); ("", false); (".", false); ("..", false); (".hidden", false);
-      ("a/b", false); ("a\\b", false); ("a..b", false) ]
-
 let () =
   run_test_tt_main
     ("main" >::: [
@@ -113,5 +108,4 @@ let () =
        "char_parse_dep_list_keeps_each_duplicate_at_its_last_position" >:: char_parse_dep_list_keeps_each_duplicate_at_its_last_position;
        QCheck_ounit.to_ounit2_test law_parse_dep_list_has_no_blanks_or_duplicates;
        "case_verbs_normalize_long_and_short_spellings_and_help_flags" >:: case_verbs_normalize_long_and_short_spellings_and_help_flags;
-       "case_valid_index_key_refuses_paths_and_dot_names" >:: case_valid_index_key_refuses_paths_and_dot_names;
      ])

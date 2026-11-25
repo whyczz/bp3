@@ -279,7 +279,6 @@ let prepare_verdict r existing =
 let do_prepare quest node run_id commit path_override =
   Store.check_creatable quest;
   Store.check_creatable node;
-  ignore (Config.ensure_config ());
   let default_path = derive_path quest node run_id in
   match load_record run_id with
   | Some r ->
@@ -311,7 +310,6 @@ let quest_run_id quest = "quest-" ^ quest
 
 let do_prepare_quest quest =
   Store.check_creatable quest;
-  ignore (Config.ensure_config ());
   let run_id = quest_run_id quest in
   match load_record run_id with
   | Some r ->

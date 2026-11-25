@@ -33,15 +33,7 @@ type identity = { harness : string; model : string; decider_human : bool; incomp
 let run_id_of_env () =
   match Sys.getenv_opt "BP3_RUN_ID" with Some v when v <> "" -> Some v | _ -> None
 
-(* The claimed run-id (mvp.2 context resolution), set by the
-   CLI door once per call when a rung resolves. The claim
-   wins over the env hint; env alone keeps the legacy
-   stamping for unclaimed callers. *)
-let resolved_run_id : string option ref = ref None
-let context_warnings : string list ref = ref []
-
-let effective_run_id () =
-  match !resolved_run_id with Some _ as r -> r | None -> run_id_of_env ()
+let effective_run_id () = run_id_of_env ()
 
 let stamp_run_id = function
   | `Assoc fs ->

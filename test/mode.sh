@@ -36,8 +36,6 @@ done
 out=$(cd "$repo" && ./bin/bp3 config)
 echo "$out" | jq -e '.mode == "self"' > /dev/null || { echo "FAIL: self mode: $out" >&2; exit 1; }
 checks=$((checks + 1))
-rejects "$repo/bin/bp3" harness link mint --kind node --quest g1 --node n1 --mode host
-assert grep -q 'derived from the repo' "$work/out" "$work/error"
 rejects "$repo/bin/bp3" q g1 u n1 handoff --mode host --reason x
 assert grep -q 'derived from the repo' "$work/out" "$work/error"
 rejects "$repo/bin/bp3" skills install --mode host
@@ -57,11 +55,6 @@ git -C "$host" commit -qm base
 out=$(cd "$host" && "$gbin" config)
 echo "$out" | jq -e '.mode == "host"' > /dev/null || { echo "FAIL: host mode: $out" >&2; exit 1; }
 checks=$((checks + 1))
-mint=$(cd "$host" && "$gbin" harness link mint --kind node --quest g1 --node n1 --harness pi --model test-model)
-echo "$mint" | jq -e '.mode == "host"' > /dev/null || { echo "FAIL: mint mode: $mint" >&2; exit 1; }
-checks=$((checks + 1))
-run_id=$(echo "$mint" | jq -r .run_id)
-assert jq -e '.mode == "host"' "$host/.git/bp3/runs/$run_id.json"
 
 # Host install: core only, zero bp3-dev, host hook command.
 BP3_TARGET="$host" "$repo/bin/bp3" skills install --harness=muse > /dev/null

@@ -88,6 +88,7 @@ out=$(_bp3_candidates q toy-drive "")
 has "$out" r; has "$out" u
 out=$(_bp3_candidates "")
 has "$out" harness; has "$out" worktree; has "$out" config; has "$out" warden; has "$out" release; has "$out" db; has "$out" repo; has "$out" ticket
+lacks "$out" n; lacks "$out" e
 out=$(_bp3_candidates db "")
 has "$out" info
 out=$(_bp3_candidates repo "")
@@ -101,7 +102,7 @@ has "$out" toy-drive; has "$out" --commit; has "$out" --bump; has "$out" --no-gh
 out=$(_bp3_candidates config "")
 has "$out" --source; has "$out" --format
 out=$(_bp3_candidates harness "")
-has "$out" desk; has "$out" supervisor; has "$out" find-tape
+has "$out" desk; has "$out" d; lacks "$out" supervisor; lacks "$out" find-tape
 out=$(_bp3_candidates harness desk "")
 for v in derive create inspect remove prepare check exit release list; do has "$out" "$v"; done
 out=$(_bp3_candidates harness d "")

@@ -36,10 +36,6 @@ let case_silence_uses_its_window_and_never_counts_a_future_mtime_as_silent _ =
   assert_bool "a day past is silent" (Clock.silent ~now:100_000. ~last:0. ~silence_s:600.);
   assert_bool "an mtime an hour ahead is fresh" (not (Clock.silent ~now:1000. ~last:4600. ~silence_s:600.))
 
-let case_compact_ts_formats_epoch_1795000000_as_20261118T110640Z _ =
-  assert_equal ~printer:Fun.id "20261118T110640Z"
-    (Clock.with_fixed 1_795_000_000. Harness.compact_ts)
-
 let case_now_ts_formats_epoch_1795000000_as_2026_11_18T11_06_40Z _ =
   assert_equal ~printer:Fun.id "2026-11-18T11:06:40Z"
     (Clock.with_fixed 1_795_000_000. Gitx.now_ts)
@@ -96,7 +92,6 @@ let () =
        "case_silence_is_fresh_at_exactly_the_window_and_silent_just_past_it" >:: case_silence_is_fresh_at_exactly_the_window_and_silent_just_past_it;
        "case_a_deadline_is_reached_at_the_deadline_itself" >:: case_a_deadline_is_reached_at_the_deadline_itself;
        "case_silence_uses_its_window_and_never_counts_a_future_mtime_as_silent" >:: case_silence_uses_its_window_and_never_counts_a_future_mtime_as_silent;
-       "case_compact_ts_formats_epoch_1795000000_as_20261118T110640Z" >:: case_compact_ts_formats_epoch_1795000000_as_20261118T110640Z;
        "case_now_ts_formats_epoch_1795000000_as_2026_11_18T11_06_40Z" >:: case_now_ts_formats_epoch_1795000000_as_2026_11_18T11_06_40Z;
        "case_time_truncates_a_sub_second_clock_to_whole_seconds_like_unix_time" >:: case_time_truncates_a_sub_second_clock_to_whole_seconds_like_unix_time;
        "case_stale_gate_still_sweeps_a_binding_seen_a_year_ago" >:: case_stale_gate_still_sweeps_a_binding_seen_a_year_ago;

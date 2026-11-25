@@ -19,7 +19,6 @@ echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
 q() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q "$@"; }
-lk() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness link "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
 commit_on_node() { # $1 quest $2 node $3 path $4 content -> new tip
@@ -123,23 +122,9 @@ echo "timing read clean: tip unchanged, worktree entries: $dirty"
 tracked_state=$(git ls-files | grep -c -E 'ledger\.jsonl|state\.yaml' || true)
 echo "tracked ledger/state files on fixture tip: $tracked_state"
 
-# --- setup measured per Run; slow fixture fires locally only ---
-out=$(lk mint --kind edge --quest sched --node na --edge handoff --desk "$work/repo")
-RID=$(echo "$out" | jq -r .run_id); TOK=$(echo "$out" | jq -r .token)
-out=$(MUSE_SESSION_ID=sess-fast lk claim "$TOK")
-echo "$out" | jq -e '.ok == true and .state == "claimed"' >/dev/null || fail "fast claim: $out"
-rm -f .bp3-context.json
+# --- retired setup/W_SETUP_SLOW: setup field stays [] for schema compatibility ---
 out=$(q r sched)
-echo "$out" | jq -e --arg r "$RID" '(.setup[] | select(.run_id == $r) | .setup_wall_s >= 0 and .setup_wall_s < 180) and (has("warnings") | not or (.warnings | index("W_SETUP_SLOW") == null))' >/dev/null || fail "fast setup: $out"
-out=$(lk mint --kind edge --quest sched --node nb --edge handoff --desk "$work/repo")
-SRID=$(echo "$out" | jq -r .run_id)
-jq '.state = "claimed" | .creator.minted_at = "2026-01-01T00:00:00Z" | .claim = {"session_id":"sess-slow","pid":1,"cwd":"/tmp","claimed_at":"2026-01-01T00:10:00Z"}' ".git/bp3/runs/$SRID.json" > "$work/slow.json"
-cp "$work/slow.json" ".git/bp3/runs/$SRID.json"
-out=$(q r sched)
-echo "$out" | jq -e --arg r "$SRID" '(.setup[] | select(.run_id == $r) | .setup_wall_s == 600) and (.warnings | index("W_SETUP_SLOW") != null)' >/dev/null || fail "slow setup gate: $out"
-for e in na nb nc nd nx; do
-  node_ledger sched "$e" | grep -q setup_wall && fail "setup leaked into ledger $e"
-done
+echo "$out" | jq -e '.setup == [] and ((has("warnings") | not) or (.warnings | index("W_SETUP_SLOW") == null))' >/dev/null || fail "setup empty compat: $out"
 
 # --- serial land: second land re-checks against the new tip ---
 q c serial >/dev/null; q serial c sl-a >/dev/null; q serial c sl-b >/dev/null

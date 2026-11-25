@@ -48,8 +48,16 @@ out=$(q demo n parser-fix r)
 echo "$out" | jq -e '.ok == true and .quest == "demo" and .node == "parser-fix" and .state == "todo" and (has("graph") | not) and (has("exp") | not)' >/dev/null || fail "nested node read: $out"
 out=$(q demo n parser-fix)
 echo "$out" | jq -e '.ok == true and .node == "parser-fix"' >/dev/null || fail "nested bare node read: $out"
-if out=$(BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 n r 2>&1); then fail "unclaimed bp3 n accepted"; fi
-echo "$out" | jq -e '.ok == false and .error.code == "E_NO_CONTEXT"' >/dev/null || fail "unclaimed bp3 n code: $out"
+# Retired doors (bp3 n, bp3 e, bp3 harness supervisor) refuse E_USAGE (exit 2).
+rc=0; out=$(BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 n r 2>&1) || rc=$?
+[ "$rc" -eq 2 ] || fail "retired bp3 n rc=$rc: $out"
+echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "retired bp3 n code: $out"
+rc=0; out=$(BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 e handoff --commit HEAD --reason x 2>&1) || rc=$?
+[ "$rc" -eq 2 ] || fail "retired bp3 e rc=$rc: $out"
+echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "retired bp3 e code: $out"
+rc=0; out=$(BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness supervisor demo 2>&1) || rc=$?
+[ "$rc" -eq 2 ] || fail "retired bp3 harness supervisor rc=$rc: $out"
+echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "retired bp3 harness supervisor code: $out"
 
 # --- strict argv: dup flag, unknown flag, stray positional -> usage before write ---
 before=$(git show bp3/node/demo/parser-fix:docs/quests/demo/nodes/parser-fix/ledger.jsonl | wc -l)
@@ -694,12 +702,6 @@ guarded "node c" demo c vf-new2
 guarded "dep" demo dep parser-fix --depends-on "" --reason "clear deps"
 guarded "quest c" c vf-quest --type default
 guarded "node d" demo d parser-fix --reason "delete"
-lk() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness link "$@"; }
-out=$(lk mint --kind edge --quest demo --node parser-fix --edge block --depth 2)
-MUSE_SESSION_ID=sess-vf lk claim "$(echo "$out" | jq -r .token)" >/dev/null
-rm -f .bp3-context.json
-if out=$(MUSE_SESSION_ID=sess-vf BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 e block --reason "claimed door" 2>&1); then fail "major-ahead e door wrote: $out"; fi
-echo "$out" | jq -e '.error.code == "E_VERSION_AHEAD"' >/dev/null || fail "major-ahead e door code: $out"
 [ "$(git for-each-ref --format='%(refname) %(objectname)' refs/heads/)" = "$refs_before" ] || fail "major-ahead refusals moved a ref"
 out=$(q r demo) || fail "major-ahead rollup read: $out"
 echo "$out" | jq -e '.warnings | index("W_VERSION_AHEAD") != null' >/dev/null || fail "major-ahead rollup warning: $out"

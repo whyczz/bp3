@@ -55,26 +55,6 @@ let node_verdict quest e s deps t =
   | `Assoc fs -> `Assoc (("ok", `Bool true) :: ("quest", json_str quest) :: fs)
   | other -> other
 
-(* Setup per dispatched Run (mvp.3): desk-side mint to the
-   first bp3 answer (the claim), from machine-local run
-   configs only; never a committed field. *)
-let setup_json q =
-  match Config.config_dir () with
-  | None -> ([], false)
-  | Some dir ->
-      let thresholds = Config.load_thresholds dir in
-      let entries = List.filter_map (fun (rc : Config.run_config) ->
-        if rc.Config.rc_quest <> q then None
-        else match ts_epoch rc.Config.rc_minted_at, ts_epoch rc.Config.rc_claimed_at with
-          | Some m, Some c ->
-              Some (`Assoc [("run_id", json_str rc.Config.rc_id);
-                            ("node", json_str rc.Config.rc_node);
-                            ("edge", (match rc.Config.rc_edge with Some e -> json_str e | None -> `Null));
-                            ("setup_wall_s", `Int (c - m))], c - m)
-          | _ -> None) (Config.list_run_configs dir) in
-      (List.map fst entries,
-       List.exists (fun (_, secs) -> secs > thresholds.Config.setup_slow_s) entries)
-
 let quest_view q =
   match fold_quest q with
   | None -> not_found "quest" q
@@ -91,7 +71,6 @@ let quest_view q =
       let waves = sched_waves sched in
       let ready = match waves with w :: _ -> w | [] -> [] in
       let starved = sched_starved sched in
-      let (setup, setup_slow) = setup_json q in
       let inbox = List.filter_map (fun (e, s) ->
         if s.st = "blocked" then Some (`Assoc [
           ("quest", json_str q); ("node", json_str e);
@@ -107,16 +86,16 @@ let quest_view q =
       (* Report word for the quest finish line: rollup stays [landed];
          [goal_fin] names promotion of that rollup to master. *)
       let fin = if rollup = "landed" then `String "goal_fin" else `Null in
-      (`Assoc ([
+      (`Assoc [
         ("quest", json_str q); ("state", json_str qs.st);
         ("nodes", `List (List.map (fun (e, s, deps, t) -> node_json q e s deps t) node_infos));
         ("ready_set_waves", `List (List.map (fun w -> `List (List.map json_str w)) waves));
         ("ready", `List (List.map json_str ready));
         ("starved", `List (List.map (fun (b, ids) ->
            `Assoc [("blocked", json_str b); ("starved", `List (List.map json_str ids))]) starved));
-        ("setup", `List setup);
+        ("setup", `List []);
         ("rollup", json_str rollup); ("fin", fin); ("inbox", `List inbox);
-      ] @ (if setup_slow then [("warnings", `List [json_str "W_SETUP_SLOW"])] else [])),
+      ],
        inbox, rollup, qs)
 
 let tree_marker = function
@@ -450,9 +429,8 @@ let print_verdict ~fmt v =
         let merged =
           List.fold_left (fun acc w ->
             if List.mem w acc then acc else acc @ [w]) existing
-            (!context_warnings
-             @ (match version_ahead () with
-                | Some _ -> ["W_VERSION_AHEAD"] | None -> [])) in
+            (match version_ahead () with
+             | Some _ -> ["W_VERSION_AHEAD"] | None -> []) in
         if merged = [] then v
         else `Assoc (List.filter (fun (k, _) -> k <> "warnings") fs
                      @ [("warnings", `List (List.map json_str merged))])

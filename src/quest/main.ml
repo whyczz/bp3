@@ -419,87 +419,6 @@ let do_diagram quest tail =
        ]));
   0
 
-(* ---------- context door (mvp.2: bp3 e) ---------- *)
-let no_context amb =
-  match amb with
-  | Some ids ->
-      err "E_NO_CONTEXT"
-        (`Assoc [("run_ids", `List (List.map json_str ids));
-                 ("live_run_ids", `List (List.map json_str ids));
-                 ("desk", json_str (Sys.getcwd ()));
-                 ("source", json_str "desk")])
-        "Desk holds more than one live claimed run and no session rung resolves; refusing to guess. Claim a link for one run, or address the call explicitly." 1
-  | None ->
-      err "E_NO_CONTEXT"
-        (`Assoc [("desk", json_str (Sys.getcwd ()))])
-        "No claimed context resolves for this call (no session claim, no desk context). Claim a link first, or address the call explicitly." 1
-
-let with_context v (rc : Config.run_config) source =
-  match v with
-  | `Assoc fs ->
-      `Assoc (fs @ [("quest", json_str rc.Config.rc_quest);
-                    ("node", json_str rc.Config.rc_node);
-                    ("source", json_str source);
-                    ("source_rung", json_str source);
-                    ("context", Config.resolved_context_json rc source)])
-  | other -> other
-
-let do_e_bare (rc : Config.run_config) source =
-  let quest = rc.Config.rc_quest and node = rc.Config.rc_node in
-  let (state, legal) =
-    match fold_node quest node with
-    | Some (_, s, _) -> (json_str s.st, List.map json_str (legal_edges s.st))
-    | None -> (`Null, []) in
-  let thresholds =
-    match Config.config_dir () with
-    | Some dir -> Config.thresholds_json (Config.load_thresholds dir)
-    | None -> Config.thresholds_json Config.default_thresholds in
-  `Assoc [("ok", `Bool true);
-          ("quest", json_str quest);
-          ("node", json_str node);
-          ("edge", (match rc.Config.rc_edge with Some e -> json_str e | None -> `Null));
-          ("run_id", json_str rc.Config.rc_id);
-          ("kind", json_str rc.Config.rc_kind);
-          ("desk", json_str rc.Config.rc_desk);
-          ("session_id", (match rc.Config.rc_session with Some s -> json_str s | None -> `Null));
-          ("source", json_str source); ("source_rung", json_str source);
-          ("state", state); ("legal_edges", `List legal);
-          ("context", Config.resolved_context_json rc source);
-          ("thresholds", thresholds)]
-
-let do_e ctx_rc ctx_source ctx_amb id = function
-  | [] ->
-      (match ctx_rc with
-       | Some rc -> print_verdict ~fmt:"json" (do_e_bare rc ctx_source); 0
-       | None -> no_context ctx_amb)
-  | edge :: tail ->
-      let (pos, fl) = split_flags tail in
-      if pos <> [] then usage "stray positional in e";
-      (match ctx_rc with
-       | Some rc ->
-           let v = do_update rc.Config.rc_quest rc.Config.rc_node edge fl id in
-           print_verdict ~fmt:fl.fmt (with_context v rc ctx_source); 0
-       | None -> no_context ctx_amb)
-
-(* ---------- node door (rename.1: bp3 n) ---------- *)
-(* Claimed shorthand: reads the claimed run's node, resolved
-   exactly like the e door (session rung, then desk rung). *)
-let do_n ctx_rc ctx_source ctx_amb = function
-  | [] | ["r"] | ["read"] ->
-      (match ctx_rc with
-       | Some rc ->
-           let quest = rc.Config.rc_quest and node = rc.Config.rc_node in
-           (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
-           (match fold_node quest node with
-            | None -> not_found "node" node
-            | Some (_, s, text) ->
-                print_verdict ~fmt:"json"
-                  (with_context
-                     (node_verdict quest node s (deps_of_text text)
-                        (timing_of_text text)) rc ctx_source); 0)
-       | None -> no_context ctx_amb)
-  | _ -> usage "node door verbs are r"
-
 (* ---------- main dispatch ---------- *)
 (* icebox door: bp3 q icebox r [term...] | r <slug> (read-only) *)
 let do_icebox = function
@@ -529,10 +448,8 @@ let help_q = "bp3 q - quest/node state. Doors:\n\
   bp3 q <quest> diagram ...    generated quest diagram from the live rollup (mvp.4)\n\
   bp3 q <quest> metrics r|scrape   what each grade and author cycle cost (metric-collectors)\n\
   bp3 q icebox r [term...]     search frozen icebox entries (read-only)\n\
-  bp3 n [r]                    claimed node door: read the claimed run's node (rename.1)\n\
-  bp3 e [<edge> ...]           claimed edge door: resolved context, no names typed (mvp.2)\n\
   bp3 harness desk <verb> ...  desks (machine-local); bp3 worktree is its documented alias\n\
-  bp3 config [--source]        view the machine-local config store (<git-common-dir>/bp3/)\n\
+  bp3 config [--format ...]    read-only view of machine-local bp3 config (<git-common-dir>/bp3/)\n\
   bp3 warden [<quest>] [...]   two-layer deterministic plug audit (git + session traces, read-only)\n\
   bp3 q hooks                  harness hook emitter (fail-open)\n\
 Run bp3 q <door> -h for that door's verbs, edges, and flags.\n"
@@ -602,16 +519,21 @@ let help_update = "bp3 q <quest> u <node> <edge> - edges and their flags:\n\
 Shared flags: --format json|table|tree, --target <name>.\n\
 Example: bp3 q my-quest u node-1 handoff --commit abc123 --reason \"ready\"\n"
 
-let help_e = "bp3 e - claimed edge door (mvp.2): context is resolved, never carried:\n\
-  bp3 e                                    print the resolved context, its source rung (session|desk), state, and legal edges\n\
-  bp3 e <edge> [flags]                     take the claimed run's edge: handoff grade verify land block resume (same flags as bp3 q <quest> u <node> <edge>)\n\
-  Resolution: session claim first, desk context second, checked against cwd; no rung refuses E_NO_CONTEXT, an ambiguous desk refuses E_NO_CONTEXT naming the live run_ids. Env BP3_RUN_ID is a hint only: a mismatch warns W_CONTEXT_ENV_MISMATCH and the claim wins; an unclaimed explicit edge call warns W_CONTEXT_UNCLAIMED.\n\
-Example: bp3 e handoff --commit abc123 --reason \"ready\"\n"
+let help_harness = "bp3 harness - machine-local desks:\n\
+  bp3 harness desk <verb> ...   verbs: derive, create, inspect, remove, prepare, check, exit, release, list\n\
+  bp3 harness desk prepare <quest> <node> --run <run-id> [--commit <sha>] [--path <dir>]\n\
+  bp3 harness desk prepare --quest <quest>\n\
+  bp3 harness desk list [--quest <quest>]\n\
+Example: bp3 harness desk prepare --quest my-quest\n"
 
-let help_n = "bp3 n - claimed node door (rename.1): context is resolved, never carried:\n\
-  bp3 n [r]                        read the claimed run's node (same resolution as bp3 e: session claim first, desk context second)\n\
-  No rung resolving refuses E_NO_CONTEXT; address the call explicitly with bp3 q <quest> n <node> r instead.\n\
-Example: bp3 n r\n"
+let do_harness = function
+  | [] -> print_string help_harness; 0
+  | h :: _ when is_help h -> print_string help_harness; 0
+  | ("desk" | "d") :: (h :: _) when is_help h -> print_string help_harness; 0
+  | ("desk" | "d") :: rest ->
+      print_verdict ~fmt:"json" (Worktree.run rest); 0
+  | sub :: _ ->
+      usage ("bp3 harness supports only: desk <derive|create|inspect|remove|prepare|check|exit|release|list> (unknown subcommand: " ^ sub ^ ")")
 
 let help_icebox = "bp3 q icebox r - search frozen icebox entries (read-only):\n\
   bp3 q icebox r [term...] [--format json|table|tree]   list entries matching all terms\n\
@@ -687,10 +609,10 @@ let do_warden rest =
     else print_endline (Yojson.Safe.to_string (Warden.to_json ev findings));
     0
 
-let help_config = "bp3 config - view the machine-local bp3 config store (<git-common-dir>/bp3/, never committed):\n\
-  bp3 config [--source] [--format json|table]   thresholds plus contexts folded from runs/<run_id>.json\n\
-  config.json holds machine settings only (thresholds: setup_slow_s, depth_cap); contexts are views, never stored there. The depth cap is enforced at link mint (mvp.1, E_DEPTH); W_SETUP_SLOW fires on the quest rollup when a claimed Run's setup_wall_s exceeds setup_slow_s (mvp.3, local only). First call on a fresh repo creates the store with defaults (zero setup), and every view rebuilds the derived by-session index from runs/, so deleting by-session/ loses nothing. --source names the writing verb and timestamp per context. Outside a git repo there is no store and the call refuses E_NOT_FOUND.\n\
-Example: bp3 config --source\n"
+let help_config = "bp3 config - read-only view of machine-local bp3 config (<git-common-dir>/bp3/, never committed):\n\
+  bp3 config [--source] [--format json|table]   mode, thresholds, and desks (read-only; never writes .git/bp3/)\n\
+  Outside a git repo there is no config store and the call refuses E_NOT_FOUND.\n\
+Example: bp3 config --format table\n"
 
 (* Node 5 guard: an older-MAJOR binary never writes in a newer repo.
    Newer MINOR/PATCH only warns (warnings_of carries W_VERSION_AHEAD).
@@ -706,52 +628,14 @@ let refuse_major_ahead () =
   | _ -> ()
 
 let rec run argv =
-  let base_id = identity () in
-  (* Context resolution (mvp.2): session rung, then desk
-     rung. Explicit addresses always win for the target;
-     a resolved claim wins the run-id stamp over the env
-     hint. Help and the machine doors resolve nothing. *)
-  let help_invoked =
-    List.exists is_help (List.filteri (fun i _ -> i < 3) argv) in
-  let context_door = match argv with
-    | "harness" :: _ | "config" :: _ | "worktree" :: _ | "hooks" :: _
-    | "init-repo" :: _ | "warden" :: _ | "release" :: _ | "db" :: _
-    | "repo" :: _ | "ticket" :: _ | [] -> false
-    | _ -> not help_invoked in
-  let (ctx_rc, ctx_source, ctx_amb) =
-    if not context_door then (None, "", None)
-    else match Config.resolve_context () with
-      | Config.Resolved (rc, src) -> (Some rc, src, None)
-      | Config.Ambiguous (ids, _) -> (None, "", Some ids)
-      | Config.No_context -> (None, "", None) in
-  let id = match ctx_rc with
-    | Some rc -> { base_id with run_id = Some rc.Config.rc_id }
-    | None -> base_id in
-  Store.resolved_run_id :=
-    (match ctx_rc with Some rc -> Some rc.Config.rc_id | None -> None);
-  let edge_call = match argv with
-    | "e" :: _ :: _ -> true
-    | "q" :: _q :: v :: _n :: _edge :: _ when is_verb v && normalize_verb v = "u" -> true
-    | "q" :: _q :: "n" :: _n :: "e" :: _edge :: _ -> true
-    | _q :: v :: _e :: _edge :: _ when is_verb v && normalize_verb v = "u" -> true
-    | _ -> false in
-  Store.context_warnings :=
-    (match ctx_rc with
-     | Some rc ->
-         (match base_id.run_id with
-          | Some env when env <> "" && env <> rc.Config.rc_id ->
-              ["W_CONTEXT_ENV_MISMATCH"]
-          | _ -> [])
-     | None ->
-         if edge_call && ctx_amb = None then ["W_CONTEXT_UNCLAIMED"] else []);
+  let id = identity () in
   match argv with
   | "-h" :: _ | "--help" :: _ -> print_string help_q; 0
   | "--version" :: _ -> print_endline bp3_version; 0
   | "q" :: (h :: _) when is_help h -> print_string help_q; 0
   | "q" :: rest -> run rest
-  | "n" :: (h :: _) when is_help h -> print_string help_n; 0
-  | "n" :: rest -> do_n ctx_rc ctx_source ctx_amb rest
-  | "harness" :: rest -> Harness.run rest
+  | "n" :: _ -> usage "bp3 n is retired; use bp3 q <quest> n <node> r"
+  | "harness" :: rest -> do_harness rest
   | "config" :: (h :: _) when is_help h -> print_string help_config; 0
   | "config" :: rest ->
       let (source, fmt) = parse_config_flags rest in
@@ -761,9 +645,7 @@ let rec run argv =
   | "db" :: rest -> Db_cli.run rest
   | "repo" :: rest -> Repo_cli.run rest
   | "ticket" :: rest -> Ticket_cli.run rest
-  | "e" :: (h :: _) when is_help h -> print_string help_e; 0
-  | "e" :: _edge :: (h :: _) when is_help h -> print_string help_e; 0
-  | "e" :: rest -> do_e ctx_rc ctx_source ctx_amb id rest
+  | "e" :: _ -> usage "bp3 e is retired; use bp3 q <quest> n <node> e <edge>"
   | "worktree" :: (h :: _) when is_help h -> print_string help_worktree; 0
   | "icebox" :: (h :: _) when is_help h -> print_string help_icebox; 0
   | "icebox" :: ("r" | "read") :: (h :: _) when is_help h -> print_string help_icebox; 0
@@ -865,8 +747,6 @@ let rec run argv =
       let (pos, fl) = split_flags tail in
       if pos <> [] then usage "stray positional in nested edge";
       let v = do_update quest node edge fl id in
-      let v = match ctx_rc with
-        | Some rc -> with_context v rc ctx_source | None -> v in
       print_verdict ~fmt:fl.fmt v; 0
   | quest :: "n" :: node :: [] ->
       (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
@@ -905,8 +785,6 @@ let rec run argv =
            let (pos, fl) = split_flags tail in
            if pos <> [] then usage "stray positional in update";
            let v = do_update quest node edge fl id in
-           let v = match ctx_rc with
-             | Some rc -> with_context v rc ctx_source | None -> v in
            print_verdict ~fmt:fl.fmt v; 0
        | "u", _ -> usage "update needs <node> <edge>"
        | "d", node :: tail ->

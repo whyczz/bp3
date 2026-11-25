@@ -104,7 +104,7 @@ _bp3_candidates() {
 
   if [ "$has_g" -eq 0 ]; then
     if [ "${#a[@]}" -eq 0 ]; then
-      printf '%s\n' q n e warden release db repo ticket init skills harness worktree config | _bp3_filter "$cur"
+      printf '%s\n' q warden release db repo ticket init skills harness worktree config | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'warden' ]; then
       { _bp3_quests; printf '%s\n' --last --all --no-sessions --format -h --help; } | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'release' ]; then
@@ -134,14 +134,10 @@ _bp3_candidates() {
       printf '%s\n' --reason -h --help | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'config' ]; then
       printf '%s\n' --source --format -h --help | _bp3_filter "$cur"
-    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'n' ]; then
-      printf '%s\n' r read | _bp3_filter "$cur"
-    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'e' ]; then
-      _bp3_words "$_bp3_edges" | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'skills' ]; then
-      printf '%s\n' install | _bp3_filter "$cur"
+      printf '%s\n' install check | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'harness' ]; then
-      printf '%s\n' supervisor init-check find-tape watch desk s i f w d | _bp3_filter "$cur"
+      printf '%s\n' desk d | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'harness' ] && { [ "${a[1]}" = 'desk' ] || [ "${a[1]}" = 'd' ]; }; then
       printf '%s\n' derive create inspect remove prepare check exit release list | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'worktree' ]; then

@@ -38,11 +38,39 @@ type joined_trace = {
   jt_user_steps : (int * float) list;  (* (step_or_line, epoch_s) of mid-window human inputs *)
 }
 
+(* UTC ISO-8601 (YYYY-MM-DDTHH:MM:SSZ) -> epoch seconds (Howard Hinnant's civil algorithm). *)
+let epoch_of_iso s =
+  let digit i = Char.code s.[i] - Char.code '0' in
+  let num i n =
+    let rec go k acc =
+      if k = n then acc else go (k + 1) (acc * 10 + digit (i + k)) in
+    go 0 0 in
+  try
+    if String.length s <> 20 || s.[4] <> '-' || s.[7] <> '-'
+       || s.[10] <> 'T' || s.[13] <> ':' || s.[16] <> ':'
+       || s.[19] <> 'Z' then None
+    else
+      let y = num 0 4 and mo = num 5 2 and d = num 8 2 in
+      let hh = num 11 2 and mi = num 14 2 and ss = num 17 2 in
+      if mo < 1 || mo > 12 || d < 1 || d > 31 || hh > 23
+         || mi > 59 || ss > 60 then None
+      else
+        let y = if mo <= 2 then y - 1 else y in
+        let era = (if y >= 0 then y else y - 399) / 400 in
+        let yoe = y - era * 400 in
+        let mp = (mo + 9) mod 12 in
+        let doy = (153 * mp + 2) / 5 + d - 1 in
+        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy in
+        let days = era * 146097 + doe - 719468 in
+        Some (float_of_int
+                (((days * 24 + hh) * 60 + mi) * 60 + ss))
+  with _ -> None
+
 (* Milliseconds matter: a grade's wall is the span of its lines. *)
 let seconds ts =
   if String.length ts < 20 then None
   else
-    match Harness.epoch_of_iso (String.sub ts 0 19 ^ "Z") with
+    match epoch_of_iso (String.sub ts 0 19 ^ "Z") with
     | None -> None
     | Some s ->
         let frac = String.sub ts 19 (String.length ts - 19) in
