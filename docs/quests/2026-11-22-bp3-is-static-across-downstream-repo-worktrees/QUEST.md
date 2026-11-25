@@ -1,11 +1,13 @@
 ---
-status: proposed
+status: canceled
 home_repo: bp3
 date: 2026-11-22
 bump: minor
 ---
 
 # bp3-is-static-across-downstream-repo-worktrees: one installed bp3, known build, known latest, desks that build
+
+> **Canceled (2026-11-24):** Superseded by [2026-11-23-quest-promote-release](../2026-11-23-quest-promote-release/QUEST.md) (`v0.3.0`, atomic `bp3 release`, `scripts/check-bump`, `RELEASING.md`, tag-gated `$PREFIX` install + host `SessionStart` auto-sync) and commit `91d27b1` (`bp3 skills check` verifying `SKILL.md` drift). The surviving unshipped piece — moving all desks outside the repo tree to `~/.bp3/desks/` and deleting the `Makefile` `--root=.` hack — is deferred to [docs/icebox/2026-11-24-central-desks-dir.md](../../icebox/2026-11-24-central-desks-dir.md).
 
 TL;DR
 One installed bp3 serves every downstream repo and every desk in it,
