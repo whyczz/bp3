@@ -1,7 +1,7 @@
 ---
 status: frozen
 date: 2026-11-24
-promoted: null
+promoted: docs/quests/2026-11-25-central-desks-dir/QUEST.md
 ---
 
 # Central desks directory (`~/.bp3/desks/`) and delete `Makefile` `--root=.` hack
