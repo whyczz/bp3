@@ -1,5 +1,5 @@
 ---
-status: active
+status: landed
 home_repo: bp3
 date: 2026-11-25
 bump: minor
