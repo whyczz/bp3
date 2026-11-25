@@ -272,7 +272,7 @@ Transitions: `proposed -> active -> landed`; `proposed | active -> canceled`.
 Files stay in `docs/quests/` for life — node records point at them.
 
 At `landed`, run `warden` to record `FEEDBACK.md` and the Landing IIUC
-(decision record, the trial run, verification, open items)
+(decision record, the demo run, verification, open items)
 under Success picture.
 
 | Boundary | Rule |

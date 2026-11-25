@@ -117,6 +117,13 @@ bp q 2026-11-23-q1 n nb e land --reason "landed nb" >/dev/null
 # Scrape metrics so na has grade + author samples (grade_inversion) and nb has 0 (coverage_gap).
 bp q 2026-11-23-q1 metrics scrape --claude-dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$work/agy" >/dev/null
 
+# Plant a status-only demo/ commit after final node_fin -> must NOT fire post_land_bugfix
+mkdir -p docs/quests/2026-11-23-q1/demo
+printf '#!/usr/bin/env bash\necho demo\n' > docs/quests/2026-11-23-q1/demo/demo.sh
+git add docs/quests/2026-11-23-q1/demo/demo.sh && git commit -qm "docs(warden): add landing demo"
+out_demo_only=$(bp warden 2026-11-23-q1 --no-sessions)
+assert jq -e 'all(.findings[]; .rule != "post_land_bugfix")' <<< "$out_demo_only" >/dev/null
+
 # Plant a non-status post-land bugfix commit after final node_fin -> post_land_bugfix
 echo hotfix >> a.txt && git add a.txt && git commit -qm "fix: post-land bugfix"
 
