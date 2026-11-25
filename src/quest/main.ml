@@ -34,7 +34,7 @@ let with_warnings id is_write fields =
   | ws -> `Assoc (fields @ [("warnings", `List (List.map json_str ws))])
 
 let illegal state edge =
-  err "E_ILLEGAL_EDGE"
+  err Names.e_illegal_edge
     (`Assoc [("state", json_str state); ("edge", json_str edge);
              ("legal_edges", `List (List.map json_str (legal_edges state)))])
     "Pick a legal edge from legal_edges for the current state." 1
@@ -45,7 +45,7 @@ let do_quest_create quest fl id =
   let qtype = (match fl.typ with Some t -> t | None -> "default") in
   let _ = quest_knobs qtype in
   if ref_tip (quest_branch quest) <> None then
-    err "E_EXISTS" (`Assoc [("quest", json_str quest)]) "Quest already exists." 1;
+    err Names.e_exists (`Assoc [("quest", json_str quest)]) "Quest already exists." 1;
   let deps = match fl.depends_on with
     | Some s when s <> "" -> String.split_on_char ',' s |> List.map String.trim
     | _ -> [] in
@@ -77,7 +77,7 @@ let do_quest_delete quest fl id =
   let any_blocked = List.exists (fun e ->
     match fold_node quest e with Some (_, s, _) -> s.st = "blocked" | None -> false) nodes in
   if any_blocked && not id.decider_human then
-    err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest)])
+    err Names.e_human_required (`Assoc [("quest", json_str quest)])
       "An node is blocked; a human decision is required (BP3_DECIDER=human)." 1;
   (match ledger_read (quest_branch quest) (quest_ledger_path quest) (legacy_quest_ledger_paths quest) with
    | None -> not_found "quest" quest
@@ -106,7 +106,7 @@ let validate_deps quest self deps =
   let dgraph = (self, deps) :: List.filter (fun (e, _) -> e <> self) (dep_quest quest) in
   match dep_cycle_through dgraph self with
   | Some cyc ->
-      err "E_DEP_CYCLE" (`Assoc [("quest", json_str quest); ("node", json_str self);
+      err Names.e_dep_cycle (`Assoc [("quest", json_str quest); ("node", json_str self);
         ("cycle", `List (List.map json_str cyc))])
         "Dep cycle refused at write time; break the named cycle." 1
   | None -> ()
@@ -120,7 +120,7 @@ let do_node_create quest node fl id =
    | Some (_, _, qt, _, _) -> ignore (effective_knobs ~quest_type:qt ~node_type:etype)
    | None -> ());
   if ref_tip (node_branch quest node) <> None then
-    err "E_EXISTS" (`Assoc [("quest", json_str quest); ("node", json_str node)]) "Node already exists." 1;
+    err Names.e_exists (`Assoc [("quest", json_str quest); ("node", json_str node)]) "Node already exists." 1;
   let deps = parse_dep_list fl.depends_on in
   validate_deps quest node deps;
   let qtip = (match ref_tip (quest_branch quest) with Some t -> t | None -> not_found "quest" quest) in
@@ -170,7 +170,7 @@ let do_node_delete quest node fl id =
    | Some (_, s, _) ->
        if s.st = "landed" || s.st = "deleted" then illegal s.st "delete";
        if s.st = "blocked" && not id.decider_human then
-         err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest); ("node", json_str node)])
+         err Names.e_human_required (`Assoc [("quest", json_str quest); ("node", json_str node)])
            "Deleting a blocked node requires a human (BP3_DECIDER=human)." 1;
        let ns = { s with st = "deleted" } in
        let line = ledger_line ~edge:"delete" ~from:s.st ~to_:"deleted" ~cycle:s.cycle
@@ -224,13 +224,13 @@ let do_update quest node edge fl id =
       if s.st <> "todo" then illegal s.st edge;
       let raw = (match fl.commit with Some c -> c | None -> usage "--commit is required for handoff") in
       let full = (match resolve_commit raw with Some f -> f
-        | None -> err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str raw)])
+        | None -> err Names.e_commit_mismatch (`Assoc [("commit", json_str raw)])
             "Commit does not exist; bind an existing commit." 1) in
       if worktree_dirty () then
-        err "E_DIRTY_TREE" (`Assoc []) "Worktree is dirty; clean it and retry." 1;
+        err Names.e_dirty_tree (`Assoc []) "Worktree is dirty; clean it and retry." 1;
       let blocked_by = List.filter (fun d -> not (dep_satisfied d)) deps in
       if blocked_by <> [] then
-        err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str blocked_by))])
+        err Names.e_dependency (`Assoc [("blocked_by", `List (List.map json_str blocked_by))])
           "Dependencies are not landed yet." 1;
       let node_deps = (match fold_node quest node with
         | Some (_, _, text) -> deps_of_text text | None -> []) in
@@ -239,7 +239,7 @@ let do_update quest node edge fl id =
         | Some (_, ds, _) -> ds.st <> "landed" && ds.st <> "deleted"
         | None -> true) node_deps in
       if node_blocked <> [] then
-        err "E_DEPENDENCY" (`Assoc [("blocked_by", `List (List.map json_str node_blocked))])
+        err Names.e_dependency (`Assoc [("blocked_by", `List (List.map json_str node_blocked))])
           "Node deps are not landed yet." 1;
       let approved_now = (not knobs.grade_required) && (not knobs.verify_required) in
       let ns = { s with st = (if approved_now then "approved" else "handed_off");
@@ -258,7 +258,7 @@ let do_update quest node edge fl id =
            let rc = (match resolve_commit c with Some f -> f | None -> c) in
            let bound = (match s.bound with Some b -> b | None -> "") in
            if rc <> bound then
-             err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str c); ("bound", json_str bound)])
+             err Names.e_commit_mismatch (`Assoc [("commit", json_str c); ("bound", json_str bound)])
                "Verdict must bind the exact current commit; re-read and retry." 1
        | None -> ());
       (match (edge, fl.verify_verdict) with
@@ -309,7 +309,7 @@ let do_update quest node edge fl id =
            let rc = (match resolve_commit c with Some f -> f | None -> c) in
            let bound = (match s.bound with Some b -> b | None -> "") in
            if rc <> bound then
-             err "E_COMMIT_MISMATCH" (`Assoc [("commit", json_str c)])
+             err Names.e_commit_mismatch (`Assoc [("commit", json_str c)])
                "Verdict must bind the exact current commit." 1
        | None -> ());
       (* 1. landed line on node branch *)
@@ -322,7 +322,7 @@ let do_update quest node edge fl id =
       let qtip = (match ref_tip qbranch with Some t -> t | None -> "") in
       if is_ancestor qtip node_tip then begin
         if not (move_ref ~branch:qbranch ~new_tip:node_tip ~expect_tip:qtip) then
-          err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
+          err Names.e_stale_world (`Assoc []) "Quest tip moved; re-read and retry." 1;
         with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
           ("node", json_str node); ("state", json_str "landed"); ("fin", json_str "node_fin"); ("cycle", `Int s.cycle);
           ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
@@ -343,7 +343,7 @@ let do_update quest node edge fl id =
           let mtip, _ = git_out ~input:("bp3: land " ^ node)
               ["commit-tree"; tree; "-p"; qtip; "-p"; node_tip] in
           if not (move_ref ~branch:qbranch ~new_tip:mtip ~expect_tip:qtip) then
-            err "E_STALE_WORLD" (`Assoc []) "Quest tip moved; re-read and retry." 1;
+            err Names.e_stale_world (`Assoc []) "Quest tip moved; re-read and retry." 1;
           with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
             ("node", json_str node); ("state", json_str "landed"); ("fin", json_str "node_fin"); ("cycle", `Int s.cycle);
             ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
@@ -362,7 +362,7 @@ let do_update quest node edge fl id =
   | "resume" ->
       if s.st <> "blocked" then illegal s.st edge;
       if not id.decider_human then
-        err "E_HUMAN_REQUIRED" (`Assoc [("quest", json_str quest); ("node", json_str node)])
+        err Names.e_human_required (`Assoc [("quest", json_str quest); ("node", json_str node)])
           "Resume requires a human decision (BP3_DECIDER=human)." 1;
       let ncyc = if s.has_bound then s.cycle + 1 else s.cycle in
       let ns = { s with st = "todo"; cycle = ncyc; bound = None; has_bound = false;
@@ -622,7 +622,7 @@ Example: bp3 config --format table\n"
 let refuse_major_ahead () =
   match version_ahead () with
   | Some v when version_major v > version_major bp3_version ->
-      err "E_VERSION_AHEAD"
+      err Names.e_version_ahead
         (`Assoc [("binary", json_str bp3_version); ("repo", json_str v)])
         "Repo was stamped by a newer MAJOR bp3; upgrade bp3 before writing." 1
   | _ -> ()
@@ -668,7 +668,7 @@ let rec run argv =
           let existing = let ic = open_in_bin path in
             let s = really_input_string ic (in_channel_length ic) in close_in ic; s in
           if existing <> content then
-            err "E_EXISTS" (`Assoc [("plan", json_str rel)])
+            err Names.e_exists (`Assoc [("plan", json_str rel)])
               "Plan already exists with different content; refusing to overwrite." 1
         end else begin
           let oc = open_out_bin path in output_string oc content; close_out oc

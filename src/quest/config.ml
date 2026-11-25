@@ -52,7 +52,7 @@ let view ~source =
   ignore source;
   match config_dir () with
   | None ->
-      err "E_NOT_FOUND" (`Assoc [])
+      err Names.e_not_found (`Assoc [])
         "No bp3 config store: not inside a git repository." 1
   | Some dir ->
       let t = load_thresholds dir in

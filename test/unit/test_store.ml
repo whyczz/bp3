@@ -279,8 +279,8 @@ let case_check_slug_refuses_an_invalid_slug_with_E_USAGE _ =
   assert_equal ~printer:Fun.id "no verdict" (verdict_code (fun () -> Store.check_slug "good-slug"))
 
 let case_check_creatable_refuses_a_reserved_door_slug_with_E_USAGE _ =
-  assert_equal ~printer:Fun.id "E_USAGE" (verdict_code (fun () -> Store.check_creatable "watch"));
-  assert_equal ~printer:Fun.id "no verdict" (verdict_code (fun () -> Store.check_creatable "watcher"))
+  assert_equal ~printer:Fun.id "E_USAGE" (verdict_code (fun () -> Store.check_creatable "warden"));
+  assert_equal ~printer:Fun.id "no verdict" (verdict_code (fun () -> Store.check_creatable "wardens"))
 
 let case_canon_node_id_maps_exp_ids_and_leaves_other_ids_alone _ =
   assert_equal ~printer:Fun.id "node-3-fsm" (Store.canon_node_id "exp-3-fsm");

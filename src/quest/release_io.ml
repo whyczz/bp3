@@ -136,7 +136,7 @@ let default_self_install ~install_root ~tag ~version ~commit =
   let install_script = Filename.concat install_root "scripts/install-bp3.sh" in
   let env = [ "PREFIX=" ^ prefix ] in
   let fail detail =
-    err "E_INSTALL_FAILED"
+    err Names.e_install_failed
       (`Assoc [ ("tag", json_str tag); ("version", json_str version);
                 ("commit", json_str commit); ("prefix", json_str prefix);
                 ("local_tagged", `Bool true); ("detail", json_str detail) ])
@@ -199,7 +199,7 @@ let worktrees_on_branch branch_ref =
 let check_clean_dir dir =
   let out, code = run_capture [ "git"; "-C"; dir; "status"; "--porcelain" ] in
   if code <> 0 || String.trim out <> "" then
-    err "E_DIRTY_TREE" (`Assoc [ ("path", json_str dir) ])
+    err Names.e_dirty_tree (`Assoc [ ("path", json_str dir) ])
       ("Worktree is dirty (" ^ dir ^ "); commit or clean it before releasing.") 1
 
 let quest_promoted_info text =
@@ -250,7 +250,7 @@ let plumbing_commit ~base_tip ~files ~msg =
   let cleanup () = try Unix.unlink idx with _ -> () in
   let fail detail =
     cleanup ();
-    err "E_STALE_WORLD" (`Assoc [ ("detail", json_str detail) ])
+    err Names.e_stale_world (`Assoc [ ("detail", json_str detail) ])
       "Failed to assemble release commit in plumbing." 1 in
   if run_status ~env (git [ "read-tree"; base_tip ]) <> 0 then fail "read-tree";
   List.iter (fun (path, content) ->
@@ -280,7 +280,7 @@ let plumbing_mktag ~commit ~tag ~message =
       commit tag name email epoch message in
   let out, err_s, code = run_capture_both ~input:payload (git [ "mktag" ]) in
   if code <> 0 || out = "" then
-    err "E_STALE_WORLD" (`Assoc [ ("tag", json_str tag); ("detail", json_str err_s) ])
+    err Names.e_stale_world (`Assoc [ ("tag", json_str tag); ("detail", json_str err_s) ])
       "Failed to create annotated tag object via git mktag." 1;
   out
 
@@ -296,7 +296,7 @@ let atomic_cas_update ~target ~new_tip ~old_target_tip ~tag_opt ~tag_obj_opt =
   let _out, err_s, code =
     run_capture_both ~input:(Buffer.contents buf) (git [ "update-ref"; "--stdin" ]) in
   if code <> 0 then
-    err "E_STALE_WORLD"
+    err Names.e_stale_world
       (`Assoc [ ("target", json_str target); ("tag", opt_json tag_opt);
                 ("detail", json_str err_s) ])
       "Target branch moved or release tag already exists; re-read and retry." 1;
@@ -330,13 +330,13 @@ let push_and_create_gh_release ~remote ~target ~tag ~repo ~title ~body ~commit =
   let _pout, perr, pcode =
     run_capture_both (git [ "push"; remote; "refs/heads/" ^ target; "refs/tags/" ^ tag ]) in
   if pcode <> 0 then
-    err "E_REMOTE_REJECTED"
+    err Names.e_remote_rejected
       (`Assoc [ ("remote", json_str remote); ("target", json_str target);
                 ("tag", json_str tag); ("commit", json_str commit);
                 ("local_tagged", `Bool true); ("detail", json_str perr) ])
       "Local tag succeeded, but non-force git push was rejected. Reconcile remote and re-run with --publish-only." 1;
   if run_status [ "gh"; "release"; "view"; tag; "--repo"; repo ] = 0 then
-    err "E_RELEASE_EXISTS"
+    err Names.e_release_exists
       (`Assoc [ ("tag", json_str tag); ("repo", json_str repo);
                 ("local_tagged", `Bool true) ])
       ("GitHub Release " ^ tag ^ " already exists on " ^ repo ^ "; refusing to overwrite.") 1;
@@ -344,7 +344,7 @@ let push_and_create_gh_release ~remote ~target ~tag ~repo ~title ~body ~commit =
     run_capture_both [ "gh"; "release"; "create"; tag; "--repo"; repo;
                        "--title"; title; "--notes"; body ] in
   if gcode <> 0 then
-    err "E_GH_FAILED"
+    err Names.e_gh_failed
       (`Assoc [ ("tag", json_str tag); ("repo", json_str repo);
                 ("commit", json_str commit); ("local_tagged", `Bool true);
                 ("detail", json_str (if gerr <> "" then gerr else gout)) ])
@@ -388,7 +388,7 @@ let emit_verdict ~fmt v =
 
 let do_publish_only opts id =
   if not id.decider_human then
-    err "E_HUMAN_REQUIRED" (`Assoc [])
+    err Names.e_human_required (`Assoc [])
       "Publishing a release requires a human decision (BP3_DECIDER=human)." 1;
   let (mode, quest_opt, tag, target, commit) =
     match opts.tag, opts.quest with
@@ -396,7 +396,7 @@ let do_publish_only opts id =
         let ttype, c1 = git_out [ "cat-file"; "-t"; t ] in
         if c1 <> 0 then not_found "tag" t;
         if ttype <> "tag" then
-          err "E_ILLEGAL_EDGE" (`Assoc [ ("tag", json_str t) ])
+          err Names.e_illegal_edge (`Assoc [ ("tag", json_str t) ])
             ("Tag " ^ t ^ " is not an annotated tag.") 1;
         let sha = match ref_tip t with Some s -> s | None -> not_found "tag" t in
         let tgt = detect_target_branch opts.target in
@@ -411,7 +411,7 @@ let do_publish_only opts id =
                   let tgt = detect_target_branch (match opts.target with Some _ as o -> o | None -> tgt_opt) in
                   ("quest", Some q, t, tgt, c)
               | _ ->
-                  err "E_ILLEGAL_EDGE" (`Assoc [ ("quest", json_str q) ])
+                  err Names.e_illegal_edge (`Assoc [ ("quest", json_str q) ])
                     "Quest has no local release tag to publish." 1))
     | Some _, Some _ -> usage "pass either <quest> or --tag with --publish-only, not both"
     | None, None -> usage "--publish-only requires <quest> or --tag <vX.Y.Z>" in
@@ -472,7 +472,7 @@ let run argv id =
   else begin
     let mode = if opts.quest <> None then "quest" else "commit" in
     if not opts.dry_run && not id.decider_human then
-      err "E_HUMAN_REQUIRED" (`Assoc [ ("mode", json_str mode) ])
+      err Names.e_human_required (`Assoc [ ("mode", json_str mode) ])
         "Releasing requires a human decision (BP3_DECIDER=human); use --dry-run to preview." 1;
     let target = detect_target_branch opts.target in
     let target_ref = "refs/heads/" ^ target in
@@ -486,11 +486,11 @@ let run argv id =
           let (_, qs, _, _, qtext) =
             match fold_quest q with Some v -> v | None -> not_found "quest" q in
           if qs.st = "deleted" then
-            err "E_ILLEGAL_EDGE" (`Assoc [ ("quest", json_str q); ("state", json_str "deleted") ])
+            err Names.e_illegal_edge (`Assoc [ ("quest", json_str q); ("state", json_str "deleted") ])
               "Cannot release a deleted quest." 1;
           (match quest_promoted_info qtext with
            | Some (ptag, pcommit, _) ->
-               err "E_ALREADY_PROMOTED"
+               err Names.e_already_promoted
                  (`Assoc [ ("quest", json_str q); ("tag", opt_json ptag);
                            ("commit", opt_json pcommit) ])
                  "Quest was already released; use --publish-only to retry GitHub publishing." 1
@@ -504,7 +504,7 @@ let run argv id =
             List.filter_map (fun (n, s) ->
               if s.st <> "landed" && s.st <> "deleted" then Some n else None) folded in
           if folded = [] || pending <> [] then
-            err "E_NOT_READY"
+            err Names.e_not_ready
               (`Assoc [ ("quest", json_str q);
                         ("pending_nodes", `List (List.map json_str pending)) ])
               "All quest nodes must be landed or deleted (goal_fin) before releasing." 1;
@@ -528,7 +528,7 @@ let run argv id =
           let full = match resolve_commit raw_sha with
             | Some f -> f
             | None ->
-                err "E_COMMIT_MISMATCH" (`Assoc [ ("commit", json_str raw_sha) ])
+                err Names.e_commit_mismatch (`Assoc [ ("commit", json_str raw_sha) ])
                   "Commit does not exist; pass a valid commit SHA." 1 in
           (full, "", [], None, None, None)
       | _ -> usage "invalid release arguments" in
@@ -542,7 +542,7 @@ let run argv id =
 
     (* Fast-forward ancestry check *)
     if not (is_ancestor target_tip source_tip) then
-      err "E_NOT_FAST_FORWARD"
+      err Names.e_not_fast_forward
         (`Assoc [ ("target", json_str target); ("target_tip", json_str target_tip);
                   ("source_tip", json_str source_tip) ])
         ("Target branch " ^ target ^ " moved ahead of source commit (parallel release). Rebase onto "
@@ -561,10 +561,10 @@ let run argv id =
                (match Release.parse_bump b_str with
                 | Some b -> b
                 | None ->
-                    err "E_BUMP_MISSING" (`Assoc [ ("bump", json_str b_str) ])
+                    err Names.e_bump_missing (`Assoc [ ("bump", json_str b_str) ])
                       ("Invalid QUEST.md bump: " ^ b_str ^ "; pass --bump major|minor|patch|none.") 1)
            | None ->
-               err "E_BUMP_MISSING" (`Assoc [ ("quest", opt_json opts.quest) ])
+               err Names.e_bump_missing (`Assoc [ ("quest", opt_json opts.quest) ])
                  "No bump: in QUEST.md frontmatter; add bump: or pass --bump major|minor|patch|none." 1)
       | "commit", Some b_str, _ ->
           (match Release.parse_bump b_str with
@@ -639,7 +639,7 @@ let run argv id =
                  (match Release.sync_bp3_version ~new_version:nv gitx_txt with
                   | Ok updated -> files := ("src/quest/gitx.ml", updated) :: !files
                   | Error msg ->
-                      err "E_STALE_WORLD" (`Assoc [ ("detail", json_str msg) ]) msg 1)
+                      err Names.e_stale_world (`Assoc [ ("detail", json_str msg) ]) msg 1)
              | None -> ()
            end else begin
              match git_show source_tip "VERSION" with

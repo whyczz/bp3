@@ -1,4 +1,4 @@
-(* gitx — process/git plumbing for bp3 g. No quest knowledge. *)
+(* gitx — process/git plumbing for bp3 q. No quest knowledge. *)
 (* bp3 q — quest/node FSM CLI. Only writer of quest state. *)
 let bp3_version = "0.4.0"
 
@@ -15,9 +15,9 @@ let err code facts guidance exit_code =
     ]);
   ]))
 
-let usage msg = err "E_USAGE" (`Assoc [("detail", json_str msg)]) ("Fix the call: " ^ msg) 2
+let usage msg = err Names.e_usage (`Assoc [("detail", json_str msg)]) ("Fix the call: " ^ msg) 2
 let not_found what name =
-  err "E_NOT_FOUND" (`Assoc [(what, json_str name)]) (what ^ " not found: " ^ name) 2
+  err Names.e_not_found (`Assoc [(what, json_str name)]) (what ^ " not found: " ^ name) 2
 
 (* ---------- shell / git helpers ---------- *)
 let root =
@@ -219,7 +219,7 @@ let commit_files ~branch ~base_tip ~expect_tip ~files ~msg =
   let idx = tmp_path "index" in
   let env = ["GIT_INDEX_FILE=" ^ idx] in
   let cleanup () = try Unix.unlink idx with _ -> () in
-  let fail () = cleanup (); err "E_STALE_WORLD" (`Assoc [("branch", json_str branch)])
+  let fail () = cleanup (); err Names.e_stale_world (`Assoc [("branch", json_str branch)])
     "Branch tip moved; re-read and retry." 1 in
   if run_status ~env (git ["read-tree"; base_tip]) <> 0 then fail ();
   List.iter (fun (path, content) ->
@@ -234,7 +234,7 @@ let commit_files ~branch ~base_tip ~expect_tip ~files ~msg =
   if code <> 0 then fail ();
   cleanup ();
   let code = run_status (git ["update-ref"; branch; new_tip; expect_tip]) in
-  if code <> 0 then err "E_STALE_WORLD" (`Assoc [("branch", json_str branch)])
+  if code <> 0 then err Names.e_stale_world (`Assoc [("branch", json_str branch)])
     "Branch tip moved; re-read and retry." 1;
   invalidate_ref_caches ();
   new_tip

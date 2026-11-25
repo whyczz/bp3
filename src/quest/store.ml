@@ -16,13 +16,7 @@ let check_slug s = if not (valid_slug s) then usage ("invalid slug: " ^ s)
    quest or node carrying one of these slugs could never be
    addressed again (the token would parse as the door or
    verb instead), so creation refuses it; reads stay total. *)
-let reserved_slugs =
-  [ "harness"; "worktree"; "icebox"; "hooks"; "init-repo"; "config"; "g"; "n"; "e"; "dep";
-    "supervisor"; "init-check"; "find-tape"; "watch"; "desk"; "backtest"; "b"; "diagram";
-    "c"; "create"; "r"; "read"; "u"; "update"; "d"; "delete";
-    "s"; "i"; "f"; "w";
-    "derive"; "inspect"; "remove"; "prepare"; "check"; "exit";
-    "release"; "list"; "db"; "repo"; "ticket"; Names.verb_brief ]
+let reserved_slugs = Names.all_doors @ Names.all_verbs
 
 let check_creatable s =
   check_slug s;
@@ -50,7 +44,7 @@ let identity () =
   (match h with
    | Some v when v <> "" ->
        if not (List.mem v ["muse-code"; "codex"; "muse"; "human"; "claude"; "pi"; "agy"]) then
-         err "E_IDENTITY" (`Assoc [("harness", json_str v)])
+         err Names.e_identity (`Assoc [("harness", json_str v)])
            "BP3_HARNESS must be one of muse-code, codex, muse, human, claude, pi, agy." 2
    | _ -> ());
   let decider_human = (Sys.getenv_opt "BP3_DECIDER" = Some "human") in
@@ -83,7 +77,7 @@ let plan_knobs_from_text text =
     let t = String.trim ln in
     if t = "stages:" || (String.length t > 7 && String.sub t 0 7 = "stages:") ||
        t = "edges:" || (String.length t > 6 && String.sub t 0 6 = "edges:") then
-      err "E_INVALID_PLAN" (`Assoc []) "Plan contains stages:/edges: keys; plans carry knobs only." 1
+      err Names.e_invalid_plan (`Assoc []) "Plan contains stages:/edges: keys; plans carry knobs only." 1
   ) lines;
   let max_cycles =
     try
@@ -104,7 +98,7 @@ let plan_knobs_from_text text =
 let load_plan_file path =
   let full = Filename.concat root path in
   if not (Sys.file_exists full) then
-    err "E_INVALID_PLAN" (`Assoc [("plan", json_str path)]) ("Plan file missing: " ^ path) 1;
+    err Names.e_invalid_plan (`Assoc [("plan", json_str path)]) ("Plan file missing: " ^ path) 1;
   plan_knobs_from_text (read_file_or full "")
 
 let quest_knobs quest_type = load_plan_file ("plans/" ^ quest_type ^ ".yaml")
@@ -213,7 +207,7 @@ let fold_ledger text =
           s.blocked_since <- get_str j "ts" ""
         end
       with _ ->
-        err "E_INVALID_PLAN" (`Assoc []) "Malformed ledger line." 1
+        err Names.e_invalid_plan (`Assoc []) "Malformed ledger line." 1
   );
   (s, !quest_type, !depends_on)
 

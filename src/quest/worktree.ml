@@ -63,10 +63,10 @@ let inspect_info path =
   if not (Sys.file_exists abs) then not_found "worktree" path;
   let top, code = git_in abs ["rev-parse"; "--show-toplevel"] in
   if code <> 0 || top = "" then
-    err "E_NOT_FOUND" (`Assoc [("worktree", json_str path)])
+    err Names.e_not_found (`Assoc [("worktree", json_str path)])
       "Path is not a git worktree." 2;
   if canon top <> canon abs then
-    err "E_NOT_FOUND" (`Assoc [("worktree", json_str path)])
+    err Names.e_not_found (`Assoc [("worktree", json_str path)])
       "Path is not a worktree root." 2;
   let br, bcode = git_in abs ["symbolic-ref"; "--quiet"; "--short"; "HEAD"] in
   let (ref_, detached) =
@@ -74,7 +74,7 @@ let inspect_info path =
     else
       let sha, scode = git_in abs ["rev-parse"; "HEAD"] in
       if scode <> 0 || sha = "" then
-        err "E_NOT_FOUND" (`Assoc [("worktree", json_str path)])
+        err Names.e_not_found (`Assoc [("worktree", json_str path)])
           "Worktree has no readable HEAD." 2;
       (sha, true) in
   let status, _ = git_in abs ["status"; "--porcelain"] in
@@ -103,13 +103,13 @@ let do_create path branch commit =
    | _ -> ());
   let abs = abs_path path in
   if Sys.file_exists abs then
-    err "E_EXISTS" (`Assoc [("path", json_str path)])
+    err Names.e_exists (`Assoc [("path", json_str path)])
       "Worktree path already exists." 1;
   let args = match branch, commit with
     | Some b, None ->
         if not (valid_branch b) then usage ("invalid branch: " ^ b);
         if List.mem b (checked_out_branches ()) then
-          err "E_BRANCH_CHECKED_OUT" (`Assoc [("branch", json_str b)])
+          err Names.e_branch_checked_out (`Assoc [("branch", json_str b)])
             "Branch is already checked out in another worktree." 1;
         (match ref_tip ("refs/heads/" ^ b) with
          | Some _ -> ["worktree"; "add"; abs; b]
@@ -123,10 +123,10 @@ let do_create path branch commit =
   if run_status (git args) <> 0 then
     (match branch with
      | Some b when List.mem b (checked_out_branches ()) ->
-         err "E_BRANCH_CHECKED_OUT" (`Assoc [("branch", json_str b)])
+         err Names.e_branch_checked_out (`Assoc [("branch", json_str b)])
            "Branch is already checked out in another worktree." 1
      | _ ->
-         err "E_WORKTREE" (`Assoc [("path", json_str path)])
+         err Names.e_worktree (`Assoc [("path", json_str path)])
            "git worktree add failed; check the path and ref and retry." 1);
   inspect_json (inspect_info path)
 
@@ -134,23 +134,23 @@ let do_create path branch commit =
 let do_remove path force =
   let info = inspect_info path in
   if info.idirty && not force then
-    err "E_DIRTY_TREE"
+    err Names.e_dirty_tree
       (`Assoc [("path", json_str path); ("changed_count", `Int info.ichanged)])
       "Worktree is dirty; commit the work or remove with --force." 1;
   let abs = abs_path path in
   let top_root, _ = git_out ["rev-parse"; "--show-toplevel"] in
   if top_root <> "" && canon top_root = canon abs then
-    err "E_MAIN_WORKTREE" (`Assoc [("path", json_str path)])
+    err Names.e_main_worktree (`Assoc [("path", json_str path)])
       "Refusing to remove the main worktree." 1;
   let args = ["worktree"; "remove"] @ (if force then ["--force"] else []) @ [abs] in
   if run_status (git args) <> 0 then
     (let again = inspect_info path in
      if again.idirty && not force then
-       err "E_DIRTY_TREE"
+       err Names.e_dirty_tree
          (`Assoc [("path", json_str path); ("changed_count", `Int again.ichanged)])
          "Worktree is dirty; commit the work or remove with --force." 1
      else
-       err "E_WORKTREE" (`Assoc [("path", json_str path)])
+       err Names.e_worktree (`Assoc [("path", json_str path)])
          "git worktree remove failed; inspect the worktree and retry." 1);
   `Assoc [("ok", `Bool true); ("path", json_str path); ("removed", `Bool true)]
 
@@ -321,7 +321,7 @@ let do_check run_id =
   let r = match load_record run_id with
     | Some r -> r | None -> not_found "run" run_id in
   if not (Sys.file_exists (abs_path r.r_path)) then
-    err "E_NOT_FOUND"
+    err Names.e_not_found
       (`Assoc [("run_id", json_str run_id); ("path", json_str r.r_path)])
       "Recorded worktree is missing on disk." 2;
   let i = inspect_info r.r_path in
@@ -366,7 +366,7 @@ let do_exit force =
                 && String.sub cwd 0 (String.length p + 1) = p ^ "/") in
   match List.find_opt inside records with
   | None ->
-      err "E_NOT_FOUND" (`Assoc [("cwd", json_str cwd)])
+      err Names.e_not_found (`Assoc [("cwd", json_str cwd)])
         "Current directory is not inside a registered worktree." 2
   | Some r ->
       let v = release_record r force in
