@@ -69,11 +69,9 @@ other repos point at it.
 ./bin/bp3 db info [--format json|table]                                             # machine-local SQLite control plane status
 ./bin/bp3 repo add|list|remove [...]                                                # local repo registry (auto-registered on bp3 init)
 ./bin/bp3 ticket add|list|read|claim|unclaim|done|dismiss [...]                     # cross-repo ticket queue
-./bin/bp3 e                            # claimed edge door: resolved context
-./bin/bp3 n r                          # claimed node door: read own node
 dune build src/quest/main.exe          # (make check does this)
-make check                             # inner loop: lint, dune test, unit tier (seconds)
-make check-full                        # grade/land gate: check + fixture and slow tiers
+make check                             # inner loop: lint, dune build, dune test (seconds)
+make check-full                        # grade/land gate: check + all suites in suites.tsv
 ```
 
 Two independent dimensions: `goal_type` is the plan (stages and

@@ -2,19 +2,13 @@
   "skills": [
     "!**/.agents/skills/add-bp3-skill/SKILL.md",
     "!**/.agents/skills/add-yap-skill/SKILL.md",
-    "!**/.agents/skills/using-bp3/SKILL.md",
-    "!**/.agents/skills/naming/SKILL.md",
     "!**/.agents/skills/icebox/SKILL.md",
-    "!**/.agents/skills/red-ink/SKILL.md",
-    "!**/.agents/skills/bp3g/SKILL.md",
-    "!**/.agents/skills/bp3g-frame/SKILL.md",
-    "!**/.agents/skills/bp3g-landing-demo/SKILL.md",
-    "!**/.agents/skills/bp3g-no-human/SKILL.md",
     "!**/.agents/skills/induct/SKILL.md",
     "!**/.agents/skills/induct-yolo/SKILL.md",
+    "!**/.agents/skills/naming/SKILL.md",
     "!**/.agents/skills/quest/SKILL.md",
-    "!**/.agents/skills/induct-inline/SKILL.md",
-    "!**/.agents/skills/induct-inline-yolo/SKILL.md",
+    "!**/.agents/skills/red-ink/SKILL.md",
+    "!**/.agents/skills/using-bp3/SKILL.md",
     "!**/.agents/skills/warden/SKILL.md"
   ]
 }

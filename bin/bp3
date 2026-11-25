@@ -33,7 +33,7 @@ fi
 # Skill sets (dogfood.3): one spelling, named here only. A source
 # skill in neither list installs nowhere (fail-closed for hosts);
 # test/mode.sh asserts every source skill is listed exactly once.
-CORE_SKILLS="induct induct-inline induct-inline-yolo quest induct-yolo icebox naming red-ink warden"
+CORE_SKILLS="induct induct-yolo quest icebox naming red-ink warden"
 DEV_SKILLS="add-bp3-skill add-yap-skill using-bp3"
 
 # Layout: every path and name this script spells, named here only

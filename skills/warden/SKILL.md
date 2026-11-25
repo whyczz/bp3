@@ -21,7 +21,7 @@ One output:
   concrete proposals.
 
 Use `quest` to frame a new quest, `red-ink` while a design is still
-being settled, `induct-inline` to run nodes, `using-bp3` for a
+being settled, `induct` to run nodes, `using-bp3` for a
 single state edge, and `icebox` to freeze a deferred idea.
 
 ## Diligence gate (runs first when landing a quest)

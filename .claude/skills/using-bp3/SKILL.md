@@ -15,11 +15,10 @@ a human, Controller, or Worker by name (`/using-bp3`,
 
 Use `quest` instead to frame a new quest's intent and shape,
 including its QUEST.md and node records. To run a whole quest,
-use `induct-inline`, the default: this session authors each
+use `induct`, the default: this session authors each
 node, and fresh graders judge each commit in the background
 from the brief `bp3 q <quest> n <node> brief` renders. Use
-`induct` when many independent nodes should run at once with
-workflow children, and `induct-yolo` when no human is present.
+`induct-yolo` when no human is present.
 General coding in this repo does not need this skill.
 
 ## Procedure

@@ -6,13 +6,12 @@
 #
 # Retired spellings (single source; post-rename vocabulary):
 #   GOAL.md GRAPH.md EXPERIMENT.md   (now QUEST.md / NODE.md)
-#   bp3g (skill family, now induct / quest / induct-yolo / trial)
+#   bp3g (skill family, now induct / quest / induct-yolo / warden)
 #   docs/graphs (now docs/quests)
 #
 # Live surfaces swept: skills/, src/, bin/, scripts/,
-# extensions/, the rendered skill copies (.pi/skills/,
-# .agents/skills/, .claude/skills/, .agents/workflows/),
-# and the root docs AGENTS.md / CLAUDE.md / README.md, matched in
+# the rendered skill copies (.pi/skills/, .agents/skills/,
+# .claude/skills/), and the root docs AGENTS.md / CLAUDE.md / README.md, matched in
 # any case (this repo tracks readme.md).
 # Out of scope by definition: docs/ (frozen records — ledger
 # lines, dated amendments, run notes quote history) and
@@ -40,7 +39,7 @@ while [ $# -gt 0 ]; do
 done
 cd "$root"
 retired="GOAL.md GRAPH.md EXPERIMENT.md bp3g docs/graphs"
-scope="skills src bin scripts extensions .pi/skills .agents/skills .claude/skills .agents/workflows"
+scope="skills src bin scripts .pi/skills .agents/skills .claude/skills"
 hits=$(mktemp)
 trap 'rm -f "$hits"' EXIT
 # Root docs by their real spelling: find -iname, because a
