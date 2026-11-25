@@ -315,6 +315,16 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -q '^use `induct`, the default: this session authors each$' "$ub"
 done
 
+# central-desks-dir skills.1: induct prepares a central quest desk in both
+# self and host modes (no self-only split). Sources and every render.
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  ic="$repo/$dir/induct/SKILL.md"
+  assert test -z "$(grep -n 'host mode works in the repo' "$ic" || true)"
+  assert test -z "$(grep -n 'In self mode,' "$ic" || true)"
+  assert grep -qF 'Prepare the quest desk' "$ic"
+  assert grep -qF '`bp3 harness desk prepare --quest <quest>`' "$ic"
+done
+
 # induct-yolo (promoted from induct-inline-yolo): runs one quest under
 # no-human rails; follows induct as written and carries no numbered
 # procedure of its own. Sources and every render.

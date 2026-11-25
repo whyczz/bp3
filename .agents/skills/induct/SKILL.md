@@ -19,10 +19,10 @@ and post-quest audit, and `using-bp3` for one hand-cast edge.
 
 ## Procedure
 
-1. `bp3 q r <quest>` must answer JSON, or stop. In self mode,
-   prepare the quest desk (`bp3 harness desk prepare --quest <quest>`)
-   and author only there; host mode works in the repo. One session
-   per quest: this session runs this quest and no other, and
+1. `bp3 q r <quest>` must answer JSON, or stop. Prepare the quest desk
+   (`bp3 harness desk prepare --quest <quest>`) and author only there
+   (desks live centrally under `~/.bp3/desks/` in self and host modes).
+   One session per quest: this session runs this quest and no other, and
    `LOG.md` / NODE.md build notes carry new findings, lessons,
    and what a compaction would lose.
 2. On every read, in this order:
