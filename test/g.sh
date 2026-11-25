@@ -663,6 +663,22 @@ sdesk=$(BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness desk prepare --quest stac
   [ "$(git rev-parse quest/stack-demo)" = "$SB" ] || fail "quest branch tip"
 )
 
+# --- manifest.2: bp3 q r warns W_NO_REPO_CONFIG when backpack.toml absent, clears when present; brief shows [grade].gate ---
+out=$(q r) || fail "q r all failed"
+echo "$out" | jq -e '.ok == true and any(.warnings[]; (type == "object") and .code == "W_NO_REPO_CONFIG")' >/dev/null || fail "q r missing W_NO_REPO_CONFIG: $out"
+[ -z "$(git status --porcelain)" ] || fail "q r mutated working tree"
+printf 'version = 1\nrepo = "g-fx"\n\n[grade]\ngate = "echo g-manifest-gate"\n' > backpack.toml
+git add backpack.toml && git commit -qm "chore: add backpack.toml"
+out=$(q r) || fail "q r with backpack failed"
+echo "$out" | jq -e '.ok == true and all((.warnings // [])[]; (type != "object") or (.code != "W_NO_REPO_CONFIG"))' >/dev/null || fail "q r still warned with backpack.toml: $out"
+q c bf-gate >/dev/null
+q bf-gate c n1 >/dev/null
+BF_SHA=$(git rev-parse HEAD)
+q bf-gate n n1 e handoff --commit "$BF_SHA" --reason "h" >/dev/null
+out=$(q bf-gate n n1 brief) || fail "brief with backpack failed: $out"
+echo "$out" | jq -r '.brief' | grep -qF "Repo gate (backpack.toml): echo g-manifest-gate" || fail "brief missing Repo gate: $out"
+git rm -qf backpack.toml && git commit -qm "chore: remove temp backpack.toml"
+
 # --- version guard: minor-ahead warns and writes; major-ahead refuses writes ---
 stamp_ledger() { # $1 quest $2 node $3 version
   local br="bp3/node/$1/$2" path="docs/quests/$1/nodes/$2/ledger.jsonl" tip idx led blob tree nt

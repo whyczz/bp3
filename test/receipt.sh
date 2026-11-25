@@ -75,4 +75,18 @@ expect "failing gate rc" 1 "$rc"
 echo "$out" | grep -q "^check-full: rc=1 boom$" || { echo "FAIL: gate fail line: $out" >&2; exit 1; }
 n=$((n + 1))
 
+# Case E (manifest.2): [grade].gate in backpack.toml used when BP3_RECEIPT_GATE unset; env overrides manifest
+printf 'version = 1\nrepo = "fx"\n\n[grade]\ngate = "echo backpack-gate" # comment\n' > "$fx/backpack.toml"
+printf 'v4\n' > "$fx/app.txt"
+printf '#!/usr/bin/env bash\nset -e\ngrep -q v4 app.txt\n' > "$fx/test/app.sh"
+chmod +x "$fx/test/app.sh"
+git -C "$fx" add -A && git -C "$fx" commit -qm "feat: backpack gate"
+rc=0; out="$(cd "$fx" && env -u BP3_RECEIPT_GATE ./scripts/receipt HEAD)" || rc=$?
+expect "backpack gate rc" 0 "$rc"
+echo "$out" | grep -q "^check-full: rc=0 backpack-gate$" || { echo "FAIL: backpack gate line: $out" >&2; exit 1; }
+rc=0; out="$(cd "$fx" && BP3_RECEIPT_GATE="echo env-wins" ./scripts/receipt HEAD)" || rc=$?
+expect "env overrides backpack gate rc" 0 "$rc"
+echo "$out" | grep -q "^check-full: rc=0 env-wins$" || { echo "FAIL: env override line: $out" >&2; exit 1; }
+n=$((n + 2))
+
 echo "receipt tests: ok ($n assertions)"

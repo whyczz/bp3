@@ -627,6 +627,15 @@ let refuse_major_ahead () =
         "Repo was stamped by a newer MAJOR bp3; upgrade bp3 before writing." 1
   | _ -> ()
 
+let repo_config_warnings () =
+  match Backpack.load_opt root with
+  | Ok (Some _) -> []
+  | Ok None -> [ ("warnings", `List [ Backpack.warning_no_repo_config () ]) ]
+  | Error detail ->
+      err Names.e_invalid_config
+        (`Assoc [("file", json_str Layout.manifest_file); ("detail", json_str detail)])
+        ("Invalid " ^ Layout.manifest_file ^ ": " ^ detail) 1
+
 let rec run argv =
   let id = identity () in
   match argv with
@@ -719,7 +728,7 @@ let rec run argv =
        | "r", [] ->
            let qs = List.map (fun q ->
              let (view, _, _, _) = quest_view q in view) (list_quests ()) in
-           print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true); ("quests", `List qs)]); 0
+           print_verdict ~fmt:"json" (`Assoc ([("ok", `Bool true); ("quests", `List qs)] @ repo_config_warnings ())); 0
        | "r", [quest] ->
            let (pos, fl) = ( [quest], { reason=None; commit=None; verdict=None; target=None; typ=None; depends_on=None; fmt="json"; verify_verdict=None; mechanical=false } ) in
            ignore pos;
@@ -727,14 +736,14 @@ let rec run argv =
            ignore fl;
            let (view, _, _, _) = quest_view quest in
            print_verdict ~fmt:"json" (`Assoc (("ok", `Bool true) ::
-             (match view with `Assoc fs -> fs | _ -> []))); 0
+             (match view with `Assoc fs -> fs | _ -> []) @ repo_config_warnings ())); 0
        | "r", quest :: tail ->
            let (pos, fl) = split_flags (quest :: tail) in
            (match pos with
             | [q] ->
                 let (view, _, _, _) = quest_view q in
                 print_verdict ~fmt:fl.fmt (`Assoc (("ok", `Bool true) ::
-                  (match view with `Assoc fs -> fs | _ -> []))); 0
+                  (match view with `Assoc fs -> fs | _ -> []) @ repo_config_warnings ())); 0
             | _ -> usage "quest read takes at most one quest")
        | "d", quest :: tail ->
            let (pos, fl) = split_flags tail in
@@ -791,7 +800,7 @@ let rec run argv =
        | "r", [] ->
            let (view, _, _, _) = quest_view quest in
            print_verdict ~fmt:"json" (`Assoc (("ok", `Bool true) ::
-             (match view with `Assoc fs -> fs | _ -> []))); 0
+             (match view with `Assoc fs -> fs | _ -> []) @ repo_config_warnings ())); 0
        | "r", [node] ->
            (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
            (match fold_node quest node with

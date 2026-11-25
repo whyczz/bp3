@@ -131,9 +131,11 @@ echo hotfix >> a.txt && git add a.txt && git commit -qm "fix: post-land bugfix"
 refs_before=$(git show-ref)
 status_before=$(git status --porcelain)
 
-# 1. Full two-layer quest audit: all 12 rules fire!
+# 1. Full two-layer quest audit: all 12 rules + missing_repo_config + W_NO_REPO_CONFIG fire!
 out=$(bp warden 2026-11-23-q1 --dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$work/agy")
 assert jq -e '.ok == true and .scope == "quest"' <<< "$out" >/dev/null
+assert jq -e '.warnings[0].code == "W_NO_REPO_CONFIG"' <<< "$out" >/dev/null
+assert jq -e 'any(.findings[]; .rule == "missing_repo_config" and .severity == "minor" and .evidence_ref == "repo:backpack.toml")' <<< "$out" >/dev/null
 assert jq -e '.sessions_scanned >= 2' <<< "$out" >/dev/null
 for rule in multi_active_quest cycle_outlier minor_only_bounce vacuous_test_bounce \
             grade_inversion coverage_gap desk_leak post_land_bugfix \
@@ -200,5 +202,35 @@ assert jq -e '.ok == false and .error.code == "E_USAGE"' <<< "$err_both" >/dev/n
 help_out=$(bp warden -h)
 assert grep -qF "bp3 warden" <<< "$help_out"
 assert grep -qF -- "--no-sessions" <<< "$help_out"
+
+# 8. manifest.2: adding backpack.toml clears missing_repo_config & W_NO_REPO_CONFIG and honors [warden].grade_wall_s
+bp q 2026-11-23-q3 c nslow >/dev/null
+echo slow1 >> a.txt && git add docs/quests a.txt && git commit -qm "nslow c1"
+sha_ns=$(git rev-parse HEAD)
+bp q 2026-11-23-q3 n nslow e handoff --commit "$sha_ns" --reason "nslow" >/dev/null
+bp q 2026-11-23-q3 n nslow e grade --verdict ship --verify-verdict pass --reason "clean" >/dev/null
+bp q 2026-11-23-q3 n nslow e land --reason "landed nslow" >/dev/null
+# Plant a 450s grade.wall_s sample on nslow's state branch so we test the threshold without sleeping 450s
+ns_br="bp3/node/2026-11-23-q3/nslow"
+ns_tip=$(git rev-parse "$ns_br")
+ns_idx=$(mktemp)
+GIT_INDEX_FILE="$ns_idx" git read-tree "$ns_tip"
+ns_blob=$(printf '{"metric":"grade.wall_s","quest":"2026-11-23-q3","node":"nslow","cycle":1,"run":"agy:c1","model":"gemini-3-pro","value":450.0,"at":"2026-11-25T10:07:30Z","source":"grade-transcripts"}\n' | git hash-object -w --stdin)
+GIT_INDEX_FILE="$ns_idx" git update-index --add --cacheinfo "100644,$ns_blob,docs/quests/2026-11-23-q3/nodes/nslow/metrics.jsonl"
+ns_tree=$(GIT_INDEX_FILE="$ns_idx" git write-tree)
+ns_new=$(git commit-tree "$ns_tree" -p "$ns_tip" -m "fixture: 450s grade.wall_s")
+git update-ref "refs/heads/$ns_br" "$ns_new" "$ns_tip"
+rm -f "$ns_idx"
+# Without backpack.toml (default 300s): 450s grade wall fires cycle_outlier
+out_def=$(bp warden 2026-11-23-q3 --no-sessions)
+assert jq -e 'any(.findings[]; .rule == "cycle_outlier" and .node == "nslow")' <<< "$out_def" >/dev/null
+# With backpack.toml grade_wall_s = 600: clears missing_repo_config, W_NO_REPO_CONFIG, and 450s cycle_outlier
+printf 'version = 1\nrepo = "warden-fx"\n\n[warden]\ngrade_wall_s = 600\n' > backpack.toml
+out_cfg=$(bp warden 2026-11-23-q3 --no-sessions)
+assert jq -e '(has("warnings") | not) and all(.findings[]; .rule != "missing_repo_config" and .rule != "cycle_outlier")' <<< "$out_cfg" >/dev/null
+# With grade_wall_s = 400: 450s grade wall fires cycle_outlier with > 400s threshold
+printf 'version = 1\nrepo = "warden-fx"\n\n[warden]\ngrade_wall_s = 400\n' > backpack.toml
+out_400=$(bp warden 2026-11-23-q3 --no-sessions)
+assert jq -e 'any(.findings[]; .rule == "cycle_outlier" and .node == "nslow" and .threshold == "> 400s grade wall")' <<< "$out_400" >/dev/null
 
 printf 'warden tests: ok (%s assertions)\n' "$checks"

@@ -67,6 +67,8 @@ type evidence = {
   ev_scope : string;
   ev_active_quests : string list;
   ev_quests : quest_evidence list;
+  ev_has_repo_config : bool;
+  ev_grade_wall_s : float;
 }
 
 (* ---------- ledger entry parsing ---------- *)
@@ -165,8 +167,20 @@ let plug_multi_active_quest ev =
         summary = Printf.sprintf "%d quests have status: active (%s)" n (String.concat ", " active) } ]
   else []
 
-(* 2. cycle_outlier: max_cycle > 2 or any grade.wall_s > 300s *)
+(* 1b. missing_repo_config: backpack.toml absent at repo root (minor repo-hygiene) *)
+let plug_missing_repo_config ev =
+  if ev.ev_has_repo_config then []
+  else
+    [ { rule = "missing_repo_config"; layer = Git; severity = Minor;
+        quest = ""; node = ""; cycle = 0;
+        observed = "backpack.toml absent";
+        threshold = "backpack.toml present at repo root";
+        evidence_ref = "repo:" ^ Layout.manifest_file;
+        summary = "backpack.toml missing at repo root; run bp3 init-repo" } ]
+
+(* 2. cycle_outlier: max_cycle > 2 or any grade.wall_s > ev.ev_grade_wall_s (default 300s) *)
 let plug_cycle_outlier ev =
+  let limit = ev.ev_grade_wall_s in
   List.concat_map (fun qe ->
       List.filter_map (fun ne ->
           let non_refused = List.filter (fun e -> not e.le_refused) ne.ne_entries in
@@ -180,7 +194,7 @@ let plug_cycle_outlier ev =
                 | None -> Some (s.cycle, s.value)
                 | Some (_, best) -> if s.value > best then Some (s.cycle, s.value) else acc
               else acc) None ne.ne_samples in
-          let slow_over = match slow_grade with Some (c, v) when v > 300. -> Some (c, v) | _ -> None in
+          let slow_over = match slow_grade with Some (c, v) when v > limit -> Some (c, v) | _ -> None in
           if max_cycle > 2 then
             let extra = match slow_over with
               | Some (_, v) -> Printf.sprintf " (max grade wall %.0fs)" v
@@ -196,9 +210,9 @@ let plug_cycle_outlier ev =
                 Some { rule = "cycle_outlier"; layer = Git; severity = Major;
                        quest = qe.qe_quest; node = ne.ne_node; cycle = c;
                        observed = Printf.sprintf "%.0fs grade wall" v;
-                       threshold = "> 300s grade wall";
+                       threshold = Printf.sprintf "> %.0fs grade wall" limit;
                        evidence_ref = Printf.sprintf "metrics:%s:c%d" ne.ne_node c;
-                       summary = Printf.sprintf "grade cycle %d took %.0fs (> 300s)" c v }
+                       summary = Printf.sprintf "grade cycle %d took %.0fs (> %.0fs)" c v limit }
             | None -> None) qe.qe_nodes) ev.ev_quests
 
 (* 3. minor_only_bounce: needs_fix with [minor] and neither [critical] nor [major] *)
@@ -500,6 +514,7 @@ let plug_human_steer_session ev =
 
 let layer1_plugs = [
   plug_multi_active_quest;
+  plug_missing_repo_config;
   plug_cycle_outlier;
   plug_minor_only_bounce;
   plug_vacuous_test_bounce;
@@ -586,14 +601,17 @@ let counts_json findings =
   ]
 
 let to_json ev findings =
-  `Assoc [
+  let warnings_field =
+    if ev.ev_has_repo_config then []
+    else [ ("warnings", `List [ Backpack.warning_no_repo_config () ]) ] in
+  `Assoc ([
     ("ok", `Bool true);
     ("scope", `String ev.ev_scope);
     ("quests", `List (List.map (fun q -> `String q.qe_quest) ev.ev_quests));
     ("sessions_scanned", `Int (sessions_scanned ev));
     ("findings", `List (List.map finding_to_json findings));
     ("counts", counts_json findings);
-  ]
+  ] @ warnings_field)
 
 let pad w s =
   let n = String.length s in
