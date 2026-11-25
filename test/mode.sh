@@ -16,6 +16,7 @@ gbin="$repo/_build/default/src/quest/main.exe"
 export BP3_DB="${BP3_DB:-$work/bp3.sqlite}"
 export BP3_Q_BIN="${BP3_Q_BIN:-$gbin}"
 export BP3_COMPLETIONS_DIR="$work/completions"
+export BP3_GLOBAL_HOME="$work/home"
 
 # Every source skill is in exactly one set (fail-closed hosts).
 core=$(sed -n 's/^CORE_SKILLS="\(.*\)"/\1/p' "$repo/bin/bp3")
@@ -56,15 +57,29 @@ out=$(cd "$host" && "$gbin" config)
 echo "$out" | jq -e '.mode == "host"' > /dev/null || { echo "FAIL: host mode: $out" >&2; exit 1; }
 checks=$((checks + 1))
 
-# Host install: core only, zero bp3-dev, host hook command.
-BP3_TARGET="$host" "$repo/bin/bp3" skills install --harness=muse > /dev/null
-for id in $core; do assert test -f "$host/.agents/skills/$id/SKILL.md"; done
-for id in $dev; do assert test ! -e "$host/.agents/skills/$id"; done
-assert grep -q '"command": "bp3 q hooks || true"' "$host/.claude/hooks.json"
-assert test ! -e "$host/.agents/workflows"
+# Host install (global.1): CORE_SKILLS + global hooks install under BP3_GLOBAL_HOME;
+# ZERO generated skill or hook files are written into the host repo.
+BP3_TARGET="$host" "$repo/bin/bp3" skills install --harness=all > /dev/null
+for id in $core; do
+  assert test -f "$work/home/.gemini/config/skills/$id/SKILL.md"
+  assert test -f "$work/home/.claude/skills/$id/SKILL.md"
+  assert test -f "$work/home/.pi/agent/skills/$id/SKILL.md"
+  assert test -f "$work/home/.codex/skills/$id/SKILL.md"
+  assert test -f "$work/home/.muse/skills/$id/SKILL.md"
+done
+for id in $dev; do
+  assert test ! -e "$work/home/.gemini/config/skills/$id"
+  assert test ! -e "$work/home/.claude/skills/$id"
+done
+assert test ! -e "$host/.agents"
+assert test ! -e "$host/.claude"
+assert test ! -e "$host/.pi"
+assert test ! -e "$host/.muse"
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "bp3 q hooks || true"' "$work/home/.claude/settings.json" >/dev/null
+assert jq -e '.bp3.SessionStart[0].command == "bp3 q hooks || true"' "$work/home/.gemini/config/hooks.json" >/dev/null
 
-# Self fixture: tracked src/quest + bin/bp3 derives self and
-# renders the bp3-dev overlay too, with the desk hook command.
+# Self fixture (global.1): tracked src/quest + bin/bp3 derives self, installs
+# CORE_SKILLS globally, and renders ONLY DEV_SKILLS repo-locally.
 self="$work/self"
 mkdir -p "$self/src/quest" "$self/bin"
 git -C "$self" init -q -b main
@@ -75,7 +90,8 @@ cp "$repo/bin/bp3" "$self/bin/bp3"
 git -C "$self" add .
 git -C "$self" commit -qm base
 BP3_TARGET="$self" "$repo/bin/bp3" skills install --harness=muse > /dev/null
-for id in $core $dev; do assert test -f "$self/.agents/skills/$id/SKILL.md"; done
-assert grep -q '"command": "./bin/bp3 q hooks || true"' "$self/.claude/hooks.json"
+for id in $dev; do assert test -f "$self/.agents/skills/$id/SKILL.md"; done
+for id in $core; do assert test ! -e "$self/.agents/skills/$id"; done
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "bp3 q hooks || true"' "$work/home/.muse/hooks.json" >/dev/null
 
 printf 'mode tests: ok (%s assertions)\n' "$checks"

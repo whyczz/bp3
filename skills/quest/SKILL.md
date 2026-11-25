@@ -34,6 +34,8 @@ def quest(intent):
 
 One output: a Quest file a build can run against.
 
+Scope: active in git repos with `backpack.toml` at root (or when explicitly invoked to bootstrap via `bp3 init-repo`); stay dormant in non-bp3 repos.
+
 ## Context
 
 Reading map for this skill: prose carries context, why, and how

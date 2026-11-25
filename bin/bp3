@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # bp3 project tooling (pre-binary). The OCaml CLI absorbs these subcommands
-# later; the interface stays: bp3 skills install --harness=<name|all>.
+# later; the interface stays: bp3 skills install [--global] --harness=<name|all>.
 # Mode (dogfood.3) is derived from the target repo, never passed as a
 # flag: self = tracked src/quest + bin/bp3 (bp3 is the product), host =
-# neither tracked (bp3 is a tool). Core skills install everywhere; the
-# bp3-dev overlay installs only in self mode.
+# neither tracked (bp3 is a tool).
+# global-skills-and-backpack-toml (global.1): CORE_SKILLS (7) and bp3 hooks
+# install user-globally under $BP3_GLOBAL_HOME / $HOME (matching yap);
+# DEV_SKILLS (3) render repo-locally only inside bp3 (self mode).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -46,6 +48,10 @@ RETIRED_WORKFLOWS="bp3g-grade bp3g-land bp3g-node node-loop induct-grade induct-
 # Retired bp3 skills whose .pi/settings.json exclusions should also be pruned.
 RETIRED_SKILLS="bp3g bp3g-frame bp3g-no-human bp3g-landing-demo traverse traverse-no-human induct-inline induct-inline-yolo"
 
+global_home() {
+  printf '%s\n' "${BP3_GLOBAL_HOME:-$HOME}"
+}
+
 # Target repo: BP3_TARGET wins; else the cwd repo when it is not
 # this script's own repo; else this script's repo (self conduct
 # and non-git copies, e.g. test fixtures, keep the old behavior).
@@ -78,9 +84,22 @@ mode_flag_error() {
   exit 2
 }
 
-# harness -> skills_dir. Sources are plain Markdown: no templating in bp3.
-# The render is a copy plus a GENERATED notice after the frontmatter.
-harness_target() {
+# User-global skill roots for CORE_SKILLS (matching yap; codex/muse use
+# ~/.codex/skills and ~/.muse/skills rather than ~/.agents/skills so pi
+# never double-discovers global bp3 skills).
+global_harness_target() {
+  case "$1" in
+    pi)     echo ".pi/agent/skills" ;;
+    claude) echo ".claude/skills" ;;
+    codex)  echo ".codex/skills" ;;
+    muse)   echo ".muse/skills" ;;
+    agy)    echo ".gemini/config/skills" ;;
+    *) return 1 ;;
+  esac
+}
+
+# Repo-local skill roots for DEV_SKILLS (self mode only).
+local_harness_target() {
   case "$1" in
     pi)     echo ".pi/skills" ;;
     claude) echo ".claude/skills" ;;
@@ -91,14 +110,22 @@ harness_target() {
   esac
 }
 
-install_one() {
-  local skill="$1" harness="$2" target="$3" target_dir dest release_tag=""
+current_release_tag() {
   local release_file="${BP3_SHARE_DIR:-$root/share/bp3}/RELEASE"
   if [ -f "$release_file" ] && command -v jq >/dev/null 2>&1; then
-    release_tag="$(jq -r '.tag // empty' "$release_file" 2>/dev/null || true)"
+    jq -r '.tag // empty' "$release_file" 2>/dev/null || true
   fi
-  target_dir="$(harness_target "$harness")"
-  dest="$target/$target_dir/$skill"
+}
+
+install_one() {
+  local scope="$1" skill="$2" harness="$3" base="$4" target_dir dest release_tag=""
+  release_tag="$(current_release_tag)"
+  if [ "$scope" = "global" ]; then
+    target_dir="$(global_harness_target "$harness")"
+  else
+    target_dir="$(local_harness_target "$harness")"
+  fi
+  dest="$base/$target_dir/$skill"
   mkdir -p "$dest"
   awk -v h="$harness" -v s="$skill" -v rt="$release_tag" '
     /^---$/ {
@@ -110,30 +137,85 @@ install_one() {
       next
     }
     { print }' "$src_dir/$skill/SKILL.md" > "$dest/SKILL.md"
-  echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness)"
+  echo "installed $skill -> $target_dir/$skill/SKILL.md ($harness, $scope)"
 }
 
-# A rename leaves the old render behind, still triggerable. Remove
-# renders this script generated (the GENERATED notice) whose skill
-# is no longer in the set; hand-written skills carry no notice.
-prune_stale() {
-  local harness="$1" target="$2" skills="$3" target_dir dir name
-  target_dir="$(harness_target "$harness")"
-  for dir in "$target/$target_dir"/*/; do
+# Remove renders this script generated (the GENERATED notice) whose skill
+# is no longer in keep_skills; hand-written and yap skills carry no notice.
+prune_stale_in() {
+  local base="$1" target_dir="$2" keep_skills="$3" dir name
+  [ -d "$base/$target_dir" ] || return 0
+  for dir in "$base/$target_dir"/*/; do
     [ -f "$dir/SKILL.md" ] || continue
     name="$(basename "$dir")"
-    case " $skills " in *" $name "*) continue ;; esac
+    case " $keep_skills " in *" $name "*) continue ;; esac
     grep -q '^<!-- GENERATED from skills/' "$dir/SKILL.md" || continue
     rm -rf "$dir"
     echo "pruned $name -> $target_dir/$name (no longer in the skill set)"
   done
 }
 
+# Plan non-clobbering Claude/Muse hook merge: keep every non-bp3 hook handler
+# and upsert one "bp3 q hooks || true" handler per event.
+plan_claude_hooks_merge() {
+  local path="$1" hook_cmd="$2" include_post_llm="$3" existing='{}'
+  if [ -e "$path" ]; then
+    existing="$(jq -sce 'select(length == 1) | .[0] | select(type == "object")' "$path")" \
+      || { echo "invalid JSON object in $path" >&2; return 1; }
+  fi
+  local events='["SessionStart","PreToolUse","PostToolUse","PostToolUseFailure","SubagentStart","SubagentStop","Stop","SessionEnd"]'
+  if [ "$include_post_llm" = "1" ]; then
+    events='["SessionStart","PreToolUse","PostToolUse","PostToolUseFailure","PostLLMCall","SubagentStart","SubagentStop","Stop","SessionEnd"]'
+  fi
+  # shellcheck disable=SC2016 # jq variables inside single quotes
+  jq -ce --arg cmd "$hook_cmd" --argjson events "$events" '
+    if has("hooks") and (.hooks | type != "object") then error("hooks must be an object") else . end |
+    .hooks = ((.hooks // {}) |
+      reduce $events[] as $ev (.;
+        (.[$ev] // []) as $arr |
+        if ($arr | type) != "array" then error("hook event must be array") else . end |
+        .[$ev] = (
+          ($arr | map(select(((.hooks // []) | any(.command? | type == "string" and contains("bp3 q hooks"))) | not)))
+          + [{"hooks": [{"type": "command", "command": $cmd}]}]
+        )
+      )
+    )
+  ' <<< "$existing" || { echo "invalid hooks structure in $path" >&2; return 1; }
+}
+
+# Plan non-clobbering agy global hooks merge: upsert only top-level "bp3" key
+# in ~/.gemini/config/hooks.json, preserving every other named hook group.
+plan_agy_hooks_merge() {
+  local path="$1" hook_cmd="$2" existing='{}'
+  if [ -e "$path" ]; then
+    existing="$(jq -sce 'select(length == 1) | .[0] | select(type == "object")' "$path")" \
+      || { echo "invalid JSON object in $path" >&2; return 1; }
+  fi
+  # shellcheck disable=SC2016 # jq variables inside single quotes
+  jq -ce --arg cmd "$hook_cmd" '
+    .bp3 = {
+      "SessionStart": [{"type": "command", "command": $cmd}],
+      "PreToolUse": [{"matcher": "run_command", "hooks": [{"type": "command", "command": $cmd}]}],
+      "PostToolUse": [{"matcher": "run_command", "hooks": [{"type": "command", "command": $cmd}]}],
+      "Stop": [{"type": "command", "command": $cmd}]
+    }
+  ' <<< "$existing" || { echo "invalid hooks structure in $path" >&2; return 1; }
+}
+
+write_json_atomic() {
+  local dest="$1" json_payload="$2" tmp
+  mkdir -p "$(dirname "$dest")"
+  tmp="$(mktemp "$(dirname "$dest")/$(basename "$dest").XXXXXX")"
+  printf '%s\n' "$json_payload" | jq . > "$tmp"
+  mv "$tmp" "$dest"
+}
+
 skills_install() {
-  local harness="all"
+  local harness="all" global_only=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --mode|--mode=*) mode_flag_error "$1" ;;
+      --global) global_only=1 ;;
       --harness=*) harness="${1#--harness=}" ;;
       --harness) [ $# -ge 2 ] || { echo '--harness needs a value' >&2; exit 2; }; harness="$2"; shift ;;
       *) echo "unknown arg: $1" >&2; exit 2 ;;
@@ -148,145 +230,121 @@ skills_install() {
     harnesses="$harness"
   fi
 
-  local target mode skills
-  target="$(target_root)"
-  mode="$(repo_mode "$target")"
-  skills="$CORE_SKILLS"
-  if [ "$mode" = "self" ]; then
-    skills="$CORE_SKILLS $DEV_SKILLS"
+  local ghome target="" mode="global"
+  ghome="$(global_home)"
+  if [ "$global_only" -eq 0 ]; then
+    target="$(target_root)"
+    mode="$(repo_mode "$target")"
+    echo "mode: $mode (derived from $target: tracked $ENGINE_SRC + bin/bp3)"
+  else
+    echo "mode: global (user-global CORE_SKILLS + hooks -> $ghome)"
   fi
-  echo "mode: $mode (derived from $target: tracked $ENGINE_SRC + bin/bp3)"
 
-  # Preflight every source and the selected harness before writing any render.
+  # Preflight every source, selected harness, and target JSON file before writing.
   "$check_skills_bin" "$src_dir"
   local h
   for h in $harnesses; do
-    harness_target "$h" >/dev/null || { echo "unknown harness: $h" >&2; exit 2; }
+    global_harness_target "$h" >/dev/null || { echo "unknown harness: $h" >&2; exit 2; }
   done
 
-  # Pi discovers .agents as well as .pi. Prefer our Pi copies per project,
-  # without deleting Codex/Muse skills or hiding unrelated .agents skills.
-  local settings_plan='' existing='{}' ids retired_ids
+  local hook_cmd="bp3 q hooks || true"
+  local claude_hooks_plan='' agy_hooks_plan='' muse_hooks_plan=''
   case " $harnesses " in
-    *" pi "*)
-      if [ -e "$target/.pi/settings.json" ]; then
-        existing="$(jq -sce 'select(length == 1) | .[0] | select(type == "object")' "$target/.pi/settings.json")" || { echo 'invalid .pi/settings.json' >&2; exit 1; }
-      fi
-      # shellcheck disable=SC2086 # $skills and $RETIRED_SKILLS are space-separated word lists by design
-      ids="$(printf '%s\n' $skills | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')"
-      # shellcheck disable=SC2086 # $RETIRED_SKILLS is a space-separated word list by design
-      retired_ids="$(printf '%s\n' $RETIRED_SKILLS | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')"
-      settings_plan="$(jq -ce --argjson ids "$ids" --argjson retired "$retired_ids" '
-        if has("skills") and (.skills | type != "array" or any(.[]; type != "string")) then error("skills must be an array of strings") else . end |
-        ([$retired[] | "!**/.agents/skills/" + . + "/SKILL.md"]) as $drop |
-        ((.skills // []) | map(select(. as $p | $drop | index($p) | not))) as $kept |
-        .skills = ($kept + [$ids[] | "!**/.agents/skills/" + . + "/SKILL.md" | select(. as $p | $kept | index($p) | not)])
-      ' <<< "$existing")" || { echo 'invalid .pi/settings.json skills list' >&2; exit 1; }
+    *" claude "*)
+      claude_hooks_plan="$(plan_claude_hooks_merge "$ghome/.claude/settings.json" "$hook_cmd" 0)" || exit 1
+      ;;
+  esac
+  case " $harnesses " in
+    *" agy "*)
+      agy_hooks_plan="$(plan_agy_hooks_merge "$ghome/.gemini/config/hooks.json" "$hook_cmd")" || exit 1
+      ;;
+  esac
+  case " $harnesses " in
+    *" muse "*)
+      muse_hooks_plan="$(plan_claude_hooks_merge "$ghome/.muse/hooks.json" "$hook_cmd" 1)" || exit 1
       ;;
   esac
 
+  # Self mode: plan .pi/settings.json exclusions for repo-local DEV_SKILLS only,
+  # stripping CORE_SKILLS and RETIRED_SKILLS exclusions.
+  local settings_plan='' existing='{}' ids drop_ids
+  if [ "$global_only" -eq 0 ] && [ "$mode" = "self" ]; then
+    case " $harnesses " in
+      *" pi "*)
+        if [ -e "$target/.pi/settings.json" ]; then
+          existing="$(jq -sce 'select(length == 1) | .[0] | select(type == "object")' "$target/.pi/settings.json")" || { echo 'invalid .pi/settings.json' >&2; exit 1; }
+        fi
+        # shellcheck disable=SC2086 # space-separated skill lists by design
+        ids="$(printf '%s\n' $DEV_SKILLS | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')"
+        # shellcheck disable=SC2086 # space-separated skill lists by design
+        drop_ids="$(printf '%s\n' $CORE_SKILLS $RETIRED_SKILLS | LC_ALL=C sort -u | jq -Rsc 'split("\n") | map(select(length > 0))')"
+        # shellcheck disable=SC2016 # jq variables inside single quotes
+        settings_plan="$(jq -ce --argjson ids "$ids" --argjson drop "$drop_ids" '
+          if has("skills") and (.skills | type != "array" or any(.[]; type != "string")) then error("skills must be an array of strings") else . end |
+          ([$drop[] | "!**/.agents/skills/" + . + "/SKILL.md"]) as $rm |
+          ((.skills // []) | map(select(. as $p | $rm | index($p) | not))) as $kept |
+          .skills = ($kept + [$ids[] | "!**/.agents/skills/" + . + "/SKILL.md" | select(. as $p | $kept | index($p) | not)])
+        ' <<< "$existing")" || { echo 'invalid .pi/settings.json skills list' >&2; exit 1; }
+        ;;
+    esac
+  fi
+
+  # 1. Install CORE_SKILLS user-globally and prune stale global generated skills.
   local skill
-  for skill in $skills; do
+  for skill in $CORE_SKILLS; do
     [ -f "$src_dir/$skill/SKILL.md" ] || continue
     for h in $harnesses; do
-      install_one "$skill" "$h" "$target"
+      install_one global "$skill" "$h" "$ghome"
     done
   done
   for h in $harnesses; do
-    prune_stale "$h" "$target" "$skills"
+    prune_stale_in "$ghome" "$(global_harness_target "$h")" "$CORE_SKILLS"
   done
-  if [ -n "$settings_plan" ]; then
-    mkdir -p "$target/.pi"
-    printf '%s\n' "$settings_plan" | jq . > "$target/.pi/settings.json"
+
+  # 2. Write non-clobbering global hooks (gate on backpack.toml at runtime).
+  if [ -n "$claude_hooks_plan" ]; then
+    write_json_atomic "$ghome/.claude/settings.json" "$claude_hooks_plan"
+    echo "installed global hooks -> $ghome/.claude/settings.json"
   fi
-  local workflow_name
-  for workflow_name in $RETIRED_WORKFLOWS; do
-    if [ -f "$target/$WORKFLOWS_DIR/$workflow_name.js" ]; then
-      rm -f "$target/$WORKFLOWS_DIR/$workflow_name.js"
-      echo "pruned $workflow_name -> $WORKFLOWS_DIR/$workflow_name.js (retired workflow)"
+  if [ -n "$agy_hooks_plan" ]; then
+    write_json_atomic "$ghome/.gemini/config/hooks.json" "$agy_hooks_plan"
+    echo "installed global hooks -> $ghome/.gemini/config/hooks.json"
+  fi
+  if [ -n "$muse_hooks_plan" ]; then
+    write_json_atomic "$ghome/.muse/hooks.json" "$muse_hooks_plan"
+    echo "installed global hooks -> $ghome/.muse/hooks.json"
+  fi
+
+  # 3. Self mode only: render DEV_SKILLS repo-locally & prune local CORE_SKILLS.
+  if [ "$global_only" -eq 0 ] && [ "$mode" = "self" ]; then
+    for skill in $DEV_SKILLS; do
+      [ -f "$src_dir/$skill/SKILL.md" ] || continue
+      for h in $harnesses; do
+        install_one local "$skill" "$h" "$target"
+      done
+    done
+    for h in $harnesses; do
+      prune_stale_in "$target" "$(local_harness_target "$h")" "$DEV_SKILLS"
+    done
+    if [ -n "$settings_plan" ]; then
+      mkdir -p "$target/.pi"
+      printf '%s\n' "$settings_plan" | jq . > "$target/.pi/settings.json"
     fi
-  done
-  if [ -d "$target/$WORKFLOWS_DIR" ]; then
-    rmdir "$target/$WORKFLOWS_DIR" 2>/dev/null || true
-  fi
-  # Muse hook registration: one fail-open emitter command for
-  # every event. Repos without this file never fire hooks. The
-  # command is mode-aware (dogfood.3): self reads via the desk
-  # script, host reads call bp3 on PATH. `|| true` makes fail-open
-  # hold outside the script too: harnesses read exit 2 as "block",
-  # so a broken wrapper (or a missing bp3 on PATH) must still exit 0.
-  local hook_cmd="./bin/bp3 q hooks || true"
-  if [ "$mode" = "host" ]; then
-    hook_cmd="bp3 q hooks || true"
-  fi
-  mkdir -p "$target/.claude"
-  {
-    printf '{\n  "hooks": {\n'
-    printf '    "SessionStart": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
-    printf '    "PreToolUse": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
-    printf '    "PostToolUse": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
-    printf '    "PostToolUseFailure": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
-    printf '    "PostLLMCall": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
-    printf '    "SubagentStart": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
-    printf '    "SubagentStop": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
-    printf '    "Stop": [{"hooks": [{"type": "command", "command": "%s"}]}],\n' "$hook_cmd"
-    printf '    "SessionEnd": [{"hooks": [{"type": "command", "command": "%s"}]}]\n' "$hook_cmd"
-    printf '  }\n}\n'
-  } > "$target/.claude/hooks.json"
-  echo "installed hooks -> .claude/hooks.json"
-  # Claude Code loads hooks from settings.json, not hooks.json
-  # (live probe 2026-11-14: hooks.json alone never fired; the
-  # same hooks under settings.json produced ledger event lines).
-  # Merge into any existing settings, preserving other keys.
-  # PostLLMCall is Muse-only; Claude Code warns on unknown events.
-  local claude_settings="$target/.claude/settings.json"
-  local existing_settings='{}'
-  if [ -e "$claude_settings" ]; then
-    existing_settings="$(cat "$claude_settings")"
-  fi
-  printf '%s\n' "$existing_settings" | jq --slurpfile hj "$target/.claude/hooks.json" \
-    '.hooks = ($hj[0].hooks | del(.PostLLMCall))' > "$claude_settings.tmp"
-  mv "$claude_settings.tmp" "$claude_settings"
-  echo "installed hooks -> .claude/settings.json"
-  # Muse hook registration: project tier .muse/hooks.json at the
-  # workspace root (live probe 2026-11-13: fires in the main session
-  # and in workflow children; no settings merge needed).
-  case " $harnesses " in
-    *" muse "*)
-      mkdir -p "$target/.muse"
-      cp "$target/.claude/hooks.json" "$target/.muse/hooks.json"
-      echo "installed hooks -> .muse/hooks.json"
-      ;;
-  esac
-  # Antigravity CLI (agy) hook registration: .agents/hooks.json uses
-  # named top-level hook groups, flat SessionStart/Stop, grouped
-  # PreToolUse/PostToolUse with matcher, and runs with cwd=.agents/.
-  case " $harnesses " in
-    *" agy "*)
-      local agy_hook_cmd="../bin/bp3 q hooks || true"
-      if [ "$mode" = "host" ]; then
-        agy_hook_cmd="bp3 q hooks || true"
+    local workflow_name
+    for workflow_name in $RETIRED_WORKFLOWS; do
+      if [ -f "$target/$WORKFLOWS_DIR/$workflow_name.js" ]; then
+        rm -f "$target/$WORKFLOWS_DIR/$workflow_name.js"
+        echo "pruned $workflow_name -> $WORKFLOWS_DIR/$workflow_name.js (retired workflow)"
       fi
-      mkdir -p "$target/.agents"
-      {
-        printf '{\n  "bp3": {\n'
-        printf '    "SessionStart": [{"type": "command", "command": "%s"}],\n' "$agy_hook_cmd"
-        printf '    "PreToolUse": [{"matcher": "run_command", "hooks": [{"type": "command", "command": "%s"}]}],\n' "$agy_hook_cmd"
-        printf '    "PostToolUse": [{"matcher": "run_command", "hooks": [{"type": "command", "command": "%s"}]}],\n' "$agy_hook_cmd"
-        printf '    "Stop": [{"type": "command", "command": "%s"}]\n' "$agy_hook_cmd"
-        printf '  }\n}\n'
-      } > "$target/.agents/hooks.json"
-      echo "installed hooks -> .agents/hooks.json"
-      ;;
-  esac
-  # Note: codex and muse share .agents/skills; under --harness=all the muse
-  # render (same dir) is written last. Invocation text differs only in the
-  # trigger line; both harnesses accept the skill by name.
-  # Tab completion delivery: copy the scripts into an existing zsh
-  # completions dir when one is found (BP3_COMPLETIONS_DIR overrides the
-  # search); otherwise print the path to add. Never edit a shell rc file.
+    done
+    if [ -d "$target/$WORKFLOWS_DIR" ]; then
+      rmdir "$target/$WORKFLOWS_DIR" 2>/dev/null || true
+    fi
+  fi
+
+  # 4. Tab completion delivery (skipped when --global or BP3_SKIP_COMPLETIONS=1).
   local comp_src="$completions_dir/_bp3" comp_bash_src="$completions_dir/bp3.bash"
-  if [ "${BP3_SKIP_COMPLETIONS:-}" != "1" ] && [ -f "$comp_src" ]; then
+  if [ "$global_only" -eq 0 ] && [ "${BP3_SKIP_COMPLETIONS:-}" != "1" ] && [ -f "$comp_src" ]; then
     local comp_dest=''
     if [ -n "${BP3_COMPLETIONS_DIR:-}" ]; then
       comp_dest="$BP3_COMPLETIONS_DIR"
@@ -308,12 +366,9 @@ skills_install() {
     fi
   fi
 
-  # Auto-register target git repo in bp3.sqlite (sqlite-control-plane repo.1, fail-fast).
-  # In self/repo layout (where $root/skills exists), invoke only the repo's own built
-  # binary (or BP3_Q_BIN) so an unbuilt fixture never falls back to a stale bp3-q on PATH.
-  if git -C "$target" rev-parse --git-common-dir >/dev/null 2>&1; then
-    local reg_bin=''
-    local cand_bin
+  # 5. Auto-register target git repo in bp3.sqlite (fail-fast, skipped on --global).
+  if [ "$global_only" -eq 0 ] && git -C "$target" rev-parse --git-common-dir >/dev/null 2>&1; then
+    local reg_bin='' cand_bin
     cand_bin="$(q_bin)"
     if [[ -x $cand_bin ]]; then
       reg_bin="$cand_bin"
@@ -326,12 +381,116 @@ skills_install() {
   fi
 }
 
-# Render freshness (followup.2): a dispatch must never launch a render
-# older than its source. SKILL.md renders carry one GENERATED notice
-# after frontmatter (body equality plus release tag match when
-# share/bp3/RELEASE is present).
-# Fresh is silent JSON ok; stale refuses E_RENDER_STALE naming
-# render and source.
+# Remove duplicated repo-local bp3 GENERATED skill copies and legacy repo-local
+# bp3 hooks without ever touching repo-owned skills or non-bp3 user hooks.
+skills_prune_local() {
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      --mode|--mode=*) mode_flag_error "$arg" ;;
+      *) echo "unknown arg: $arg" >&2; exit 2 ;;
+    esac
+  done
+  local target mode keep_skills=""
+  target="$(target_root)"
+  mode="$(repo_mode "$target")"
+  if [ "$mode" = "self" ]; then
+    keep_skills="$DEV_SKILLS"
+  fi
+  local pruned_skills_json="" pruned_hooks_json=""
+  local d dir name
+  for d in .pi/skills .claude/skills .agents/skills; do
+    [ -d "$target/$d" ] || continue
+    for dir in "$target/$d"/*/; do
+      [ -f "$dir/SKILL.md" ] || continue
+      name="$(basename "$dir")"
+      case " $keep_skills " in *" $name "*) continue ;; esac
+      grep -q '^<!-- GENERATED from skills/' "$dir/SKILL.md" || continue
+      rm -rf "$dir"
+      pruned_skills_json="${pruned_skills_json}\"$d/$name\","
+    done
+    rmdir "$target/$d" 2>/dev/null || true
+  done
+
+  # Prune retired workflows
+  local wf
+  for wf in $RETIRED_WORKFLOWS; do
+    if [ -f "$target/$WORKFLOWS_DIR/$wf.js" ]; then
+      rm -f "$target/$WORKFLOWS_DIR/$wf.js"
+    fi
+  done
+  [ -d "$target/$WORKFLOWS_DIR" ] && rmdir "$target/$WORKFLOWS_DIR" 2>/dev/null || true
+
+  # Prune legacy repo-local bp3 hook files / entries safely
+  for hf in .claude/hooks.json .muse/hooks.json; do
+    if [ -f "$target/$hf" ] && grep -q 'bp3 q hooks' "$target/$hf"; then
+      rm -f "$target/$hf"
+      pruned_hooks_json="${pruned_hooks_json}\"$hf\","
+      rmdir "$(dirname "$target/$hf")" 2>/dev/null || true
+    fi
+  done
+  if [ -f "$target/.agents/hooks.json" ] && jq -e 'type == "object" and has("bp3")' "$target/.agents/hooks.json" >/dev/null 2>&1; then
+    local rem_agy
+    rem_agy="$(jq -c 'del(.bp3)' "$target/.agents/hooks.json")"
+    pruned_hooks_json="${pruned_hooks_json}\".agents/hooks.json\","
+    if [ "$rem_agy" = "{}" ]; then
+      rm -f "$target/.agents/hooks.json"
+      rmdir "$target/.agents" 2>/dev/null || true
+    else
+      write_json_atomic "$target/.agents/hooks.json" "$rem_agy"
+    fi
+  fi
+  if [ -f "$target/.claude/settings.json" ] && grep -q 'bp3 q hooks' "$target/.claude/settings.json"; then
+    local rem_claude
+    # shellcheck disable=SC2016 # jq variables inside single quotes
+    rem_claude="$(jq -c '
+      if (.hooks | type) == "object" then
+        .hooks = (.hooks | with_entries(
+          .value = (if (.value | type) == "array" then
+            (.value | map(select(((.hooks // []) | any(.command? | type == "string" and contains("bp3 q hooks"))) | not)))
+          else .value end)
+        ) | with_entries(select((.value | type) != "array" or (.value | length) > 0)))
+        | if (.hooks | length) == 0 then del(.hooks) else . end
+      else . end
+    ' "$target/.claude/settings.json")"
+    pruned_hooks_json="${pruned_hooks_json}\".claude/settings.json\","
+    if [ "$rem_claude" = "{}" ]; then
+      rm -f "$target/.claude/settings.json"
+      rmdir "$target/.claude" 2>/dev/null || true
+    else
+      write_json_atomic "$target/.claude/settings.json" "$rem_claude"
+    fi
+  fi
+  if [ -f "$target/.pi/settings.json" ] && jq -e 'type == "object" and (.skills | type == "array")' "$target/.pi/settings.json" >/dev/null 2>&1; then
+    local drop_pi rem_pi
+    if [ "$mode" = "self" ]; then
+      # shellcheck disable=SC2086 # space-separated skill lists by design
+      drop_pi="$(printf '%s\n' $CORE_SKILLS $RETIRED_SKILLS | LC_ALL=C sort -u | jq -Rsc 'split("\n") | map(select(length > 0))')"
+    else
+      # shellcheck disable=SC2086 # space-separated skill lists by design
+      drop_pi="$(printf '%s\n' $CORE_SKILLS $DEV_SKILLS $RETIRED_SKILLS | LC_ALL=C sort -u | jq -Rsc 'split("\n") | map(select(length > 0))')"
+    fi
+    # shellcheck disable=SC2016 # jq variables inside single quotes
+    rem_pi="$(jq -c --argjson drop "$drop_pi" '
+      ([$drop[] | "!**/.agents/skills/" + . + "/SKILL.md"]) as $rm |
+      .skills = (.skills | map(select(. as $p | $rm | index($p) | not))) |
+      if (.skills | length) == 0 then del(.skills) else . end
+    ' "$target/.pi/settings.json")"
+    if [ "$rem_pi" = "{}" ]; then
+      rm -f "$target/.pi/settings.json"
+      rmdir "$target/.pi" 2>/dev/null || true
+    else
+      write_json_atomic "$target/.pi/settings.json" "$rem_pi"
+    fi
+  fi
+
+  printf '{"ok":true,"mode":"%s","pruned_skills":[%s],"pruned_hooks":[%s]}\n' \
+    "$mode" "${pruned_skills_json%,}" "${pruned_hooks_json%,}"
+}
+
+# Render freshness (followup.2, global.1): check global CORE_SKILLS renders
+# (plus repo-local DEV_SKILLS in self mode). Body equality plus release tag
+# match when share/bp3/RELEASE is present.
 strip_generated_notice() {
   awk '
     !done && /^---$/ { n++; print; next }
@@ -348,6 +507,33 @@ generated_notice_line() {
     n == 2 { print; exit }' "$1"
 }
 
+check_one_skill_render() {
+  local skill="$1" base="$2" rel_dir="$3" release_tag="$4"
+  local src_skill="$src_dir/$skill/SKILL.md"
+  local render_skill="$base/$rel_dir/$skill/SKILL.md"
+  local notice is_stale=0
+  if [ ! -f "$render_skill" ]; then
+    is_stale=1
+  else
+    notice="$(generated_notice_line "$render_skill")"
+    if [ -n "$release_tag" ]; then
+      case "$notice" in
+        "<!-- GENERATED from skills/$skill/SKILL.md ($release_tag) by: bp3 skills install --harness="*) ;;
+        *) is_stale=1 ;;
+      esac
+    else
+      case "$notice" in
+        "<!-- GENERATED from skills/$skill/SKILL.md"*" by: bp3 skills install --harness="*) ;;
+        *) is_stale=1 ;;
+      esac
+    fi
+    if [ "$is_stale" -eq 0 ] && ! strip_generated_notice "$render_skill" | cmp -s - "$src_skill"; then
+      is_stale=1
+    fi
+  fi
+  return "$is_stale"
+}
+
 skills_check() {
   local arg
   for arg in "$@"; do
@@ -356,71 +542,67 @@ skills_check() {
       *) echo "unknown arg: $arg" >&2; exit 2 ;;
     esac
   done
-  local target mode skills release_tag="" release_file
+  local ghome target mode release_tag=""
+  ghome="$(global_home)"
   target="$(target_root)"
   mode="$(repo_mode "$target")"
-  skills="$CORE_SKILLS"
-  if [ "$mode" = "self" ]; then
-    skills="$CORE_SKILLS $DEV_SKILLS"
-  fi
-  release_file="${BP3_SHARE_DIR:-$root/share/bp3}/RELEASE"
-  if [ -f "$release_file" ] && command -v jq >/dev/null 2>&1; then
-    release_tag="$(jq -r '.tag // empty' "$release_file" 2>/dev/null || true)"
-  fi
-  local stale_json="" stale_count=0
-  local skill_dirs="" d skill src_skill render_skill notice skills_checked=0 is_stale
-  for d in .pi/skills .claude/skills .agents/skills; do
-    if [ -d "$target/$d" ]; then
-      skill_dirs="${skill_dirs:+$skill_dirs }$d"
+  release_tag="$(current_release_tag)"
+
+  local stale_json="" stale_count=0 skills_checked=0
+  local global_dirs="" d skill
+  for d in .gemini/config/skills .claude/skills .pi/agent/skills .codex/skills .muse/skills; do
+    if [ -d "$ghome/$d" ]; then
+      global_dirs="${global_dirs:+$global_dirs }$d"
     fi
   done
-  if [ -z "$skill_dirs" ]; then
-    skill_dirs=".pi/skills .claude/skills .agents/skills"
+  if [ -z "$global_dirs" ]; then
+    global_dirs=".gemini/config/skills .claude/skills .pi/agent/skills .codex/skills .muse/skills"
   fi
-  for d in $skill_dirs; do
-    for skill in $skills; do
-      src_skill="$src_dir/$skill/SKILL.md"
-      [ -f "$src_skill" ] || continue
+  for d in $global_dirs; do
+    for skill in $CORE_SKILLS; do
+      [ -f "$src_dir/$skill/SKILL.md" ] || continue
       skills_checked=$((skills_checked + 1))
-      render_skill="$target/$d/$skill/SKILL.md"
-      is_stale=0
-      if [ ! -f "$render_skill" ]; then
-        is_stale=1
-      else
-        notice="$(generated_notice_line "$render_skill")"
-        if [ -n "$release_tag" ]; then
-          case "$notice" in
-            "<!-- GENERATED from skills/$skill/SKILL.md ($release_tag) by: bp3 skills install --harness="*) ;;
-            *) is_stale=1 ;;
-          esac
-        else
-          case "$notice" in
-            "<!-- GENERATED from skills/$skill/SKILL.md"*" by: bp3 skills install --harness="*) ;;
-            *) is_stale=1 ;;
-          esac
-        fi
-        if [ "$is_stale" -eq 0 ] && ! strip_generated_notice "$render_skill" | cmp -s - "$src_skill"; then
-          is_stale=1
-        fi
-      fi
-      if [ "$is_stale" -ne 0 ]; then
+      if ! check_one_skill_render "$skill" "$ghome" "$d" "$release_tag"; then
         stale_count=$((stale_count + 1))
-        stale_json="${stale_json}{\"skill\":\"$skill\",\"render\":\"$d/$skill/SKILL.md\",\"source\":\"skills/$skill/SKILL.md\"},"
+        stale_json="${stale_json}{\"skill\":\"$skill\",\"render\":\"$ghome/$d/$skill/SKILL.md\",\"source\":\"skills/$skill/SKILL.md\"},"
       fi
     done
   done
+
+  if [ "$mode" = "self" ]; then
+    local local_dirs=""
+    for d in .pi/skills .claude/skills .agents/skills; do
+      if [ -d "$target/$d" ]; then
+        local_dirs="${local_dirs:+$local_dirs }$d"
+      fi
+    done
+    if [ -z "$local_dirs" ]; then
+      local_dirs=".pi/skills .claude/skills .agents/skills"
+    fi
+    for d in $local_dirs; do
+      for skill in $DEV_SKILLS; do
+        [ -f "$src_dir/$skill/SKILL.md" ] || continue
+        skills_checked=$((skills_checked + 1))
+        if ! check_one_skill_render "$skill" "$target" "$d" "$release_tag"; then
+          stale_count=$((stale_count + 1))
+          stale_json="${stale_json}{\"skill\":\"$skill\",\"render\":\"$d/$skill/SKILL.md\",\"source\":\"skills/$skill/SKILL.md\"},"
+        fi
+      done
+    done
+  fi
+
   if [ "$stale_count" -gt 0 ]; then
     if [ "$mode" = "self" ]; then
       printf '{"ok":false,"error":{"code":"E_RENDER_STALE","facts":{"stale":[%s]},"guidance":"Re-render in the desk (./bin/bp3 skills install) and re-check; never launch a stale render."}}\n' "${stale_json%,}"
     else
-      printf '{"ok":false,"error":{"code":"E_RENDER_STALE","facts":{"stale":[%s]},"guidance":"Re-render in the repo (bp3 skills install) and re-check; never launch a stale render."}}\n' "${stale_json%,}"
+      printf '{"ok":false,"error":{"code":"E_RENDER_STALE","facts":{"stale":[%s]},"guidance":"Re-render global skills (bp3 skills install) and re-check; never launch a stale render."}}\n' "${stale_json%,}"
     fi
     exit 1
   fi
   printf '{"ok":true,"fresh":[],"skills_checked":%d}\n' "$skills_checked"
 }
 
-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|agy|all>] | bp3 init-repo | bp3 skills install [...] | bp3 skills check | bp3 q ... | bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table] | bp3 release (<quest> | --commit <sha>) [...] | bp3 db info [--format json|table] | bp3 repo add|list|remove [...] | bp3 ticket add|list|read|claim|unclaim|done|dismiss [...] | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|agy|all>] | bp3 init-repo | bp3 skills install [--global] [--harness=...] | bp3 skills check | bp3 skills prune-local | bp3 q ... | bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table] | bp3 release (<quest> | --commit <sha>) [...] | bp3 db info [--format json|table] | bp3 repo add|list|remove [...] | bp3 ticket add|list|read|claim|unclaim|done|dismiss [...] | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
 q_bin() { echo "${BP3_Q_BIN:-$root/_build/default/$ENGINE_SRC/main.exe}"; }
 run_q() {
   local door="$1"; shift
@@ -476,6 +658,7 @@ case "${1:-}" in
     case "${1:-}" in
       install) shift; skills_install "$@" ;;
       check) shift; skills_check "$@" ;;
+      prune-local) shift; skills_prune_local "$@" ;;
       *) echo "$usage_text" >&2; exit 2 ;;
     esac
     ;;

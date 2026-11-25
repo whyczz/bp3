@@ -6,6 +6,7 @@ work=$(mktemp -d "${TMPDIR:-/tmp}/bp3-skills-tests.XXXXXX")
 trap 'rm -rf -- "$work"' EXIT
 export BP3_DB="${BP3_DB:-$work/bp3.sqlite}"
 export BP3_COMPLETIONS_DIR="${BP3_COMPLETIONS_DIR:-$work/completions}"
+export BP3_GLOBAL_HOME="$work/home"
 export BP3_Q_BIN="${BP3_Q_BIN:-$repo/_build/default/src/quest/main.exe}"
 [ -x "$BP3_Q_BIN" ] || { echo "build first: dune build src/quest/main.exe" >&2; exit 1; }
 checks=0
@@ -14,11 +15,25 @@ rejects() {
   if "$@" > "$work/out" 2> "$work/error"; then printf 'FAIL: expected rejection: %s\n' "$*" >&2; exit 1; fi
   checks=$((checks + 1))
 }
-# A fresh checkout must carry the project-scope discovery exclusions too.
-for skill_dir in "$repo"/skills/*/; do
-  id=$(basename "$skill_dir")
+# A fresh checkout must carry backpack.toml, DEV_SKILLS-only local renders,
+# zero local CORE_SKILLS/hooks, and DEV_SKILLS discovery exclusions.
+assert test -f "$repo/backpack.toml"
+for id in add-bp3-skill add-yap-skill using-bp3; do
   assert jq -e --arg pattern "!**/.agents/skills/$id/SKILL.md" '.skills | index($pattern) != null' "$repo/.pi/settings.json"
+  for d in .agents/skills .claude/skills .pi/skills; do
+    assert test -f "$repo/$d/$id/SKILL.md"
+  done
 done
+for core in induct induct-yolo quest icebox naming red-ink warden; do
+  assert grep -qF 'backpack.toml' "$repo/skills/$core/SKILL.md"
+  for d in .agents/skills .claude/skills .pi/skills; do
+    assert test ! -e "$repo/$d/$core"
+  done
+done
+assert test ! -e "$repo/.agents/hooks.json"
+assert test ! -e "$repo/.claude/hooks.json"
+assert test ! -e "$repo/.muse/hooks.json"
+assert test ! -e "$repo/.claude/settings.json"
 
 mkdir -p "$work/project with spaces/bin" "$work/project with spaces/scripts"
 root="$work/project with spaces"
@@ -66,32 +81,38 @@ rejects "$root/bin/bp3" skills install --harness=unknown
 assert test ! -e "$root/.pi"
 rejects "$root/bin/bp3" skills install --harness
 
-mkdir -p "$root/.pi"
+mkdir -p "$root/.pi" "$work/home/.gemini/config/skills/yap-commit" "$work/home/.claude" "$work/home/.gemini/config"
 printf '{"defaultModel":"keep","skills":["/extra","!**/ignored/**"]}\n' > "$root/.pi/settings.json"
+# Plant a yap skill + custom user hooks in BP3_GLOBAL_HOME: bp3 must NEVER clobber them!
+printf -- '---\nname: yap-commit\ndescription: yap user skill\n---\nyap body\n' > "$work/home/.gemini/config/skills/yap-commit/SKILL.md"
+printf '{"version":"0.1.0"}\n' > "$work/home/.gemini/config/skills/yap-skills.lock.json"
+printf '{"keepMe":true,"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"echo custom-claude-hook"}]}],"PreToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"echo custom-edit"}]}]}}\n' > "$work/home/.claude/settings.json"
+printf '{"my-custom-hook":{"Stop":[{"type":"command","command":"echo custom-agy-stop"}]}}\n' > "$work/home/.gemini/config/hooks.json"
+
 "$root/bin/bp3" skills install --harness=all > /dev/null
-"$root/scripts/check-skills" "$root/skills" "$root/.pi/skills" "$root/.agents/skills" "$root/.claude/skills" > /dev/null
+"$root/scripts/check-skills" "$root/skills" "$root/.pi/skills" "$root/.agents/skills" "$root/.claude/skills" \
+  "$work/home/.gemini/config/skills" "$work/home/.claude/skills" "$work/home/.pi/agent/skills" "$work/home/.codex/skills" "$work/home/.muse/skills" > /dev/null
 # compat.1: fail-fast skills install auto-registers "project with spaces" -> "project-with-spaces"
 assert jq -e '([.repos[].name] | index("project-with-spaces") != null)' <<< "$("$repo/bin/bp3" repo list)" >/dev/null
+# yap skill & lockfile untouched
+assert test -f "$work/home/.gemini/config/skills/yap-commit/SKILL.md"
+assert test -f "$work/home/.gemini/config/skills/yap-skills.lock.json"
 
-# Stale renders: a generated copy whose skill left the set is pruned;
-# a hand-written skill (no GENERATED notice) is never touched.
-mkdir -p "$root/.claude/skills/retired-skill" "$root/.claude/skills/hand-made"
-printf -- '---\nname: retired-skill\n---\n<!-- GENERATED from skills/retired-skill/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->\nold\n' > "$root/.claude/skills/retired-skill/SKILL.md"
-printf -- '---\nname: hand-made\n---\nmine\n' > "$root/.claude/skills/hand-made/SKILL.md"
+# Stale global renders: a generated copy whose skill left CORE_SKILLS is pruned;
+# hand-written / yap skills (no GENERATED notice) are never touched.
+mkdir -p "$work/home/.claude/skills/retired-skill" "$work/home/.claude/skills/hand-made"
+printf -- '---\nname: retired-skill\n---\n<!-- GENERATED from skills/retired-skill/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->\nold\n' > "$work/home/.claude/skills/retired-skill/SKILL.md"
+printf -- '---\nname: hand-made\n---\nmine\n' > "$work/home/.claude/skills/hand-made/SKILL.md"
 "$root/bin/bp3" skills install --harness=claude > "$work/prune.out"
-assert test ! -e "$root/.claude/skills/retired-skill"
-assert test -f "$root/.claude/skills/hand-made/SKILL.md"
+assert test ! -e "$work/home/.claude/skills/retired-skill"
+assert test -f "$work/home/.claude/skills/hand-made/SKILL.md"
 assert grep -q 'pruned retired-skill' "$work/prune.out"
-rm -rf "$root/.claude/skills/hand-made"
+rm -rf "$work/home/.claude/skills/hand-made"
 
-# Render freshness (followup.2, workflow-birth): a fresh desk
-# passes silently; a backdated SKILL.md render (body drift,
-# missing skill, or missing release tag) refuses
-# E_RENDER_STALE naming render and source; re-render restores freshness.
+# Render freshness (followup.2, global.1): checks global CORE_SKILLS + self-local DEV_SKILLS.
 "$root/bin/bp3" skills check > "$work/check-fresh.json"
 assert jq -e '.ok == true and .skills_checked > 0' "$work/check-fresh.json"
-# Retired Muse JS workflows in downstream repos are pruned on skills install,
-# and an empty .agents/workflows/ directory is removed cleanly.
+# Retired Muse JS workflows in self repo are pruned on skills install.
 mkdir -p "$root/.agents/workflows"
 for wf in node-loop induct-grade induct-land induct-node bp3g-node; do
   printf '// legacy\n' > "$root/.agents/workflows/$wf.js"
@@ -102,16 +123,17 @@ for wf in node-loop induct-grade induct-land induct-node bp3g-node; do
   assert grep -q "pruned $wf" "$work/prune-wf.out"
 done
 assert test ! -e "$root/.agents/workflows"
-printf '\n<!-- drifted skill body -->\n' >> "$root/.agents/skills/quest/SKILL.md"
+# Drift in global CORE_SKILL or local DEV_SKILL refuses E_RENDER_STALE
+printf '\n<!-- drifted skill body -->\n' >> "$work/home/.gemini/config/skills/quest/SKILL.md"
 rejects "$root/bin/bp3" skills check
 assert grep -q 'E_RENDER_STALE' "$work/out"
-assert grep -q '.agents/skills/quest/SKILL.md' "$work/out"
+assert grep -q 'quest/SKILL.md' "$work/out"
 assert grep -q 'skills/quest/SKILL.md' "$work/out"
 "$root/bin/bp3" skills install --harness=all > /dev/null
-rm -rf "$root/.claude/skills/warden"
+rm -rf "$work/home/.claude/skills/warden"
 rejects "$root/bin/bp3" skills check
 assert grep -q 'E_RENDER_STALE' "$work/out"
-assert grep -q '.claude/skills/warden/SKILL.md' "$work/out"
+assert grep -q 'warden/SKILL.md' "$work/out"
 mkdir -p "$work/share-rel"
 printf '{"tag":"v0.3.1","version":"0.3.1"}\n' > "$work/share-rel/RELEASE"
 BP3_SHARE_DIR="$work/share-rel" rejects "$root/bin/bp3" skills check
@@ -122,66 +144,89 @@ assert jq -e '.ok == true and .skills_checked > 0' "$work/check-tagged.json"
 "$root/bin/bp3" skills install --harness=all > /dev/null
 "$root/bin/bp3" skills check > "$work/check-rerendered.json"
 assert jq -e '.ok == true' "$work/check-rerendered.json"
-assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/icebox/SKILL.md","!**/.agents/skills/induct/SKILL.md","!**/.agents/skills/induct-yolo/SKILL.md","!**/.agents/skills/naming/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/red-ink/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md","!**/.agents/skills/warden/SKILL.md"]' "$root/.pi/settings.json"
-# induct is the one conducting skill; retired traverse/bp3g/induct-inline names render nowhere.
-for h in .pi .agents .claude; do
-  assert test -f "$root/$h/skills/induct/SKILL.md"
+# Self-mode .pi/settings.json carries DEV_SKILLS exclusions only (never CORE_SKILLS)
+assert jq -e '.defaultModel == "keep" and .skills == ["/extra","!**/ignored/**","!**/.agents/skills/add-bp3-skill/SKILL.md","!**/.agents/skills/add-yap-skill/SKILL.md","!**/.agents/skills/using-bp3/SKILL.md"]' "$root/.pi/settings.json"
+# CORE_SKILLS live globally; retired names render nowhere.
+for d in .pi/agent/skills .gemini/config/skills .claude/skills .codex/skills .muse/skills; do
+  assert test -f "$work/home/$d/induct/SKILL.md"
+  assert test -f "$work/home/$d/induct-yolo/SKILL.md"
   for retired in traverse traverse-no-human bp3g bp3g-frame bp3g-no-human bp3g-landing-demo induct-inline induct-inline-yolo; do
-    assert test ! -e "$root/$h/skills/$retired"
+    assert test ! -e "$work/home/$d/$retired"
   done
 done
-# Pruning legacy induct-inline* renders automatically on skills install (codebase-diet skills.1).
+# Self-mode repo-local dirs carry ONLY DEV_SKILLS (0 CORE_SKILLS).
+for h in .pi .agents .claude; do
+  assert test -f "$root/$h/skills/add-yap-skill/SKILL.md"
+  assert test "$(yq --front-matter=extract '.description' "$root/$h/skills/add-yap-skill/SKILL.md")" = "$(yq --front-matter=extract '.description' "$source")"
+  assert test ! -e "$root/$h/skills/quest"
+  assert test ! -e "$root/$h/skills/induct"
+done
+# Pruning legacy induct-inline* global renders automatically on skills install
 for s in induct-inline induct-inline-yolo; do
-  mkdir -p "$root/.claude/skills/$s"
-  printf -- '---\nname: %s\n---\n<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->\nold\n' "$s" "$s" > "$root/.claude/skills/$s/SKILL.md"
+  mkdir -p "$work/home/.claude/skills/$s"
+  printf -- '---\nname: %s\n---\n<!-- GENERATED from skills/%s/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->\nold\n' "$s" "$s" > "$work/home/.claude/skills/$s/SKILL.md"
 done
 "$root/bin/bp3" skills install --harness=claude > "$work/prune-inline.out"
-assert test ! -e "$root/.claude/skills/induct-inline"
-assert test ! -e "$root/.claude/skills/induct-inline-yolo"
+assert test ! -e "$work/home/.claude/skills/induct-inline"
+assert test ! -e "$work/home/.claude/skills/induct-inline-yolo"
 assert grep -q 'pruned induct-inline' "$work/prune-inline.out"
 assert grep -q 'pruned induct-inline-yolo' "$work/prune-inline.out"
-# The no-human skill renders beside induct in every harness.
-for h in .pi .agents .claude; do
-  assert test -f "$root/$h/skills/induct-yolo/SKILL.md"
-done
-for h in .pi .agents .claude; do
-  assert test "$(yq --front-matter=extract '.description' "$root/$h/skills/add-yap-skill/SKILL.md")" = "$(yq --front-matter=extract '.description' "$source")"
-  assert test -f "$root/$h/skills/quest/SKILL.md"
-done
 assert test ! -e "$root/.agents/workflows"
-assert test -f "$root/.claude/hooks.json"
-assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks || true" and (.hooks | has("PreToolUse") and has("PostToolUse") and has("PostToolUseFailure") and has("PostLLMCall") and has("SubagentStart") and has("SubagentStop") and has("Stop") and has("SessionEnd"))' "$root/.claude/hooks.json"
-assert test -f "$root/.muse/hooks.json"
-assert cmp "$root/.claude/hooks.json" "$root/.muse/hooks.json"
-assert test -f "$root/.claude/settings.json"
-assert jq -e '.hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks || true" and (.hooks | has("PostLLMCall") | not)' "$root/.claude/settings.json"
-assert test -f "$root/.agents/hooks.json"
-assert jq -e '.bp3.SessionStart[0].command == "../bin/bp3 q hooks || true" and .bp3.PreToolUse[0].hooks[0].command == "../bin/bp3 q hooks || true" and .bp3.PostToolUse[0].hooks[0].command == "../bin/bp3 q hooks || true" and .bp3.Stop[0].command == "../bin/bp3 q hooks || true"' "$root/.agents/hooks.json"
-mkdir -p "$root/.claude"
-printf '{"keepMe":true}\n' > "$root/.claude/settings.json"
+
+# Non-clobbering global hooks: custom user hooks in ~/.claude/settings.json & ~/.gemini/config/hooks.json survive!
+assert test -f "$work/home/.claude/settings.json"
+assert jq -e '.keepMe == true and (.hooks.SessionStart | length) == 2 and .hooks.SessionStart[0].hooks[0].command == "echo custom-claude-hook" and .hooks.SessionStart[1].hooks[0].command == "bp3 q hooks || true" and (.hooks.PreToolUse | length) == 2 and .hooks.PreToolUse[0].matcher == "Edit" and (.hooks | has("PostLLMCall") | not)' "$work/home/.claude/settings.json"
+# Re-running skills install is idempotent (no duplicate bp3 q hooks entries!)
 "$root/bin/bp3" skills install --harness=claude > /dev/null
-assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./bin/bp3 q hooks || true"' "$root/.claude/settings.json"
+assert jq -e '(.hooks.SessionStart | length) == 2 and .hooks.SessionStart[0].hooks[0].command == "echo custom-claude-hook" and .hooks.SessionStart[1].hooks[0].command == "bp3 q hooks || true"' "$work/home/.claude/settings.json"
+assert test -f "$work/home/.gemini/config/hooks.json"
+assert jq -e '."my-custom-hook".Stop[0].command == "echo custom-agy-stop" and .bp3.SessionStart[0].command == "bp3 q hooks || true" and .bp3.PreToolUse[0].hooks[0].command == "bp3 q hooks || true" and .bp3.PostToolUse[0].hooks[0].command == "bp3 q hooks || true" and .bp3.Stop[0].command == "bp3 q hooks || true"' "$work/home/.gemini/config/hooks.json"
+assert test -f "$work/home/.muse/hooks.json"
+assert jq -e '.hooks.SessionStart[0].hooks[0].command == "bp3 q hooks || true" and (.hooks | has("PostLLMCall"))' "$work/home/.muse/hooks.json"
+
 cp "$root/.pi/settings.json" "$work/settings.before"
 "$root/bin/bp3" skills install --harness=pi > /dev/null
 assert cmp "$work/settings.before" "$root/.pi/settings.json"
-# Stale retired bp3 skill exclusions in .pi/settings.json are pruned automatically
-# while unrelated user entries stay untouched (codebase-diet warden fix).
-jq '.skills += ["!**/.agents/skills/induct-inline/SKILL.md","!**/.agents/skills/induct-inline-yolo/SKILL.md","!**/.agents/skills/bp3g/SKILL.md"]' "$root/.pi/settings.json" > "$work/settings.stale"
+# Stale retired & core bp3 skill exclusions in .pi/settings.json are pruned automatically
+jq '.skills += ["!**/.agents/skills/induct-inline/SKILL.md","!**/.agents/skills/quest/SKILL.md","!**/.agents/skills/bp3g/SKILL.md"]' "$root/.pi/settings.json" > "$work/settings.stale"
 mv "$work/settings.stale" "$root/.pi/settings.json"
 "$root/bin/bp3" skills install --harness=pi > /dev/null
 assert cmp "$work/settings.before" "$root/.pi/settings.json"
 
 # Corrupt settings must fail BEFORE rewriting any installed files.
-printf 'sentinel\n' > "$root/.pi/skills/quest/SKILL.md"
+printf 'sentinel\n' > "$root/.pi/skills/using-bp3/SKILL.md"
 for settings in '{broken' '{"skills":null}' '{"skills":[1]}'; do
   printf '%s\n' "$settings" > "$root/.pi/settings.json"
   rejects "$root/bin/bp3" skills install --harness=all
-  assert grep -qx sentinel "$root/.pi/skills/quest/SKILL.md"
+  assert grep -qx sentinel "$root/.pi/skills/using-bp3/SKILL.md"
 done
 # Non-Pi installations must leave project Pi settings alone.
 printf '{broken' > "$root/.pi/settings.json"
 "$root/bin/bp3" skills install --harness=codex > /dev/null
 assert grep -qx '{broken' "$root/.pi/settings.json"
+
+# global.1: bp3 skills prune-local removes generated bp3 copies & legacy hooks while preserving repo-owned skills & custom hooks
+legacy_host="$work/legacy-host"
+mkdir -p "$legacy_host/.agents/skills/quest" "$legacy_host/.agents/skills/new-strategy" "$legacy_host/.claude/skills/warden" "$legacy_host/.claude" "$legacy_host/.muse" "$legacy_host/.pi"
+git -C "$legacy_host" init -q -b master
+printf -- '---\nname: quest\ndescription: old\n---\n<!-- GENERATED from skills/quest/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->\nold\n' > "$legacy_host/.agents/skills/quest/SKILL.md"
+printf -- '---\nname: new-strategy\ndescription: repo owned\n---\nkeep me\n' > "$legacy_host/.agents/skills/new-strategy/SKILL.md"
+printf -- '---\nname: warden\ndescription: old\n---\n<!-- GENERATED from skills/warden/SKILL.md by: bp3 skills install --harness=claude. Edit the source, then re-run. -->\nold\n' > "$legacy_host/.claude/skills/warden/SKILL.md"
+printf '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bp3 q hooks || true"}]}]}}\n' > "$legacy_host/.claude/hooks.json"
+printf '{"keep":1,"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"echo keep-me"}]},{"hooks":[{"type":"command","command":"bp3 q hooks || true"}]}]}}\n' > "$legacy_host/.claude/settings.json"
+printf '{"bp3":{"Stop":[{"type":"command","command":"bp3 q hooks || true"}]},"custom":{"Stop":[{"type":"command","command":"echo keep-agy"}]}}\n' > "$legacy_host/.agents/hooks.json"
+printf '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bp3 q hooks || true"}]}]}}\n' > "$legacy_host/.muse/hooks.json"
+printf '{"skills":["/keep","!**/.agents/skills/quest/SKILL.md"]}\n' > "$legacy_host/.pi/settings.json"
+prune_json=$(BP3_TARGET="$legacy_host" "$root/bin/bp3" skills prune-local)
+assert jq -e '.ok == true and .mode == "host" and (.pruned_skills | length) == 2' <<< "$prune_json" >/dev/null
+assert test ! -e "$legacy_host/.agents/skills/quest"
+assert test ! -e "$legacy_host/.claude/skills/warden"
+assert test -f "$legacy_host/.agents/skills/new-strategy/SKILL.md"
+assert test ! -e "$legacy_host/.claude/hooks.json"
+assert test ! -e "$legacy_host/.muse/hooks.json"
+assert jq -e '.keep == 1 and (.hooks.SessionStart | length) == 1 and .hooks.SessionStart[0].hooks[0].command == "echo keep-me"' "$legacy_host/.claude/settings.json" >/dev/null
+assert jq -e '(has("bp3") | not) and .custom.Stop[0].command == "echo keep-agy"' "$legacy_host/.agents/hooks.json" >/dev/null
+assert jq -e '.skills == ["/keep"]' "$legacy_host/.pi/settings.json" >/dev/null
 
 # Quest red-chair of the source: critical/major concerns settle or become follow-up nodes.
 assert grep -q 'Red-chair the source itself' "$repo/skills/quest/SKILL.md"
@@ -202,7 +247,7 @@ assert grep -qF 'Zero questions is valid' "$repo/skills/red-ink/SKILL.md"
 assert grep -qF 'Slice-settled TL;DR (`before -> after`)' "$repo/skills/red-ink/SKILL.md"
 assert grep -qF 'AskUserQuestion' "$repo/skills/red-ink/SKILL.md"
 assert grep -q 'Risks is not a parking lot' "$repo/skills/quest/SKILL.md"
-assert grep -q 'Red-chair the source itself' "$root/.agents/skills/quest/SKILL.md"
+assert grep -q 'Red-chair the source itself' "$work/home/.gemini/config/skills/quest/SKILL.md"
 
 # Cycle autonomy (node-6): needs_fix rides, blocked escalates at cycle cap.
 assert grep -q 'cycle cap' "$repo/skills/induct/SKILL.md"
@@ -232,10 +277,13 @@ for s in induct induct-yolo using-bp3; do
   assert grep -q 'make check-full' "$repo/skills/$s/SKILL.md"
 done
 
+core_dirs=("$repo/skills" "$work/home/.claude/skills" "$work/home/.pi/agent/skills" "$work/home/.gemini/config/skills")
+dev_dirs=("$repo/skills" "$repo/.claude/skills" "$repo/.pi/skills" "$repo/.agents/skills")
+
 # constraints-context read.1: plans and grades read CONSTRAINTS.md and
 # CONTEXT.md, in the sources and in every harness render. One rule each.
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  q="$repo/$dir/quest/SKILL.md" r="$repo/$dir/red-ink/SKILL.md" i="$repo/$dir/induct/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  q="$dir/quest/SKILL.md" r="$dir/red-ink/SKILL.md" i="$dir/induct/SKILL.md"
   assert grep -q '^| 2 | Research the ground.*`CONSTRAINTS.md`.*`CONTEXT.md`' "$q"
   assert grep -q '^| 7 | .*\*\*constraints pass\*\*.*`/teach` pitch and the owner.s words before approval' "$q"
   assert grep -q '^| 7 | .*\*\*common-sense pass\*\*.*older than 90 days' "$q"
@@ -251,13 +299,16 @@ assert grep -q '\[CONTEXT.md\](CONTEXT.md)' "$repo/CLAUDE.md"
 # metric-collectors read.1: conductors measure every grade, as evidence
 # and never as a gate; the docs name the metrics door and its GENERATED
 # file. In the sources and in every harness render.
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  ic="$repo/$dir/induct/SKILL.md" ub="$repo/$dir/using-bp3/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  ic="$dir/induct/SKILL.md"
   assert grep -q '^  `bp3 q <quest> metrics scrape`. It finds the grader' "$ic"
   assert grep -q 'evidence, never a gate: a `mismatched` grade' "$ic"
+  assert grep -q 'samples and' "$ic"
+done
+for dir in "${dev_dirs[@]}"; do
+  ub="$dir/using-bp3/SKILL.md"
   assert grep -q 'Measure with `./bin/bp3 q <quest> metrics r`' "$ub"
   assert grep -q '`metrics.jsonl` on each node.s state branch' "$ub"
-  assert grep -q 'samples and' "$ic"
   assert grep -q 'a finding to report, not a failed step' "$ub"
 done
 assert grep -q '^  metrics.jsonl          GENERATED' "$repo/CLAUDE.md"
@@ -267,14 +318,20 @@ assert grep -q '^\./bin/bp3 q <quest> metrics scrape|r' "$repo/CLAUDE.md"
 # metric-followups skills.1: the skills describe the engine that exists.
 # induct-yolo names the scrape as its one non-edge write, as induct does;
 # using-bp3 lists real edges and doors only. Sources and every render.
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  iy="$repo/$dir/induct-yolo/SKILL.md" ub="$repo/$dir/using-bp3/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  iy="$dir/induct-yolo/SKILL.md"
   assert grep -q '`metrics.jsonl` samples and move no edge' "$iy"
+  assert test -z "$(grep -n '`cancel`' "$dir"/*/SKILL.md || true)"
+  assert test -z "$(grep -nE 'q (show|list)|q create |--engine|bp3-writer' "$iy" || true)"
+  assert test -z "$(grep -nE 'induct-grade|node-loop|induct-node|induct-land|induct-inline' "$dir"/*/SKILL.md || true)"
+done
+for dir in "${dev_dirs[@]}"; do
+  ub="$dir/using-bp3/SKILL.md"
   assert grep -q '`block` from any of the three' "$ub"
   assert grep -q '^   `--mechanical` `needs_fix` (an exact file, line and text fix,$' "$ub"
-  assert test -z "$(grep -n '`cancel`' "$repo/$dir"/*/SKILL.md || true)"
-  assert test -z "$(grep -nE 'q (show|list)|q create |--engine|bp3-writer' "$ub" "$iy" || true)"
-  assert test -z "$(grep -nE 'induct-grade|node-loop|induct-node|induct-land|induct-inline' "$repo/$dir"/*/SKILL.md || true)"
+  assert test -z "$(grep -n '`cancel`' "$dir"/*/SKILL.md || true)"
+  assert test -z "$(grep -nE 'q (show|list)|q create |--engine|bp3-writer' "$ub" || true)"
+  assert test -z "$(grep -nE 'induct-grade|node-loop|induct-node|induct-land|induct-inline' "$dir"/*/SKILL.md || true)"
   assert test -z "$(grep -nE 'outside quest folders|descend from the recorded|live in .fsm\.yaml.|Judgment moves need|move.s commit message' "$ub" || true)"
   assert grep -q '^   node dependency is `landed` or `deleted`' "$ub"
 done
@@ -282,8 +339,8 @@ done
 # pi-metrics skills.1: induct names pi as a grader runtime, with
 # the command, one session per grade, the join's first line, and the
 # verdict cast as printed. In the source and every render.
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  ic="$repo/$dir/induct/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  ic="$dir/induct/SKILL.md"
   assert grep -q '^  `pi -p --tools read,bash --session-id <fresh id> "<cold brief>"`\.$' "$ic"
   assert grep -q '^  session per grade: a fresh `--session-id` each time, never$' "$ic"
   assert grep -q 'whose first line names the node id$' "$ic"
@@ -295,8 +352,8 @@ done
 # single conducting skill, with background grades in grade desks, the
 # rendered brief passed verbatim, the cast boundary, verify-then-cast,
 # and one session per quest. using-bp3 points to it.
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  ic="$repo/$dir/induct/SKILL.md" ub="$repo/$dir/using-bp3/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  ic="$dir/induct/SKILL.md"
   assert grep -qF '`bp3 q <quest> n <node> brief --desk <grade desk path>` and pass' "$ic"
   assert grep -qF 'its `brief` text verbatim, adding nothing and leaving nothing' "$ic"
   assert grep -qF '`bp3 harness desk prepare <quest> <node> --run grade-<node>-c<cycle>-a<attempt> --commit <sha>`.' "$ic"
@@ -312,13 +369,16 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -qF 'per quest: this session runs this quest and no other' "$ic"
   assert grep -qF '(running, or finished with its verdict not yet cast): start one' "$ic"
   assert grep -qF 'seconds for graders, and counts `brief_verbatim` or' "$ic"
+done
+for dir in "${dev_dirs[@]}"; do
+  ub="$dir/using-bp3/SKILL.md"
   assert grep -q '^use `induct`, the default: this session authors each$' "$ub"
 done
 
 # central-desks-dir skills.1: induct prepares a central quest desk in both
 # self and host modes (no self-only split). Sources and every render.
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  ic="$repo/$dir/induct/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  ic="$dir/induct/SKILL.md"
   assert test -z "$(grep -n 'host mode works in the repo' "$ic" || true)"
   assert test -z "$(grep -n 'In self mode,' "$ic" || true)"
   assert grep -qF 'Prepare the quest desk' "$ic"
@@ -329,8 +389,8 @@ done
 # no-human rails; follows induct as written and carries no numbered
 # procedure of its own. Sources and every render.
 assert grep -Eq '^CORE_SKILLS="([^"]* )?induct-yolo( [^"]*)?"$' "$repo/bin/bp3"
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  iy="$repo/$dir/induct-yolo/SKILL.md" ic="$repo/$dir/induct/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  iy="$dir/induct-yolo/SKILL.md" ic="$dir/induct/SKILL.md"
   assert test -f "$iy"
   assert grep -q '^name: induct-yolo$' "$iy"
   assert grep -qF 'Follow the `induct` skill (`skills/induct/SKILL.md`)' "$iy"
@@ -356,29 +416,34 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -q '`brief_verbatim` / `brief_edited` (from the last scrape.s tally);' "$iy"
 done
 
-# fast-agy-induct agy.2: --harness=agy installs .agents/skills and .agents/hooks.json
+# global.1: --harness=agy installs CORE_SKILLS + hooks globally under BP3_GLOBAL_HOME
+# (self renders ONLY DEV_SKILLS locally; host creates ZERO local files).
+agy_home="$work/agy-home"
 agy_self="$work/agy-self"
 mkdir -p "$agy_self/src/quest" "$agy_self/bin"
 git -C "$agy_self" init -q
 touch "$agy_self/src/quest/main.ml" "$agy_self/bin/bp3"
 git -C "$agy_self" add -A && git -C "$agy_self" commit -qm init
-BP3_TARGET="$agy_self" BP3_COMPLETIONS_DIR="$work/comp-agy" "$repo/bin/bp3" skills install --harness=agy >/dev/null
-assert test -f "$agy_self/.agents/skills/induct/SKILL.md"
-assert test -f "$agy_self/.agents/hooks.json"
-assert jq -e '.bp3.PreToolUse[0].hooks[0].command == "../bin/bp3 q hooks || true"' "$agy_self/.agents/hooks.json"
-assert jq -e '.bp3.SessionStart[0].command == "../bin/bp3 q hooks || true"' "$agy_self/.agents/hooks.json"
+BP3_GLOBAL_HOME="$agy_home" BP3_TARGET="$agy_self" BP3_COMPLETIONS_DIR="$work/comp-agy" "$repo/bin/bp3" skills install --harness=agy >/dev/null
+assert test -f "$agy_home/.gemini/config/skills/induct/SKILL.md"
+assert test -f "$agy_self/.agents/skills/using-bp3/SKILL.md"
+assert test ! -e "$agy_self/.agents/skills/induct"
+assert test ! -e "$agy_self/.agents/hooks.json"
+assert jq -e '.bp3.PreToolUse[0].hooks[0].command == "bp3 q hooks || true"' "$agy_home/.gemini/config/hooks.json"
+assert jq -e '.bp3.SessionStart[0].command == "bp3 q hooks || true"' "$agy_home/.gemini/config/hooks.json"
 agy_host="$work/agy-host"
 mkdir -p "$agy_host"
 git -C "$agy_host" init -q
 touch "$agy_host/README.md"
 git -C "$agy_host" add -A && git -C "$agy_host" commit -qm init
-BP3_TARGET="$agy_host" BP3_COMPLETIONS_DIR="$work/comp-agy" "$repo/bin/bp3" skills install --harness=agy >/dev/null
-assert jq -e '.bp3.PreToolUse[0].hooks[0].command == "bp3 q hooks || true"' "$agy_host/.agents/hooks.json"
+BP3_GLOBAL_HOME="$agy_home" BP3_TARGET="$agy_host" BP3_COMPLETIONS_DIR="$work/comp-agy" "$repo/bin/bp3" skills install --harness=agy >/dev/null
+assert test ! -e "$agy_host/.agents"
+assert jq -e '.bp3.PreToolUse[0].hooks[0].command == "bp3 q hooks || true"' "$agy_home/.gemini/config/hooks.json"
 
 # fast-agy-induct skills.1: induct semantic invariants (receipt,
 # severity gate, agy invoke_subagent model tiering, /swarm coordinator rule)
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  ic="$repo/$dir/induct/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  ic="$dir/induct/SKILL.md"
   assert grep -qF './scripts/receipt' "$ic"
   assert grep -qF 'Severity gate' "$ic"
   assert grep -qF '[critical]' "$ic"
@@ -396,10 +461,10 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
 done
 
 # warden-v0 skills.1: unified /warden replaces /trial across all harnesses
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  w="$repo/$dir/warden/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  w="$dir/warden/SKILL.md"
   assert test -f "$w"
-  assert test ! -e "$repo/$dir/trial"
+  assert test ! -e "$dir/trial"
   assert grep -qF 'FEEDBACK.md' "$w"
   assert grep -qF '<= 3' "$w"
   assert grep -qF 'Deterministic first' "$w"
@@ -407,34 +472,43 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -qF '1–2 files' "$w"
   assert grep -qF 'docs/icebox/' "$w"
   assert grep -qF 'owner disposes' "$w"
+  assert grep -qF 'missing_repo_config' "$w"
+  assert grep -qF 'bp3 init-repo' "$w"
+  assert grep -qF 'bp3 skills prune-local' "$w"
 done
 assert grep -qF '`warden`' "$repo/skills/quest/SKILL.md"
 assert grep -qF '`warden`' "$repo/skills/induct/SKILL.md"
 
 # quest-promote-release skills.1: bump: frontmatter and bp3 release across harnesses
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  assert grep -qF 'bump: major | minor | patch | none' "$repo/$dir/quest/SKILL.md"
-  assert grep -qF 'RELEASING.md' "$repo/$dir/quest/SKILL.md"
-  assert grep -qF 'bp3 release <quest> --dry-run' "$repo/$dir/warden/SKILL.md"
-  assert grep -qF 'BP3_DECIDER=human bp3 release <quest>' "$repo/$dir/warden/SKILL.md"
-  assert grep -qF 'bp3 release' "$repo/$dir/using-bp3/SKILL.md"
-  assert grep -qF -- '--commit <sha>' "$repo/$dir/using-bp3/SKILL.md"
-  assert grep -qF 'BP3_DECIDER=human' "$repo/$dir/using-bp3/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  assert grep -qF 'bump: major | minor | patch | none' "$dir/quest/SKILL.md"
+  assert grep -qF 'RELEASING.md' "$dir/quest/SKILL.md"
+  assert grep -qF 'bp3 release <quest> --dry-run' "$dir/warden/SKILL.md"
+  assert grep -qF 'BP3_DECIDER=human bp3 release <quest>' "$dir/warden/SKILL.md"
+done
+for dir in "${dev_dirs[@]}"; do
+  assert grep -qF 'bp3 release' "$dir/using-bp3/SKILL.md"
+  assert grep -qF -- '--commit <sha>' "$dir/using-bp3/SKILL.md"
+  assert grep -qF 'BP3_DECIDER=human' "$dir/using-bp3/SKILL.md"
+  assert grep -qF 'W_LOCAL_SKILLS_LEGACY' "$dir/using-bp3/SKILL.md"
+  assert grep -qF 'bp3 skills prune-local' "$dir/using-bp3/SKILL.md"
 done
 
 # sqlite-control-plane skills.1: cross-repo bp3 ticket / repo / db across harnesses
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  assert grep -qF 'bp3 ticket add --to bp3' "$repo/$dir/warden/SKILL.md"
-  assert grep -qF 'bp3 ticket list --to bp3' "$repo/$dir/warden/SKILL.md"
-  assert grep -qF 'bp3 ticket' "$repo/$dir/using-bp3/SKILL.md"
-  assert grep -qF 'bp3 repo' "$repo/$dir/using-bp3/SKILL.md"
-  assert grep -qF 'bp3 db info' "$repo/$dir/using-bp3/SKILL.md"
+for dir in "${core_dirs[@]}"; do
+  assert grep -qF 'bp3 ticket add --to bp3' "$dir/warden/SKILL.md"
+  assert grep -qF 'bp3 ticket list --to bp3' "$dir/warden/SKILL.md"
+done
+for dir in "${dev_dirs[@]}"; do
+  assert grep -qF 'bp3 ticket' "$dir/using-bp3/SKILL.md"
+  assert grep -qF 'bp3 repo' "$dir/using-bp3/SKILL.md"
+  assert grep -qF 'bp3 db info' "$dir/using-bp3/SKILL.md"
 done
 
 # draft-desk-guard skills.1: clean-runway draft desk guards across icebox,
-# quest, red-ink, RELEASING.md, and AGENTS.md/CLAUDE.md. Sources and every render.
-for dir in skills .claude/skills .pi/skills .agents/skills; do
-  ib="$repo/$dir/icebox/SKILL.md" qf="$repo/$dir/quest/SKILL.md" ri="$repo/$dir/red-ink/SKILL.md"
+# quest, red-ink, RELEASING.md, and AGENTS.md/CLAUDE.md. Sources and global renders.
+for dir in "${core_dirs[@]}"; do
+  ib="$dir/icebox/SKILL.md" qf="$dir/quest/SKILL.md" ri="$dir/red-ink/SKILL.md"
   assert grep -qF 'target_dirty' "$ib"
   assert grep -qF 'bp3 harness desk prepare --draft' "$ib"
   assert grep -qF 'bp3 harness desk land --draft' "$ib"

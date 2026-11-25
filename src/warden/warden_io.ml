@@ -208,6 +208,16 @@ let load_quest q ~no_sessions ~dirs ~pi_dirs ~agy_dirs =
     qe_post_land_commits = post_land; qe_traces = traces }
 
 let load ~scope ~quests ~no_sessions ~dirs ~pi_dirs ~agy_dirs =
+  let (has_cfg, grade_wall_s) =
+    match Backpack.load_opt root with
+    | Ok (Some cfg) ->
+        (true, float_of_int (Option.value cfg.warden_grade_wall_s ~default:300))
+    | Ok None -> (false, 300.)
+    | Error detail ->
+        err Names.e_invalid_config
+          (`Assoc [("file", json_str Layout.manifest_file); ("detail", json_str detail)])
+          ("Invalid " ^ Layout.manifest_file ^ ": " ^ detail) 1 in
   let active = active_quests () in
   let q_evs = List.map (load_quest ~no_sessions ~dirs ~pi_dirs ~agy_dirs) quests in
-  { Warden.ev_scope = scope; ev_active_quests = active; ev_quests = q_evs }
+  { Warden.ev_scope = scope; ev_active_quests = active; ev_quests = q_evs;
+    ev_has_repo_config = has_cfg; ev_grade_wall_s = grade_wall_s }

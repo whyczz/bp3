@@ -129,32 +129,6 @@ let case_sync_bp3_version_replaces_exact_line_and_fails_closed _ =
    | Error _ -> ()
    | Ok _ -> assert_failure "expected duplicate error")
 
-(* ---------- rendered skill tag & auto-sync ---------- *)
-
-let case_rendered_release_tag_and_should_auto_sync _ =
-  let v030 =
-    "---\nname: quest\n---\n\
-     <!-- GENERATED from skills/quest/SKILL.md (v0.3.0) by: bp3 skills install --harness=agy. Edit the source, then re-run. -->\n" in
-  let legacy =
-    "---\nname: quest\n---\n\
-     <!-- GENERATED from skills/quest/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->\n" in
-  let bogus_paren =
-    "---\nname: quest\n---\n\
-     <!-- GENERATED from skills/quest/SKILL.md by: (v0.9.9) -->\n" in
-  assert_equal (Some (sv 0 3 0)) (Release.parse_rendered_release_tag v030);
-  assert_equal None (Release.parse_rendered_release_tag legacy);
-  assert_equal None (Release.parse_rendered_release_tag bogus_paren);
-  assert_bool "empty never auto-syncs"
-    (not (Release.should_auto_sync ~installed:(sv 0 3 0) ~rendered:[]));
-  assert_bool "legacy unversioned triggers auto-sync"
-    (Release.should_auto_sync ~installed:(sv 0 3 0) ~rendered:[ None ]);
-  assert_bool "mixed stale triggers auto-sync"
-    (Release.should_auto_sync ~installed:(sv 0 3 0) ~rendered:[ Some (sv 0 3 0); Some (sv 0 2 0) ]);
-  assert_bool "all current does not auto-sync"
-    (not (Release.should_auto_sync ~installed:(sv 0 3 0) ~rendered:[ Some (sv 0 3 0); Some (sv 0 3 0) ]));
-  assert_bool "ahead does not auto-sync"
-    (not (Release.should_auto_sync ~installed:(sv 0 3 0) ~rendered:[ Some (sv 0 4 0) ]))
-
 (* ---------- What changed renderers ---------- *)
 
 let case_render_what_changed_quest_and_commit _ =
@@ -272,7 +246,6 @@ let () =
        "case_parse_quest_md_and_set_status_landed" >:: case_parse_quest_md_and_set_status_landed;
        "case_parse_minimal_quest_md_degrades_tldr_cleanly" >:: case_parse_minimal_quest_md_degrades_tldr_cleanly;
        "case_sync_bp3_version_replaces_exact_line_and_fails_closed" >:: case_sync_bp3_version_replaces_exact_line_and_fails_closed;
-       "case_rendered_release_tag_and_should_auto_sync" >:: case_rendered_release_tag_and_should_auto_sync;
        "case_render_what_changed_quest_and_commit" >:: case_render_what_changed_quest_and_commit;
        "case_is_doc_only_path_and_classify_drift" >:: case_is_doc_only_path_and_classify_drift;
        QCheck_ounit.to_ounit2_test law_semver_tag_roundtrip;

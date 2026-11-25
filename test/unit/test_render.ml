@@ -96,6 +96,24 @@ let case_emit_ascii_writes_none_for_every_empty_section _ =
   assert_equal ~printer:Fun.id
     "quest q0 diagram (generated from live state at T)\nrollup: proposed\nnodes:\n  (none)\ndeps:\n  (none)\nwaves:\n  (none)\nstarved:\n  (none)\n" s
 
+let case_merge_warnings_preserves_structured_objects_under_version_ahead _ =
+  let w_obj = Backpack.warning_no_repo_config () in
+  let base = `Assoc [ ("ok", `Bool true); ("warnings", `List [ w_obj ]) ] in
+  let merged = Render.merge_warnings ~version_ahead_active:true base in
+  let ws = Yojson.Safe.Util.(merged |> member "warnings" |> to_list) in
+  assert_equal ~printer:string_of_int 2 (List.length ws);
+  assert_equal w_obj (List.nth ws 0);
+  assert_equal (`String "W_VERSION_AHEAD") (List.nth ws 1);
+  (* Dedups when W_VERSION_AHEAD is already present as string or object *)
+  let dup_str = Render.merge_warnings ~version_ahead_active:true merged in
+  assert_equal 2 (List.length Yojson.Safe.Util.(dup_str |> member "warnings" |> to_list));
+  let obj_va = `Assoc [ ("ok", `Bool true); ("warnings", `List [ `Assoc [ ("code", `String "W_VERSION_AHEAD") ] ]) ] in
+  let dup_obj = Render.merge_warnings ~version_ahead_active:true obj_va in
+  assert_equal 1 (List.length Yojson.Safe.Util.(dup_obj |> member "warnings" |> to_list));
+  (* No warnings keeps field absent *)
+  let clean = Render.merge_warnings ~version_ahead_active:false (`Assoc [ ("ok", `Bool true) ]) in
+  assert_equal `Null (Yojson.Safe.Util.member "warnings" clean)
+
 let () =
   run_test_tt_main
     ("render" >::: [
@@ -111,4 +129,5 @@ let () =
        "case_render_table_quest_prints_the_header_and_padded_node_rows" >:: case_render_table_quest_prints_the_header_and_padded_node_rows;
        "case_render_table_node_prints_the_summary_line_and_change_rows" >:: case_render_table_node_prints_the_summary_line_and_change_rows;
        "case_render_table_node_marks_missing_fields_none_dash_and_unknown" >:: case_render_table_node_marks_missing_fields_none_dash_and_unknown;
+       "case_merge_warnings_preserves_structured_objects_under_version_ahead" >:: case_merge_warnings_preserves_structured_objects_under_version_ahead;
      ])

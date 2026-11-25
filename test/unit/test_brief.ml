@@ -7,7 +7,8 @@ let sha = "abc1234def5678abc1234def5678abc1234def56"
 let node_md = "---\nnode: x.1\n---\n\n# x.1\n\n## TL;DR\n\nsummary\n\n## Acceptance gates\n\n\ngate line one\n\n```text\n$ run it\n```\n\n\n## Diagram\n\nboxes\n"
 
 let base = { Brief.quest = "q1"; node = "nd"; cycle = 1; commit = sha; node_md = Some node_md;
-             grading = Some "# Grading\n\nRun `make check-full`.\n"; docs = [ "CLAUDE.md"; "CONSTRAINTS.md" ];
+             grading = Some "# Grading\n\nRun `make check-full`.\n"; gate = None;
+             docs = [ "CLAUDE.md"; "CONSTRAINTS.md" ];
              prev = None; others = [] }
 
 let has s sub = Claude_tx.contains s sub
@@ -99,19 +100,21 @@ let case_previous_round_is_cut_at_the_bound_handoff _ =
   assert_equal ~printer:Fun.id "c1 | x(nx)" (show (pick "c2" (Some "2026-11-22T10:00:09Z")));
   assert_equal ~printer:Fun.id "c1 | x(nx)" (show (pick "c2" None))
 
-(* Law: any absolute one-line desk renders verbatim; any added paragraph
-   anywhere after the join line reads as edited. *)
+(* Law: any absolute one-line desk and optional repo gate renders verbatim;
+   any added paragraph anywhere after the join line reads as edited. *)
 let law_is_verbatim_exact =
   let open QCheck2.Gen in
   let seg = string_size ~gen:(char_range 'a' 'z') (int_range 1 6) in
   let path = list_size (int_range 1 4) seg >|= fun ss -> "/" ^ String.concat "/" ss in
-  QCheck2.Test.make ~count:300 ~name:"law_is_verbatim_exact" (triple path seg (int_range 1 10))
-    (fun (desk, word, k) ->
-       let r = Brief.render ~desk base in
+  let gate_gen = oneof [ return None; map (fun s -> Some ("make " ^ s)) seg ] in
+  QCheck2.Test.make ~count:300 ~name:"law_is_verbatim_exact" (quad path seg (int_range 1 10) gate_gen)
+    (fun (desk, word, k, gate) ->
+       let inp = { base with gate } in
+       let r = Brief.render ~desk inp in
        let paras = Str.split (Str.regexp_string "\n\n") r in
        let k = 1 + (k mod (List.length paras - 1)) in
        let edited = String.concat "\n\n" (List.filteri (fun j _ -> j < k) paras @ [ "Also " ^ word ^ "." ] @ List.filteri (fun j _ -> j >= k) paras) in
-       Brief.is_verbatim r base && not (Brief.is_verbatim edited base))
+       Brief.is_verbatim r inp && not (Brief.is_verbatim edited inp))
 
 (* Law: the gates part is the section verbatim, and the first line
    always carries the join key (node id and the commit's first 7). *)
@@ -129,6 +132,14 @@ let law_gates_verbatim_and_join_line =
        && has b ("Acceptance gates (NODE.md at " ^ String.sub commit 0 7 ^ "):\n\n" ^ gates ^ "\n\n")
        && Claude_tx.prompt_names_grade first ~node ~commit)
 
+let case_repo_gate_from_backpack_renders_and_passes_is_verbatim _ =
+  let i = { base with gate = Some "dune build --root . @fmt && dune test --root . --force 4>&-" } in
+  let b = Brief.render ~desk:"/d/grade" i in
+  assert_bool "includes Repo gate line"
+    (has b "Repo gate (backpack.toml): dune build --root . @fmt && dune test --root . --force 4>&-");
+  assert_bool "passes is_verbatim" (Brief.is_verbatim b i);
+  assert_bool "omitted when gate is None" (not (has (Brief.render base) "Repo gate (backpack.toml):"))
+
 let () =
   run_test_tt_main
     ("brief" >::: [
@@ -137,6 +148,7 @@ let () =
        "case_desk_adds_one_line" >:: case_desk_adds_one_line;
        "case_cycle_two_shows_the_range_and_other_nodes_never_a_reason" >:: case_cycle_two_shows_the_range_and_other_nodes_never_a_reason;
        "case_missing_files_are_named_not_hidden" >:: case_missing_files_are_named_not_hidden;
+       "case_repo_gate_from_backpack_renders_and_passes_is_verbatim" >:: case_repo_gate_from_backpack_renders_and_passes_is_verbatim;
        QCheck_ounit.to_ounit2_test law_gates_verbatim_and_join_line;
        "case_is_verbatim_takes_the_render_and_nothing_else" >:: case_is_verbatim_takes_the_render_and_nothing_else;
        QCheck_ounit.to_ounit2_test law_is_verbatim_exact;

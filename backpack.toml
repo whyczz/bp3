@@ -1,0 +1,11 @@
+version = 1
+repo = "bp3"
+
+[grade]
+gate = "make check-full"
+
+[warden]
+grade_wall_s = 300
+
+[release]
+target = "master"

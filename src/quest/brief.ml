@@ -13,6 +13,7 @@ type inputs = {
   commit : string;                    (* full sha, the bound commit *)
   node_md : string option;            (* NODE.md at commit *)
   grading : string option;            (* GRADING.md at commit *)
+  gate : string option;               (* [grade].gate from backpack.toml at commit *)
   docs : string list;                 (* CLAUDE.md, AGENTS.md, CONSTRAINTS.md present at commit *)
   prev : string option;               (* commit the last needs_fix judged *)
   others : (string * string) list;    (* (commit, node): other nodes' bound commits in prev..commit *)
@@ -90,6 +91,9 @@ let render ?desk i =
           ^ (match i.others with
              | [] -> "none."
              | xs -> String.concat ", " (List.map (fun (c, n) -> short c ^ " (" ^ n ^ ")") xs) ^ ".") ] in
+  let gate_para = match i.gate with
+    | Some g when String.trim g <> "" -> [ "Repo gate (" ^ Layout.manifest_file ^ "): " ^ g ]
+    | _ -> [] in
   let grading = match i.grading with
     | Some g -> "Repo grading rules (GRADING.md at " ^ c7 ^ "):\n\n" ^ String.trim g
     | None -> "No GRADING.md at " ^ c7 ^ ": run the repo's documented test gate and name it." in
@@ -100,6 +104,7 @@ let render ?desk i =
      @ (match desk with Some d -> [ desk_line d i.commit ] | None -> [])
      @ [ read_first; "Acceptance gates (NODE.md at " ^ c7 ^ "):\n\n" ^ gates ]
      @ previous
+     @ gate_para
      @ [ grading; verdict_shape ])
   ^ "\n"
 
@@ -192,8 +197,13 @@ let inputs ~quest ~node ~cycle ~commit ~upto =
     pick ~node ~commit ~upto ~own:(node_edges quest node)
       ~others:(List.map (fun n -> (n, node_edges quest n)) (Store.list_nodes quest)) ~in_range in
   let show path = Gitx.git_show commit path in
+  let gate =
+    match show Layout.manifest_file with
+    | Some text -> (match Backpack.parse text with Ok cfg -> cfg.grade_gate | Error _ -> None)
+    | None -> None in
   { quest; node; cycle; commit;
     node_md = show (node_md_path quest node);
     grading = show "GRADING.md";
+    gate;
     docs = List.filter (fun d -> show d <> None) [ "CLAUDE.md"; "AGENTS.md"; "CONSTRAINTS.md" ];
     prev; others }

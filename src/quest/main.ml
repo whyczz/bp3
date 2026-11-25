@@ -632,6 +632,15 @@ let refuse_major_ahead () =
         "Repo was stamped by a newer MAJOR bp3; upgrade bp3 before writing." 1
   | _ -> ()
 
+let repo_config_warnings () =
+  match Backpack.load_opt root with
+  | Ok (Some _) -> []
+  | Ok None -> [ ("warnings", `List [ Backpack.warning_no_repo_config () ]) ]
+  | Error detail ->
+      err Names.e_invalid_config
+        (`Assoc [("file", json_str Layout.manifest_file); ("detail", json_str detail)])
+        ("Invalid " ^ Layout.manifest_file ^ ": " ^ detail) 1
+
 let rec run argv =
   let id = identity () in
   match argv with
@@ -663,7 +672,17 @@ let rec run argv =
          same verdicts; new callers use bp3 harness desk *)
       print_verdict ~fmt:"json" (Worktree.run rest); 0
   | "init-repo" :: _ ->
-      (* Node 6: scaffold plans/ into the caller's repo; never clobber differing plans *)
+      (* Node 6 + manifest.1: validate existing backpack.toml before mutating plans/;
+         scaffold plans/ and minimal backpack.toml into the caller's repo idempotently *)
+      let manifest_path = Filename.concat root Layout.manifest_file in
+      let manifest_exists = Sys.file_exists manifest_path in
+      if manifest_exists then
+        (match Backpack.load_opt root with
+         | Ok (Some _) | Ok None -> ()
+         | Error detail ->
+             err Names.e_invalid_config
+               (`Assoc [("file", json_str Layout.manifest_file); ("detail", json_str detail)])
+               ("Existing " ^ Layout.manifest_file ^ " is invalid: " ^ detail) 1);
       let plans = [("plans/default.yaml", "goal_type: default\nmax_cycles: 10\ngrade:\n  required: true\nverify: required\n");
                    ("plans/direct.yaml", "goal_type: direct\nmax_cycles: 0\ngrade:\n  required: false\nverify: required\n")] in
       (try Unix.mkdir (Filename.concat root "plans") 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ());
@@ -678,10 +697,25 @@ let rec run argv =
         end else begin
           let oc = open_out_bin path in output_string oc content; close_out oc
         end) plans;
+      let manifest_created =
+        if manifest_exists then false
+        else begin
+          let repo_slug = Layout.sanitize_repo_slug (Filename.basename (Worktree.main_root ())) in
+          let target_br =
+            if ref_tip "refs/heads/master" <> None then "master"
+            else if ref_tip "refs/heads/main" <> None then "main"
+            else "master" in
+          let oc = open_out_bin manifest_path in
+          Fun.protect ~finally:(fun () -> close_out oc)
+            (fun () -> output_string oc (Backpack.render_default ~repo:repo_slug ~target:target_br));
+          true
+        end in
       if Repo_store.is_git_repo root then
         (try ignore (Repo_store.add ~path:root ())
          with Db.Error (code, json) -> raise (Verdict (code, json)));
       print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true);
+        ("manifest", json_str Layout.manifest_file);
+        ("manifest_created", `Bool manifest_created);
         ("plans", `List (List.map (fun (p, _) -> json_str p) plans))]); 0
   | "hooks" :: _ ->
       (* fail-open emitter: Hooks.handle never raises, always exit 0 *)
@@ -699,7 +733,7 @@ let rec run argv =
        | "r", [] ->
            let qs = List.map (fun q ->
              let (view, _, _, _) = quest_view q in view) (list_quests ()) in
-           print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true); ("quests", `List qs)]); 0
+           print_verdict ~fmt:"json" (`Assoc ([("ok", `Bool true); ("quests", `List qs)] @ repo_config_warnings ())); 0
        | "r", [quest] ->
            let (pos, fl) = ( [quest], { reason=None; commit=None; verdict=None; target=None; typ=None; depends_on=None; fmt="json"; verify_verdict=None; mechanical=false } ) in
            ignore pos;
@@ -707,14 +741,14 @@ let rec run argv =
            ignore fl;
            let (view, _, _, _) = quest_view quest in
            print_verdict ~fmt:"json" (`Assoc (("ok", `Bool true) ::
-             (match view with `Assoc fs -> fs | _ -> []))); 0
+             (match view with `Assoc fs -> fs | _ -> []) @ repo_config_warnings ())); 0
        | "r", quest :: tail ->
            let (pos, fl) = split_flags (quest :: tail) in
            (match pos with
             | [q] ->
                 let (view, _, _, _) = quest_view q in
                 print_verdict ~fmt:fl.fmt (`Assoc (("ok", `Bool true) ::
-                  (match view with `Assoc fs -> fs | _ -> []))); 0
+                  (match view with `Assoc fs -> fs | _ -> []) @ repo_config_warnings ())); 0
             | _ -> usage "quest read takes at most one quest")
        | "d", quest :: tail ->
            let (pos, fl) = split_flags tail in
@@ -771,7 +805,7 @@ let rec run argv =
        | "r", [] ->
            let (view, _, _, _) = quest_view quest in
            print_verdict ~fmt:"json" (`Assoc (("ok", `Bool true) ::
-             (match view with `Assoc fs -> fs | _ -> []))); 0
+             (match view with `Assoc fs -> fs | _ -> []) @ repo_config_warnings ())); 0
        | "r", [node] ->
            (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
            (match fold_node quest node with

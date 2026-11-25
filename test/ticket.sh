@@ -10,6 +10,7 @@ work=$(mktemp -d "${TMPDIR:-/tmp}/bp3-ticket-tests.XXXXXX")
 trap 'rm -rf -- "$work"' EXIT
 export BP3_DB="${BP3_DB:-$work/bp3.sqlite}"
 export BP3_COMPLETIONS_DIR="$work/completions"
+export BP3_GLOBAL_HOME="$work/home"
 export BP3_Q_BIN="$repo/_build/default/src/quest/main.exe"
 [ -x "$BP3_Q_BIN" ] || { echo "build first: dune build src/quest/main.exe" >&2; exit 1; }
 
@@ -60,9 +61,9 @@ mk_repo "$fake_pred"
 
 BP3_TARGET="$fake_bp3" "$repo/bin/bp3" init --harness=claude >/dev/null
 BP3_TARGET="$fake_pred" "$repo/bin/bp3" init --harness=claude >/dev/null
-# Commit rendered skills so fake-bp3 starts clean before any ticket commands
-git -C "$fake_bp3" add . && git -C "$fake_bp3" commit -qm "init bp3 skills"
-git -C "$fake_pred" add . && git -C "$fake_pred" commit -qm "init bp3 skills"
+# global.1: host bp3 init installs user-globally, leaving both host repos clean
+assert test -z "$(git -C "$fake_bp3" status --porcelain)"
+assert test -z "$(git -C "$fake_pred" status --porcelain)"
 
 repos_json=$("$repo/bin/bp3" repo list)
 assert jq -e '([.repos[].name] | index("fake-bp3") != null) and ([.repos[].name] | index("fake-predictor") != null)' <<< "$repos_json" >/dev/null

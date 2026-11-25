@@ -37,8 +37,10 @@ let mk_quest ?(quest = "q1") ?(nodes = [ clean_node () ]) ?(desks = [])
   { Warden.qe_quest = quest; qe_nodes = nodes; qe_open_desks = desks;
     qe_post_land_commits = post_land; qe_traces = traces }
 
-let mk_ev ?(scope = "quest") ?(active = [ "q1" ]) quests =
-  { Warden.ev_scope = scope; ev_active_quests = active; ev_quests = quests }
+let mk_ev ?(scope = "quest") ?(active = [ "q1" ]) ?(has_repo_config = true)
+    ?(grade_wall_s = 300.) quests =
+  { Warden.ev_scope = scope; ev_active_quests = active; ev_quests = quests;
+    ev_has_repo_config = has_repo_config; ev_grade_wall_s = grade_wall_s }
 
 let ev_tool ?(name = "run_command") ?(cmd = "make check") ?(err = false) ?(step = 1) () =
   { Tx.te_name = name; te_cmd_head = cmd; te_error = err;
@@ -106,7 +108,29 @@ let case_plug_2_cycle_outlier _ =
   let slow = clean_node ~samples:[ sample "grade.wall_s" 340.; sample "author.wall_s" 500. ] () in
   let fs2 = Warden.run (mk_ev [ mk_quest ~nodes:[ slow ] () ]) in
   assert_bool "slow grade fires" (has_rule "cycle_outlier" fs2);
-  assert_equal ~printer:Fun.id "340s grade wall" (find_rule "cycle_outlier" fs2).observed
+  assert_equal ~printer:Fun.id "340s grade wall" (find_rule "cycle_outlier" fs2).observed;
+  (* manifest.2: custom [warden].grade_wall_s = 600 suppresses 450s and flags 650s *)
+  let med = clean_node ~samples:[ sample "grade.wall_s" 450.; sample "author.wall_s" 500. ] () in
+  assert_bool "450s ok under 600s cap"
+    (not (has_rule "cycle_outlier" (Warden.run (mk_ev ~grade_wall_s:600. [ mk_quest ~nodes:[ med ] () ]))));
+  let v_slow = clean_node ~samples:[ sample "grade.wall_s" 650.; sample "author.wall_s" 700. ] () in
+  let fs3 = Warden.run (mk_ev ~grade_wall_s:600. [ mk_quest ~nodes:[ v_slow ] () ]) in
+  assert_bool "650s fires under 600s cap" (has_rule "cycle_outlier" fs3);
+  assert_equal ~printer:Fun.id "> 600s grade wall" (find_rule "cycle_outlier" fs3).threshold
+
+let case_plug_missing_repo_config _ =
+  let ev_miss = mk_ev ~has_repo_config:false [ mk_quest () ] in
+  let fs = Warden.run ev_miss in
+  assert_bool "fires when backpack.toml missing" (has_rule "missing_repo_config" fs);
+  let f = find_rule "missing_repo_config" fs in
+  assert_equal Warden.Minor f.severity;
+  assert_equal ~printer:Fun.id "repo:backpack.toml" f.evidence_ref;
+  let j = Warden.to_json ev_miss fs in
+  assert_equal (`String Names.w_no_repo_config)
+    Yojson.Safe.Util.(j |> member "warnings" |> index 0 |> member "code");
+  let ev_ok = mk_ev ~has_repo_config:true [ mk_quest () ] in
+  assert_bool "clears when backpack.toml present" (not (has_rule "missing_repo_config" (Warden.run ev_ok)));
+  assert_equal `Null (Yojson.Safe.Util.member "warnings" (Warden.to_json ev_ok []))
 
 let case_plug_3_minor_only_bounce _ =
   let bounced reason = clean_node ~entries:[
@@ -360,6 +384,7 @@ let suite =
   "warden" >::: [
     "case_clean_quest_produces_no_findings_and_layout_has_feedback" >:: case_clean_quest_produces_no_findings_and_layout_has_feedback;
     "case_plug_1_multi_active_quest" >:: case_plug_1_multi_active_quest;
+    "case_plug_missing_repo_config" >:: case_plug_missing_repo_config;
     "case_plug_2_cycle_outlier" >:: case_plug_2_cycle_outlier;
     "case_plug_3_minor_only_bounce" >:: case_plug_3_minor_only_bounce;
     "case_plug_4_vacuous_test_bounce" >:: case_plug_4_vacuous_test_bounce;

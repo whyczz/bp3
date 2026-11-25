@@ -73,15 +73,17 @@ BP3_DECIDER=human bp3 release <quest> --publish-only
 BP3_DECIDER=human bp3 release --tag vX.Y.Z --publish-only
 ```
 
-### 5. Local tag-gated auto-sync & binary assets
+### 5. User-global skills/hooks install & binary assets
 
 - In `bp3` self mode, `bp3 release` (unless `--no-install`) builds and installs the
-  tagged release to `$PREFIX` (`~/.local`), stamping `$PREFIX/share/bp3/RELEASE`.
-  Untagged commits never touch `$PREFIX`.
-- In downstream host repos, `bp3 q hooks` on `SessionStart` checks `$PREFIX/share/bp3/RELEASE`
-  against rendered skill headers: when clean on a normal branch, it runs
-  `bp3 skills install --harness=all` and commits `chore(bp3): sync skills/hooks to v<tag>`;
-  when dirty/detached, it skips git edits and emits `W_BP3_UPDATE_AVAILABLE`
-  (`BP3_NO_AUTO_SYNC=1` disables auto-sync).
+  tagged release to `$PREFIX` (`~/.local`), stamps `$PREFIX/share/bp3/RELEASE`,
+  and refreshes user-global `CORE_SKILLS` and hooks under `~/` (`~/.claude`,
+  `~/.gemini/config`, `~/.pi/agent`, `~/.codex`, `~/.muse`). Untagged commits
+  never touch `$PREFIX`.
+- Downstream host repos stay in lockstep automatically via user-global skills and
+  hooks and opt in via `backpack.toml` (`bp3 init-repo`). Host `SessionStart`
+  auto-commit sync is retired; if legacy repo-local generated skill copies remain
+  in a host repo, `bp3 q hooks` emits a read-only `W_LOCAL_SKILLS_LEGACY` warning
+  pointing to `bp3 skills prune-local` and never commits to host git branches.
 - To build and attach binary artifacts to an existing GitHub Release in `bp3`, run
   `make release` / `make publish`.

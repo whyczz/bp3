@@ -43,6 +43,8 @@ def red_ink(artifact, expert=None):
     return exit_pack(decisions, open_questions, nodes, chair)
 ```
 
+Scope: active in git repos with `backpack.toml` at root (or when explicitly invoked to bootstrap via `bp3 init-repo`); stay dormant in non-bp3 repos.
+
 ## Context
 
 Reading map for this skill: prose carries context, why, and how

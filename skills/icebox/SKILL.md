@@ -15,6 +15,8 @@ Use `quest` instead when the idea is ready to frame now.
 Use `add-bp3-skill` or `add-yap-skill` when the idea is a skill.
 Use `red-ink` when an existing design needs a decision walk.
 
+Scope: active in git repos with `backpack.toml` at root (or when explicitly invoked to bootstrap via `bp3 init-repo`); stay dormant in non-bp3 repos.
+
 ## Procedure
 
 0. **Clean-runway guard:** before writing any file, check the current

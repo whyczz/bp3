@@ -24,6 +24,8 @@ Use `quest` to frame a new quest, `red-ink` while a design is still
 being settled, `induct` to run nodes, `using-bp3` for a
 single state edge, and `icebox` to freeze a deferred idea.
 
+Scope: active in git repos with `backpack.toml` at root (or when explicitly invoked to bootstrap via `bp3 init-repo`); stay dormant in non-bp3 repos.
+
 ## Diligence gate (runs first when landing a quest)
 
 Landing is a claim: every node did what its `NODE.md` promised.
@@ -60,6 +62,11 @@ copy, owner as gate) and settle it first.
 2. **Deterministic audit (`bp3 warden`):**
    - Run `./bin/bp3 warden <quest>` (or `bp3 warden <quest>` in host
      mode; omit `<quest>` for a repo sweep).
+   - `bp3 warden` reads `backpack.toml` (`[warden].grade_wall_s`,
+     default `300`) and emits `missing_repo_config` (`minor`) when
+     `backpack.toml` is absent at the repo root — bootstrap it with
+     `bp3 init-repo` (and remove stale local generated skill copies
+     with `bp3 skills prune-local`).
    - Never invent findings outside deterministic `bp3 warden` output
      and directly cited evidence (`ledger:*`, `metrics:*`, `git:*`,
      `tx:*`, `desk:*`, `repo:*`).

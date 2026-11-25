@@ -115,3 +115,8 @@ let e_not_fast_forward = "E_NOT_FAST_FORWARD"
 let e_bump_missing = "E_BUMP_MISSING"
 let e_merge_conflict = "E_MERGE_CONFLICT"
 let e_verify_failed = "E_VERIFY_FAILED"
+let e_invalid_config = "E_INVALID_CONFIG"
+
+(* ---------- warning codes ---------- *)
+let w_no_repo_config = "W_NO_REPO_CONFIG"
+let w_local_skills_legacy = "W_LOCAL_SKILLS_LEGACY"

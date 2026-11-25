@@ -94,10 +94,10 @@ land_one_node "$r1" q-nobump n1 "feat: nobump" "MISSING"
 if out=$(BP3_DECIDER=human run_bp3 "$r1" release q-nobump 2>&1); then fail "missing bump accepted"; fi
 echo "$out" | jq -e '.error.code == "E_BUMP_MISSING"' >/dev/null || fail "missing bump code: $out"; ok
 
-# Dry-run works WITHOUT BP3_DECIDER and mutates nothing
+# Dry-run works WITHOUT BP3_DECIDER, mutates nothing, and warns W_NO_REPO_CONFIG when backpack.toml is absent
 before_head=$(git -C "$r1" rev-parse master)
 out=$(run_bp3 "$r1" release q-nobump --bump minor --dry-run) || fail "dry-run failed: $out"
-echo "$out" | jq -e '.ok == true and .dry_run == true and .version == "0.1.0" and .tag == "v0.1.0" and .release_kind == "git_tag"' >/dev/null || fail "dry-run json: $out"
+echo "$out" | jq -e '.ok == true and .dry_run == true and .version == "0.1.0" and .tag == "v0.1.0" and .release_kind == "git_tag" and .warnings[0].code == "W_NO_REPO_CONFIG"' >/dev/null || fail "dry-run json: $out"
 [ "$(git -C "$r1" rev-parse master)" = "$before_head" ] || fail "dry-run moved master"
 [ -z "$(git -C "$r1" tag -l)" ] || fail "dry-run created tag"; ok
 
@@ -332,5 +332,17 @@ git -C "$r5" tag -a v0.5.0 -m "v0.5.0"
 land_one_node "$r5" q-ver n1 "feat: bump version file" "minor"
 out=$(BP3_DECIDER=human run_bp3 "$r5" release q-ver) || fail "host VERSION release failed: $out"
 [ "$(cat "$r5/VERSION")" = "0.6.0" ] || fail "VERSION not updated to 0.6.0: $(cat "$r5/VERSION")"; ok
+
+# --- 9. manifest.2: [release].target honored when --target omitted, overridden by --target, clears W_NO_REPO_CONFIG ---
+r6="$work/host-target"
+make_host_repo "$r6"
+git -C "$r6" branch main
+printf 'version = 1\nrepo = "host-target"\n\n[release]\ntarget = "main"\n' > "$r6/backpack.toml"
+git -C "$r6" add backpack.toml && git -C "$r6" commit -qm "chore: backpack"
+land_one_node "$r6" q-tgt n1 "feat: manifest target" "minor"
+out=$(run_bp3 "$r6" release q-tgt --dry-run) || fail "manifest target dry-run failed: $out"
+echo "$out" | jq -e '.ok == true and .target == "main" and (has("warnings") | not)' >/dev/null || fail "manifest target json: $out"; ok
+out_ovr=$(run_bp3 "$r6" release q-tgt --target master --dry-run) || fail "override target dry-run failed: $out_ovr"
+echo "$out_ovr" | jq -e '.ok == true and .target == "master"' >/dev/null || fail "override target json: $out_ovr"; ok
 
 echo "release-door tests: ok ($checks checks)"

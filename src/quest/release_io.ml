@@ -497,10 +497,22 @@ let emit_verdict ~fmt v =
   if fmt = "table" then format_table_verdict v
   else Render.print_verdict ~fmt:"json" v
 
+let load_manifest () =
+  match Backpack.load_opt root with
+  | Ok opt -> opt
+  | Error detail ->
+      err Names.e_invalid_config
+        (`Assoc [("file", json_str Layout.manifest_file); ("detail", json_str detail)])
+        ("Invalid " ^ Layout.manifest_file ^ ": " ^ detail) 1
+
+let first_some a b = match a with Some _ -> a | None -> b
+
 let do_publish_only opts id =
   if not id.decider_human then
     err Names.e_human_required (`Assoc [])
       "Publishing a release requires a human decision (BP3_DECIDER=human)." 1;
+  let manifest_target =
+    match load_manifest () with Some cfg -> cfg.Backpack.release_target | None -> None in
   let (mode, quest_opt, tag, target, commit) =
     match opts.tag, opts.quest with
     | Some t, None ->
@@ -510,7 +522,7 @@ let do_publish_only opts id =
           err Names.e_illegal_edge (`Assoc [ ("tag", json_str t) ])
             ("Tag " ^ t ^ " is not an annotated tag.") 1;
         let sha = match ref_tip t with Some s -> s | None -> not_found "tag" t in
-        let tgt = detect_target_branch opts.target in
+        let tgt = detect_target_branch (first_some opts.target manifest_target) in
         ("commit", None, t, tgt, sha)
     | None, Some q ->
         check_slug q;
@@ -519,7 +531,7 @@ let do_publish_only opts id =
          | Some (_, _, _, _, text) ->
              (match quest_promoted_info text with
               | Some (Some t, Some c, tgt_opt) ->
-                  let tgt = detect_target_branch (match opts.target with Some _ as o -> o | None -> tgt_opt) in
+                  let tgt = detect_target_branch (first_some opts.target (first_some tgt_opt manifest_target)) in
                   ("quest", Some q, t, tgt, c)
               | _ ->
                   err Names.e_illegal_edge (`Assoc [ ("quest", json_str q) ])
@@ -585,7 +597,10 @@ let run argv id =
     if not opts.dry_run && not id.decider_human then
       err Names.e_human_required (`Assoc [ ("mode", json_str mode) ])
         "Releasing requires a human decision (BP3_DECIDER=human); use --dry-run to preview." 1;
-    let target = detect_target_branch opts.target in
+    let manifest_opt = load_manifest () in
+    let manifest_target =
+      match manifest_opt with Some cfg -> cfg.Backpack.release_target | None -> None in
+    let target = detect_target_branch (first_some opts.target manifest_target) in
     let target_ref = "refs/heads/" ^ target in
 
     (* Mode-specific validation and source resolution *)
@@ -742,7 +757,10 @@ let run argv id =
               ~prev_tag ~commit_subjects:commits in
 
       if opts.dry_run then begin
-        let v = `Assoc [
+        let warnings_field =
+          if manifest_opt = None then [ ("warnings", `List [ Backpack.warning_no_repo_config () ]) ]
+          else [] in
+        let v = `Assoc ([
           ("ok", `Bool true);
           ("mode", json_str mode);
           ("quest", opt_json opts.quest);
@@ -764,7 +782,7 @@ let run argv id =
           ("installed_prefix", `Null);
           ("dry_run", `Bool true);
           ("notes", json_str notes.Release.body);
-        ] in
+        ] @ warnings_field) in
         emit_verdict ~fmt:opts.fmt v; 0
       end else begin
         (* Assemble files for plumbing release commit, reading from base_tree *)

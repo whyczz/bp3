@@ -28,6 +28,7 @@ citing it.
 ## Layout
 
 ```text
+backpack.toml            authored: repo manifest (version, repo, [grade], [warden], [release])
 docs/quests/<quest>/     one folder per quest, flat, never moved
   QUEST.md              authored: plan of record (goal, scope, gates, status)
   LOG.md                authored: living run log (nodes, build notes, findings, lessons)
@@ -55,7 +56,10 @@ other repos point at it.
 ## Commands
 
 ```sh
-./bin/bp3 init   # one-time repo setup: renders skills for all harnesses
+./bin/bp3 init   # one-time repo setup: global CORE_SKILLS/hooks (+ local DEV_SKILLS in self mode), backpack.toml & plans/
+./bin/bp3 init-repo                      # scaffold backpack.toml & plans/ in current repo
+./bin/bp3 config                         # show resolved mode, backpack.toml, and global paths
+./bin/bp3 skills prune-local             # remove legacy repo-local generated skills & hooks
 ./bin/bp3 q c <quest> --type default   # create a quest
 ./bin/bp3 q r <quest>                  # rollup JSON: nodes, states, legal edges
 ./bin/bp3 q <quest> n <node> r         # read one node

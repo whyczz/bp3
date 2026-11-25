@@ -21,7 +21,7 @@ the files that are not code.
 lang ocaml  ext .ml .mli  files dune dune-project    libs stdlib unix str yojson sqlite3 ounit2 qcheck-core qcheck-ounit
 lang bash   ext .sh .bash  shebang bash sh           libs posix git jq yq sed awk find mktemp make gh shellcheck yamllint
 lang zsh    files completions/_bp3  runs-in test/completion.sh  libs (completion builtins only)
-data        ext .md .json .jsonl .yaml .tsv .txt .mmd .conf  files Makefile Brewfile .gitignore
+data        ext .md .json .jsonl .yaml .toml .tsv .txt .mmd .conf  files Makefile Brewfile .gitignore
 ```
 
 The block is the only copy of the list. The prose here says why and
@@ -44,7 +44,7 @@ Why some lines look the way they do:
 | Surface | Allowed |
 |---|---|
 | bp3 CLI | `bin/bp3`, the `bp3 q` door, `bp3 harness`, `bp3 warden`, `bp3 release`, `bp3 db`, `bp3 repo`, `bp3 ticket` |
-| skills | markdown, rendered per harness (`.claude`, `.pi`, `.agents`) |
+| skills | markdown, core skills installed user-globally (`~/.gemini/config/skills`, `~/.claude/skills`, `~/.pi/agent/skills`, `~/.codex/skills`, `~/.muse/skills`); bp3 dev skills rendered repo-locally (`.claude`, `.pi`, `.agents`) |
 | not without a quest and sign-off | web app, daemon or service, GUI, hosted database |
 
 bp3 also drives harness CLIs (`claude`, `pi`, `codex`, `agy`). They are the
@@ -84,3 +84,4 @@ Removing something works the same way.
 | 2026-11-23 | owner | "Top-level `bp3 release <quest>` AND `bp3 release --commit <sha>` (defaults to patch bump; sign off adding `bp3 release` to CONSTRAINTS.md)" (framing of `docs/quests/2026-11-23-quest-promote-release/`) | `bp3 release` added to `bp3 CLI` in Surfaces |
 | 2026-11-24 | owner | "yep, lgtm, lets /quest both" + "i'm leaning towards 2, but i don't want to call the repos, i want bp3 install to do it" + "im leaning towards ticket" (red-ink of `docs/quests/2026-11-23-sqlite-control-plane/`) | `sqlite3` added to OCaml `libs`; `bp3 db`, `bp3 repo`, `bp3 ticket` added to `bp3 CLI` in Surfaces |
 | 2026-11-24 | owner | "Drop test/pi-discovery.mjs too — remove lang node from CONSTRAINTS.md completely" + "Signed now — remove lang node (and pi-coding-agent) + harness extensions row from CONSTRAINTS.md" (red-ink of `docs/quests/2026-11-23-codebase-diet/`) | `lang node` (with `@earendil-works/pi-coding-agent`) and the `harness extensions` row (`extensions/bp3-pi`, workflow scripts) removed |
+| 2026-11-25 | owner | "Sign off adding .toml to CONSTRAINTS.md data ext (pure-OCaml parser, 0 new libs) + update Surfaces skills row" (framing of `docs/quests/2026-11-25-global-skills-and-backpack-toml/`) | `.toml` added to `data ext` (pure-OCaml stdlib parser, zero new libs); Surfaces `skills` row updated for user-global core skills + repo-local dev skills |

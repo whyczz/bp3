@@ -11,6 +11,8 @@ unattended, "yolo", or without stopping to ask. One quest.
 One output: the check-in report (below). For one quest with a human
 present, use `induct`.
 
+Scope: active in git repos with `backpack.toml` at root (or when explicitly invoked to bootstrap via `bp3 init-repo`); stay dormant in non-bp3 repos.
+
 `/induct-yolo <quest>` means `/induct <quest>` under the no-human
 rails below. Follow the `induct` skill (`skills/induct/SKILL.md`)
 procedure and rules as written there: author here, verify with

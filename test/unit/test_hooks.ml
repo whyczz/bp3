@@ -94,6 +94,34 @@ let case_binding_of_json_falls_back_to_started_epoch_when_last_seen_is_missing _
   let b = Hooks.binding_of_json "S1" (Yojson.Safe.from_string {|{"quest": "q", "started_epoch": 1795000000}|}) in
   assert_equal ~printer:string_of_float 1_795_000_000. b.Hooks.last_seen_epoch
 
+let case_payload_cwd_prefers_cwd_then_workspace_paths_then_fallback _ =
+  let j s = Yojson.Safe.from_string s in
+  table "payload_cwd" [
+    ({|{"cwd": "/repo/a", "workspacePaths": ["/repo/b"]}|}, "/repo/a");
+    ({|{"workspacePaths": ["/repo/b", "/repo/c"]}|}, "/repo/b");
+    ({|{"cwd": "", "workspacePaths": ["", "/repo/c"]}|}, "/repo/c");
+    ({|{"workspacePaths": []}|}, "/fallback");
+    ({|{}|}, "/fallback") ]
+    (fun s -> Hooks.payload_cwd ~fallback:"/fallback" (j s)) Fun.id
+
+let case_legacy_skills_warning_shape_and_verdict_attachment _ =
+  let w = Hooks.legacy_skills_warning [ ".agents/skills/quest/SKILL.md"; ".claude/skills/quest/SKILL.md" ] in
+  assert_equal ~printer:Fun.id Names.w_local_skills_legacy (Util.get_str w "code" "");
+  let msg = Util.get_str w "message" "" in
+  assert_bool "message mentions prune-local" (Util.contains_sub msg "bp3 skills prune-local");
+  assert_bool "message mentions count 2" (Util.contains_sub msg "2 legacy");
+  (match Yojson.Safe.Util.member "files" w with
+   | `List [ `String a; `String b ] ->
+       assert_equal ~printer:Fun.id ".agents/skills/quest/SKILL.md" a;
+       assert_equal ~printer:Fun.id ".claude/skills/quest/SKILL.md" b
+   | _ -> assert_failure "expected 2 files in warning");
+  let plain = Hooks.no_write "not a bp3 repo" in
+  assert_equal `Null (Yojson.Safe.Util.member "warnings" plain);
+  let with_w = Hooks.no_write ~warnings:[ w ] "not a bp3 repo" in
+  (match Yojson.Safe.Util.member "warnings" with_w with
+   | `List [ _ ] -> ()
+   | _ -> assert_failure "expected 1 warning in verdict")
+
 let gen_binding =
   let open QCheck2.Gen in
   let s = string_size ~gen:printable (int_range 0 12) in
@@ -139,6 +167,8 @@ let () =
        "char_binding_of_json_reads_a_pre_rename_graph_key_as_the_quest" >:: char_binding_of_json_reads_a_pre_rename_graph_key_as_the_quest;
        "case_binding_to_json_writes_the_registry_keys_the_engine_reads_back" >:: case_binding_to_json_writes_the_registry_keys_the_engine_reads_back;
        "case_binding_of_json_falls_back_to_started_epoch_when_last_seen_is_missing" >:: case_binding_of_json_falls_back_to_started_epoch_when_last_seen_is_missing;
+       "case_payload_cwd_prefers_cwd_then_workspace_paths_then_fallback" >:: case_payload_cwd_prefers_cwd_then_workspace_paths_then_fallback;
+       "case_legacy_skills_warning_shape_and_verdict_attachment" >:: case_legacy_skills_warning_shape_and_verdict_attachment;
        QCheck_ounit.to_ounit2_test law_binding_json_round_trips;
        QCheck_ounit.to_ounit2_test law_parse_edge_cycle_reads_the_cycle_from_any_generated_run_id;
      ])

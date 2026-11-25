@@ -44,8 +44,18 @@ let view ~source =
         "No bp3 config store: not inside a git repository." 1
   | Some dir ->
       let t = load_thresholds dir in
-      `Assoc [("ok", `Bool true);
-              ("config_dir", json_str dir);
-              ("mode", json_str (repo_mode ()));
-              ("thresholds", thresholds_json t);
-              ("desks", `List (list_desks ()))]
+      let (repo_cfg_json, warnings_field) =
+        match Backpack.load_opt root with
+        | Ok (Some cfg) -> (Backpack.to_json cfg, [])
+        | Ok None -> (`Null, [("warnings", `List [ Backpack.warning_no_repo_config () ])])
+        | Error detail ->
+            err Names.e_invalid_config
+              (`Assoc [("file", json_str Layout.manifest_file); ("detail", json_str detail)])
+              ("Invalid " ^ Layout.manifest_file ^ ": " ^ detail) 1 in
+      `Assoc ([ ("ok", `Bool true);
+                ("config_dir", json_str dir);
+                ("mode", json_str (repo_mode ()));
+                ("thresholds", thresholds_json t);
+                ("desks", `List (list_desks ()));
+                ("repo_config", repo_cfg_json) ]
+              @ warnings_field)
