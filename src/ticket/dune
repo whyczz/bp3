@@ -1,0 +1,6 @@
+; Cross-repo ticket queue library (sqlite-control-plane ticket.1).
+; Bottom-layer library depending only on bp3_db, bp3_repo, yojson, and unix.
+(library
+ (name bp3_ticket)
+ (wrapped false)
+ (libraries bp3_db bp3_repo yojson unix))

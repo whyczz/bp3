@@ -51,3 +51,4 @@ warden	fixture	./test/warden.sh	60	0	-	src/*,bin/bp3,test/warden.sh
 release-door	fixture	./test/release-door.sh	60	0	-	src/*,bin/bp3,test/release-door.sh
 release-sync	fixture	./test/release-sync.sh	60	0	-	src/*,bin/bp3,scripts/install-bp3.sh,test/release-sync.sh
 repo	fixture	./test/repo.sh	60	0	-	src/repo/*,src/db/*,bin/bp3,test/repo.sh
+ticket	fixture	./test/ticket.sh	60	0	-	src/ticket/*,src/repo/*,src/db/*,bin/bp3,test/ticket.sh
