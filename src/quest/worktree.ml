@@ -15,6 +15,19 @@ open Gitx
 (* ---------- canonical repo & central desk paths ---------- *)
 let canon p = try Unix.realpath p with _ -> p
 
+(* Canonicalize even when the leaf was just removed by walking up to
+   the longest existing ancestor first. *)
+let canon_best p =
+  let rec go cur tail =
+    try
+      let real = Unix.realpath cur in
+      List.fold_left Filename.concat real tail
+    with Unix.Unix_error _ ->
+      let parent = Filename.dirname cur in
+      if parent = cur then p
+      else go parent (Filename.basename cur :: tail) in
+  go p []
+
 let main_root () =
   match git_common_dir () with
   | Some common ->
@@ -76,11 +89,11 @@ let worktree_branch_pairs () =
     let lines = String.split_on_char '\n' out in
     let rec go cur_wt cur_br acc = function
       | [] ->
-          (match cur_wt with Some p -> List.rev ((canon p, cur_br) :: acc) | None -> List.rev acc)
+          (match cur_wt with Some p -> List.rev ((canon_best p, cur_br) :: acc) | None -> List.rev acc)
       | ln :: rest ->
           let t = String.trim ln in
           if t = "" then
-            let acc = match cur_wt with Some p -> (canon p, cur_br) :: acc | None -> acc in
+            let acc = match cur_wt with Some p -> (canon_best p, cur_br) :: acc | None -> acc in
             go None None acc rest
           else match Util.strip_prefix ~prefix:"worktree " t with
           | Some p -> go (Some p) cur_br acc rest
@@ -177,19 +190,6 @@ let do_create path branch commit =
          err Names.e_worktree (`Assoc [("path", json_str path)])
            "git worktree add failed; check the path and ref and retry." 1);
   inspect_json (inspect_info path)
-
-(* Canonicalize even when the leaf was just removed by walking up to
-   the longest existing ancestor first. *)
-let canon_best p =
-  let rec go cur tail =
-    try
-      let real = Unix.realpath cur in
-      List.fold_left Filename.concat real tail
-    with Unix.Unix_error _ ->
-      let parent = Filename.dirname cur in
-      if parent = cur then p
-      else go parent (Filename.basename cur :: tail) in
-  go p []
 
 (* Bounded upward rmdir from a removed desk path, stopping at stop_at
    (never removing stop_at itself or anything outside stop_at/). *)
@@ -991,13 +991,15 @@ let do_prune ~dry_run =
       cand_branches := b :: !cand_branches in
   List.iter (fun r ->
     let ap = abs_path r.r_path in
-    if not (Sys.file_exists ap) then begin
-      if not dry_run then
-        (try delete_record r.r_run; ignore (prune_desk_empty_parents r.r_path) with _ -> ());
+    let mark_released () =
       released := r.r_run :: !released;
       released_paths := ap :: !released_paths;
       if r.r_quest <> "" then add_br (Layout.work_branch r.r_quest);
-      if not r.r_detached then add_br r.r_ref
+      if not r.r_detached then add_br r.r_ref in
+    if not (Sys.file_exists ap) then begin
+      if not dry_run then
+        (try delete_record r.r_run; ignore (prune_desk_empty_parents r.r_path) with _ -> ());
+      mark_released ()
     end else begin
       let state =
         try if (inspect_info r.r_path).idirty then `Dirty else `Clean
@@ -1007,18 +1009,11 @@ let do_prune ~dry_run =
       | `Corrupt -> kept := (r.r_run, r.r_path, "cleanup_failed") :: !kept
       | `Clean ->
           if quest_is_terminal ~quest:r.r_quest ~target || desk_branch_merged ~r ~target then begin
-            if dry_run then begin
-              released := r.r_run :: !released;
-              released_paths := ap :: !released_paths;
-              if r.r_quest <> "" then add_br (Layout.work_branch r.r_quest);
-              if not r.r_detached then add_br r.r_ref
-            end else begin
+            if dry_run then mark_released ()
+            else begin
               try
                 ignore (release_record r false);
-                released := r.r_run :: !released;
-                released_paths := ap :: !released_paths;
-                if r.r_quest <> "" then add_br (Layout.work_branch r.r_quest);
-                if not r.r_detached then add_br r.r_ref
+                mark_released ()
               with _ ->
                 kept := (r.r_run, r.r_path, "cleanup_failed") :: !kept
             end
