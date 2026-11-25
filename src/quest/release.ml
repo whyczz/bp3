@@ -109,12 +109,6 @@ let valid_gh_segment s =
     let rec loop i = i >= n || (ok s.[i] && loop (i + 1)) in
     loop 0
 
-let strip_prefix ~prefix s =
-  let plen = String.length prefix and slen = String.length s in
-  if slen >= plen && String.sub s 0 plen = prefix then
-    Some (String.sub s plen (slen - plen))
-  else None
-
 let strip_suffix ~suffix s =
   let plen = String.length suffix and slen = String.length s in
   if slen >= plen && String.sub s (slen - plen) plen = suffix then
@@ -124,15 +118,15 @@ let strip_suffix ~suffix s =
 let parse_github_repo raw_url =
   let u = String.trim raw_url in
   let rest_opt =
-    match strip_prefix ~prefix:"git@github.com:" u with
+    match Util.strip_prefix ~prefix:"git@github.com:" u with
     | Some r -> Some r
     | None ->
-        (match strip_prefix ~prefix:"ssh://git@github.com/" u with
+        (match Util.strip_prefix ~prefix:"ssh://git@github.com/" u with
          | Some r -> Some r
          | None ->
-             (match strip_prefix ~prefix:"https://github.com/" u with
+             (match Util.strip_prefix ~prefix:"https://github.com/" u with
               | Some r -> Some r
-              | None -> strip_prefix ~prefix:"http://github.com/" u)) in
+              | None -> Util.strip_prefix ~prefix:"http://github.com/" u)) in
   match rest_opt with
   | None -> None
   | Some path ->
@@ -287,7 +281,7 @@ let parse_rendered_release_tag text =
     | [] -> None
     | l :: rest ->
         let t = String.trim l in
-        (match strip_prefix ~prefix:"<!-- GENERATED from skills/" t with
+        (match Util.strip_prefix ~prefix:"<!-- GENERATED from skills/" t with
          | None -> go rest
          | Some tail ->
              (match find_sub ~sub:marker tail with

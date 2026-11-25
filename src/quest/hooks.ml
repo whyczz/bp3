@@ -6,6 +6,7 @@
    Event lines carry event/ts/run_id and never edge/from/to,
    so the Store fold skips them by construction. *)
 open Gitx
+open Util
 open Store
 
 (* ---------- small helpers ---------- *)
@@ -25,11 +26,8 @@ let read_stdin () =
    with End_of_file -> ());
   Buffer.contents buf
 
-let member_str j key =
-  try match Yojson.Safe.Util.member key j with `String s -> s | _ -> "" with _ -> ""
-
-let member_int j key =
-  try match Yojson.Safe.Util.member key j with `Int n -> n | _ -> 0 with _ -> 0
+let member_str j key = Util.get_str j key ""
+let member_int j key = Util.get_int j key 0
 
 let rec collect_strings acc = function
   | `String s -> s :: acc
@@ -385,8 +383,7 @@ let handle () =
           else wrap (no_write "not a bp3 repo")
         end else
           let command = command_of payload in
-          if contains_sub command "bp3 q hooks" ||
-             contains_sub command "bp3 q hooks"
+          if contains_sub command "bp3 q hooks"
           then wrap (no_write "reentrant")
           else begin
             let bindings = ref (load_registry ()) in

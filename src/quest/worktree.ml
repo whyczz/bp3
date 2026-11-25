@@ -42,18 +42,13 @@ let canon p = try Unix.realpath p with _ -> p
 
 let git_in dir args = run_capture ("git" :: "-C" :: dir :: args)
 
-let strip_prefix p s =
-  let n = String.length p in
-  if String.length s >= n && String.sub s 0 n = p
-  then Some (String.sub s n (String.length s - n)) else None
-
 (* Branches checked out in any worktree, the main one included. *)
 let checked_out_branches () =
   let out, code = git_out ["worktree"; "list"; "--porcelain"] in
   if code <> 0 then []
   else List.filter_map (fun ln ->
-    match strip_prefix "branch " ln with
-    | Some r -> (match strip_prefix "refs/heads/" r with Some b -> Some b | None -> Some r)
+    match Util.strip_prefix ~prefix:"branch " ln with
+    | Some r -> (match Util.strip_prefix ~prefix:"refs/heads/" r with Some b -> Some b | None -> Some r)
     | None -> None)
     (String.split_on_char '\n' out)
 
@@ -94,14 +89,6 @@ let inspect_json i =
           ("dirty", `Bool i.idirty); ("changed_count", `Int i.ichanged)]
 
 (* ---------- create ---------- *)
-let rec mkdir_p dir =
-  if dir = "" || dir = "." || Sys.file_exists dir then ()
-  else begin
-    mkdir_p (Filename.dirname dir);
-    try Unix.mkdir dir 0o755
-    with Unix.Unix_error (Unix.EEXIST, _, _) -> ()
-  end
-
 let valid_branch b =
   let n = String.length b in
   n >= 1 && b.[0] <> '-' && not (has_dotdot b) &&
@@ -132,7 +119,7 @@ let do_create path branch commit =
           | Some f -> f | None -> not_found "commit" c in
         ["worktree"; "add"; "--detach"; abs; full]
     | _ -> usage "worktree create needs exactly one of --branch or --commit" in
-  mkdir_p (Filename.dirname abs);
+  Util.mkdir_p (Filename.dirname abs);
   if run_status (git args) <> 0 then
     (match branch with
      | Some b when List.mem b (checked_out_branches ()) ->
@@ -188,17 +175,16 @@ let desks_dir = Filename.concat root ".bp3/desks"
 let desk_file run_id = Filename.concat desks_dir (run_id ^ ".json")
 
 let record_of_json j =
-  match Store.get_opt j "run_id" with
+  match Util.get_str_opt j "run_id" with
   | None -> None
   | Some run ->
       Some { r_run = run;
-             r_quest = Store.get_str j "quest" (Store.get_str j "graph" "");
-             r_node = Store.get_str j "node" "";
-             r_path = Store.get_str j "path" "";
-             r_ref = Store.get_str j "ref" "";
-             r_detached = (match Yojson.Safe.Util.member "detached" j
-                           with `Bool b -> b | _ -> false);
-             r_created = Store.get_int j "created_ts" 0 }
+             r_quest = Util.get_str j "quest" (Util.get_str j "graph" "");
+             r_node = Util.get_str j "node" "";
+             r_path = Util.get_str j "path" "";
+             r_ref = Util.get_str j "ref" "";
+             r_detached = Util.get_bool j "detached" false;
+             r_created = Util.get_int j "created_ts" 0 }
 
 let load_record run_id =
   if not (valid_run_id run_id) then None
@@ -227,7 +213,7 @@ let load_records () =
    final name. The link fails if the key already exists, so
    no writer ever clobbers another Run's record. *)
 let save_record r =
-  mkdir_p desks_dir;
+  Util.mkdir_p desks_dir;
   let final = desk_file r.r_run in
   let tmp = Filename.concat desks_dir
       (Printf.sprintf ".%s.%d.tmp" r.r_run (Unix.getpid ())) in
@@ -431,7 +417,7 @@ let do_list quest_filter =
   let wt_paths =
     let out, code = git_out ["worktree"; "list"; "--porcelain"] in
     if code <> 0 then []
-    else List.filter_map (fun ln -> strip_prefix "worktree " ln)
+    else List.filter_map (fun ln -> Util.strip_prefix ~prefix:"worktree " ln)
            (String.split_on_char '\n' out) in
   let orphans = List.filter_map (fun p ->
     if List.mem (canon p) recorded then None

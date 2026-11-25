@@ -1,5 +1,6 @@
 (* store — identity, plans, ledger fold: the truth layer. *)
 open Gitx
+open Util
 
 (* ---------- slugs / identity ---------- *)
 let valid_slug s =
@@ -75,15 +76,6 @@ let version_major v = match parse_version v with m :: _ -> m | [] -> 0
 (* ---------- plans ---------- *)
 type knobs = { max_cycles : int; grade_required : bool; verify_required : bool }
 
-let contains_sub s sub =
-  let n = String.length s and m = String.length sub in
-  if m = 0 then true
-  else if m > n then false
-  else
-    let rec at i j = j = m || (s.[i + j] = sub.[j] && at i (j + 1)) in
-    let rec loop i = i + m <= n && (at i 0 || loop (i + 1)) in
-    loop 0
-
 let plan_knobs_from_text text =
   (* reject stages:/edges: keys at line start (after spaces) *)
   let lines = String.split_on_char '\n' text in
@@ -104,10 +96,6 @@ let plan_knobs_from_text text =
     if contains_sub text "required: false" && contains_sub text "grade:" then false
     else if contains_sub text "grade.required: false" then false
     else true in
-  let grade_required =
-    if contains_sub text "required: false" then
-      (* only counts if a grade: key exists or grade_required spelling *)
-      grade_required else grade_required in
   let verify_required =
     not (contains_sub text "verify: optional" || contains_sub text "verify: none"
          || contains_sub text "verify:optional" || contains_sub text "verify:none") in
@@ -147,15 +135,7 @@ let fresh_state () = {
   last_commit = None; node_type = "default";
 }
 
-let get_str j key default =
-  try match Yojson.Safe.Util.member key j with `String s -> s | _ -> default
-  with _ -> default
-let get_int j key default =
-  try match Yojson.Safe.Util.member key j with `Int n -> n | _ -> default
-  with _ -> default
-let get_opt j key =
-  try match Yojson.Safe.Util.member key j with `String s -> Some s | _ -> None
-  with _ -> None
+let get_opt = Util.get_str_opt
 
 (* The one compat mapping (mig.1, rename.1): pre-rename ledger
    strings fold to the new words here and nowhere else; new ledger

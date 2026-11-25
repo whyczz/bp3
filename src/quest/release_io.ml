@@ -209,7 +209,7 @@ let quest_promoted_info text =
     if ln <> "" then
       try
         let j = Yojson.Safe.from_string ln in
-        if get_str j "edge" "" = "promote" then
+        if Util.get_str j "edge" "" = "promote" then
           let tag = get_opt j "tag" in
           let commit = get_opt j "commit" in
           let target = get_opt j "target" in

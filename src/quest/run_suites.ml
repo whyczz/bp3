@@ -38,12 +38,6 @@ let read_file path =
   let ic = open_in_bin path in
   Fun.protect ~finally:(fun () -> close_in ic) (fun () -> really_input_string ic (in_channel_length ic))
 
-let rec mkdir_p d =
-  if not (Sys.file_exists d) then begin
-    mkdir_p (Filename.dirname d);
-    try Unix.mkdir d 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ()
-  end
-
 let rec rm_rf p =
   match Unix.lstat p with
   | { Unix.st_kind = Unix.S_DIR; _ } ->
@@ -149,7 +143,7 @@ let () =
   let launch (r : Suites.row) =
     let dir = Filename.concat tmpbase r.name in
     let home = Filename.concat dir "home" in
-    mkdir_p (Filename.concat home "t");
+    Util.mkdir_p (Filename.concat home "t");
     let env = Array.of_list (Suites.suite_env ~caller:caller_env ~home ~name:r.name) in
     match Unix.fork () with
     | 0 ->

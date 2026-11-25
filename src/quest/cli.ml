@@ -37,14 +37,6 @@ let parse_flags args =
          | None -> usage ("unknown flag: " ^ f))
     | stray :: _ -> usage ("stray positional: " ^ stray)
   and add acc name v rest =
-    let has = match name with
-      | "reason" -> acc.reason <> None | "commit" -> acc.commit <> None
-      | "verdict" -> acc.verdict <> None | "target" -> acc.target <> None
-      | "type" -> acc.typ <> None | "depends-on" -> acc.depends_on <> None
-      | "verify-verdict" -> acc.verify_verdict <> None
-      | "format" -> acc.fmt <> "json" || List.mem "--format" [] | _ -> false in
-    (* duplicate detection for format needs explicit tracking; handled below *)
-    ignore has;
     match name with
     | "reason" -> if acc.reason <> None then usage "duplicate flag --reason" else loop { acc with reason = Some v } rest
     | "commit" -> if acc.commit <> None then usage "duplicate flag --commit" else loop { acc with commit = Some v } rest

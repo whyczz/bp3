@@ -19,18 +19,10 @@ let default_thresholds = { setup_slow_s = 180; depth_cap = 3 }
 let thresholds_json t =
   `Assoc [("setup_slow_s", `Int t.setup_slow_s); ("depth_cap", `Int t.depth_cap)]
 
-let jint j key default =
-  try match Yojson.Safe.Util.member key j with `Int n -> n | _ -> default
-  with _ -> default
-
-let jobj j key =
-  try match Yojson.Safe.Util.member key j with `Assoc _ as o -> Some o | _ -> None
-  with _ -> None
-
 let thresholds_of_json j =
-  let scope = match jobj j "thresholds" with Some t -> t | None -> j in
-  { setup_slow_s = jint scope "setup_slow_s" default_thresholds.setup_slow_s;
-    depth_cap = jint scope "depth_cap" default_thresholds.depth_cap }
+  let scope = match Util.get_obj j "thresholds" with Some t -> t | None -> j in
+  { setup_slow_s = Util.get_int scope "setup_slow_s" default_thresholds.setup_slow_s;
+    depth_cap = Util.get_int scope "depth_cap" default_thresholds.depth_cap }
 
 let load_thresholds dir =
   let path = config_file dir in
