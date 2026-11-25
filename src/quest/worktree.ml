@@ -66,16 +66,39 @@ let abs_path p =
   if Filename.is_relative p then Filename.concat (main_root ()) p else p
 
 let git_in dir args = run_capture ("git" :: "-C" :: dir :: args)
+let git_in_ok dir args = run_status ("git" :: "-C" :: dir :: args) = 0
+
+(* All (canonical worktree path, short branch name option) pairs from main_root. *)
+let worktree_branch_pairs () =
+  let out, code = git_in (main_root ()) ["worktree"; "list"; "--porcelain"] in
+  if code <> 0 || out = "" then []
+  else
+    let lines = String.split_on_char '\n' out in
+    let rec go cur_wt cur_br acc = function
+      | [] ->
+          (match cur_wt with Some p -> List.rev ((canon p, cur_br) :: acc) | None -> List.rev acc)
+      | ln :: rest ->
+          let t = String.trim ln in
+          if t = "" then
+            let acc = match cur_wt with Some p -> (canon p, cur_br) :: acc | None -> acc in
+            go None None acc rest
+          else match Util.strip_prefix ~prefix:"worktree " t with
+          | Some p -> go (Some p) cur_br acc rest
+          | None ->
+              (match Util.strip_prefix ~prefix:"branch " t with
+               | Some r ->
+                   let b = match Util.strip_prefix ~prefix:"refs/heads/" r with Some s -> s | None -> r in
+                   go cur_wt (Some b) acc rest
+               | None -> go cur_wt cur_br acc rest) in
+    go None None [] lines
 
 (* Branches checked out in any worktree, the main one included. *)
 let checked_out_branches () =
-  let out, code = git_out ["worktree"; "list"; "--porcelain"] in
-  if code <> 0 then []
-  else List.filter_map (fun ln ->
-    match Util.strip_prefix ~prefix:"branch " ln with
-    | Some r -> (match Util.strip_prefix ~prefix:"refs/heads/" r with Some b -> Some b | None -> Some r)
-    | None -> None)
-    (String.split_on_char '\n' out)
+  List.filter_map snd (worktree_branch_pairs ())
+
+let worktrees_holding_branch branch =
+  List.filter_map (fun (p, br) -> if br = Some branch then Some p else None)
+    (worktree_branch_pairs ())
 
 (* ---------- inspect ---------- *)
 type inspection = {
@@ -155,6 +178,44 @@ let do_create path branch commit =
            "git worktree add failed; check the path and ref and retry." 1);
   inspect_json (inspect_info path)
 
+(* Canonicalize even when the leaf was just removed by walking up to
+   the longest existing ancestor first. *)
+let canon_best p =
+  let rec go cur tail =
+    try
+      let real = Unix.realpath cur in
+      List.fold_left Filename.concat real tail
+    with Unix.Unix_error _ ->
+      let parent = Filename.dirname cur in
+      if parent = cur then p
+      else go parent (Filename.basename cur :: tail) in
+  go p []
+
+(* Bounded upward rmdir from a removed desk path, stopping at stop_at
+   (never removing stop_at itself or anything outside stop_at/). *)
+let prune_empty_parents ~stop_at path =
+  let stop = canon_best stop_at in
+  let start = Filename.dirname (canon_best (abs_path path)) in
+  let rec go cur acc =
+    if cur = "" || cur = "/" || cur = stop
+       || not (String.starts_with ~prefix:(stop ^ "/") cur)
+    then List.rev acc
+    else
+      match Unix.rmdir cur with
+      | () -> go (Filename.dirname cur) (cur :: acc)
+      | exception Unix.Unix_error _ -> List.rev acc in
+  go start []
+
+let prune_desk_empty_parents path =
+  let c_abs = canon_best (abs_path path) in
+  let c_repo = canon_best (repo_desks_dir ()) in
+  let c_legacy = Filename.concat (main_root ()) Layout.legacy_desks_root in
+  if String.starts_with ~prefix:(c_repo ^ "/") c_abs then
+    prune_empty_parents ~stop_at:c_repo path
+  else if String.starts_with ~prefix:(c_legacy ^ "/") c_abs then
+    prune_empty_parents ~stop_at:c_legacy path
+  else []
+
 (* ---------- remove: the dirty refusal lives here ---------- *)
 let do_remove path force =
   let info = inspect_info path in
@@ -177,6 +238,7 @@ let do_remove path force =
      else
        err Names.e_worktree (`Assoc [("path", json_str path)])
          "git worktree remove failed; inspect the worktree and retry." 1);
+  ignore (prune_desk_empty_parents path);
   `Assoc [("ok", `Bool true); ("path", json_str path); ("removed", `Bool true)]
 
 (* ---------- bookkeeping: one file per run_id ---------- *)
@@ -411,10 +473,81 @@ let release_record r force =
              ("removed", `Bool true)] @ record_json r)
   end else begin
     delete_record r.r_run;
+    ignore (prune_desk_empty_parents r.r_path);
     `Assoc ([("ok", `Bool true); ("released", `Bool true);
              ("removed", `Bool false); ("missing", `Bool true)]
             @ record_json r)
   end
+
+(* Delete local [branch] via `git branch -d` (never -D) only when it exists,
+   is merged into [target] (or [assume_merged] during --dry-run preview),
+   and no worktree outside [exclude_paths] holds it checked out. *)
+let delete_merged_branch ?(exclude_paths = []) ?(assume_merged = false)
+    ~branch ~target ~dry_run () =
+  let mr = main_root () in
+  let br_ref = "refs/heads/" ^ branch in
+  let tgt_ref = "refs/heads/" ^ target in
+  let c_excl = List.map canon exclude_paths in
+  if not (git_in_ok mr [ "rev-parse"; "--verify"; "-q"; br_ref ^ "^{commit}" ]) then
+    false
+  else
+    let remaining_holders =
+      worktrees_holding_branch branch
+      |> List.filter (fun p -> not (List.mem p c_excl)) in
+    if remaining_holders <> [] then false
+    else if (not assume_merged)
+            && not (git_in_ok mr [ "merge-base"; "--is-ancestor"; br_ref; tgt_ref ]) then
+      false
+    else if dry_run then true
+    else git_in_ok mr [ "branch"; "-d"; branch ]
+
+(* Post-release quest cleanup (clean.1): release clean or missing desks for
+   [quest], preserve dirty desks with W_DESK_DIRTY_KEPT, and delete the
+   merged local quest/<quest> branch. Fail-safe: never aborts a completed
+   release. Under [dry_run], computes exact preview without mutating disk. *)
+let cleanup_quest ~quest ~target ~source_tip ~dry_run =
+  let records =
+    load_records () |> List.filter (fun r -> r.r_quest = quest) in
+  let released = ref [] and released_paths = ref [] in
+  let kept = ref [] and warnings = ref [] in
+  let add_warn w = if not (List.mem w !warnings) then warnings := w :: !warnings in
+  List.iter (fun r ->
+    let ap = abs_path r.r_path in
+    if not (Sys.file_exists ap) then begin
+      if not dry_run then
+        (try delete_record r.r_run; ignore (prune_desk_empty_parents r.r_path) with _ -> ());
+      released := r.r_run :: !released;
+      released_paths := ap :: !released_paths
+    end else begin
+      let is_dirty =
+        try (inspect_info r.r_path).idirty
+        with _ -> false in
+      if is_dirty then begin
+        kept := (r.r_run, r.r_path, "dirty") :: !kept;
+        add_warn "W_DESK_DIRTY_KEPT"
+      end else if dry_run then begin
+        released := r.r_run :: !released;
+        released_paths := ap :: !released_paths
+      end else begin
+        try
+          ignore (release_record r false);
+          released := r.r_run :: !released;
+          released_paths := ap :: !released_paths
+        with _ ->
+          kept := (r.r_run, r.r_path, "cleanup_failed") :: !kept;
+          add_warn "W_DESK_CLEANUP_FAILED"
+      end
+    end) records;
+  let br = Layout.work_branch quest in
+  let mr = main_root () in
+  let assume_merged =
+    dry_run
+    && git_in_ok mr [ "merge-base"; "--is-ancestor"; "refs/heads/" ^ br; source_tip ] in
+  let branch_deleted =
+    delete_merged_branch
+      ~exclude_paths:(if dry_run then !released_paths else [])
+      ~assume_merged ~branch:br ~target ~dry_run () in
+  (List.rev !released, List.rev !kept, branch_deleted, List.rev !warnings)
 
 let do_release_quest quest =
   Store.check_slug quest;

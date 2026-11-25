@@ -484,7 +484,8 @@ let format_table_verdict v =
       let keys = [ "mode"; "quest"; "target"; "strategy"; "drift_kind";
                    "verified_merged"; "attempts"; "bump"; "previous_tag"; "tag";
                    "commit"; "release_kind"; "repo"; "release_url";
-                   "installed_prefix"; "dry_run" ] in
+                   "installed_prefix"; "released_desks"; "kept_desks";
+                   "branch_deleted"; "dry_run" ] in
       List.iter (fun k -> Printf.printf "%-18s %s\n" k (get k)) keys;
       (match List.assoc_opt "notes" fs with
        | Some (`String n) when n <> "" ->
@@ -756,10 +757,24 @@ let run argv id =
               ~tag:(Option.value tag_opt ~default:(Release.short_sha source_tip))
               ~prev_tag ~commit_subjects:commits in
 
+      let kept_desk_json (run_id, path, reason) =
+        `Assoc [ ("run_id", json_str run_id); ("path", json_str path);
+                 ("reason", json_str reason) ] in
+      let cleanup_fields ?(extra_warnings = []) released kept branch_deleted warnings =
+        let all_warnings = extra_warnings @ List.map json_str warnings in
+        [ ("released_desks", `List (List.map json_str released));
+          ("kept_desks", `List (List.map kept_desk_json kept));
+          ("branch_deleted", `Bool branch_deleted) ]
+        @ (if all_warnings = [] then []
+           else [ ("warnings", `List all_warnings) ]) in
+
       if opts.dry_run then begin
-        let warnings_field =
-          if manifest_opt = None then [ ("warnings", `List [ Backpack.warning_no_repo_config () ]) ]
-          else [] in
+        let extra_warnings =
+          if manifest_opt = None then [ Backpack.warning_no_repo_config () ] else [] in
+        let (released_desks, kept_desks, branch_deleted, warnings) =
+          match opts.quest with
+          | Some q -> Worktree.cleanup_quest ~quest:q ~target ~source_tip ~dry_run:true
+          | None -> ([], [], false, []) in
         let v = `Assoc ([
           ("ok", `Bool true);
           ("mode", json_str mode);
@@ -782,7 +797,7 @@ let run argv id =
           ("installed_prefix", `Null);
           ("dry_run", `Bool true);
           ("notes", json_str notes.Release.body);
-        ] @ warnings_field) in
+        ] @ cleanup_fields ~extra_warnings released_desks kept_desks branch_deleted warnings) in
         emit_verdict ~fmt:opts.fmt v; 0
       end else begin
         (* Assemble files for plumbing release commit, reading from base_tree *)
@@ -864,7 +879,14 @@ let run argv id =
                   !self_install_hook ~install_root ~tag:t ~version:nv ~commit:new_tip
               | _ -> None in
 
-            let v = `Assoc [
+            (* Post-release quest desk & merged-branch cleanup (clean.1):
+               runs last so release/publish/install finish before any desk is removed. *)
+            let (released_desks, kept_desks, branch_deleted, warnings) =
+              match opts.quest with
+              | Some q -> Worktree.cleanup_quest ~quest:q ~target ~source_tip:new_tip ~dry_run:false
+              | None -> ([], [], false, []) in
+
+            let v = `Assoc ([
               ("ok", `Bool true);
               ("mode", json_str mode);
               ("quest", opt_json opts.quest);
@@ -885,7 +907,7 @@ let run argv id =
               ("installed_prefix", opt_json installed_prefix);
               ("dry_run", `Bool false);
               ("notes", json_str notes.Release.body);
-            ] in
+            ] @ cleanup_fields released_desks kept_desks branch_deleted warnings) in
             emit_verdict ~fmt:opts.fmt v; 0
       end in
     try_release 1

@@ -399,4 +399,14 @@ for pat in '*.red-ink.md' '*.2b-reviewed.md' '*.2b-reviewed.md.snapshot'; do
   grep -qxF "$pat" "$root/.gitignore" || fail ".gitignore missing $pat"
 done
 
+# --- empty parent dir pruning on desk release (clean.1) ---
+p_a=$(wt prepare ptest1 node-a --run PA1 --commit "$SHA" | jq -r '.path')
+p_b=$(wt prepare ptest2 node-b --run PB1 --commit "$SHA" | jq -r '.path')
+wt release --run PA1 >/dev/null
+[ ! -e "$(dirname "$p_a")" ] || fail "empty runs/ptest1/node-a not pruned"
+[ ! -e "$(dirname "$(dirname "$p_a")")" ] || fail "empty runs/ptest1 not pruned"
+[ -d "$p_b" ] || fail "sibling desk ptest2 was harmed by parent pruning"
+wt release --run PB1 >/dev/null
+[ -d "$repo_dir" ] || fail "repo_desks_dir itself was removed by parent pruning"
+
 echo "worktree tests: ok"

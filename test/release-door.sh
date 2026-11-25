@@ -15,6 +15,7 @@ qbin="$root/_build/default/src/quest/main.exe"
 [ -x "$qbin" ] || fail "missing built binary $qbin"
 
 export BP3_HARNESS=agy BP3_MODEL=test-model
+export BP3_DESKS_DIR="$work/desks"
 unset BP3_DECIDER || true
 
 make_host_repo() { # dir
@@ -344,5 +345,39 @@ out=$(run_bp3 "$r6" release q-tgt --dry-run) || fail "manifest target dry-run fa
 echo "$out" | jq -e '.ok == true and .target == "main" and (has("warnings") | not)' >/dev/null || fail "manifest target json: $out"; ok
 out_ovr=$(run_bp3 "$r6" release q-tgt --target master --dry-run) || fail "override target dry-run failed: $out_ovr"
 echo "$out_ovr" | jq -e '.ok == true and .target == "master"' >/dev/null || fail "override target json: $out_ovr"; ok
+
+# --- 10. Post-release auto-cleanup (desk-auto-cleanup clean.1) ---
+r7="$work/auto-clean"
+make_host_repo "$r7"
+
+# 10a. Clean quest desk + clean grade desk, --dry-run preview, then release from INSIDE quest desk
+qdesk=$(run_bp3 "$r7" worktree prepare --quest q-clean | jq -r '.path')
+land_one_node "$qdesk" q-clean n1 "feat: clean desk work" "minor"
+qsha=$(git -C "$qdesk" rev-parse HEAD)
+gdesk=$(run_bp3 "$r7" worktree prepare q-clean n1 --run grade-n1-c1-a1 --commit "$qsha" | jq -r '.path')
+
+# --dry-run previews both desks + branch_deleted:true without removing anything
+dry=$(run_bp3 "$r7" release q-clean --dry-run) || fail "clean dry-run failed: $dry"
+echo "$dry" | jq -e '.ok == true and .dry_run == true and (.released_desks | sort) == ["grade-n1-c1-a1","quest-q-clean"] and .kept_desks == [] and .branch_deleted == true' >/dev/null || fail "clean dry-run json: $dry"
+[ -d "$qdesk" ] && [ -d "$gdesk" ] || fail "dry-run removed desks!"
+git -C "$r7" show-ref --verify --quiet refs/heads/quest/q-clean || fail "dry-run deleted branch!"; ok
+
+# Real release invoked FROM INSIDE the quest desk (no BP3_ROOT)
+out=$(cd "$qdesk" && env -u BP3_ROOT BP3_DECIDER=human "$qbin" release q-clean --no-gh --no-install) || fail "release from quest desk failed: $out"
+echo "$out" | jq -e '.ok == true and (.released_desks | sort) == ["grade-n1-c1-a1","quest-q-clean"] and .kept_desks == [] and .branch_deleted == true' >/dev/null || fail "clean release json: $out"
+[ ! -e "$qdesk" ] || fail "quest desk still exists after release"
+[ ! -e "$gdesk" ] || fail "grade desk still exists after release"
+[ ! -e "$(dirname "$gdesk")" ] || fail "empty runs/<q>/<n> parent dir not pruned"
+[ ! -e "$(dirname "$(dirname "$gdesk")")" ] || fail "empty runs/<q> parent dir not pruned"
+if git -C "$r7" show-ref --verify --quiet refs/heads/quest/q-clean; then fail "merged quest/q-clean branch still exists"; fi; ok
+
+# 10b. Dirty quest desk is preserved (never --force deleted), W_DESK_DIRTY_KEPT emitted, release still exits 0
+qdirty=$(run_bp3 "$r7" worktree prepare --quest q-dirty | jq -r '.path')
+land_one_node "$qdirty" q-dirty n1 "feat: dirty desk work" "patch"
+echo "unsaved wip" > "$qdirty/wip.txt"
+out=$(BP3_DECIDER=human run_bp3 "$r7" release q-dirty --no-gh --no-install) || fail "dirty-desk release failed: $out"
+echo "$out" | jq -e '.ok == true and .released_desks == [] and (.kept_desks | length) == 1 and .kept_desks[0].run_id == "quest-q-dirty" and .kept_desks[0].reason == "dirty" and .branch_deleted == false and (.warnings | index("W_DESK_DIRTY_KEPT") != null)' >/dev/null || fail "dirty release json: $out"
+[ -f "$qdirty/wip.txt" ] || fail "dirty desk file lost!"
+git -C "$r7" show-ref --verify --quiet refs/heads/quest/q-dirty || fail "branch deleted while dirty desk still holds it!"; ok
 
 echo "release-door tests: ok ($checks checks)"
