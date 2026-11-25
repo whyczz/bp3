@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: active
 home_repo: bp3
 date: 2026-11-23
 bump: minor
@@ -8,28 +8,33 @@ bump: minor
 # codebase-diet: delete ~5,500 LOC of unused engines, unify helpers, finish Names hygiene
 
 TL;DR
-Cut nearly half of `bp3`'s non-test codebase (~5,500+ LOC) by retiring the unused Muse JS workflow scripts (`2,245` LOC), `extensions/bp3-pi` (`622` LOC), and the unused workflow-supervisor/tape/watch/backtest/link subsystems in `src/quest/harness.ml` (`~2,600` LOC) while keeping `bp3 harness desk` intact and preserving history via a git tag (`archive/pre-codebase-diet`). Then extract a tiny shared `src/quest/util.ml` for duplicated primitives, delete literal dead code in `cli.ml` and `store.ml`, promote `docs/icebox/2026-11-22-names-constants.md` so every CLI spelling lives in `src/quest/names.ml`, and consolidate the overlapping `induct` skills. Sequenced after `2026-11-22-bp3-is-static-across-downstream-repo-worktrees`.
+Cut ~5,700+ LOC of dead machinery (~38% of non-test code) and 11 of 36 test suites by retiring the unused Muse JS workflow scripts (`2,245` LOC), `extensions/bp3-pi` (`622` LOC), `test/pi-discovery.mjs` (dropping `lang node` completely from `CONSTRAINTS.md`), and the unused workflow-supervisor/tape/watch/backtest/link subsystems in `src/quest/harness.ml` (`~2,800` LOC) + claimed-context doors `bp3 n` / `bp3 e`, while keeping `bp3 harness desk` intact and preserving history via `archive/pre-codebase-diet`. Consolidate the 4 overlapping induct skills into 2 (`induct-inline` -> `induct`, `induct-inline-yolo` -> `induct-yolo`, promoting `docs/icebox/2026-11-23-induct-inline-becomes-induct.md`). Then extract a tiny shared `src/quest/util.ml`, delete literal dead code in `cli.ml` and `store.ml`, and promote `docs/icebox/2026-11-22-names-constants.md` so every CLI spelling lives in `src/quest/names.ml`. Unblocked now that `bp3 release` (`v0.3.0`) and `sqlite-control-plane` (`v0.4.0`) have landed and `2026-11-22-bp3-is-static-across-downstream-repo-worktrees` is canceled.
 
 ELI5
 About 43% of `bp3` is machinery built for an older Muse/Pi workflow engine that hasn't run once in the last four quests, plus copy-pasted helpers and naming leftovers from three renames. Every agent session pays context tax reading around that dead code, and every `make check-full` runs fixture suites testing it. We tag git for history, delete the unused engines cleanly, pull duplicated helpers into one tiny `Util` file, centralize CLI spellings in `Names`, and shrink the repo to the sharp core that actually runs.
 
 ## Context
 
-Promotes `docs/icebox/2026-11-22-names-constants.md` (copied verbatim to [ICEBOX.md](ICEBOX.md)). Sequenced **after** `docs/quests/2026-11-22-bp3-is-static-across-downstream-repo-worktrees/` (so install/release versioning is live before removing deprecated surfaces, and `docs/icebox/2026-11-23-single-cli.md` can thaw cleanly right alongside or right after).
+Promotes two icebox entries: `docs/icebox/2026-11-22-names-constants.md` (already in [ICEBOX.md](ICEBOX.md)) and `docs/icebox/2026-11-23-induct-inline-becomes-induct.md` (folded into this quest during `/red-ink` Round 1, 2026-11-24; copied verbatim at approval). Unblocked now that `2026-11-23-quest-promote-release` (`v0.3.0`), `2026-11-23-sqlite-control-plane` (`v0.4.0`), and `91d27b1` have landed and `2026-11-22-bp3-is-static-across-downstream-repo-worktrees` is canceled (`1262fb1`). Runs before `docs/icebox/2026-11-24-split-src-quest.md`, `docs/icebox/2026-11-23-single-cli.md`, and `docs/icebox/2026-11-24-central-desks-dir.md`.
 
-Measured ground (audited 2026-11-23):
+Measured ground (re-audited 2026-11-24 on `HEAD` `1262fb1`, post-`v0.4.0`):
 
 | Fact | Source |
 |---|---|
-| Total non-test LOC: **14,073** (`8,388` OCaml + `3,904` skills/workflows + `1,781` bin/extensions/scripts) | `wc -l` audit (2026-11-23) |
-| `src/quest/harness.ml` is **2,812 LOC** (**33.5%** of all OCaml) mixing 9 subsystems (`supervisor`, `init-check`, `find-tape`, `watch`, `record-init`, `bind-tape`, `backtest`, `link`, lifecycle cache) built for workflow runs that had **zero measured runs** | `wc -l`, `2026-11-22-induct-inline-as-default-measure-author/QUEST.md:265` |
-| `skills/induct/workflows/*.js` is **2,245 LOC** (`induct-grade.js` alone is 1,022 LOC); `extensions/bp3-pi/` is **622 LOC**; ZERO other production `.js`/`.mjs`/`.ts` files exist in the repo (`test/pi-discovery.mjs` is the only remaining JS file) | `find` + `wc -l` (2026-11-23) |
+| Live OCaml + JS/TS non-test LOC: `src/quest/` + `src/warden/` + `src/db/` + `src/repo/` + `src/ticket/` + `skills/induct/workflows/*.js` + `extensions/bp3-pi/` = **15,119 LOC** (plus skills/bin/scripts); **36** suites in `test/suites.tsv` | `wc -l`, `test/suites.tsv` (2026-11-24) |
+| `src/quest/harness.ml` is **2,812 LOC** mixing 9 subsystems (`supervisor`, `init-check`, `find-tape`, `watch`, `record-init`, `bind-tape`, `backtest`, `link`, lifecycle cache) built for workflow runs that had **zero measured runs**; only non-`main.ml` caller is `src/quest/tx.ml:45` (`Harness.epoch_of_iso`) | `wc -l`, `rg "Harness\." src/` (2026-11-24) |
+| `skills/induct/workflows/*.js` is **2,245 LOC** (`induct-grade.js` alone is 1,022 LOC); `extensions/bp3-pi/` is **622 LOC**; `test/pi-discovery.mjs` (58 LOC, opt-in/skipped) is the ONLY remaining JS file in the repo | `find` + `wc -l` (2026-11-24) |
+| **11 of 36** suites in `test/suites.tsv` test dead workflow/Pi/supervisor/link surfaces (`bp3-pi`, `js-unit`, `transcripts`, `induct`, `harness-cli`, `harness-fold`, `harness-evidence`, `harness-backtest`, `link`, `context`, `tape`); `js-unit` is the ONLY `unit`-tier row in `test/suites.tsv` | `test/suites.tsv` (2026-11-24) |
 | Literal dead code: `src/quest/cli.ml:40-47` (`let has = ... in ignore has;`), `src/quest/store.ml:115-118` (`if contains_sub ... then grade_required else grade_required`) | read directly (2026-11-23) |
-| Duplicated primitives: `contains_sub` (`store.ml`, `config.ml`), `ensure_dir`/`mkdir_p` (`harness.ml`, `config.ml`, `worktree.ml`), 4 different Yojson string/member getters (`store.ml`, `hooks.ml`, `harness.ml`, `claude_tx.ml`), 2 atomic writers (`harness.ml`, `config.ml`), 4 hand-rolled flag parsers | `rg` audit (2026-11-23) |
-| Naming drift: `worktree` appears 48 times in `worktree.ml` vs `desk` in docs; `e` variable names for nodes (old `exp`) across `main.ml`/`store.ml`; `bp3 g` header comment in `gitx.ml:1`; `names.ml` holds only 3 constants while 32+ `E_*` codes stay raw literals | `rg` audit (2026-11-23) |
-| 4 overlapping induct skills (`induct` 290L, `induct-yolo` 152L, `induct-inline` 139L, `induct-inline-yolo` 71L) where `induct`/`induct-yolo` describe the dead Muse JS workflow engine | `wc -l skills/*/SKILL.md` |
+| Duplicated primitives: `contains_sub` (`store.ml`, `config.ml`), `ensure_dir`/`mkdir_p` (`harness.ml`, `config.ml`, `worktree.ml`, `run_suites.ml`), multiple Yojson string/member getters, atomic writers | `rg` audit (2026-11-23) |
+| Naming drift: `worktree` in `worktree.ml` vs `desk` in docs; `e` variable names for nodes (old `exp`) across `main.ml`/`store.ml`; `bp3 g` header comment in `gitx.ml:1`; `names.ml` holds only 8 lines while `E_*` codes stay raw literals | `rg` audit (2026-11-23) |
+| 4 overlapping induct skills (`induct`, `induct-yolo`, `induct-inline`, `induct-inline-yolo`) where `induct`/`induct-yolo` describe the dead Muse JS workflow engine | `ls skills/` (2026-11-24) |
 
-Owner decision settled during framing (2026-11-23): aggressively retire Muse JS workflows (`2,245` LOC), `extensions/bp3-pi` (`622` LOC), and unused `harness.ml` supervisor/tape/watch/backtest/link code, keeping `bp3 harness desk` + preserving history via a git tag.
+Owner Shape decisions settled (2026-11-24, `/red-ink` Round 1):
+1. Keep all 5 nodes in `codebase-diet` (`retire.1`, `retire.2`, `clean.1`, `clean.2`, `skills.1`).
+2. Fold & promote `docs/icebox/2026-11-23-induct-inline-becomes-induct.md`: rename `induct-inline` -> `induct` and `induct-inline-yolo` -> `induct-yolo`, deleting the legacy conductor skills.
+3. Retire `bp3 n` and `bp3 e` claimed-context doors alongside `harness link`.
+4. Drop `test/pi-discovery.mjs` too and remove `lang node` completely from `CONSTRAINTS.md` (alongside `extensions/bp3-pi` and workflow scripts).
 
 ## Terms
 
@@ -44,26 +49,40 @@ Owner decision settled during framing (2026-11-23): aggressively retire Muse JS 
 
 | Input | Source |
 |---|---|
-| existing OCaml engine, skills, tests, `Makefile`, `test/suites.tsv`, `CONSTRAINTS.md` | repo at post-`bp3-is-static` HEAD |
-| owner `CONSTRAINTS.md` sign-off | required to remove `extensions/bp3-pi`, workflow scripts, and `@earendil-works/pi-coding-agent` (and `node` if `pi-discovery.mjs` retires) from `CONSTRAINTS.md` |
+| existing OCaml engine (`src/quest/`, `src/warden/`, `src/db/`, `src/repo/`, `src/ticket/`), skills, tests, `Makefile`, `test/suites.tsv`, `CONSTRAINTS.md` | repo at post-`v0.4.0` HEAD (`1262fb1`+) |
+| owner `CONSTRAINTS.md` sign-off | settled in `/red-ink` Round 2 (2026-11-24): removes `lang node` (`@earendil-works/pi-coding-agent`) and `harness extensions` (`extensions/bp3-pi`, workflow scripts) |
+| surviving env vars | `BP3_RUN_ID` (**kept** — read by `store.ml`, `hooks.ml`, `ticket_cli.ml`), `BP3_DECIDER`, `BP3_ROOT`, `BP3_TARGET`, `BP3_COMPLETIONS_DIR`, `BP3_SKILLS_DIR`, `BP3_Q_BIN`, `BP3_DB`, `PREFIX`, `BP3_NO_AUTO_SYNC` |
+| retired inputs | `MUSE_SESSION_ID` / `MUSE_THREAD_ID` / `BP3_SESSION_ID` claim resolution (`config.ml`), `bp3 n` / `bp3 e` argv, `bp3 harness <non-desk>` argv, `scripts/shell-files --node`, and `.git/bp3/{runs,links,claims,by-session}` auto-creation on `bp3 config` read |
 
 ## Outputs
 
 | Output | Shape |
 |---|---|
-| deleted dead surfaces | `skills/induct/workflows/`, `.agents/workflows/`, `extensions/bp3-pi/`, dead `harness.ml` subsystems, and their obsolete fixture suites removed cleanly |
-| `src/quest/util.ml` | single home for string/fs/atomic-write/JSON helpers; zero duplicate copies across `src/quest/` |
+| deleted dead surfaces | `skills/induct/workflows/`, `.agents/workflows/`, `extensions/bp3-pi/`, `test/pi-discovery.mjs`, dead `harness.ml` subsystems, `bp3 n` / `bp3 e` doors, and 11 obsolete fixture/unit suites removed cleanly |
+| retired CLI contract | `bp3 n`, `bp3 e`, and `bp3 harness <non-desk>` refuse cleanly with `E_USAGE` (exit 2), naming `bp3 harness desk` for harness calls; `bp3 config` drops `links`/`claims`/`by-session` and stops writing `.git/bp3/by-session/*` |
+| `Makefile` & `scripts/check-gates` | `make lint` drops the `node --check` step (`scripts/shell-files --node` retired); `make check` = `lint` + `dune build` + `dune test` (drops `./scripts/run-suites --tier unit` now that `js-unit` is gone); `make check-full` = `check` + `./scripts/run-suites`; `scripts/check-gates` and `test/check-tiers.sh` updated in lockstep |
+| `CONSTRAINTS.md` | removes `lang node` line (and `@earendil-works/pi-coding-agent`) and the `harness extensions` row from `Surfaces`, backed by the owner's 2026-11-24 sign-off row |
+| downstream `bp3 skills install` pruning | moves all 4 workflow names (`node-loop`, `induct-grade`, `induct-land`, `induct-node`) into `RETIRED_WORKFLOWS` (auto-prunes `.agents/workflows/*.js` and removes empty `.agents/workflows/` dir); `prune_stale` auto-removes `induct-inline` and `induct-inline-yolo` renders when dropped from `CORE_SKILLS` |
+| `src/quest/util.ml` | single home for string/fs/atomic-write/time/JSON helpers; zero duplicate copies across `src/quest/` |
 | `src/quest/names.ml` | single home for every CLI verb/door/edge/state/flag/`E_*` code + test failing on rogue literals |
-| consolidated skills | 2 sharp conducting skills (`induct` + `induct-yolo` running inline/`agy` mode, or `induct-inline` + `induct-inline-yolo` with dead workflow prose removed — settled in Open question 2) |
-| faster `make check-full` | fewer obsolete fixture suites -> faster gate wall time |
+| consolidated skills | 2 sharp conducting skills (`induct` + `induct-yolo` promoted from `induct-inline` / `induct-inline-yolo`) + synced renders across `.agents/`, `.claude/`, `.pi/` |
+| faster `make check-full` | 11 dead suites removed (36 -> 25 suites) -> faster gate wall time |
 
 ## Acceptance gates
 
-Observed today (2026-11-23):
+Observed today (2026-11-24, `HEAD` `1262fb1`):
 
 ```text
 $ wc -l src/quest/harness.ml skills/induct/workflows/*.js extensions/bp3-pi/index.ts extensions/bp3-pi/src/*.ts | tail -n 1
     5679 total
+$ ls test/pi-discovery.mjs skills/ | grep -E "pi-discovery|induct"
+induct
+induct-inline
+induct-inline-yolo
+induct-yolo
+test/pi-discovery.mjs
+$ grep -c '^[^#]' test/suites.tsv
+36
 $ rg -n "ignore has" src/quest/cli.ml
 47:    ignore has;
 $ rg -n "then grade_required else grade_required" src/quest/store.ml
@@ -75,16 +94,26 @@ $ wc -l src/quest/names.ml
 Design trace (after quest lands):
 
 ```text
-retire.1  ls skills/induct/workflows extensions/bp3-pi -> No such file or directory
-          CONSTRAINTS.md updated with owner sign-off row removing harness extensions / pi-coding-agent
-          make check-full rc 0 (faster wall time, 0 retired suites left in test/suites.tsv)
-retire.2  src/quest/harness.ml gone or <= 100 lines (thin desk delegation); bp3 harness desk prepare|check|exit|release|list still green
-          bp3 harness supervisor -> E_USAGE (cleanly retired)
-clean.1   src/quest/util.ml exists; zero duplicate contains_sub / ensure_dir / write_file_atomic; cli.ml:ignore has and store.ml:no-op gone
-clean.2   src/quest/names.ml holds all doors, verbs, edges, states, flags, E_* codes; Store.reserved_slugs derived from Names;
-          unit test fails if a new raw E_* code appears outside names.ml; gitx.ml:1 no longer says "bp3 g"
-skills.1  zero dead Muse workflow prose left in skills/; all renders synced; test/skills.sh + test/mode.sh green
-all       non-test LOC reduced by >= 4,500 lines; make check-full rc 0
+retire.1  ls skills/induct/workflows extensions/bp3-pi .agents/workflows test/pi-discovery.mjs -> No such file or directory
+          CONSTRAINTS.md drops `lang node` and `harness extensions` row with owner 2026-11-24 sign-off row
+          Makefile drops `node --check` and `./scripts/run-suites --tier unit`; check-gates + test/check-tiers.sh green
+          bin/bp3 skills install prunes all 4 retired .agents/workflows/*.js files (+ empty dir)
+          make check-full rc 0 (32 suites)
+retire.2  src/quest/harness.ml deleted (0 LOC); main.ml routes `bp3 harness desk` directly to Worktree
+          bp3 harness supervisor, bp3 n, bp3 e -> E_USAGE (exit 2)
+          bp3 config ~60 LOC strictly read-only (never writes .git/bp3/ on read); render.ml emits setup: [] (W_SETUP_SLOW dropped)
+          Harness.epoch_of_iso moved into Tx; 7 dead harness/link/context/tape suites deleted (25 suites left)
+          make check-full rc 0
+clean.1   src/quest/util.ml exists (~90 LOC, stdlib+unix+yojson only); zero duplicate contains_sub / strip_prefix / ensure_dir / mkdir_p / write_file_atomic / epoch_of_iso
+          cli.ml:ignore has and store.ml:no-op gone; test/unit/test_util.ml + make check-full rc 0
+clean.2   src/quest/names.ml holds all doors, verbs, edges, states, flags, E_* codes for src/quest/*.ml
+          Store.reserved_slugs derived from Names (+ "warden", minus retired supervisor/watch/backtest/init-check/find-tape/n/e)
+          test/unit/test_names.ml fails if any raw `err "E_` literal appears in src/quest/*.ml outside names.ml
+          gitx.ml:1 says "bp3 q"; internal e -> node and worktree -> desk comment hygiene clean; make check-full rc 0
+skills.1  skills/induct/SKILL.md and skills/induct-yolo/SKILL.md promoted from induct-inline*; skills/induct-inline* deleted
+          zero dead Muse workflow or induct-inline prose in skills/, AGENTS.md, CLAUDE.md, scripts/check-retired-terms.sh
+          all renders synced (.agents/, .claude/, .pi/) and stale induct-inline* pruned; test/skills.sh + test/mode.sh + make check-full rc 0
+all       ~5,700+ LOC deleted, 25/25 suites green (down from 36), historical pre-rename quests still fold cleanly (`bp3 q r 2026-11-05-bp3-mvp` -> goal_fin)
 ```
 
 ## Goal and why
@@ -102,15 +131,15 @@ Shrink `bp3` to the sharp, readable core that actually runs every day. Deleting 
 
 | In | Out |
 |---|---|
-| Deleting `skills/induct/workflows/*.js`, `.agents/workflows/`, `extensions/bp3-pi/`, and their tests (`retire.1`) | Merging `bin/bp3` into a single OCaml binary (`docs/icebox/2026-11-23-single-cli.md`, separate quest) |
-| Deleting unused `harness.ml` subsystems (`supervisor`, `init-check`, `find-tape`, `watch`, `record-init`, `bind-tape`, `backtest`, `link`) while keeping `harness desk` (`retire.2`) | Rewriting stored git ledger history (read-side `Layout.legacy_*` folds stay intact so old quests still read!) |
-| `src/quest/util.ml`, removing dead code in `cli.ml`/`store.ml`, unifying duplicated helpers (`clean.1`) | Changing FSM semantics, `metrics.jsonl` schema, or `warden` rules |
-| Promoting `2026-11-22-names-constants.md` (`names.ml`, `reserved_slugs`, `worktree` -> `desk` internal hygiene, `e` -> `node` var cleanup) (`clean.2`) | Deleting `test/pi-discovery.mjs` without explicit owner call (Open question 3) |
-| Consolidating `induct*` skills as a dedicated skill node (`skills.1`) | |
+| Deleting `skills/induct/workflows/*.js`, `.agents/workflows/`, `extensions/bp3-pi/`, `test/pi-discovery.mjs`, `lang node` in `CONSTRAINTS.md`, and their obsolete tests (`retire.1`) | Merging `bin/bp3` into a single OCaml binary (`docs/icebox/2026-11-23-single-cli.md`, separate quest) |
+| Deleting unused `harness.ml` subsystems (`supervisor`, `init-check`, `find-tape`, `watch`, `record-init`, `bind-tape`, `backtest`, `link`) + retiring `bp3 n` / `bp3 e` while keeping `harness desk` (`retire.2`) | Splitting `src/quest/` into domain libraries (`docs/icebox/2026-11-24-split-src-quest.md`, next quest) or moving desks to `~/.bp3/desks/` (`docs/icebox/2026-11-24-central-desks-dir.md`) |
+| `src/quest/util.ml`, removing dead code in `cli.ml`/`store.ml`, unifying duplicated helpers (`clean.1`) | Rewriting stored git ledger history (read-side `Layout.legacy_*` folds stay intact so old quests still read!) |
+| Promoting `2026-11-22-names-constants.md` (`names.ml`, `reserved_slugs`, `worktree` -> `desk` internal hygiene, `e` -> `node` var cleanup) (`clean.2`) | Changing FSM semantics, `metrics.jsonl` schema, `warden`, `release`, or `sqlite-control-plane` behavior |
+| Promoting `2026-11-23-induct-inline-becomes-induct.md`: renaming `induct-inline` -> `induct` and `induct-inline-yolo` -> `induct-yolo`, deleting legacy conductor skills (`skills.1`) | Re-adding a future `agy`-inspired Pi workflow (`.pi/skills/` rendering, `pi_tx.ml` metrics parsing, and `pi` as a driven harness CLI stay intact; only the old TS `extensions/bp3-pi/` dies) |
 
 ## Constraints at approval
 
-- **Constraints pass (`CONSTRAINTS.md`):** **Removes** items from `CONSTRAINTS.md` (`@earendil-works/pi-coding-agent` library, `extensions/bp3-pi` + workflow scripts from the Surfaces table, and optionally `lang node` if `test/pi-discovery.mjs` retires). Per `CONSTRAINTS.md:77` ("Removing something works the same way"), requires an explicit **owner-words row** in the Sign-off log at approval!
+- **Constraints pass (`CONSTRAINTS.md`):** **Removes** `lang node` (plus `@earendil-works/pi-coding-agent`) and the `harness extensions` row (`extensions/bp3-pi`, workflow scripts) from `CONSTRAINTS.md`. **Owner signed off during `/red-ink` Round 2 (2026-11-24):** `"Signed now — remove lang node (and pi-coding-agent) + harness extensions row from CONSTRAINTS.md"` (plus Round 1: `"Drop test/pi-discovery.mjs too — remove lang node from CONSTRAINTS.md completely"`).
 - **Common-sense pass (`CONTEXT.md`):**
   - YAGNI (`CONTEXT.md:78`): building is cheap, carrying unused machinery costs context and CI time on every future quest.
   - Chesterton's fence (`CONTEXT.md:82`): every deleted subsystem documents why it existed (`Muse JS workflows`, `bp3-pi`, `supervisor` had zero measured runs once `induct-inline` became default) and stays recoverable at tag `archive/pre-codebase-diet`.
@@ -148,37 +177,72 @@ Shrink `bp3` to the sharp, readable core that actually runs every day. Deleting 
 
 ## Scorecard
 
-| Row | Baseline (2026-11-23) | Target | Read from |
+| Row | Baseline (2026-11-24, `1262fb1`) | Target | Read from |
 |---|---|---|---|
-| non-test LOC | 14,073 | **< 9,500** (>= 4,500 cut) | `wc -l` |
-| `src/quest/harness.ml` | 2,812 LOC | **deleted / <= 100 LOC** (desk only) | `wc -l` |
-| `make check-full` wall time | ~37s (28 suites) | **measurably faster** (dead suites removed) | `run-suites` summary |
-| `src/quest/names.ml` coverage | 3 constants | **100%** of CLI verbs/doors/edges/states/flags/`E_*` | `test_names.ml` literal guard |
+| deleted dead surface LOC | 5,679 LOC (`harness.ml` + workflows + `bp3-pi`) + 58L `pi-discovery.mjs` + ~350L `config.ml` | **0 LOC** (all deleted) | `wc -l` |
+| `src/quest/harness.ml` | 2,812 LOC | **deleted (0 LOC)** (`main.ml` -> `Worktree`) | `ls` / `wc -l` |
+| `test/suites.tsv` suite count | 36 suites | **25 suites** (11 dead suites removed) | `grep -c '^[^#]' test/suites.tsv` |
+| `CONSTRAINTS.md` languages | 4 (`ocaml`, `bash`, `zsh`, `node`) | **3** (`ocaml`, `bash`, `zsh`; `node` gone) | `scripts/check-constraints` |
+| `src/quest/names.ml` coverage (`src/quest/*.ml`) | 3 constants | **100%** of `src/quest/` doors/verbs/edges/states/flags/`E_*` | `test_names.ml` literal guard |
+| conducting skills | 4 (`induct`, `induct-yolo`, `induct-inline`, `induct-inline-yolo`) | **2** (`induct`, `induct-yolo`) | `ls skills/` |
 
 ## Risks and red chair
 
-- **Strongest attack (breaking hidden callers of `harness.ml` or `bp3 n`/`bp3 e`):** "Deleting `link` and `harness.ml` breaks `bp3 n` / `bp3 e` (claimed context doors) and `Claude_tx.seconds` (which calls `Harness.epoch_of_iso` at `src/quest/claude_tx.ml:27`!)."
-  - **Great catch — settled in design:**
-    1. `epoch_of_iso` moves cleanly to `Tx` (in Quest 1) or `Util` (in `retire.2`/`clean.1`) BEFORE `harness.ml` is deleted — zero broken callers.
-    2. `bp3 n` and `bp3 e` exist solely for `link claim` workflow children; Open question 1 explicitly asks the owner to confirm retiring `bp3 n`/`bp3 e` alongside `link` (if kept, a tiny 80-line `Link` module stays instead).
-- **Second attack (breaking historical quest reads):** "Aggressive cleanup might accidentally delete `Layout.legacy_*` or `Store.fold_edge` and break `bp3 q r` on pre-rename quests."
-  - **Settled in design:** Scope explicitly keeps all read-side `Layout.legacy_*` and `Store.fold_edge`/`fold_state_name` mappings untouched, and `test/unit/test_store.ml` (which pins `exp-era`, `graph-era`, and `quest-era` ledger samples) stays green throughout.
-- **Attack on source (`ICEBOX.md` + owner prompt):**
-  - *Overlap with `bp3-is-static`:* running `codebase-diet` before `2026-11-22-bp3-is-static-across-downstream-repo-worktrees` would cause merge conflicts in `bin/bp3`, `Makefile`, and `scripts/`. **Settled:** explicitly sequenced after `bp3-is-static` (and `fast-agy-induct` + `warden-v0`).
-  - *Removing `node` from `CONSTRAINTS.md`:* `test/pi-discovery.mjs` is the only JS file left once `bp3-pi` and workflows go. Tracked as Open question 3 so we don't drop `node` silently without checking if the owner still runs `pi-discovery.mjs`.
+- **Strongest attack (breaking hidden callers of `harness.ml`, `bp3 n`/`bp3 e`, or `BP3_RUN_ID`):**
+  - **Settled:**
+    1. Only non-`main.ml` caller of `Harness` is `src/quest/tx.ml:45` (`Harness.epoch_of_iso`) -> moved into `Tx` in `retire.2`, then `Util` in `clean.1`.
+    2. `BP3_RUN_ID` stays intact (`store.ml`, `hooks.ml`, `ticket_cli.ml`); only `Store.resolved_run_id`, `W_CONTEXT_*`, and `MUSE_SESSION_ID`/`BP3_SESSION_ID` claim lookup retire.
+    3. `bp3 n` and `bp3 e` retire cleanly behind `E_USAGE` (exit 2).
+- **Second attack (gate breakage when `js-unit` and last JS file disappear):**
+  - **Settled:** `retire.1` removes `node --check` from `Makefile` (`scripts/shell-files --node`), drops `./scripts/run-suites --tier unit` from `make check` (`check` = `lint` + `dune build` + `dune test`), and updates `scripts/check-gates` + `test/check-tiers.sh` in lockstep.
+- **Third attack (breaking historical quest reads):**
+  - **Settled:** All read-side `Layout.legacy_*` and `Store.fold_edge`/`fold_state_name` mappings stay untouched; `test/unit/test_store.ml` (exp/graph/quest samples) stays green throughout.
+- **Fourth attack (breaking `bp3_db`/`bp3_repo`/`bp3_ticket` dune dependency direction in `clean.2`):**
+  - **Settled:** `src/quest/names.ml` and `test_names.ml` scope strictly to `src/quest/*.ml` (`src/db`, `src/repo`, `src/ticket` are lower-level libs and join `bp3_core` later in `split-src-quest`).
+- **Closing Red Chair caller audit (2026-11-24, verified by `rg` on `HEAD` `1262fb1`):**
+  - `test/unit/test_clock.ml:41` calls `Harness.compact_ts` -> update in `retire.2` to test `Clock.with_fixed` against `Gitx.now_iso` (or drop the `Harness` call).
+  - `test/unit/test_main.ml:98` calls `Config.valid_index_key` -> delete that `by-session` assertion in `retire.2` (keep `Config.thresholds_of_json` at lines 61-62).
+  - `test/g.sh:51-52,701` assert `bp3 n r` (`E_NO_CONTEXT`) and `bp3 e block` -> update in `retire.2` to assert `E_USAGE` retirement and test major-ahead via `bp3 q`.
+  - `test/mode.sh:89` & `test/skills.sh:93-97,119,142-143,162,261-414` assert the 4 `.agents/workflows/*.js` files (`retire.1`) and `induct-inline*` / `.pi/settings.json` skill exclusion arrays (`skills.1`) -> update in lockstep in `retire.1` and `skills.1`.
+  - `scripts/check-constraints` (`libs node`) & `scripts/red-first:104` (`[ "$s" != "js-unit" ]`) -> clean up in `retire.1` so `set -e` never trips when `lang node` is absent.
 
 ## Open questions
 
-1. Confirm retiring `bp3 n` / `bp3 e` (claimed context doors) alongside `harness link`, since `induct-inline` and `agy` `/swarm` always address `bp3 q <quest> n <node> e <edge>` directly? — **owner** (recommended: retire both).
-2. In `skills.1`, collapse `induct` + `induct-inline` into a single `induct` (and `induct-yolo`) skill, OR delete `induct`/`induct-yolo` and keep `induct-inline`/`induct-inline-yolo`? — **owner** (recommended: collapse into `induct` + `induct-yolo` so the short name IS the default!).
-3. Keep `test/pi-discovery.mjs` (keeping `node` in `CONSTRAINTS.md`) or retire it too so `bp3` becomes pure OCaml + Bash? — **owner**.
-4. Fold in any architecture/abstraction takeaways from `docs/learn/get-good-harness-engineering.md` (Grok report) once written — **owner + agent**.
+*(All framing open questions settled during `/red-ink` Rounds 1–3 on 2026-11-24. Zero open questions remaining.)*
 
 ## Node diagram
 
 ```text
-(after 2026-11-22-bp3-is-static lands)
+(tag archive/pre-codebase-diet before Wave 1)
 
-retire.1 (drop Muse JS + bp3-pi) ──► retire.2 (slim harness.ml to desk) ──┬──► clean.1 (util.ml + dead code) ──► clean.2 (names.ml + desk hygiene)
-                                                                          └──► skills.1 (consolidate induct* skills)
+Wave 1: retire.1 (drop Muse JS, bp3-pi, pi-discovery.mjs, lang node, check-gates)
+           │
+Wave 2: retire.2 (delete harness.ml, retire bp3 n/e, slim config.ml, setup:[] in render.ml)
+           │
+           ├─────────────────────────────────────────────────┐
+Wave 3: clean.1 (src/quest/util.ml + dead code)        skills.1 (induct-inline -> induct,
+           │                                                     induct-inline-yolo -> induct-yolo,
+Wave 4: clean.2 (src/quest/names.ml + reserved_slugs +           renders, docs, retired-terms)
+                 warden + test_names.ml + desk hygiene)
 ```
+
+## Quest-level functional tests
+
+End-to-end functional checks proving all 5 nodes compose cleanly (run before `goal_fin`):
+
+1. **Happy path — full repo gate & clean CLI surface (functional fixture + real repo):**
+   - Starting state: quest tip after all 5 nodes land (`make check-full`).
+   - Action: run `make check`, `make check-full`, `./bin/bp3 harness desk list`, `./bin/bp3 q r 2026-11-05-bp3-mvp`, and `./bin/bp3 config`.
+   - Observable result: `make check` runs `lint` + `dune build` + `dune test` cleanly (exit 0, 3 languages in `check-constraints`); `make check-full` passes all 25/25 suites; `bp3 config` succeeds read-only without creating `.git/bp3/` dirs; `2026-11-05-bp3-mvp` folds to `goal_fin`.
+2. **Refusal path — retired surfaces refuse with state unchanged (functional fixture):**
+   - Starting state: clean fixture git repo with an active quest.
+   - Action: invoke `bp3 harness supervisor q1`, `bp3 n r`, `bp3 e handoff --commit HEAD --reason "x"`.
+   - Observable result: every call exits 2 with `E_USAGE` JSON; `git status --short` and `bp3 q r q1` ledger are unchanged.
+3. **Downstream migration & pruning path (functional fixture simulating `~/m/predictor`):**
+   - Starting state: host fixture repo containing legacy `.agents/workflows/{node-loop,induct-grade,induct-land,induct-node}.js` and rendered `.claude/skills/induct-inline/SKILL.md` + `.claude/skills/induct-inline-yolo/SKILL.md` with `<!-- GENERATED ... -->` headers.
+   - Action: run `BP3_COMPLETIONS_DIR=<tmp> ./bin/bp3 skills install --harness=all` followed by `./bin/bp3 skills check`.
+   - Observable result: all 4 legacy workflow files and empty `.agents/workflows/` dir are pruned; `induct-inline` / `induct-inline-yolo` renders are pruned; `induct` / `induct-yolo` renders are written with zero dead workflow prose; `bp3 skills check` returns `{"ok":true,...}`.
+4. **Chesterton's fence & literal-guard invariants (real repo):**
+   - Starting state: quest tip + annotated tag `archive/pre-codebase-diet` on pre-diet `master`.
+   - Action: `git rev-parse archive/pre-codebase-diet:src/quest/harness.ml` and `dune test` (`test_util.ml`, `test_names.ml`, `test_store.ml`).
+   - Observable result: archived `harness.ml` resolves cleanly from tag; `test_names.ml` confirms 0 raw `err "E_..."` literals in `src/quest/*.ml` outside `names.ml` and `Store.reserved_slugs` includes `"warden"` and every surviving door/verb.
