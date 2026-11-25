@@ -9,7 +9,7 @@
 (executable
  (name main)
  (modules main)
- (libraries bp3_quest bp3_warden bp3_db yojson unix str))
+ (libraries bp3_quest bp3_warden bp3_db bp3_repo yojson unix str))
 
 ; The parallel suite runner (test-pyramid tier.1); scripts/run-suites
 ; execs it. Its pure core is the Suites module in the library.

@@ -715,7 +715,8 @@ let rec run argv =
     List.exists is_help (List.filteri (fun i _ -> i < 3) argv) in
   let context_door = match argv with
     | "harness" :: _ | "config" :: _ | "worktree" :: _ | "hooks" :: _
-    | "init-repo" :: _ | "warden" :: _ | "release" :: _ | [] -> false
+    | "init-repo" :: _ | "warden" :: _ | "release" :: _ | "db" :: _
+    | "repo" :: _ | "ticket" :: _ | [] -> false
     | _ -> not help_invoked in
   let (ctx_rc, ctx_source, ctx_amb) =
     if not context_door then (None, "", None)
@@ -758,6 +759,7 @@ let rec run argv =
   | "warden" :: rest -> do_warden rest
   | "release" :: rest -> Release_io.run rest id
   | "db" :: rest -> Db_cli.run rest
+  | "repo" :: rest -> Repo_cli.run rest
   | "e" :: (h :: _) when is_help h -> print_string help_e; 0
   | "e" :: _edge :: (h :: _) when is_help h -> print_string help_e; 0
   | "e" :: rest -> do_e ctx_rc ctx_source ctx_amb id rest
@@ -788,6 +790,9 @@ let rec run argv =
         end else begin
           let oc = open_out_bin path in output_string oc content; close_out oc
         end) plans;
+      if Repo_store.is_git_repo root then
+        (try ignore (Repo_store.add ~path:root ())
+         with Db.Error (code, json) -> raise (Verdict (code, json)));
       print_verdict ~fmt:"json" (`Assoc [("ok", `Bool true);
         ("plans", `List (List.map (fun (p, _) -> json_str p) plans))]); 0
   | "hooks" :: _ ->

@@ -314,6 +314,23 @@ skills_install() {
       echo "completion: add $completions_dir to fpath (zsh: fpath=($completions_dir \$fpath); compinit) or source $comp_bash_src (bash)"
     fi
   fi
+
+  # Auto-register target git repo in bp3.sqlite (sqlite-control-plane repo.1, fail-fast).
+  # In self/repo layout (where $root/skills exists), invoke only the repo's own built
+  # binary (or BP3_Q_BIN) so an unbuilt fixture never falls back to a stale bp3-q on PATH.
+  if git -C "$target" rev-parse --git-common-dir >/dev/null 2>&1; then
+    local reg_bin=''
+    local cand_bin
+    cand_bin="$(q_bin)"
+    if [[ -x $cand_bin ]]; then
+      reg_bin="$cand_bin"
+    elif [ ! -d "$root/skills" ] && command -v bp3-q >/dev/null 2>&1; then
+      reg_bin="$(command -v bp3-q)"
+    fi
+    if [ -n "$reg_bin" ]; then
+      BP3_ROOT="$target" "$reg_bin" repo add "$target" >/dev/null
+    fi
+  fi
 }
 
 # Render freshness (followup.2, workflow-birth): a dispatch
@@ -422,7 +439,7 @@ skills_check() {
   printf '{"ok":true,"fresh":[%s],"skills_checked":%d}\n' "${fresh_json%,}" "$skills_checked"
 }
 
-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|agy|all>] | bp3 init-repo | bp3 skills install [...] | bp3 skills check | bp3 q ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table] | bp3 release (<quest> | --commit <sha>) [...] | bp3 db info [--format json|table] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|agy|all>] | bp3 init-repo | bp3 skills install [...] | bp3 skills check | bp3 q ... | bp3 n [r] | bp3 e [<edge> ...] | bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table] | bp3 release (<quest> | --commit <sha>) [...] | bp3 db info [--format json|table] | bp3 repo add|list|remove [...] | bp3 harness ... | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
 q_bin() { echo "${BP3_Q_BIN:-$root/_build/default/$ENGINE_SRC/main.exe}"; }
 run_q() {
   local door="$1"; shift
@@ -458,6 +475,7 @@ case "${1:-}" in
   warden) shift; run_q warden "$@" ;;
   release) shift; run_q release "$@" ;;
   db) shift; run_q db "$@" ;;
+  repo) shift; run_q repo "$@" ;;
   harness) shift; run_q harness "$@" ;;
   config) shift; run_q config "$@" ;;
   worktree) shift; run_q worktree "$@" ;;

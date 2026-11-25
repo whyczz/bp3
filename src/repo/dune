@@ -1,0 +1,6 @@
+; Machine-local git repo registry (sqlite-control-plane repo.1):
+; depends only on bp3_db, yojson, unix — zero dependency on bp3_quest.
+(library
+ (name bp3_repo)
+ (wrapped false)
+ (libraries bp3_db yojson unix))
