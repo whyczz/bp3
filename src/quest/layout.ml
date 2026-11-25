@@ -56,6 +56,10 @@ let strip_trailing_slashes s =
     if i > 1 && s.[i - 1] = '/' then loop (i - 1) else String.sub s 0 i in
   loop (String.length s)
 
+let join_path a b =
+  let a = strip_trailing_slashes a in
+  if a = "/" then "/" ^ b else a ^ "/" ^ b
+
 let sanitize_repo_slug name =
   let n = String.length name in
   let buf = Buffer.create n in
@@ -86,19 +90,17 @@ let desks_base_of env_desks home =
   | Some d when String.trim d <> "" -> strip_trailing_slashes d
   | _ ->
       (match home with
-       | Some h when String.trim h <> "" ->
-           strip_trailing_slashes h ^ "/" ^ default_desks_rel
+       | Some h when String.trim h <> "" -> join_path h default_desks_rel
        | _ -> default_desks_rel)
 
 let repo_desks_dir base key =
-  strip_trailing_slashes base ^ "/" ^ key
+  join_path base key
 
 let quest_desk_dir repo_dir quest =
-  strip_trailing_slashes repo_dir ^ "/" ^ quests_desks_subdir ^ "/" ^ quest
+  join_path repo_dir (quests_desks_subdir ^ "/" ^ quest)
 
 let run_desk_dir repo_dir quest node run_id =
-  String.concat "/"
-    [ strip_trailing_slashes repo_dir; runs_desks_subdir; quest; node; run_id ]
+  join_path repo_dir (String.concat "/" [ runs_desks_subdir; quest; node; run_id ])
 
 let desks_meta_dir repo_dir =
-  strip_trailing_slashes repo_dir ^ "/" ^ desks_meta_subdir
+  join_path repo_dir desks_meta_subdir

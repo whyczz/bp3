@@ -39,6 +39,10 @@ if grep -nE $'^\t[@+]*-' "$mk" > /dev/null; then fail "a recipe line ignores err
 if grep -nE '^\.IGNORE|^[[:space:]]*MAKEFLAGS|\|\|[[:space:]]*(true|:)([[:space:]]|$)' "$mk" > /dev/null; then
   fail "the Makefile ignores errors: $(grep -nE '^\.IGNORE|^[[:space:]]*MAKEFLAGS|\|\|[[:space:]]*(true|:)([[:space:]]|$)' "$mk" | head -1)"
 fi
+# raw-Makefile guard so a $(CURDIR)-conditional dune root override cannot sneak past make -n
+if grep -nE '^[^#]*([[:space:],])--root(=|[[:space:]])' "$mk" > /dev/null; then
+  fail "the Makefile carries a --root workaround: $(grep -nE '^[^#]*([[:space:],])--root(=|[[:space:]])' "$mk" | head -1)"
+fi
 
 dune='(SDKROOT=[^ ]+ )?dune'
 # shellcheck disable=SC2016  # regexes matched against make -n output, not expansions

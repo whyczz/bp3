@@ -16,9 +16,14 @@ let case_layout_derives_quest_node_ref_branch_and_desk_paths _ =
   eq ".bp3/worktrees" Layout.legacy_desks_root;
   eq ".bp3/desks" Layout.legacy_desks_meta_dir;
   eq "/d/bp3-01234567" (Layout.repo_desks_dir "/d/" "bp3-01234567");
+  eq "/bp3-01234567" (Layout.repo_desks_dir "/" "bp3-01234567");
+  eq "/.bp3/desks" (Layout.desks_base_of None (Some "/"));
   eq "/d/bp3-01234567/quests/q1" (Layout.quest_desk_dir "/d/bp3-01234567" "q1");
+  eq "/quests/q1" (Layout.quest_desk_dir "/" "q1");
   eq "/d/bp3-01234567/runs/q1/node-2-x/R1" (Layout.run_desk_dir "/d/bp3-01234567" "q1" "node-2-x" "R1");
-  eq "/d/bp3-01234567/.meta" (Layout.desks_meta_dir "/d/bp3-01234567")
+  eq "/runs/q1/node-2-x/R1" (Layout.run_desk_dir "/" "q1" "node-2-x" "R1");
+  eq "/d/bp3-01234567/.meta" (Layout.desks_meta_dir "/d/bp3-01234567");
+  eq "/.meta" (Layout.desks_meta_dir "/")
 
 let case_central_desks_base_and_repo_key _ =
   let eq = assert_equal ~printer:Fun.id in
