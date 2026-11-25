@@ -1,6 +1,6 @@
 (* release — pure semver, remote URL, QUEST.md frontmatter, version-file,
-   rendered-tag sync, and "What changed" release-notes engine. Zero I/O,
-   zero git subprocesses; I/O lives in Release_io and Hooks. *)
+   and "What changed" release-notes engine. Zero I/O, zero git subprocesses;
+   I/O lives in Release_io. *)
 
 type bump = Major | Minor | Patch | None_bump
 
@@ -258,51 +258,6 @@ let sync_bp3_version ~new_version text =
   | 1 -> Ok (String.concat "\n" updated)
   | 0 -> Error "src/quest/gitx.ml: let bp3_version = \"...\" line not found"
   | n -> Error (Printf.sprintf "src/quest/gitx.ml: expected 1 bp3_version line, found %d" n)
-
-(* ---------- rendered skill tag parsing & auto-sync predicate ---------- *)
-
-let find_sub ~sub s =
-  let n = String.length s and m = String.length sub in
-  if m = 0 then Some 0
-  else if m > n then None
-  else
-    let rec at i j = j = m || (s.[i + j] = sub.[j] && at i (j + 1)) in
-    let rec loop i =
-      if i + m > n then None
-      else if at i 0 then Some i
-      else loop (i + 1) in
-    loop 0
-
-let parse_rendered_release_tag text =
-  let lines = String.split_on_char '\n' text in
-  let marker = "/SKILL.md (" in
-  let mlen = String.length marker in
-  let rec go = function
-    | [] -> None
-    | l :: rest ->
-        let t = String.trim l in
-        (match Util.strip_prefix ~prefix:"<!-- GENERATED from skills/" t with
-         | None -> go rest
-         | Some tail ->
-             (match find_sub ~sub:marker tail with
-              | Some i ->
-                  let start = i + mlen in
-                  (match String.index_from_opt tail start ')' with
-                   | Some j when j > start ->
-                       parse_semver_tag (String.sub tail start (j - start))
-                   | _ -> None)
-              | None -> None)) in
-  go lines
-
-let should_auto_sync ~installed ~rendered =
-  match rendered with
-  | [] -> false
-  | xs ->
-      List.exists
-        (function
-          | None -> true
-          | Some v -> compare_semver installed v > 0)
-        xs
 
 (* ---------- "What changed" renderers ---------- *)
 

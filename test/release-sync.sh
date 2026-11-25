@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Fixture suite for tag-gated local auto-sync (quest-promote-release sync.1):
-# 1. Self-mode `bp3 release` auto-installs tagged build to $PREFIX + writes share/bp3/RELEASE
+# Fixture suite for release install + global skills/hooks & read-only legacy skill warnings (global.1 + global.2):
+# 1. Self-mode `bp3 release` auto-installs tagged build to $PREFIX, populates $BP3_GLOBAL_HOME
+#    skills/hooks stamped with (v<ver>), and writes share/bp3/RELEASE
 # 2. --no-install skips $PREFIX update; untagged installs remove RELEASE
-# 3. Clean host repo with legacy unversioned skills auto-syncs & commits on SessionStart
-#    (surviving a failing pre-commit hook via --no-verify), stamping (v<ver>)
-# 4. Second SessionStart is an up_to_date no-op
-# 5. Dirty / detached / mid-rebase host repo skips git writes + emits W_BP3_UPDATE_AVAILABLE
-# 6. BP3_NO_AUTO_SYNC=1 disables auto-sync; agy payload keeps valid JSON; non-bp3 host untouched
+# 3. Host repo with legacy local generated skills emits read-only W_LOCAL_SKILLS_LEGACY on
+#    SessionStart and creates ZERO git commits (both without and with backpack.toml, clean or dirty)
+# 4. After `bp3 skills prune-local`, SessionStart emits zero warnings and creates zero commits
+# 5. agy payload keeps valid JSON ({}) and never mutates host; plain non-bp3 host untouched
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d)
@@ -103,27 +103,42 @@ git -C "$host" add . && git -C "$host" commit --no-verify -qm "chore: old skills
 
 before_sha=$(git -C "$host" rev-parse HEAD)
 payload='{"hook_event_name":"SessionStart","session_id":"s1","cwd":"'"$host"'"}'
-# global.1: host skills install writes ZERO files into host repo (global skills already at v0.3.0),
-# so SessionStart never mutates or auto-commits the host repo.
-out=$(printf '%s\n' "$payload" | PATH="$prefix/bin:$PATH" BP3_ROOT="$host" "$prefix/bin/bp3-q" q hooks) || fail "SessionStart hook failed: $out"
-echo "$out" | jq -e '.ok == true' >/dev/null || fail "SessionStart json: $out"
+# global.2: host SessionStart with legacy local generated skills emits read-only
+# W_LOCAL_SKILLS_LEGACY and creates ZERO git commits (even from cd /tmp without BP3_ROOT).
+out=$(cd /tmp && printf '%s\n' "$payload" | env -u BP3_ROOT PATH="$prefix/bin:$PATH" "$prefix/bin/bp3-q" q hooks) || fail "SessionStart hook failed: $out"
+echo "$out" | jq -e '
+  .ok == true
+  and .event_line == null
+  and ([.warnings[]?.code] | index("W_LOCAL_SKILLS_LEGACY") != null)
+  and ([.warnings[]?.message] | any(contains("bp3 skills prune-local")))
+  and ((.warnings[0].files | length) == 3)
+' >/dev/null || fail "SessionStart W_LOCAL_SKILLS_LEGACY json: $out"
 after_sha=$(git -C "$host" rev-parse HEAD)
 [ "$before_sha" = "$after_sha" ] || fail "SessionStart mutated host repo HEAD"
 [ -z "$(git -C "$host" status --short)" ] || fail "host tree dirty after SessionStart: $(git -C "$host" status --short)"; ok
 
-# --- 3. Dirty / detached host repo never mutates ---
-jq '.tag = "v0.4.0" | .version = "0.4.0"' "$prefix/share/bp3/RELEASE" > "$prefix/share/bp3/RELEASE.tmp"
-mv "$prefix/share/bp3/RELEASE.tmp" "$prefix/share/bp3/RELEASE"
+# --- 3. Dirty host repo WITH backpack.toml + legacy skills: emits W_LOCAL_SKILLS_LEGACY, zero commits ---
+printf 'version = 1\nrepo = "predictor-like"\n' > "$host/backpack.toml"
 echo dirty > "$host/dirty.txt"
-out=$(printf '%s\n' "$payload" | PATH="$prefix/bin:$PATH" BP3_ROOT="$host" "$prefix/bin/bp3-q" q hooks) || fail "dirty SessionStart failed: $out"
-echo "$out" | jq -e '.ok == true' >/dev/null || fail "dirty json: $out"
+out=$(cd /tmp && printf '%s\n' "$payload" | env -u BP3_ROOT PATH="$prefix/bin:$PATH" "$prefix/bin/bp3-q" q hooks) || fail "dirty SessionStart failed: $out"
+echo "$out" | jq -e '
+  .ok == true
+  and ([.warnings[]?.code] | index("W_LOCAL_SKILLS_LEGACY") != null)
+  and ((.warnings[0].files | length) == 3)
+' >/dev/null || fail "dirty backpack.toml json: $out"
 [ "$(git -C "$host" rev-parse HEAD)" = "$after_sha" ] || fail "dirty host committed"
 rm -f "$host/dirty.txt"; ok
 
+# --- 3b. After bp3 skills prune-local, SessionStart emits 0 warnings and 0 commits ---
+BP3_TARGET="$host" "$prefix/bin/bp3" skills prune-local >/dev/null || fail "prune-local failed"
+out=$(cd /tmp && printf '%s\n' "$payload" | env -u BP3_ROOT PATH="$prefix/bin:$PATH" "$prefix/bin/bp3-q" q hooks) || fail "post-prune SessionStart failed: $out"
+echo "$out" | jq -e '.ok == true and (.warnings == null)' >/dev/null || fail "post-prune warnings remained: $out"
+[ "$(git -C "$host" rev-parse HEAD)" = "$after_sha" ] || fail "post-prune SessionStart committed"; ok
+
 # --- 4. agy SessionStart payload keeps valid JSON ({}) and never mutates host ---
 agy_payload='{"hookEventName":"SessionStart","conversationId":"c1","cwd":"'"$host"'"}'
-out=$(printf '%s\n' "$agy_payload" | PATH="$prefix/bin:$PATH" BP3_ROOT="$host" "$prefix/bin/bp3-q" q hooks) || fail "agy SessionStart failed: $out"
-echo "$out" | jq -e 'type == "object"' >/dev/null || fail "agy stdout not JSON: $out"
+out=$(cd /tmp && printf '%s\n' "$agy_payload" | env -u BP3_ROOT PATH="$prefix/bin:$PATH" "$prefix/bin/bp3-q" q hooks) || fail "agy SessionStart failed: $out"
+echo "$out" | jq -e '. == {}' >/dev/null || fail "agy stdout not {}: $out"
 [ "$(git -C "$host" rev-parse HEAD)" = "$after_sha" ] || fail "agy SessionStart committed"; ok
 
 # --- 5. Host repo with zero bp3-generated skills is never touched ---
@@ -135,7 +150,8 @@ git -C "$plain" config user.name "Test User"
 echo hi > "$plain/README.md" && git -C "$plain" add . && git -C "$plain" commit -qm "init"
 plain_sha=$(git -C "$plain" rev-parse HEAD)
 plain_payload='{"hook_event_name":"SessionStart","session_id":"s9","cwd":"'"$plain"'"}'
-out=$(printf '%s\n' "$plain_payload" | PATH="$prefix/bin:$PATH" BP3_ROOT="$plain" "$prefix/bin/bp3-q" q hooks) || fail "plain SessionStart failed: $out"
+out=$(cd /tmp && printf '%s\n' "$plain_payload" | env -u BP3_ROOT PATH="$prefix/bin:$PATH" "$prefix/bin/bp3-q" q hooks) || fail "plain SessionStart failed: $out"
+echo "$out" | jq -e '.ok == true and .event_line == null and .reason == "not a bp3 repo" and (.warnings == null)' >/dev/null || fail "plain json: $out"
 [ "$(git -C "$plain" rev-parse HEAD)" = "$plain_sha" ] || fail "plain repo modified"
 [ ! -d "$plain/.claude" ] && [ ! -d "$plain/.agents" ] || fail "plain repo got skills injected"; ok
 

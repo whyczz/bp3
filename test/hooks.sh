@@ -205,4 +205,62 @@ agy_stop=$(printf '{"hookEventName":"Stop","conversationId":"CONV1","cwd":"%s"}'
 out=$(hooks "$agy_stop")
 echo "$out" | jq -e '. == {}' >/dev/null || fail "agy Stop must reply {}: $out"
 
+# --- global.2: global hook from cd /tmp re-roots onto payload.cwd + backpack.toml gate ---
+host_repo="$work/host-bp3"
+mkdir -p "$host_repo/plans"
+cp "$root"/plans/*.yaml "$host_repo/plans/"
+cat > "$host_repo/backpack.toml" <<'TOML'
+version = 1
+repo = "host-bp3"
+TOML
+git -C "$host_repo" init -q -b master
+git -C "$host_repo" config user.email t@t.t
+git -C "$host_repo" config user.name t
+git -C "$host_repo" add .
+git -C "$host_repo" commit -qm "init host"
+(cd "$host_repo" && BP3_ROOT="$host_repo" "$work/repo/g-bin" q c qhost >/dev/null)
+(cd "$host_repo" && BP3_ROOT="$host_repo" "$work/repo/g-bin" q qhost c nhost >/dev/null)
+
+# Notice: NO bin/bp3 in host_repo, process cwd is /tmp, BP3_ROOT is unset!
+RUN_HOST=20260101T040000Z-handoff-muse-code-test-model-c1
+mkdir -p "$host_repo/docs/quests/qhost/nodes/nhost/runs/$RUN_HOST"
+global_hooks() { (cd /tmp && env -u BP3_ROOT "$work/repo/g-bin" q hooks <<< "$1"); }
+host_ledger() { git -C "$host_repo" show "bp3/node/qhost/nhost:docs/quests/qhost/nodes/nhost/ledger.jsonl"; }
+
+h_pre=$(printf '{"hook_event_name":"PreToolUse","session_id":"SH1","cwd":"%s","tool_input":{"command":"BP3_RUN_ID=%s BP3_QUEST=qhost BP3_NODE=nhost echo work"}}' "$host_repo" "$RUN_HOST")
+out=$(global_hooks "$h_pre")
+echo "$out" | jq -e --arg r "$RUN_HOST" '.ok == true and .event_line.event == "run_started" and .event_line.run_id == $r' >/dev/null || fail "global host run_started: $out"
+host_ledger | grep -q "\"run_id\":\"$RUN_HOST\"" || fail "global host run_started missing from host ledger"
+
+h_lint=$(printf '{"hook_event_name":"PostToolUse","session_id":"SH1","cwd":"%s","tool_input":{"command":"make check"},"tool_response":"ok"}' "$host_repo")
+out=$(global_hooks "$h_lint")
+echo "$out" | jq -e '.ok == true and .event_line.event == "lint_checked" and .event_line.result == "pass"' >/dev/null || fail "global host lint_checked: $out"
+
+h_end=$(printf '{"hook_event_name":"SessionEnd","session_id":"SH1","cwd":"%s"}' "$host_repo")
+out=$(global_hooks "$h_end")
+echo "$out" | jq -e '.ok == true and .event_line.event == "run_settled"' >/dev/null || fail "global host run_settled: $out"
+host_ledger | grep -q '"event":"run_settled"' || fail "global host run_settled missing from host ledger"
+
+# agy workspacePaths fallback when cwd is omitted (from cd /tmp, BP3_ROOT unset)
+RUN_WS=20260101T050000Z-handoff-agy-gemini-c1
+mkdir -p "$host_repo/docs/quests/qhost/nodes/nhost/runs/$RUN_WS"
+ws_pre=$(printf '{"hookEventName":"PreToolUse","conversationId":"CONV-WS","workspacePaths":["%s"],"toolCall":{"name":"run_command","args":{"CommandLine":"BP3_RUN_ID=%s BP3_QUEST=qhost BP3_NODE=nhost echo ws"}}}' "$host_repo" "$RUN_WS")
+out=$(global_hooks "$ws_pre")
+echo "$out" | jq -e '.decision == "allow"' >/dev/null || fail "global agy workspacePaths reply: $out"
+host_ledger | grep -q "\"run_id\":\"$RUN_WS\"" || fail "global agy workspacePaths did not emit run_started"
+
+# non-bp3 git repo (no backpack.toml, no bin/bp3): dormant, zero writes
+non_bp3="$work/non-bp3-git"
+mkdir -p "$non_bp3"
+git -C "$non_bp3" init -q -b master
+git -C "$non_bp3" config user.email t@t.t
+git -C "$non_bp3" config user.name t
+echo hi > "$non_bp3/README.md" && git -C "$non_bp3" add . && git -C "$non_bp3" commit -qm "init"
+non_before=$(git -C "$non_bp3" rev-parse HEAD)
+non_payload=$(printf '{"hook_event_name":"SessionStart","session_id":"SN1","cwd":"%s"}' "$non_bp3")
+out=$(global_hooks "$non_payload")
+echo "$out" | jq -e '.ok == true and .event_line == null and .reason == "not a bp3 repo" and (.warnings == null)' >/dev/null || fail "non-bp3 git repo verdict: $out"
+[ "$(git -C "$non_bp3" rev-parse HEAD)" = "$non_before" ] || fail "non-bp3 git repo HEAD changed"
+[ ! -e "$non_bp3/.git/bp3-run-registry.json" ] || fail "non-bp3 git repo created registry"
+
 echo "hooks tests: ok"

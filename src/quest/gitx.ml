@@ -25,6 +25,9 @@ let root =
   | Some r when r <> "" -> r
   | _ -> Sys.getcwd ()
 
+let root_ref = ref root
+let current_root () = !root_ref
+
 let tmp_counter = ref 0
 let tmp_path tag =
   incr tmp_counter;
@@ -85,18 +88,22 @@ let run_capture ?(env = []) ?input args =
   (String.trim out, code)
 
 let run_status ?env ?input args = snd (run_capture ?env ?input args)
-let git args = "git" :: "-C" :: root :: args
+let git args = "git" :: "-C" :: !root_ref :: args
 let git_out ?env ?input args = run_capture ?env ?input (git args)
 let git_ok args = run_status (git args) = 0
 
-(* The common dir cannot move under a running call (the binary
-   never runs git init); ask once, not on every store lookup. *)
-let git_common_dir =
-  let dir = lazy (
-    let out, code = git_out ["rev-parse"; "--git-common-dir"] in
-    if code <> 0 || out = "" then None
-    else Some (if Filename.is_relative out then Filename.concat root out else out)) in
-  fun () -> Lazy.force dir
+(* Cache common dir for the current root; set_root clears it when
+   bp3 q hooks retargets onto payload.cwd. *)
+let common_dir_cache : string option option ref = ref None
+let git_common_dir () =
+  match !common_dir_cache with
+  | Some v -> v
+  | None ->
+      let out, code = git_out ["rev-parse"; "--git-common-dir"] in
+      let v =
+        if code <> 0 || out = "" then None
+        else Some (if Filename.is_relative out then Filename.concat !root_ref out else out) in
+      common_dir_cache := Some v; v
 
 (* One process serves one call, and a call re-reads the same
    refs many times (every fold, the version scan, the view).
@@ -127,6 +134,15 @@ let invalidate_ref_caches () =
   Hashtbl.clear tip_cache; Hashtbl.clear show_cache;
   batch_close ()
 
+(* Retarget git/store lookups onto another repo root (used by
+   bp3 q hooks when a global hook runs with process cwd outside
+   the target repo). Resets all root-bound caches. *)
+let set_root dir =
+  root_ref := dir;
+  common_dir_cache := None;
+  batch_broken := false;
+  invalidate_ref_caches ()
+
 let batch_query spec =
   (* One line is one request; a newline would desync replies. *)
   if String.contains spec '\n' then raise Batch_down;
@@ -136,7 +152,7 @@ let batch_query spec =
     | None ->
         (try
            let io = Unix.open_process_args_full "git"
-             [|"git"; "-C"; root; "cat-file"; "--batch"|] (Unix.environment ()) in
+             [|"git"; "-C"; !root_ref; "cat-file"; "--batch"|] (Unix.environment ()) in
            batch := Some io; io
          with _ -> batch_broken := true; raise Batch_down) in
   try
