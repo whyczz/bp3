@@ -8,7 +8,7 @@
 #   ./scripts/check-bump (forward-only bump: frontmatter on proposed/active quests)
 #   the shellcheck run over scripts/shell-files (refusing an empty list)
 #   ./scripts/check-skills over the four skill trees
-#   dune build of both binaries (SDKROOT= and --root=. allowed)
+#   dune build of both binaries (SDKROOT= allowed)
 #   dune test
 # and `make -n check-full` must be the same plan with the last step
 # `./scripts/run-suites` (every tier), so check-full runs all of check.
@@ -48,8 +48,8 @@ steps=(
   '\./scripts/check-bump'
   'files=\$\(\./scripts/shell-files\) && \[ -n "\$files" \] && shellcheck \$files'
   '\./scripts/check-skills skills \.pi/skills \.agents/skills \.claude/skills'
-  "$dune build( --root=\\.)? src/quest/main\\.exe src/quest/run_suites\\.exe"
-  "$dune test( --root=\\.)?"
+  "$dune build src/quest/main\\.exe src/quest/run_suites\\.exe"
+  "$dune test"
 )
 match_plan() { # gate [last-step-regex]
   local gate=$1 last=${2:-} i=0 line

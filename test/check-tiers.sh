@@ -80,6 +80,8 @@ plant_after suite-dot 'check: lint ocaml' $'\t./test/./g.sh';          gates_fai
 plant_after check-only 'check: lint ocaml' $'\t./scripts/check-retired-terms.sh'; gates_fail check-only 'make check has an extra step: ./scripts/check-retired-terms.sh'
 plant_drop no-stack $'\t./scripts/check-constraints';           gates_fail no-stack 'make check step 2 is not the'
 plant_drop no-bump $'\t./scripts/check-bump';                   gates_fail no-bump 'make check step 3 is not the'
+plant_swap dune-root-hack $'\t$(DUNE_BUILD) src/quest/main.exe src/quest/run_suites.exe' $'\t$(DUNE_BUILD) --root=. src/quest/main.exe src/quest/run_suites.exe'; gates_fail dune-root-hack 'make check step 6 is not the'
+plant_swap dune-test-root-hack "$dune_test" "$dune_test --root=."; gates_fail dune-test-root-hack 'make check step 7 is not the'
 # 5. Lint's targets are derived and cover every suite's script.
 "$repo/scripts/shell-files" > "$work/shell.txt"
 while IFS= read -r f; do
