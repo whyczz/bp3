@@ -102,6 +102,8 @@ plant brew;      printf 'brew "fzf"\n' >> "$work/brew/Brewfile"
 want brew 1 'check-constraints: FAIL Brewfile:2: library fzf (bash) not in CONSTRAINTS.md'
 plant oddext;    printf 'x\n' > "$work/oddext/data.toml"
 want oddext 1 'check-constraints: FAIL data.toml: language .toml not in CONSTRAINTS.md'
+plant tomlok;    sed 's/\.txt/.txt .toml/' "$clean/CONSTRAINTS.md" > "$work/tomlok/CONSTRAINTS.md"; printf 'version = 1\nrepo = "clean"\n' > "$work/tomlok/backpack.toml"
+want tomlok 0 'check-constraints: ok (4 languages, 13 files)'
 plant noblock;   printf '# no block here\n' > "$work/noblock/CONSTRAINTS.md"
 want noblock 2 'check-constraints: no constraints block in CONSTRAINTS.md'
 plant nofile;    rm "$work/nofile/CONSTRAINTS.md"

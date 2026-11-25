@@ -29,6 +29,7 @@ let quests_desks_subdir = "quests"
 let runs_desks_subdir = "runs"
 let desks_meta_subdir = ".meta"
 let context_file = ".bp3-context.json"
+let manifest_file = "backpack.toml"
 
 (* ---------- refs ---------- *)
 (* Storage branches live under refs/heads/bp3/<kind>/; work

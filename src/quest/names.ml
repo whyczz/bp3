@@ -112,3 +112,7 @@ let e_already_promoted = "E_ALREADY_PROMOTED"
 let e_not_ready = "E_NOT_READY"
 let e_not_fast_forward = "E_NOT_FAST_FORWARD"
 let e_bump_missing = "E_BUMP_MISSING"
+let e_invalid_config = "E_INVALID_CONFIG"
+
+(* ---------- warning codes ---------- *)
+let w_no_repo_config = "W_NO_REPO_CONFIG"

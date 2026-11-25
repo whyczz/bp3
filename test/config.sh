@@ -42,12 +42,14 @@ if out=$(BP3_Q_BIN="$work/repo/g-bin" "$work/nogit/bin/bp3" config 2>&1); then f
 echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "outside-git code: $out"
 BP3_Q_BIN="$work/repo/g-bin" "$work/nogit/bin/bp3" config -h >/dev/null || fail "config -h outside git"
 
-# --- strictly read-only view: defaults, never creates .git/bp3/ ---
+# --- strictly read-only view: defaults, never creates .git/bp3/ or backpack.toml ---
 out=$(c)
-echo "$out" | jq -e '.ok == true and .mode == "host" and .thresholds.setup_slow_s == 180 and .thresholds.depth_cap == 3 and .desks == []' \
+echo "$out" | jq -e '.ok == true and .mode == "host" and .thresholds.setup_slow_s == 180 and .thresholds.depth_cap == 3 and .desks == [] and .repo_config == null and (.warnings | length) == 1 and .warnings[0].code == "W_NO_REPO_CONFIG"' \
   >/dev/null || fail "empty view: $out"
 echo "$out" | jq -e '.config_dir | endswith(".git/bp3")' >/dev/null || fail "config_dir: $out"
 [ ! -e "$store" ] || fail "read-only bp3 config created .git/bp3"
+[ ! -e "$work/repo/backpack.toml" ] || fail "read-only bp3 config created backpack.toml"
+[ -z "$(git status --porcelain)" ] || fail "read-only bp3 config dirtied git status"
 out=$(c --format table) || fail "config --format table exit"
 echo "$out" | grep -q "thresholds" || fail "table view names thresholds: $out"
 
@@ -82,6 +84,16 @@ wt_cfg=$(cd "$work/wt2" && env -u BP3_ROOT "$work/repo/g-bin" config)
   || fail "worktree config_dir differs: $main_cfg vs $wt_cfg"
 [ "$(echo "$main_cfg" | jq -c .desks)" = "$(echo "$wt_cfg" | jq -c .desks)" ] \
   || fail "worktree desks differs: $main_cfg vs $wt_cfg"
+
+# --- valid backpack.toml populates repo_config with 0 warnings; invalid fails E_INVALID_CONFIG ---
+printf 'version = 1\nrepo = "demo-repo"\n\n[grade]\ngate = "dune test"\n\n[warden]\ngrade_wall_s = 600\n\n[release]\ntarget = "master"\n' > "$work/repo/backpack.toml"
+out=$(c)
+echo "$out" | jq -e '.ok == true and .repo_config.version == 1 and .repo_config.repo == "demo-repo" and .repo_config.grade.gate == "dune test" and .repo_config.warden.grade_wall_s == 600 and .repo_config.release.target == "master" and (has("warnings") | not)' \
+  >/dev/null || fail "valid backpack.toml view: $out"
+printf 'version = 99\nrepo = "demo-repo"\n' > "$work/repo/backpack.toml"
+if out=$(c 2>&1); then fail "invalid backpack.toml accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_INVALID_CONFIG"' >/dev/null || fail "invalid backpack.toml code: $out"
+rm -f "$work/repo/backpack.toml"
 
 # --- reserved config slug still refused ---
 if out=$(q c config 2>&1); then fail "quest named config accepted"; fi
