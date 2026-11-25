@@ -524,4 +524,14 @@ assert cmp -s "$repo/AGENTS.md" "$repo/CLAUDE.md"
 assert grep -qF 'prepare|land|release --draft' "$repo/AGENTS.md"
 assert grep -qF 'prepare --draft' "$repo/AGENTS.md"
 
+# desk-auto-cleanup skills.1: automatic release desk/branch cleanup and desk prune across harnesses
+for dir in "${core_dirs[@]}"; do
+  assert grep -qF 'auto-release clean quest' "$dir/warden/SKILL.md"
+  assert grep -qF 'bp3 harness desk prune [--dry-run]' "$dir/warden/SKILL.md"
+done
+for dir in "${dev_dirs[@]}"; do
+  assert grep -qF 'desk prune [--dry-run]' "$dir/using-bp3/SKILL.md"
+  assert grep -qF 'auto-releases clean quest/grade desks' "$dir/using-bp3/SKILL.md"
+done
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"

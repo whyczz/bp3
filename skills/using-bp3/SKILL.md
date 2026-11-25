@@ -84,7 +84,11 @@ General coding in this repo does not need this skill.
      (preview anytime with `--dry-run`, override level with
      `--bump major|minor|patch|none`, force local tag with `--no-gh`,
      skip `$PREFIX` install with `--no-install`, or recover failed
-     GitHub publishing with `--publish-only`).
+     GitHub publishing with `--publish-only`); after promotion,
+     release auto-releases clean quest/grade desks and deletes merged
+     local `quest/<slug>` branches (skipping dirty desks).
+   - Sweep leftover desks/branches anytime with
+     `./bin/bp3 harness desk prune [--dry-run]`.
    - Small bugfix release (no quest): `BP3_DECIDER=human ./bin/bp3
      release --commit <sha>` (defaults to `--bump patch`).
    - In self mode, tagged releases refresh `$PREFIX` (`share/bp3/RELEASE`)

@@ -115,8 +115,10 @@ copy, owner as gate) and settle it first.
      - **Promote / release (owner go only):** run
        `BP3_DECIDER=human bp3 release <quest>` (or
        `BP3_DECIDER=human ./bin/bp3 release <quest>` in self mode) to
-       atomically CAS-move `master`, tag `vX.Y.Z`, and publish the
-       GitHub Release (or local tag).
+       atomically CAS-move `master`, tag `vX.Y.Z`, publish the
+       GitHub Release (or local tag), and auto-release clean quest
+       desks and merged `quest/<slug>` branches
+       (`bp3 harness desk prune [--dry-run]` sweeps any leftovers).
 
 ## Rules
 
