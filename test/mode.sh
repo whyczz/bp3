@@ -13,6 +13,8 @@ rejects() {
 }
 gbin="$repo/_build/default/src/quest/main.exe"
 [ -x "$gbin" ] || { echo "build first: dune build src/quest/main.exe" >&2; exit 1; }
+export BP3_DB="${BP3_DB:-$work/bp3.sqlite}"
+export BP3_Q_BIN="${BP3_Q_BIN:-$gbin}"
 export BP3_COMPLETIONS_DIR="$work/completions"
 
 # Every source skill is in exactly one set (fail-closed hosts).

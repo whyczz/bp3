@@ -4,6 +4,9 @@ set -euo pipefail
 repo=$(cd "$(dirname "$0")/.." && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/bp3-skills-tests.XXXXXX")
 trap 'rm -rf -- "$work"' EXIT
+export BP3_DB="${BP3_DB:-$work/bp3.sqlite}"
+export BP3_Q_BIN="${BP3_Q_BIN:-$repo/_build/default/src/quest/main.exe}"
+[ -x "$BP3_Q_BIN" ] || { echo "build first: dune build src/quest/main.exe" >&2; exit 1; }
 checks=0
 assert() { "$@" || { printf 'FAIL: %s\n' "$*" >&2; exit 1; }; checks=$((checks + 1)); }
 rejects() {
@@ -66,6 +69,8 @@ mkdir -p "$root/.pi"
 printf '{"defaultModel":"keep","skills":["/extra","!**/ignored/**"]}\n' > "$root/.pi/settings.json"
 "$root/bin/bp3" skills install --harness=all > /dev/null
 "$root/scripts/check-skills" "$root/skills" "$root/.pi/skills" "$root/.agents/skills" "$root/.claude/skills" > /dev/null
+# compat.1: fail-fast skills install auto-registers "project with spaces" -> "project-with-spaces"
+assert jq -e '([.repos[].name] | index("project-with-spaces") != null)' <<< "$("$repo/bin/bp3" repo list)" >/dev/null
 
 # Stale renders: a generated copy whose skill left the set is pruned;
 # a hand-written skill (no GENERATED notice) is never touched.

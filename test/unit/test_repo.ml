@@ -113,6 +113,16 @@ let case_non_git_path_and_help _ =
           assert_equal ~printer:Fun.id "E_NOT_FOUND"
             Yojson.Safe.Util.(json |> member "error" |> member "code" |> to_string))
 
+let case_project_with_spaces_regression _ =
+  with_temp_dir (fun d ->
+      let db_path = Filename.concat d "spaces.sqlite" in
+      let spaced = Filename.concat d "project with spaces" in
+      init_git_repo spaced;
+      assert_equal (Ok "project-with-spaces") (Db.slugify "project with spaces");
+      let r = Repo_store.add ~db_path ~path:spaced () in
+      assert_equal ~printer:Fun.id "project-with-spaces" r.name;
+      assert_equal ~printer:Fun.id (Unix.realpath spaced) r.root_path)
+
 let law_slugify_always_produces_valid_slug_or_error =
   let open QCheck2.Gen in
   let ascii_dir =
@@ -140,5 +150,6 @@ let () =
      >::: [
             "case_add_list_dedup_conflict_and_remove" >:: case_add_list_dedup_conflict_and_remove;
             "case_non_git_path_and_help" >:: case_non_git_path_and_help;
+            "case_project_with_spaces_regression" >:: case_project_with_spaces_regression;
             QCheck_ounit.to_ounit2_test law_slugify_always_produces_valid_slug_or_error;
           ])
