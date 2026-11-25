@@ -2,7 +2,7 @@
 date: 2026-11-25
 quest: ../../QUEST.md
 node: cleanup.1
-status: proposed
+status: active
 ---
 
 # cleanup.1 - drop-makefile-root-hack: delete `Makefile` `--root=.` workaround and tighten `scripts/check-gates`

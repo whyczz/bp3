@@ -2,7 +2,7 @@
 date: 2026-11-25
 quest: ../../QUEST.md
 node: desks.1
-status: proposed
+status: active
 ---
 
 # desks.1 - central-layout-and-worktree: move desks and metadata to `~/.bp3/desks/<repo>-<hash8>/{quests,runs,.meta}`

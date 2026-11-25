@@ -2,7 +2,7 @@
 date: 2026-11-25
 quest: ../../QUEST.md
 node: desks.2
-status: proposed
+status: active
 ---
 
 # desks.2 - metrics-dual-slug: discover Claude and pi transcripts from both central desks and legacy `.bp3/worktrees/`
