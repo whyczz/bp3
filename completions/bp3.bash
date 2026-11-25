@@ -139,9 +139,9 @@ _bp3_candidates() {
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'harness' ]; then
       printf '%s\n' desk d | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'harness' ] && { [ "${a[1]}" = 'desk' ] || [ "${a[1]}" = 'd' ]; }; then
-      printf '%s\n' derive create inspect remove prepare check exit release land list | _bp3_filter "$cur"
+      printf '%s\n' derive create inspect remove prepare check exit release land list prune | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'worktree' ]; then
-      printf '%s\n' derive create inspect remove prepare check exit release land list | _bp3_filter "$cur"
+      printf '%s\n' derive create inspect remove prepare check exit release land list prune | _bp3_filter "$cur"
     fi
     return 0
   fi

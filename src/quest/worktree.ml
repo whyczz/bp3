@@ -910,6 +910,166 @@ let parse_draft_land_flags args =
     | f :: _ -> usage ("unknown flag: " ^ f) in
   loop None None args
 
+let parse_prune_flags args =
+  let rec loop dry_run = function
+    | [] -> dry_run
+    | "--dry-run" :: rest ->
+        if dry_run then usage "duplicate flag --dry-run";
+        loop true rest
+    | f :: _ -> usage ("unknown flag: " ^ f) in
+  loop false args
+
+let detect_target_branch () =
+  let mr = main_root () in
+  if git_in_ok mr [ "rev-parse"; "--verify"; "-q"; "refs/heads/master^{commit}" ] then "master"
+  else if git_in_ok mr [ "rev-parse"; "--verify"; "-q"; "refs/heads/main^{commit}" ] then "main"
+  else "master"
+
+let quest_is_terminal ~quest ~target =
+  if quest = "" then false
+  else
+    match Store.fold_quest quest with
+    | Some (_, qs, _, _, _) when qs.st = Names.st_landed || qs.st = Names.st_deleted -> true
+    | _ ->
+        let mr = main_root () in
+        let rel = Layout.quest_dir quest ^ "/" ^ Layout.quest_file in
+        let txt =
+          match git_in mr [ "show"; "refs/heads/" ^ target ^ ":" ^ rel ] with
+          | (out, 0) when out <> "" -> out
+          | _ -> read_file_or (Filename.concat mr rel) "" in
+        if txt = "" then false
+        else
+          let meta = Release.parse_quest_md txt in
+          meta.status = Some Names.st_landed || meta.status = Some "canceled"
+
+let desk_branch_merged ~r ~target =
+  if r.r_detached || r.r_ref = "" || r.r_ref = target then false
+  else
+    let mr = main_root () in
+    let br_ref = "refs/heads/" ^ r.r_ref in
+    let tgt_ref = "refs/heads/" ^ target in
+    git_in_ok mr [ "rev-parse"; "--verify"; "-q"; br_ref ^ "^{commit}" ]
+    && git_in_ok mr [ "merge-base"; "--is-ancestor"; br_ref; tgt_ref ]
+
+let is_real_dir p =
+  try (Unix.lstat p).Unix.st_kind = Unix.S_DIR with _ -> false
+
+(* Bottom-up empty directory prune; never follows symlinks and never deletes
+   non-empty directories. Returns pruned paths in removal order. *)
+let prune_empty_subtree ~dry_run ~remove_root dir =
+  let pruned = ref [] in
+  let rec visit is_root p =
+    if not (is_real_dir p) then false
+    else
+      let entries = try Array.to_list (Sys.readdir p) with _ -> [ "err" ] in
+      let all_gone =
+        List.fold_left (fun acc name ->
+          let child = Filename.concat p name in
+          if is_real_dir child then
+            let gone = visit false child in
+            acc && gone
+          else false) true entries in
+      if all_gone && (not is_root || remove_root) then begin
+        let removed =
+          if dry_run then true
+          else (try Unix.rmdir p; true with Unix.Unix_error _ -> false) in
+        if removed then pruned := p :: !pruned;
+        removed
+      end else false in
+  ignore (visit true dir);
+  List.rev !pruned
+
+let do_prune ~dry_run =
+  let mr = main_root () in
+  let target = detect_target_branch () in
+  let records = load_records () in
+  let released = ref [] and released_paths = ref [] in
+  let kept = ref [] and cand_branches = ref [] in
+  let add_br b =
+    if b <> "" && String.starts_with ~prefix:(Layout.work_branch_kind ^ "/") b
+       && not (List.mem b !cand_branches) then
+      cand_branches := b :: !cand_branches in
+  List.iter (fun r ->
+    let ap = abs_path r.r_path in
+    if not (Sys.file_exists ap) then begin
+      if not dry_run then
+        (try delete_record r.r_run; ignore (prune_desk_empty_parents r.r_path) with _ -> ());
+      released := r.r_run :: !released;
+      released_paths := ap :: !released_paths;
+      if r.r_quest <> "" then add_br (Layout.work_branch r.r_quest);
+      if not r.r_detached then add_br r.r_ref
+    end else begin
+      let state =
+        try if (inspect_info r.r_path).idirty then `Dirty else `Clean
+        with _ -> `Corrupt in
+      match state with
+      | `Dirty -> kept := (r.r_run, r.r_path, "dirty") :: !kept
+      | `Corrupt -> kept := (r.r_run, r.r_path, "cleanup_failed") :: !kept
+      | `Clean ->
+          if quest_is_terminal ~quest:r.r_quest ~target || desk_branch_merged ~r ~target then begin
+            if dry_run then begin
+              released := r.r_run :: !released;
+              released_paths := ap :: !released_paths;
+              if r.r_quest <> "" then add_br (Layout.work_branch r.r_quest);
+              if not r.r_detached then add_br r.r_ref
+            end else begin
+              try
+                ignore (release_record r false);
+                released := r.r_run :: !released;
+                released_paths := ap :: !released_paths;
+                if r.r_quest <> "" then add_br (Layout.work_branch r.r_quest);
+                if not r.r_detached then add_br r.r_ref
+              with _ ->
+                kept := (r.r_run, r.r_path, "cleanup_failed") :: !kept
+            end
+          end else
+            kept := (r.r_run, r.r_path, "active") :: !kept
+    end) records;
+  if not dry_run then
+    ignore (git_in_ok mr [ "worktree"; "prune" ]);
+  let deleted_branches =
+    List.sort_uniq String.compare !cand_branches
+    |> List.filter (fun br ->
+         delete_merged_branch
+           ~exclude_paths:(if dry_run then !released_paths else [])
+           ~branch:br ~target ~dry_run ()) in
+  let repo_dir = repo_desks_dir () in
+  let central_pruned =
+    List.concat_map (fun sub ->
+      prune_empty_subtree ~dry_run ~remove_root:true (Filename.concat repo_dir sub))
+      [ Layout.quests_desks_subdir; Layout.runs_desks_subdir; "drafts" ] in
+  let legacy_bp3 = Filename.concat mr ".bp3" in
+  let legacy_pruned =
+    let sub_pruned =
+      List.concat_map (fun sub ->
+        prune_empty_subtree ~dry_run ~remove_root:true (Filename.concat legacy_bp3 sub))
+        [ "worktrees"; "desks" ] in
+    let root_pruned =
+      if is_real_dir legacy_bp3 then
+        let entries = try Array.to_list (Sys.readdir legacy_bp3) with _ -> [ "err" ] in
+        let remaining =
+          List.filter (fun e ->
+            let full = Filename.concat legacy_bp3 e in
+            not (List.mem full sub_pruned)) entries in
+        if remaining = [] then
+          if dry_run then [ legacy_bp3 ]
+          else if (try Unix.rmdir legacy_bp3; true with Unix.Unix_error _ -> false) then [ legacy_bp3 ]
+          else []
+        else []
+      else [] in
+    sub_pruned @ root_pruned in
+  let kept_json (run_id, path, reason) =
+    `Assoc [ ("run_id", json_str run_id); ("path", json_str path);
+             ("reason", json_str reason) ] in
+  `Assoc [
+    ("ok", `Bool true);
+    ("dry_run", `Bool dry_run);
+    ("released", `List (List.map json_str (List.rev !released)));
+    ("kept", `List (List.map kept_json (List.rev !kept)));
+    ("deleted_branches", `List (List.map json_str deleted_branches));
+    ("pruned_dirs", `List (List.map json_str (central_pruned @ legacy_pruned)));
+  ]
+
 let run = function
   | "prepare" :: "--quest" :: [quest] -> do_prepare_quest quest
   | "prepare" :: "--draft" :: [slug] -> do_prepare_draft slug
@@ -939,6 +1099,7 @@ let run = function
       do_release run_id force
   | "exit" :: rest -> do_exit (parse_force rest)
   | "list" :: rest -> do_list (parse_quest_flag rest)
+  | v :: rest when v = Names.verb_prune -> do_prune ~dry_run:(parse_prune_flags rest)
   | "derive" :: [quest; node; run_id] ->
       `Assoc [("ok", `Bool true); ("path", json_str (derive_path quest node run_id))]
   | "derive" :: _ -> usage "worktree derive needs <quest> <node> <run-id>"
@@ -951,4 +1112,4 @@ let run = function
   | "remove" :: path :: rest -> do_remove path (parse_force rest)
   | ["remove"] -> usage "worktree remove needs a path"
   | verb :: _ -> usage ("unknown worktree verb: " ^ verb)
-  | [] -> usage "worktree needs a verb: derive, create, inspect, remove, prepare, check, exit, release, land, or list"
+  | [] -> usage "worktree needs a verb: derive, create, inspect, remove, prepare, check, exit, release, land, list, or prune"

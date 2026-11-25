@@ -104,11 +104,11 @@ has "$out" --source; has "$out" --format
 out=$(_bp3_candidates harness "")
 has "$out" desk; has "$out" d; lacks "$out" supervisor; lacks "$out" find-tape
 out=$(_bp3_candidates harness desk "")
-for v in derive create inspect remove prepare check exit release land list; do has "$out" "$v"; done
+for v in derive create inspect remove prepare check exit release land list prune; do has "$out" "$v"; done
 out=$(_bp3_candidates harness d "")
-has "$out" prepare; has "$out" release; has "$out" land
+has "$out" prepare; has "$out" release; has "$out" land; has "$out" prune
 out=$(_bp3_candidates worktree "")
-has "$out" land
+has "$out" land; has "$out" prune
 
 # --- zsh traces (same candidate logic) ---
 if command -v zsh >/dev/null 2>&1; then

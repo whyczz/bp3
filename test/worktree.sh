@@ -409,4 +409,63 @@ wt release --run PA1 >/dev/null
 wt release --run PB1 >/dev/null
 [ -d "$repo_dir" ] || fail "repo_desks_dir itself was removed by parent pruning"
 
+# --- bp3 harness desk prune [--dry-run] (clean.2) ---
+# 1. Missing record in legacy .bp3/desks/
+mkdir -p "$work/repo/.bp3/desks" "$work/repo/.bp3/worktrees/old-stub/exp-1"
+printf '{"run_id":"MISSING1","quest":"oldq","node":"(quest)","path":".bp3/worktrees/oldq","ref":"quest/oldq","detached":false,"created_ts":1700000000}\n' \
+  > "$work/repo/.bp3/desks/MISSING1.json"
+# 2. Clean landed desk (QUEST.md status: landed on master)
+mkdir -p "$work/repo/docs/quests/landedq"
+printf -- '---\nstatus: landed\n---\n# landedq\n' > "$work/repo/docs/quests/landedq/QUEST.md"
+git add docs/quests/landedq/QUEST.md && git commit -qm "docs: landedq"
+SHA2=$(git rev-parse HEAD)
+landed_desk=$(hdesk prepare --quest landedq | jq -r '.path')
+# 3. Clean merged desk (branch quest/mergedq is ancestor of master)
+merged_desk=$(hdesk prepare --quest mergedq | jq -r '.path')
+# 4. Active unmerged quest desk + active detached grade desk (MUST KEEP both)
+active_desk=$(hdesk prepare --quest activeq | jq -r '.path')
+echo "wip commit" > "$active_desk/active.txt"
+git -C "$active_desk" add active.txt && git -C "$active_desk" commit -qm "feat: activeq wip"
+active_sha=$(git -C "$active_desk" rev-parse HEAD)
+grade_active=$(hdesk prepare activeq node-a --run grade-active-c1-a1 --commit "$active_sha" | jq -r '.path')
+# 5. Dirty landed desk (MUST KEEP)
+mkdir -p "$work/repo/docs/quests/dirtyq"
+printf -- '---\nstatus: landed\n---\n# dirtyq\n' > "$work/repo/docs/quests/dirtyq/QUEST.md"
+git add docs/quests/dirtyq/QUEST.md && git commit -qm "docs: dirtyq"
+dirty_desk=$(hdesk prepare --quest dirtyq | jq -r '.path')
+echo "uncommitted" > "$dirty_desk/unsaved.txt"
+# 6. Empty central stub dir
+mkdir -p "$repo_dir/runs/emptyq/node-x"
+
+# Unknown flag refused with E_USAGE
+if out=$(hdesk prune --bogus 2>&1); then fail "prune --bogus accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "prune --bogus code: $out"
+
+# --dry-run previews exact plan without mutating disk
+dry=$(hdesk prune --dry-run)
+echo "$dry" | jq -e '.ok == true and .dry_run == true and (.released | sort) == ["MISSING1","quest-landedq","quest-mergedq"]' >/dev/null || fail "prune dry-run released: $dry"
+echo "$dry" | jq -e '([.kept[] | select(.run_id == "quest-dirtyq" and .reason == "dirty")] | length) == 1' >/dev/null || fail "prune dry-run kept dirty: $dry"
+echo "$dry" | jq -e '([.kept[] | select(.run_id == "quest-activeq" and .reason == "active")] | length) == 1' >/dev/null || fail "prune dry-run kept active: $dry"
+echo "$dry" | jq -e '([.kept[] | select(.run_id == "grade-active-c1-a1" and .reason == "active")] | length) == 1' >/dev/null || fail "prune dry-run kept active grade: $dry"
+echo "$dry" | jq -e '(.deleted_branches | sort) == ["quest/landedq","quest/mergedq"]' >/dev/null || fail "prune dry-run deleted_branches: $dry"
+[ -f "$work/repo/.bp3/desks/MISSING1.json" ] && [ -d "$landed_desk" ] && [ -d "$merged_desk" ] || fail "prune --dry-run mutated disk"
+[ -d "$repo_dir/runs/emptyq/node-x" ] || fail "prune --dry-run deleted empty stub dir"
+
+# Real prune cleans dead/landed/merged desks, merged branches, and empty central + legacy .bp3/ dirs
+out=$(hdesk prune)
+echo "$out" | jq -e '.ok == true and .dry_run == false and (.released | sort) == ["MISSING1","quest-landedq","quest-mergedq"] and (.deleted_branches | sort) == ["quest/landedq","quest/mergedq"]' >/dev/null || fail "prune real: $out"
+[ ! -e "$work/repo/.bp3" ] || fail "prune left empty legacy .bp3/ behind"
+[ ! -e "$landed_desk" ] && [ ! -e "$merged_desk" ] || fail "prune left terminal desks on disk"
+[ ! -e "$repo_dir/runs/emptyq" ] || fail "prune left empty central stub dir"
+if git show-ref --verify --quiet refs/heads/quest/landedq; then fail "prune left quest/landedq branch"; fi
+if git show-ref --verify --quiet refs/heads/quest/mergedq; then fail "prune left quest/mergedq branch"; fi
+# Active quest, active grade desk, and dirty desk MUST remain intact
+[ -d "$active_desk" ] && [ -d "$grade_active" ] && [ -f "$dirty_desk/unsaved.txt" ] || fail "prune harmed active or dirty desk"
+# Clean up remaining fixture desks
+hdesk release --run grade-active-c1-a1 >/dev/null
+hdesk release --quest activeq >/dev/null
+rm "$dirty_desk/unsaved.txt"
+hdesk release --quest dirtyq >/dev/null
+: "$SHA2"
+
 echo "worktree tests: ok"
