@@ -1,6 +1,6 @@
 ---
 name: warden
-description: Land a bp3 quest and run the self-improving audit — diligence gate, Landing IIUC + runnable trial, deterministic bp3 warden audit, standalone FEEDBACK.md, and <= 3 tiered harness proposals for owner disposal.
+description: Land a bp3 quest and run the self-improving audit — diligence gate, Landing IIUC + runnable demo, deterministic bp3 warden audit, standalone FEEDBACK.md, and <= 3 tiered harness proposals for owner disposal.
 ---
 <!-- GENERATED from skills/warden/SKILL.md by: bp3 skills install --harness=agy. Edit the source, then re-run. -->
 
@@ -13,7 +13,7 @@ waste. Replaces `/trial` as the single landing and self-improvement
 skill.
 
 One output:
-- With `<quest>`: diligence gate, Landing IIUC + runnable trial,
+- With `<quest>`: diligence gate, Landing IIUC + runnable demo,
   `bp3 warden <quest>` findings table, standalone
   `docs/quests/<quest>/FEEDBACK.md`, and at most **3** concrete
   proposals for owner disposal.
@@ -51,12 +51,12 @@ copy, owner as gate) and settle it first.
    - Run `bp3 release <quest> --dry-run` (read-only) to preview the
      next semver tag, `release_kind` (`github` vs `git_tag`), and
      rendered "What changed" notes inside the Landing IIUC.
-   - Write `docs/quests/<quest>/trial/trial.sh` (scratch sandbox,
+   - Write `docs/quests/<quest>/demo/demo.sh` (scratch sandbox,
      never this repo's state; exercises happy path, refusal path, and
      recovery where one exists; echoes commands and fails non-zero on
      mismatch). Record with
-     `asciinema rec --overwrite --headless -c ./trial.sh trial.cast`
-     when `asciinema` is installed, or run `trial.sh` live and quote
+     `asciinema rec --overwrite --headless -c ./demo.sh demo.cast`
+     when `asciinema` is installed, or run `demo.sh` live and quote
      its observed output.
 2. **Deterministic audit (`bp3 warden`):**
    - Run `./bin/bp3 warden <quest>` (or `bp3 warden <quest>` in host

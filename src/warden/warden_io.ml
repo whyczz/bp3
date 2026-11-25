@@ -85,7 +85,8 @@ let is_status_only_path q path =
         let slug = String.sub rest 0 i in
         let rel = String.sub rest (i + 1) (String.length rest - i - 1) in
         rel = Layout.quest_file || rel = Layout.log_file || rel = Layout.feedback_file
-        || (slug = q && String.starts_with ~prefix:"trial/" rel)
+        || (slug = q && (String.starts_with ~prefix:"demo/" rel
+                         || String.starts_with ~prefix:"trial/" rel))
 
 let is_release_commit_subject sha =
   let subj, code = git_out [ "show"; "-s"; "--format=%s"; sha ] in
