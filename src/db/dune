@@ -1,0 +1,7 @@
+; Machine-local SQLite control-plane store (sqlite-control-plane db.1):
+; bottom-layer library with zero dependency on bp3_quest so future quests
+; can layer bp3_quest on top of bp3_db with no circular dependencies.
+(library
+ (name bp3_db)
+ (wrapped false)
+ (libraries sqlite3 yojson unix))

@@ -121,4 +121,5 @@ let suite_env ~caller ~home ~name =
         List.mem k allowlist || (String.length k > 3 && String.sub k 0 3 = "LC_")
     | None -> false in
   List.filter keep caller
-  @ [ "HOME=" ^ home; "TMPDIR=" ^ home ^ "/t"; "BP3_SUITE=" ^ name; "GIT_CONFIG_NOSYSTEM=1" ]
+  @ [ "HOME=" ^ home; "TMPDIR=" ^ home ^ "/t"; "BP3_DB=" ^ home ^ "/bp3.sqlite";
+      "BP3_SUITE=" ^ name; "GIT_CONFIG_NOSYSTEM=1" ]

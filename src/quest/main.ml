@@ -757,6 +757,7 @@ let rec run argv =
       print_verdict ~fmt (Config.view ~source); 0
   | "warden" :: rest -> do_warden rest
   | "release" :: rest -> Release_io.run rest id
+  | "db" :: rest -> Db_cli.run rest
   | "e" :: (h :: _) when is_help h -> print_string help_e; 0
   | "e" :: _edge :: (h :: _) when is_help h -> print_string help_e; 0
   | "e" :: rest -> do_e ctx_rc ctx_source ctx_amb id rest

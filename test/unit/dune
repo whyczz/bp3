@@ -3,8 +3,8 @@
 ; pending_<node>_ (an OUnit skip: spec a node has not built yet).
 ; gen.ml is shared by every test; samples/ holds frozen real ledgers.
 (tests
- (names test_smoke test_clock test_store test_layout test_mint test_hooks test_render test_main test_suites test_metrics test_pi_tx test_agy_tx test_brief test_warden test_release)
+ (names test_smoke test_clock test_store test_layout test_mint test_hooks test_render test_main test_suites test_metrics test_pi_tx test_agy_tx test_brief test_warden test_release test_db)
  (deps
   (glob_files samples/*.jsonl)
   (glob_files golden/*))
- (libraries bp3_quest bp3_warden ounit2 qcheck-core qcheck-ounit yojson str))
+ (libraries bp3_quest bp3_warden bp3_db sqlite3 ounit2 qcheck-core qcheck-ounit yojson str))

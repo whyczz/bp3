@@ -129,7 +129,8 @@ let case_suite_env_drops_home_git_and_bp3_and_keeps_the_allowlist _ =
   let env = Suites.suite_env ~caller ~home:"/tmp/r/a/home" ~name:"a" in
   assert_equal ~printer:(String.concat " ")
     [ "PATH=/bin"; "LC_ALL=C"; "LANG=en";
-      "HOME=/tmp/r/a/home"; "TMPDIR=/tmp/r/a/home/t"; "BP3_SUITE=a"; "GIT_CONFIG_NOSYSTEM=1" ] env
+      "HOME=/tmp/r/a/home"; "TMPDIR=/tmp/r/a/home/t"; "BP3_DB=/tmp/r/a/home/bp3.sqlite";
+      "BP3_SUITE=a"; "GIT_CONFIG_NOSYSTEM=1" ] env
 
 (* --- laws --- *)
 

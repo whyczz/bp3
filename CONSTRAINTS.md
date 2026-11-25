@@ -18,7 +18,7 @@ the files that are not code.
 `docs/**` and `*.md` are prose: pseudocode in them is not a language.
 
 ```constraints
-lang ocaml  ext .ml .mli  files dune dune-project    libs stdlib unix str yojson ounit2 qcheck-core qcheck-ounit
+lang ocaml  ext .ml .mli  files dune dune-project    libs stdlib unix str yojson sqlite3 ounit2 qcheck-core qcheck-ounit
 lang bash   ext .sh .bash  shebang bash sh           libs posix git jq yq sed awk find mktemp make gh shellcheck yamllint
 lang zsh    files completions/_bp3  runs-in test/completion.sh  libs (completion builtins only)
 lang node   ext .mjs .js .ts  shebang node           libs node:* @earendil-works/pi-coding-agent
@@ -46,7 +46,7 @@ Why some lines look the way they do:
 
 | Surface | Allowed |
 |---|---|
-| bp3 CLI | `bin/bp3`, the `bp3 q` door, `bp3 harness`, `bp3 warden`, `bp3 release` |
+| bp3 CLI | `bin/bp3`, the `bp3 q` door, `bp3 harness`, `bp3 warden`, `bp3 release`, `bp3 db`, `bp3 repo`, `bp3 ticket` |
 | skills | markdown, rendered per harness (`.claude`, `.pi`, `.agents`) |
 | harness extensions | the pi extension (`extensions/bp3-pi`), workflow scripts |
 | not without a quest and sign-off | web app, daemon or service, GUI, hosted database |
@@ -86,3 +86,4 @@ Removing something works the same way.
 | 2026-11-23 | owner | "okay, let's implement the first quest" (approval of `docs/quests/2026-11-23-fast-agy-induct/`) | `agy` added to driven harness CLIs in Surfaces |
 | 2026-11-23 | owner | "Should Warden be its own top-level command — bp3 warden ... lock" (red-ink Round 2 of `docs/quests/2026-11-23-warden-v0/`) | `bp3 warden` added to `bp3 CLI` in Surfaces |
 | 2026-11-23 | owner | "Top-level `bp3 release <quest>` AND `bp3 release --commit <sha>` (defaults to patch bump; sign off adding `bp3 release` to CONSTRAINTS.md)" (framing of `docs/quests/2026-11-23-quest-promote-release/`) | `bp3 release` added to `bp3 CLI` in Surfaces |
+| 2026-11-24 | owner | "yep, lgtm, lets /quest both" + "i'm leaning towards 2, but i don't want to call the repos, i want bp3 install to do it" + "im leaning towards ticket" (red-ink of `docs/quests/2026-11-23-sqlite-control-plane/`) | `sqlite3` added to OCaml `libs`; `bp3 db`, `bp3 repo`, `bp3 ticket` added to `bp3 CLI` in Surfaces |
