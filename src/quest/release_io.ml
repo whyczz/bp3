@@ -125,6 +125,26 @@ let run_capture_both ?(env = []) ?input args =
     | Some p -> (match wait p with Unix.WEXITED n -> n | _ -> 255) in
   (String.trim out, String.trim err_s, code)
 
+(* Merge stderr into stdout via a single pipe so verbose verification commands
+   (>64 KB stderr) can never deadlock waiting on an unread pipe buffer. *)
+let run_capture_merged ?(env = []) args =
+  let out_r, out_w = Unix.pipe ~cloexec:true () in
+  let in_r = Unix.openfile "/dev/null" [Unix.O_RDONLY; Unix.O_CLOEXEC] 0 in
+  let pid =
+    try Some (Unix.create_process_env (List.hd args) (Array.of_list args)
+                (child_env env) in_r out_w out_w)
+    with Unix.Unix_error _ -> None in
+  Unix.close in_r; Unix.close out_w;
+  let ic_out = Unix.in_channel_of_descr out_r in
+  let out = In_channel.input_all ic_out in
+  close_in ic_out;
+  let rec wait p =
+    try snd (Unix.waitpid [] p) with Unix.Unix_error (Unix.EINTR, _, _) -> wait p in
+  let code = match pid with
+    | None -> 127
+    | Some p -> (match wait p with Unix.WEXITED n -> n | _ -> 255) in
+  (String.trim out, code)
+
 let opt_json = function Some s -> json_str s | None -> `Null
 
 (* Default self-mode tag-gated local $PREFIX install (sync.1).
@@ -292,14 +312,15 @@ let git_merge_tree ~ours ~theirs =
 
 let git_drifted_files ~source_tip ~target_tip =
   let mb, mb_code = git_out [ "merge-base"; target_tip; source_tip ] in
-  if mb_code <> 0 || mb = "" then []
+  if mb_code <> 0 || mb = "" then Error ()
   else
     let out, dcode = git_out [ "diff"; "--name-only"; mb ^ ".." ^ target_tip ] in
-    if dcode <> 0 || out = "" then []
+    if dcode <> 0 then Error ()
+    else if out = "" then Ok []
     else
-      String.split_on_char '\n' out
-      |> List.map String.trim
-      |> List.filter (fun s -> s <> "")
+      Ok (String.split_on_char '\n' out
+          |> List.map String.trim
+          |> List.filter (fun s -> s <> ""))
 
 let verify_merged_tree ~merged_tree ~parents ~drift ~attempt =
   let mk_opt = git_show merged_tree "Makefile" in
@@ -351,13 +372,12 @@ let verify_merged_tree ~merged_tree ~parents ~drift ~attempt =
         let argv = match spec with
           | `Make tgt -> [ "make"; "-C"; ephem; tgt ]
           | `Shell c -> [ "sh"; "-c"; "cd \"$1\" && sh -c \"$2\""; "_"; ephem; c ] in
-        let out, err_s, code = run_capture_both ~env:[ "BP3_ROOT=" ^ ephem ] argv in
+        let out, code = run_capture_merged ~env:[ "BP3_ROOT=" ^ ephem ] argv in
         if code <> 0 then begin
-          let detail = if err_s <> "" then err_s else out in
           err Names.e_verify_failed
             (`Assoc [ ("drift_kind", json_str (Release.drift_kind_to_string drift));
                       ("verify_mode", json_str label);
-                      ("detail", json_str detail) ])
+                      ("detail", json_str out) ])
             "Merged tree failed verification gate; target branch untouched." 1
         end else label)
 
@@ -683,8 +703,9 @@ let run argv id =
                 (`Assoc [ ("target", json_str target); ("detail", json_str detail) ])
                 "git merge-tree failed while preparing CAS merge." 1
           | Ok merged_tree ->
-              let drifted = git_drifted_files ~source_tip ~target_tip in
-              let d = Release.classify_drift ~quest:opts.quest drifted in
+              let d = match git_drifted_files ~source_tip ~target_tip with
+                | Ok drifted -> Release.classify_drift ~quest:opts.quest drifted
+                | Error () -> Release.Code in
               let verified =
                 if opts.dry_run then "none"
                 else verify_merged_tree ~merged_tree ~parents:[ target_tip; source_tip ] ~drift:d ~attempt in

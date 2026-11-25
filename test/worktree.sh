@@ -380,6 +380,20 @@ echo "$out" | jq -e '.error.code == "E_STALE_WORLD" and .error.facts.attempts ==
 [ "$(git -C "$work/repo" rev-parse master)" = "$before_m" ] || fail "locked CAS moved master"
 hdesk release --draft race-d >/dev/null
 
+# --target <non-HEAD branch>: lands onto target, leaves master unmoved, CAS-deletes draft branch
+git -C "$work/repo" branch other-target
+before_m=$(git -C "$work/repo" rev-parse master)
+out=$(hdesk prepare --draft nonhead-d)
+dpath_nh="$repo_dir/drafts/nonhead-d"
+echo "nonhead" > "$dpath_nh/nonhead.md"
+git -C "$dpath_nh" add nonhead.md && git -C "$dpath_nh" commit -qm "docs: nonhead"
+out=$(hdesk land --draft nonhead-d --target other-target)
+echo "$out" | jq -e '.ok == true and .target == "other-target" and .landed == true and .released == true and .branch_deleted == true' >/dev/null || fail "non-HEAD target land: $out"
+[ "$(git -C "$work/repo" rev-parse master)" = "$before_m" ] || fail "non-HEAD land moved master"
+[ "$(git -C "$work/repo" rev-parse other-target)" = "$(echo "$out" | jq -r '.commit')" ] || fail "non-HEAD target ref mismatch"
+if git -C "$work/repo" show-ref --verify --quiet refs/heads/draft/nonhead-d; then fail "non-HEAD land left draft branch"; fi
+git -C "$work/repo" branch -D other-target >/dev/null
+
 # .gitignore covers review scratch patterns in repo root
 for pat in '*.red-ink.md' '*.2b-reviewed.md' '*.2b-reviewed.md.snapshot'; do
   grep -qxF "$pat" "$root/.gitignore" || fail ".gitignore missing $pat"

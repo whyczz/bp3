@@ -556,7 +556,8 @@ let do_land_draft slug target_opt =
   let (target, landed_tip, attempts) = try_cas 1 in
   ignore (do_remove r.r_path false);
   delete_record r.r_run;
-  let branch_deleted = run_status ["git"; "-C"; mr; "branch"; "-d"; branch] = 0 in
+  let branch_deleted =
+    run_status ["git"; "-C"; mr; "update-ref"; "-d"; "refs/heads/" ^ branch; landed_tip] = 0 in
   `Assoc [("ok", `Bool true);
           ("draft", json_str slug);
           ("branch", json_str branch);

@@ -221,6 +221,33 @@ if out=$(BP3_DECIDER=human run_bp3 "$r2" release q4 2>&1); then fail "conflictin
 echo "$out" | jq -e '.error.code == "E_MERGE_CONFLICT" and (.error.facts.conflicts | index("README.md") != null)' >/dev/null || fail "conflict code: $out"
 [ "$(git -C "$r2" rev-parse master)" = "$before_m" ] || fail "conflict release moved master"; ok
 
+# Doc-only drift WITH Makefile lint: target -> runs make lint (fails E_VERIFY_FAILED on red lint, passes verified_merged=="lint" on green lint)
+r2_lint="$work/parallel-lint"
+make_host_repo "$r2_lint"
+printf 'lint:\n\t@test -f ok-lint\n' > "$r2_lint/Makefile"
+git -C "$r2_lint" add Makefile && git -C "$r2_lint" commit -qm "chore: add lint target"
+ml0=$(git -C "$r2_lint" rev-parse master)
+git -C "$r2_lint" checkout -q -b quest/ql1 "$ml0"
+land_one_node "$r2_lint" ql1 n1 "feat: ql1" "patch"
+git -C "$r2_lint" checkout -q master
+mkdir -p "$r2_lint/docs/icebox"
+echo "note" > "$r2_lint/docs/icebox/2026-11-25-lint-test.md"
+git -C "$r2_lint" add docs/icebox/2026-11-25-lint-test.md && git -C "$r2_lint" commit -qm "docs(icebox): lint test"
+before_ml=$(git -C "$r2_lint" rev-parse master)
+wt_ml_before=$(git -C "$r2_lint" worktree list --porcelain | grep -c '^worktree ')
+if out=$(BP3_DECIDER=human run_bp3 "$r2_lint" release ql1 2>&1); then fail "failing doc_only lint accepted"; fi
+echo "$out" | jq -e '.error.code == "E_VERIFY_FAILED" and .error.facts.drift_kind == "doc_only" and .error.facts.verify_mode == "lint"' >/dev/null || fail "doc_only lint fail json: $out"
+[ "$(git -C "$r2_lint" rev-parse master)" = "$before_ml" ] || fail "failing doc_only lint moved master"
+[ "$(git -C "$r2_lint" worktree list --porcelain | grep -c '^worktree ')" = "$wt_ml_before" ] || fail "failing doc_only lint leaked worktree"
+# Now add ok-lint on quest/ql1 and verify doc_only lint passes with verified_merged=="lint"
+git -C "$r2_lint" checkout -q quest/ql1
+: > "$r2_lint/ok-lint"
+git -C "$r2_lint" add ok-lint && git -C "$r2_lint" commit -qm "fix: satisfy lint"
+git -C "$r2_lint" checkout -q master
+out=$(BP3_DECIDER=human run_bp3 "$r2_lint" release ql1) || fail "passing doc_only lint failed: $out"
+echo "$out" | jq -e '.ok == true and .strategy == "merge" and .drift_kind == "doc_only" and .verified_merged == "lint"' >/dev/null || fail "doc_only lint pass json: $out"
+[ "$(git -C "$r2_lint" worktree list --porcelain | grep -c '^worktree ')" = "$wt_ml_before" ] || fail "passing doc_only lint leaked worktree"; ok
+
 # --- 6. GitHub remote mode (bare remote + insteadOf + stubbed gh) + --no-gh + --publish-only ---
 bare="$work/gh-bare.git"
 git init -q --bare "$bare"
