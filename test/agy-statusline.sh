@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Fixture tests for scripts/agy-statusline.
 set -euo pipefail
+unset AGY_CONVERSATION_ID CLAUDE_SESSION_ID
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 script="$repo/scripts/agy-statusline"
@@ -85,5 +86,93 @@ assert_contains "$out" "ctx 880k/1.0M (88%)" "non-bp3 ctx only"
 # 5. Malformed stdin fails open (exit 0)
 printf '{broken' | NO_COLOR=1 "$script" >/dev/null
 checks=$((checks + 1))
+
+# --- session-scoped-statusline session.2: parallel session isolation & anti-hijack ---
+mkdir -p "$proj/docs/quests/q-alpha" "$proj/docs/quests/q-beta" "$proj/docs/quests/stale-q"
+printf -- '---\nstatus: proposed\n---\n# q-alpha\n' > "$proj/docs/quests/q-alpha/QUEST.md"
+printf -- '---\nstatus: proposed\n---\n# q-beta\n' > "$proj/docs/quests/q-beta/QUEST.md"
+printf -- '---\nstatus: proposed\n---\n# stale-q\n' > "$proj/docs/quests/stale-q/QUEST.md"
+git -C "$proj" add -A && git -C "$proj" commit -qm "add parallel quest fixtures"
+sha2="$(git -C "$proj" rev-parse HEAD)"
+
+(cd "$proj" && ./bin/bp3 q c q-alpha >/dev/null)
+(cd "$proj" && ./bin/bp3 q q-alpha c node-1-first >/dev/null)
+(cd "$proj" && ./bin/bp3 q q-alpha c node-2-second >/dev/null)
+(cd "$proj" && ./bin/bp3 q q-alpha n node-1-first e handoff --commit "$sha2" --reason "ok" >/dev/null)
+(cd "$proj" && ./bin/bp3 q q-alpha n node-1-first e grade --verdict ship --verify-verdict pass --reason "ok" >/dev/null)
+(cd "$proj" && ./bin/bp3 q q-alpha n node-1-first e land --reason "ok" >/dev/null)
+(cd "$proj" && ./bin/bp3 q q-alpha n node-2-second e handoff --commit "$sha2" --reason "wip" >/dev/null)
+
+touch "$proj/docs/quests/q-beta/QUEST.red-ink.md"
+# Plant an abandoned QUEST.2b-reviewed.md that used to hijack every terminal
+touch "$proj/docs/quests/stale-q/QUEST.2b-reviewed.md"
+
+sess_dir="$(cd "$proj" && cd "$(git rev-parse --git-common-dir)" && pwd -P)/bp3/sessions"
+mkdir -p "$sess_dir"
+printf '{"session_id":"sess-A","quest":"q-alpha","mode":"induct","desk":null,"red_ink_path":null,"updated_ts":1795640000}\n' > "$sess_dir/sess-A.json"
+printf '{"session_id":"sess-B","quest":"q-beta","mode":"red-ink","desk":null,"red_ink_path":"docs/quests/q-beta/QUEST.red-ink.md","updated_ts":1795640000}\n' > "$sess_dir/sess-B.json"
+
+# 6a. Parallel sessions sess-A (session_id) and sess-B (conversationId) show distinct quests simultaneously
+pay_a="$(printf '{"session_id":"sess-A","cwd":"%s","context_window":{"context_window_size":1000000,"used_percentage":20.0}}' "$proj")"
+out_a="$(printf '%s' "$pay_a" | NO_COLOR=1 "$script")"
+assert_contains "$out_a" "bp3: q-alpha [████░░░░] 1/2 (50%)" "sess-A induct progress"
+assert_contains "$out_a" "2-second (handed_off c1)" "sess-A active node"
+assert_contains "$out_a" "ctx 200k/1.0M (20%)" "sess-A ctx"
+
+pay_b="$(printf '{"conversationId":"sess-B","cwd":"%s","context_window":{"context_window_size":1000000,"used_percentage":20.0}}' "$proj")"
+out_b="$(printf '%s' "$pay_b" | NO_COLOR=1 "$script")"
+assert_contains "$out_b" "bp3: q-beta [red-ink]" "sess-B red-ink mode"
+assert_contains "$out_b" "ctx 200k/1.0M (20%)" "sess-B ctx"
+
+# 6b. Unbound session sess-C shows bp3: idle even with stale-q/QUEST.2b-reviewed.md on disk
+pay_c="$(printf '{"session_id":"sess-C","cwd":"%s","context_window":{"context_window_size":1000000,"used_percentage":20.0}}' "$proj")"
+out_c="$(printf '%s' "$pay_c" | NO_COLOR=1 "$script")"
+assert_contains "$out_c" "bp3: idle" "unbound sess-C not hijacked by stale 2b-reviewed"
+assert_contains "$out_c" "ctx 200k/1.0M (20%)" "unbound sess-C ctx"
+
+# 6c. Deleting q-beta/QUEST.red-ink.md immediately unfreezes sess-B -> bp3: idle
+rm -f "$proj/docs/quests/q-beta/QUEST.red-ink.md"
+out_b2="$(printf '%s' "$pay_b" | NO_COLOR=1 "$script")"
+assert_contains "$out_b2" "bp3: idle" "sess-B drops red-ink when working copy removed"
+
+# 6d. transcript_path fallback extracts session ID when session_id / conversation_id omitted
+pay_tx="$(printf '{"transcript_path":"/Users/test/.gemini/antigravity-cli/brain/sess-A/.system_generated/logs/transcript.jsonl","cwd":"%s","context_window":{"context_window_size":1000000,"used_percentage":20.0}}' "$proj")"
+out_tx="$(printf '%s' "$pay_tx" | NO_COLOR=1 "$script")"
+assert_contains "$out_tx" "bp3: q-alpha [████░░░░] 1/2 (50%)" "transcript_path fallback resolves sess-A"
+
+# 6e. Promoted/landed bound quest drops session to bp3: idle
+printf -- '---\nstatus: landed\n---\n# q-alpha\n' > "$proj/docs/quests/q-alpha/QUEST.md"
+out_a_landed="$(printf '%s' "$pay_a" | NO_COLOR=1 "$script")"
+assert_contains "$out_a_landed" "bp3: idle" "landed bound quest drops to idle"
+printf -- '---\nstatus: proposed\n---\n# q-alpha\n' > "$proj/docs/quests/q-alpha/QUEST.md"
+
+# 6f. Worktree on quest/<slug> branch falls back to quest/<slug> for an unbound session
+wt_q="$work/wt-q-alpha"
+git -C "$proj" worktree add -q -b quest/q-alpha "$wt_q"
+pay_wt="$(printf '{"session_id":"sess-wt-unbound","cwd":"%s","context_window":{"context_window_size":1000000,"used_percentage":20.0}}' "$wt_q")"
+out_wt="$(printf '%s' "$pay_wt" | NO_COLOR=1 "$script")"
+assert_contains "$out_wt" "bp3: q-alpha [████░░░░] 1/2 (50%)" "quest/<slug> worktree fallback for unbound session"
+git -C "$proj" worktree remove --force "$wt_q"
+
+# 6g. Host repo (no $host/bin/bp3, installed bp3 + bp3-q on PATH) resolves session binding cleanly
+host="$work/host-repo"
+mkdir -p "$host/docs/quests/host-q" "$host/plans" "$work/bin"
+cp "$repo/bin/bp3" "$work/bin/bp3"
+cp "$repo/_build/default/src/quest/main.exe" "$work/bin/bp3-q"
+cp "$repo/plans/default.yaml" "$host/plans/default.yaml"
+chmod +x "$work/bin/bp3" "$work/bin/bp3-q"
+git -C "$host" init -q -b master
+git -C "$host" config user.email test@bp3
+git -C "$host" config user.name test
+printf -- '---\nstatus: proposed\n---\n# host-q\n' > "$host/docs/quests/host-q/QUEST.md"
+git -C "$host" add -A && git -C "$host" commit -qm init
+(cd "$host" && env -u BP3_Q_BIN PATH="$work/bin:$PATH" bp3 q c host-q >/dev/null)
+(cd "$host" && env -u BP3_Q_BIN PATH="$work/bin:$PATH" bp3 q host-q c node-1-one >/dev/null)
+host_sess="$(cd "$host" && cd "$(git rev-parse --git-common-dir)" && pwd -P)/bp3/sessions"
+mkdir -p "$host_sess"
+printf '{"session_id":"host-S","quest":"host-q","mode":"induct","desk":null,"red_ink_path":null,"updated_ts":1795640000}\n' > "$host_sess/host-S.json"
+pay_host="$(printf '{"conversation_id":"host-S","cwd":"%s","context_window":{"context_window_size":1000000,"used_percentage":15.0}}' "$host")"
+out_host="$(printf '%s' "$pay_host" | NO_COLOR=1 env -u BP3_Q_BIN PATH="$work/bin:$PATH" "$script")"
+assert_contains "$out_host" "bp3: host-q [░░░░░░░░] 0/1 (0%)" "host repo session lookup"
 
 echo "agy-statusline tests: ok ($checks assertions)"

@@ -71,18 +71,51 @@ parse_iso_epoch() {
     || echo ""
 }
 
+extract_sid_from_transcript() {
+  local p="$1"
+  [ -n "$p" ] || return 0
+  case "$p" in
+    */brain/*)
+      local tail="${p#*/brain/}"
+      printf '%s' "${tail%%/*}"
+      return 0
+      ;;
+  esac
+  local base
+  base="$(basename "$p")"
+  case "$base" in
+    *.jsonl) printf '%s' "${base%.jsonl}" ;;
+  esac
+}
+
+valid_sid() {
+  local s="$1"
+  [ -n "$s" ] && [ "${#s}" -le 128 ] || return 1
+  case "$s" in
+    .*|*..*|*/*|*\\*) return 1 ;;
+  esac
+  case "$s" in
+    *[!A-Za-z0-9._-]*) return 1 ;;
+  esac
+  return 0
+}
+
 payload=""
 if [ ! -t 0 ]; then
   payload="$(cat 2>/dev/null || true)"
 fi
 
 cwd="."
+j_sid=""
+j_tx=""
 ctx_str=""
 if [ -n "$payload" ] && command -v jq >/dev/null 2>&1; then
-  # Single jq pass over stdin JSON for speed
-  IFS=$'\t' read -r j_cwd j_pct j_size j_tin j_tout <<< "$(
+  # Single jq pass over stdin JSON for speed (sentinels prevent bash IFS=$'\t' collapsing empty fields)
+  IFS=$'\t' read -r j_cwd j_sid j_tx j_pct j_size j_tin j_tout <<< "$(
     printf '%s' "$payload" | jq -r '[
-      (.workspace.current_dir // .cwd // "."),
+      (if (.workspace.current_dir // .cwd // "") == "" then "." else (.workspace.current_dir // .cwd) end),
+      (if (.session_id // .conversation_id // .conversationId // "") == "" then "__NONE__" else (.session_id // .conversation_id // .conversationId) end),
+      (if (.transcript_path // "") == "" then "__NONE__" else .transcript_path end),
       (.context_window.used_percentage // -1),
       (.context_window.context_window_size // 0),
       (.context_window.total_input_tokens // 0),
@@ -90,6 +123,8 @@ if [ -n "$payload" ] && command -v jq >/dev/null 2>&1; then
     ] | @tsv' 2>/dev/null || true
   )"
   [ -n "${j_cwd:-}" ] && cwd="$j_cwd"
+  [ "${j_sid:-}" = "__NONE__" ] && j_sid=""
+  [ "${j_tx:-}" = "__NONE__" ] && j_tx=""
 
   if [ -n "${j_pct:-}" ] && [ "$j_pct" != "-1" ]; then
     pct_int="$(awk -v p="$j_pct" 'BEGIN { printf "%d", p + 0.5 }')"
@@ -109,11 +144,32 @@ if [ -n "$payload" ] && command -v jq >/dev/null 2>&1; then
   fi
 fi
 
+sid="${j_sid:-}"
+if [ -z "$sid" ] && [ -n "${j_tx:-}" ]; then
+  sid="$(extract_sid_from_transcript "$j_tx")"
+fi
+if [ -z "$sid" ]; then
+  sid="${AGY_CONVERSATION_ID:-${CLAUDE_SESSION_ID:-}}"
+fi
+if [ -n "$sid" ] && ! valid_sid "$sid"; then
+  sid=""
+fi
+
 # Locate bp3 repo root
 root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || true)"
 if [ -z "$root" ] || [ ! -d "$root/docs/quests" ]; then
   [ -n "$ctx_str" ] && printf '%s\n' "$ctx_str"
   exit 0
+fi
+
+# Resolve canonical git common dir (shared across main checkout and central ~/.bp3/desks worktrees)
+common_dir=""
+common_raw="$(git -C "$root" rev-parse --git-common-dir 2>/dev/null || true)"
+if [ -n "$common_raw" ]; then
+  case "$common_raw" in
+    /*) common_dir="$(cd "$common_raw" 2>/dev/null && pwd -P || printf '%s' "$common_raw")" ;;
+    *)  common_dir="$(cd "$root/$common_raw" 2>/dev/null && pwd -P || printf '%s' "$root/$common_raw")" ;;
+  esac
 fi
 
 # Resolve bp3 binary
@@ -144,25 +200,70 @@ if [ "$active_count" -gt 1 ]; then
 fi
 
 # Detect active quest:
-# 1. Current quest/<slug> branch
-# 2. Active red-ink working copy (docs/quests/<slug>/QUEST.red-ink.md or *.2b-reviewed.md)
-# 3. Active QUEST.md on this branch
+# When a session ID is present:
+#   1. Per-session binding in <git-common-dir>/bp3/sessions/<sid>.json (verifying red_ink_path exists)
+#   2. Current quest/<slug> branch
+#   3. Else idle (never glob repo-global QUEST.red-ink.md / QUEST.2b-reviewed.md)
+# When no session ID is present (legacy session-less caller):
+#   1. Current quest/<slug> branch
+#   2. Local red-ink working copy
+#   3. Active QUEST.md on this branch
 quest=""
 mode=""
 branch="$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-case "$branch" in
-  quest/*) quest="${branch#quest/}" ;;
-esac
-if [ -z "$quest" ]; then
-  for rf in "$root"/docs/quests/*/QUEST.red-ink.md "$root"/docs/quests/*/QUEST.2b-reviewed.md; do
-    [ -f "$rf" ] || continue
-    quest="$(basename "$(dirname "$rf")")"
-    mode="red-ink"
-  done
+if [ -n "$sid" ]; then
+  sfile=""
+  [ -n "$common_dir" ] && sfile="$common_dir/bp3/sessions/${sid}.json"
+  if [ -n "$sfile" ] && [ -f "$sfile" ]; then
+    IFS=$'\t' read -r s_quest s_mode s_rpath <<< "$(
+      jq -r '[
+        (if (.quest // "") == "" then "__NONE__" else .quest end),
+        (if (.mode // "") == "" then "__NONE__" else .mode end),
+        (if (.red_ink_path // "") == "" then "__NONE__" else .red_ink_path end)
+      ] | @tsv' "$sfile" 2>/dev/null || true
+    )"
+    [ "${s_quest:-}" = "__NONE__" ] && s_quest=""
+    [ "${s_mode:-}" = "__NONE__" ] && s_mode=""
+    [ "${s_rpath:-}" = "__NONE__" ] && s_rpath=""
+    if [ "$s_mode" = "red-ink" ]; then
+      if [ -n "$s_quest" ] && [ -n "$s_rpath" ] && [ -f "$root/$s_rpath" ]; then
+        quest="$s_quest"
+        mode="red-ink"
+      fi
+    elif [ -n "$s_quest" ]; then
+      quest="$s_quest"
+      mode="induct"
+    fi
+  fi
+  if [ -z "$quest" ]; then
+    case "$branch" in
+      quest/*) quest="${branch#quest/}" ;;
+    esac
+  fi
+else
+  case "$branch" in
+    quest/*) quest="${branch#quest/}" ;;
+  esac
+  if [ -z "$quest" ]; then
+    for rf in "$root"/docs/quests/*/QUEST.red-ink.md "$root"/docs/quests/*/QUEST.2b-reviewed.md; do
+      [ -f "$rf" ] || continue
+      quest="$(basename "$(dirname "$rf")")"
+      mode="red-ink"
+    done
+  fi
+  if [ -z "$quest" ]; then
+    quest="$active_quest"
+  fi
 fi
-if [ -z "$quest" ]; then
-  quest="$active_quest"
-fi
+
+print_idle() {
+  if [ -n "$ctx_str" ]; then
+    printf '%sbp3:%s idle %s|%s %s\n' "$C_CYN" "$C_RST" "$C_DIM" "$C_RST" "$ctx_str"
+  else
+    printf '%sbp3:%s idle\n' "$C_CYN" "$C_RST"
+  fi
+  exit 0
+}
 
 if [ "$mode" = "red-ink" ]; then
   ctx_part=""
@@ -177,10 +278,14 @@ if [ "$mode" = "red-ink" ]; then
 fi
 
 if [ -z "$quest" ]; then
-  if [ -n "$ctx_str" ]; then
-    printf '%sbp3:%s idle %s|%s %s\n' "$C_CYN" "$C_RST" "$C_DIM" "$C_RST" "$ctx_str"
+  print_idle
+fi
+
+# In session-scoped induct mode, drop to idle if the bound quest is already promoted/landed.
+if [ -n "$sid" ] && [ "$mode" = "induct" ] && [ -f "$root/docs/quests/$quest/QUEST.md" ]; then
+  if grep -q '^status: landed$' "$root/docs/quests/$quest/QUEST.md" 2>/dev/null; then
+    print_idle
   fi
-  exit 0
 fi
 
 rollup="$(cd "$root" && "$bp3_bin" q r "$quest" 2>/dev/null || true)"
@@ -191,6 +296,12 @@ if [ -z "$rollup" ] || ! printf '%s' "$rollup" | jq -e '.ok == true' >/dev/null 
     printf '%sbp3:%s %s%s\n' "$C_CYN" "$C_RST" "$quest" "$warn_part"
   fi
   exit 0
+fi
+
+if [ -n "$sid" ] && [ "$mode" = "induct" ]; then
+  if printf '%s' "$rollup" | jq -e '.state == "landed"' >/dev/null 2>&1; then
+    print_idle
+  fi
 fi
 
 IFS=$'\t' read -r total landed cur_node cur_state cur_cycle <<< "$(
@@ -206,11 +317,13 @@ IFS=$'\t' read -r total landed cur_node cur_state cur_cycle <<< "$(
     [
       $tot,
       $land,
-      ($cur.node // ""),
-      ($cur.state // ""),
+      (if ($cur.node // "") == "" then "__NONE__" else $cur.node end),
+      (if ($cur.state // "") == "" then "__NONE__" else $cur.state end),
       ($cur.cycle // 0)
     ] | @tsv' 2>/dev/null || true
 )"
+[ "${cur_node:-}" = "__NONE__" ] && cur_node=""
+[ "${cur_state:-}" = "__NONE__" ] && cur_state=""
 
 total="${total:-0}"
 landed="${landed:-0}"
