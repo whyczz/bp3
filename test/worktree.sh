@@ -13,22 +13,33 @@ echo base > a.txt; git add .; git commit -qm base
 SHA=$(git rev-parse HEAD)
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
+export BP3_DESKS_DIR="$work/desks"
 # Since mvp.6 this door is the documented alias of bp3 harness desk;
-# this file is its full regression suite (desk parity lives in harness.sh).
+# this file is its full regression suite (desk parity checked below).
 wt() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 worktree "$@"; }
+hdesk() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness desk "$@"; }
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-# --- derive: exact hard-coded path ---
+# --- derive: exact central path under $BP3_DESKS_DIR/<repo>-<hash8>/runs/... ---
 out=$(wt derive demo node-a R1)
-echo "$out" | jq -e '.ok == true and .path == ".bp3/worktrees/demo/node-a/R1"' >/dev/null || fail "derive exact: $out"
+p0=$(echo "$out" | jq -r '.path')
+echo "$out" | jq -e '.ok == true' >/dev/null || fail "derive ok: $out"
+case "$p0" in
+  "$work/desks/repo-"*/runs/demo/node-a/R1) ;;
+  *) fail "derive central path shape: $out" ;;
+esac
+repo_dir="${p0%/runs/demo/node-a/R1}"
+repo_key="${repo_dir##*/}"
+[[ "$repo_key" =~ ^repo-[0-9a-f]{8}$ ]] || fail "derive repo_key shape: $repo_key"
+[ ! -e "$work/repo/.bp3" ] || fail "derive created repo .bp3/"
 
 # derive is pure and total over generated slugs, and never escapes the root
 for q in demo quest-2 a; do
   for e in node-a node-9 z; do
     for r in R1 run-2 20261114t221957z-handoff-x-c1; do
       p=$(wt derive "$q" "$e" "$r" | jq -r '.path')
-      [ "$p" = ".bp3/worktrees/$q/$e/$r" ] || fail "derive generated: $p"
+      [ "$p" = "$repo_dir/runs/$q/$e/$r" ] || fail "derive generated: $p"
       case "/$p/" in *"/../"*) fail "derive escapes root: $p" ;; esac
     done
   done
@@ -119,11 +130,12 @@ echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "missing i
 
 # --- bookkeeping: prepare is idempotent per Run ID ---
 out=$(wt prepare demo node-a --run RA)
-echo "$out" | jq -e '.ok == true and .run_id == "RA" and .path == ".bp3/worktrees/demo/node-a/RA" and .ref == "bp3/node/demo/node-a"' >/dev/null || fail "prepare RA: $out"
 pa_path=$(wt derive demo node-a RA | jq -r '.path')
+echo "$out" | jq -e --arg p "$pa_path" '.ok == true and .run_id == "RA" and .path == $p and .ref == "bp3/node/demo/node-a"' >/dev/null || fail "prepare RA: $out"
 [ -f "$pa_path/a.txt" ] || fail "prepared worktree files missing"
+[ ! -e "$work/repo/.bp3" ] || fail "prepare RA created repo .bp3/"
 out=$(wt prepare demo node-a --run RA)
-echo "$out" | jq -e '.ok == true and .existing == true and .path == ".bp3/worktrees/demo/node-a/RA"' >/dev/null || fail "prepare RA again (existing): $out"
+echo "$out" | jq -e --arg p "$pa_path" '.ok == true and .existing == true and .path == $p' >/dev/null || fail "prepare RA again (existing): $out"
 [ "$(git worktree list --porcelain | grep -c '^worktree ')" = "2" ] || fail "prepare twice made extra worktrees"
 
 # check recomputes dirty/stale live by Run ID
@@ -153,8 +165,8 @@ echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "check rel
 out=$(wt prepare demo node-a --run RA)
 echo "$out" | jq -e '.ok == true and (.existing // false) == false' >/dev/null || fail "re-prepare after release (tombstone?): $out"
 
-# exit from inside a clean worktree releases it and prints the conductor path
-out=$(cd "$pa_path" && BP3_Q_BIN="$work/repo/g-bin" "$work/repo/bin/bp3" worktree exit)
+# exit from inside a clean worktree (without pinned BP3_ROOT) releases it and prints conductor_path = main_root
+out=$(cd "$pa_path" && env -u BP3_ROOT "$work/repo/g-bin" worktree exit)
 conductor=$(cd "$work/repo" && pwd -P)
 echo "$out" | jq -e --arg c "$conductor" '.ok == true and .released == true and .conductor_path == $c' >/dev/null || fail "clean exit: $out"
 [ ! -e "$pa_path" ] || fail "clean exit left the worktree"
@@ -176,58 +188,94 @@ echo "$out" | jq -e --arg s "$SHA" '.ok == true and .ref == $s and .detached == 
 out=$(wt release RC)
 echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "release positional Run ID: $out"
 
-# parallel detached prepares keep every record (one file per Run ID)
+# parallel detached prepares keep every record in central .meta/ (one file per Run ID)
 for i in 1 2 3 4 5; do
   ( wt prepare demo node-a --run "P$i" --commit "$SHA" > "$work/par-P$i.json" ) &
 done
 wait
 for i in 1 2 3 4 5; do
   jq -e '.ok == true' "$work/par-P$i.json" >/dev/null || fail "parallel prepare P$i: $(cat "$work/par-P$i.json")"
-  [ -f ".bp3/desks/P$i.json" ] || fail "parallel prepare P$i left no desk file"
+  [ -f "$repo_dir/.meta/P$i.json" ] || fail "parallel prepare P$i left no central .meta file"
   out=$(wt check --run "P$i")
   echo "$out" | jq -e '.ok == true and .dirty == false' >/dev/null || fail "parallel check P$i: $out"
 done
-[ ! -e ".bp3/worktree-registry.json" ] || fail "shared registry file still written"
+[ ! -e "$work/repo/.bp3" ] || fail "parallel prepares created repo .bp3/"
 out=$(wt list)
 echo "$out" | jq -e '[.worktrees[] | select(.run_id | startswith("P"))] | length == 5' >/dev/null || fail "parallel list: $out"
 for i in 1 2 3 4 5; do
   out=$(wt release --run "P$i")
   echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "parallel release P$i: $out"
-  [ ! -e ".bp3/desks/P$i.json" ] || fail "parallel release P$i left a desk file"
+  [ ! -e "$repo_dir/.meta/P$i.json" ] || fail "parallel release P$i left a central .meta file"
 done
 
-# list shows every record plus orphans flagged; --quest filters
+# list shows every record plus run & quest orphans flagged; --quest filters
 out=$(wt prepare demo node-a --run RL)
 echo "$out" | jq -e '.ok == true' >/dev/null || fail "prepare RL: $out"
 porph=$(wt derive demo node-a ORPH | jq -r '.path')
 wt create "$porph" --commit "$SHA" >/dev/null
+qorph="$repo_dir/quests/orphq"
+wt create "$qorph" --commit "$SHA" >/dev/null
 out=$(wt list)
 echo "$out" | jq -e '[.worktrees[] | select(.run_id == "RL" and (.orphan == false))] | length == 1' >/dev/null || fail "list record RL: $out"
 echo "$out" | jq -e '[.worktrees[] | select(.run_id == "ORPH" and .orphan == true)] | length == 1' >/dev/null || fail "list orphan ORPH: $out"
+echo "$out" | jq -e '[.worktrees[] | select(.run_id == "quest-orphq" and .quest == "orphq" and .node == "(quest)" and .orphan == true)] | length == 1' >/dev/null || fail "list quest orphan: $out"
 out=$(wt list --quest nope)
 echo "$out" | jq -e '.worktrees == []' >/dev/null || fail "list quest filter: $out"
 out=$(wt release --run RL)
 echo "$out" | jq -e '.ok == true' >/dev/null || fail "release RL: $out"
 out=$(wt remove "$porph")
-echo "$out" | jq -e '.ok == true' >/dev/null || fail "remove orphan cleanup: $out"
+echo "$out" | jq -e '.ok == true' >/dev/null || fail "remove run orphan cleanup: $out"
+out=$(wt remove "$qorph")
+echo "$out" | jq -e '.ok == true' >/dev/null || fail "remove quest orphan cleanup: $out"
 out=$(wt list)
 echo "$out" | jq -e '.worktrees == []' >/dev/null || fail "list after all released: $out"
 if out=$(wt release --run GONE 2>&1); then fail "release of unknown Run ID accepted"; fi
 echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "release unknown code: $out"
 
-echo "worktree tests: ok"
-
-# --- quest-level desk (Node 8): prepare/release --quest ---
-out=$(wt prepare --quest demoq)
-echo "$out" | jq -e '.ok == true and .quest == "demoq" and .node == "(quest)" and .path == ".bp3/worktrees/demoq" and .ref == "quest/demoq"' >/dev/null || fail "quest prepare: $out"
-[ -d .bp3/worktrees/demoq ] || fail "quest desk missing on disk"
-out=$(wt prepare --quest demoq)
+# --- quest-level desk + sibling grade desk non-nesting + worktree-context list + harness desk parity ---
+out=$(hdesk prepare --quest demoq)
+qpath="$repo_dir/quests/demoq"
+echo "$out" | jq -e --arg p "$qpath" '.ok == true and .quest == "demoq" and .node == "(quest)" and .path == $p and .ref == "quest/demoq"' >/dev/null || fail "quest prepare: $out"
+[ -d "$qpath" ] || fail "quest desk missing on disk"
+out=$(hdesk prepare --quest demoq)
 echo "$out" | jq -e '.ok == true and .existing == true' >/dev/null || fail "quest prepare idempotent: $out"
-out=$(wt list)
-echo "$out" | jq -e '.worktrees | map(.quest) | index("demoq") != null' >/dev/null || fail "quest desk in list: $out"
-echo stray > .bp3/worktrees/demoq/stray.txt
-if out=$(wt release --quest demoq 2>&1); then fail "dirty quest release accepted"; fi
-rm .bp3/worktrees/demoq/stray.txt
-out=$(wt release --quest demoq)
+gout=$(hdesk prepare demoq node-a --run grade-node-a-c1-a1 --commit "$SHA")
+gpath="$repo_dir/runs/demoq/node-a/grade-node-a-c1-a1"
+echo "$gout" | jq -e --arg p "$gpath" '.ok == true and .path == $p and .detached == true' >/dev/null || fail "grade prepare: $gout"
+case "$gpath" in "$qpath"/*) fail "grade desk nested inside quest desk: $gpath" ;; esac
+[ -z "$(git -C "$qpath" status --short)" ] || fail "quest desk dirty while grade desk open"
+# calling list from inside quest desk (without BP3_ROOT) resolves the exact same central bucket
+wt_list=$(cd "$qpath" && env -u BP3_ROOT "$work/repo/g-bin" worktree list)
+main_list=$(hdesk list)
+[ "$(echo "$wt_list" | jq -c '[.worktrees[].run_id]')" = "$(echo "$main_list" | jq -c '[.worktrees[].run_id]')" ] \
+  || fail "desk list inside worktree differs: $wt_list vs $main_list"
+echo "$main_list" | jq -e '[.worktrees[].run_id] | index("quest-demoq") != null and index("grade-node-a-c1-a1") != null' >/dev/null || fail "both desks in list: $main_list"
+out=$(hdesk release --run grade-node-a-c1-a1)
+echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "grade release: $out"
+echo stray > "$qpath/stray.txt"
+if out=$(hdesk release --quest demoq 2>&1); then fail "dirty quest release accepted"; fi
+rm "$qpath/stray.txt"
+out=$(hdesk release --quest demoq)
 echo "$out" | jq -e '.ok == true and .released == true' >/dev/null || fail "quest release: $out"
-[ ! -d .bp3/worktrees/demoq ] || fail "quest desk not removed"
+[ ! -d "$qpath" ] || fail "quest desk not removed"
+[ ! -e "$work/repo/.bp3" ] || fail "central desks created repo .bp3/"
+
+# --- legacy .bp3/desks/ read+release fallback (zero-cliff upgrade, never written to) ---
+mkdir -p "$work/repo/.bp3/desks" "$work/repo/.bp3/worktrees"
+git worktree add -q --detach "$work/repo/.bp3/worktrees/legq" "$SHA"
+printf '{"run_id":"LEGACY1","quest":"legq","node":"(quest)","path":".bp3/worktrees/legq","ref":"%s","detached":true,"created_ts":1700000000}\n' "$SHA" \
+  > "$work/repo/.bp3/desks/LEGACY1.json"
+out=$(wt list)
+echo "$out" | jq -e '[.worktrees[] | select(.run_id == "LEGACY1" and .missing == false and .orphan == false)] | length == 1' >/dev/null || fail "legacy list: $out"
+# verify legacy record is also visible from inside a new central worktree (without BP3_ROOT)
+cpath=$(wt prepare demo node-a --run NEW1 --commit "$SHA" | jq -r '.path')
+[ ! -e "$work/repo/.bp3/desks/NEW1.json" ] || fail "new prepare wrote to legacy .bp3/desks/"
+wt_leg=$(cd "$cpath" && env -u BP3_ROOT "$work/repo/g-bin" worktree list)
+echo "$wt_leg" | jq -e '[.worktrees[] | select(.run_id == "LEGACY1")] | length == 1' >/dev/null || fail "legacy list from central worktree: $wt_leg"
+out=$(cd "$cpath" && env -u BP3_ROOT "$work/repo/g-bin" worktree release --run LEGACY1)
+echo "$out" | jq -e '.ok == true and .released == true and .removed == true' >/dev/null || fail "legacy release from worktree: $out"
+[ ! -e "$work/repo/.bp3/desks/LEGACY1.json" ] || fail "legacy release left .bp3/desks/LEGACY1.json"
+[ ! -e "$work/repo/.bp3/worktrees/legq" ] || fail "legacy release left .bp3/worktrees/legq"
+wt release --run NEW1 >/dev/null
+
+echo "worktree tests: ok"

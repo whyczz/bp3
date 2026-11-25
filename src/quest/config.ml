@@ -1,6 +1,6 @@
 (* config — read-only machine-local bp3 config view:
    reads <git-common-dir>/bp3/config.json (optional machine settings)
-   and .bp3/desks/*.json without ever writing to .git/ on read. *)
+   and open desks via Worktree.load_records without ever writing to .git/ on read. *)
 open Gitx
 
 let config_dir () =
@@ -32,21 +32,9 @@ let load_thresholds dir =
     with _ -> default_thresholds
 
 let list_desks () =
-  let d = Filename.concat root ".bp3/desks" in
-  if not (Sys.file_exists d) then []
-  else
-    try
-      Sys.readdir d |> Array.to_list
-      |> List.filter (fun n -> Filename.check_suffix n ".json")
-      |> List.sort String.compare
-      |> List.filter_map (fun n ->
-          try
-            let j = Yojson.Safe.from_string (read_file_or (Filename.concat d n) "") in
-            match Yojson.Safe.Util.member "path" j with
-            | `String p when p <> "" -> Some (json_str p)
-            | _ -> None
-          with _ -> None)
-    with _ -> []
+  Worktree.load_records ()
+  |> List.filter_map (fun (r : Worktree.record) ->
+       if r.r_path <> "" then Some (json_str r.r_path) else None)
 
 let view ~source =
   ignore source;

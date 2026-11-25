@@ -14,6 +14,7 @@ git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
+export BP3_DESKS_DIR="$work/desks"
 q() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 q "$@"; }
 c() { BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 config "$@"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -64,19 +65,23 @@ echo "$out" | jq -e '.thresholds.setup_slow_s == 42 and .thresholds.depth_cap ==
   || fail "edited threshold not honored: $out"
 [ -z "$(git status --porcelain)" ] || fail "threshold edit dirtied git status"
 
-# --- desks appear in config view ---
+# --- desks appear in config view without touching repo .bp3/ ---
 q c demo >/dev/null
-BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness desk prepare demo node-1 --run D1 >/dev/null
+d1_path=$(BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness desk prepare demo node-1 --run D1 | jq -r .path)
+[ ! -e "$work/repo/.bp3" ] || fail "desk prepare created repo .bp3/"
 out=$(c)
-echo "$out" | jq -e '(.desks | length) == 1' >/dev/null || fail "desks view: $out"
+echo "$out" | jq -e --arg p "$d1_path" '.desks == [$p]' >/dev/null || fail "desks view: $out"
 
-# --- all worktrees resolve the same config_dir ---
+# --- all worktrees resolve the same config_dir and identical desks (even without pinned BP3_ROOT) ---
 git worktree add -q "$work/wt2" -b wt2
 mkdir -p "$work/wt2/bin"
 cp "$root/bin/bp3" "$work/wt2/bin/"
-main_dir=$(c | jq -r .config_dir)
-wt_dir=$(BP3_Q_BIN="$work/repo/g-bin" "$work/wt2/bin/bp3" config | jq -r .config_dir)
-[ "$main_dir" = "$wt_dir" ] || fail "worktree config_dir differs: $main_dir vs $wt_dir"
+main_cfg=$(c)
+wt_cfg=$(cd "$work/wt2" && env -u BP3_ROOT "$work/repo/g-bin" config)
+[ "$(echo "$main_cfg" | jq -r .config_dir)" = "$(echo "$wt_cfg" | jq -r .config_dir)" ] \
+  || fail "worktree config_dir differs: $main_cfg vs $wt_cfg"
+[ "$(echo "$main_cfg" | jq -c .desks)" = "$(echo "$wt_cfg" | jq -c .desks)" ] \
+  || fail "worktree desks differs: $main_cfg vs $wt_cfg"
 
 # --- reserved config slug still refused ---
 if out=$(q c config 2>&1); then fail "quest named config accepted"; fi

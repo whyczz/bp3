@@ -1,21 +1,48 @@
 (* worktree — git worktree layers for bp3.
-   Util layer: derive a worktree path from (quest, node,
-   run-id), create a worktree on a branch or detached at a
-   commit, inspect its ref and dirty state, and remove it.
+   Util layer: derive a central worktree path under
+   $BP3_DESKS_DIR (~/.bp3/desks)/<repo>-<hash8>/{quests,runs},
+   create a worktree on a branch or detached at a commit,
+   inspect its ref and dirty state, and remove it.
    The dirty refusal lives in the remove primitive itself,
    so no caller can forget it.
-   Bookkeeping layer: a machine-local registry under .bp3/
-   keyed by run_id, composed into prepare/check/exit/
-   release/list. Dirty and stale stay derived, never stored. *)
+   Bookkeeping layer: a machine-local registry under
+   <repo_desks_dir>/.meta/ keyed by run_id (with read+release
+   fallback to legacy <main_root>/.bp3/desks/), composed into
+   prepare/check/exit/release/list. Dirty and stale stay
+   derived, never stored. *)
 open Gitx
 
-(* ---------- derivation (pure) ---------- *)
+(* ---------- canonical repo & central desk paths ---------- *)
+let canon p = try Unix.realpath p with _ -> p
+
+let main_root () =
+  match git_common_dir () with
+  | Some common ->
+      let c = canon common in
+      if Filename.basename c = ".git" then canon (Filename.dirname c)
+      else canon root
+  | None -> canon root
+
+let desks_base () =
+  Layout.desks_base_of
+    (Sys.getenv_opt Layout.desks_env_var)
+    (Sys.getenv_opt "HOME")
+
+let repo_desks_dir () =
+  let common = match git_common_dir () with
+    | Some c -> canon c
+    | None -> canon root in
+  let mr = main_root () in
+  let key = Layout.repo_key (Filename.basename mr) common in
+  Layout.repo_desks_dir (desks_base ()) key
+
+(* ---------- derivation ---------- *)
 let has_dotdot s =
   let n = String.length s in
   let rec loop i = i + 1 < n && ((s.[i] = '.' && s.[i + 1] = '.') || loop (i + 1)) in
   loop 0
 
-(* A run id names one path component under .bp3/worktrees/.
+(* A run id names one path component under <repo_desks_dir>/runs/.
    It may carry timestamps and dots, but never a separator,
    never a leading dot or dash, and never "..": a derived
    path cannot escape the worktree root by construction. *)
@@ -32,13 +59,11 @@ let derive_path quest node run_id =
   Store.check_slug quest;
   Store.check_slug node;
   if not (valid_run_id run_id) then usage ("invalid run id: " ^ run_id);
-  String.concat "/" [Layout.desks_root; quest; node; run_id]
+  Layout.run_desk_dir (repo_desks_dir ()) quest node run_id
 
 (* ---------- git in a worktree ---------- *)
 let abs_path p =
-  if Filename.is_relative p then Filename.concat root p else p
-
-let canon p = try Unix.realpath p with _ -> p
+  if Filename.is_relative p then Filename.concat (main_root ()) p else p
 
 let git_in dir args = run_capture ("git" :: "-C" :: dir :: args)
 
@@ -138,12 +163,12 @@ let do_remove path force =
       (`Assoc [("path", json_str path); ("changed_count", `Int info.ichanged)])
       "Worktree is dirty; commit the work or remove with --force." 1;
   let abs = abs_path path in
-  let top_root, _ = git_out ["rev-parse"; "--show-toplevel"] in
-  if top_root <> "" && canon top_root = canon abs then
+  let mr = main_root () in
+  if mr <> "" && mr = canon abs then
     err Names.e_main_worktree (`Assoc [("path", json_str path)])
       "Refusing to remove the main worktree." 1;
   let args = ["worktree"; "remove"] @ (if force then ["--force"] else []) @ [abs] in
-  if run_status (git args) <> 0 then
+  if run_status ("git" :: "-C" :: mr :: args) <> 0 then
     (let again = inspect_info path in
      if again.idirty && not force then
        err Names.e_dirty_tree
@@ -156,23 +181,26 @@ let do_remove path force =
 
 (* ---------- bookkeeping: one file per run_id ---------- *)
 (* One record per Run, stored as one file per key at
-   .bp3/desks/<run_id>.json: the creation facts that cannot
-   be derived (above all the actual path when --path
+   <repo_desks_dir>/.meta/<run_id>.json: the creation facts that
+   cannot be derived (above all the actual path when --path
    overrides the derivation). Created exclusively and
    published by hard link, so parallel writers for distinct
    Run IDs never rewrite each other's records. Dirty and
    stale are never stored; they are recomputed live by
    check/list. Release deletes the file — no tombstone.
-   The desks are machine-local furniture under .bp3/,
-   never ledger state. *)
+   Legacy <main_root>/.bp3/desks/<run_id>.json records are
+   read-only fallback on load and unlinked on release; new
+   records are never written inside the repo. *)
 type record = {
   r_run : string; r_quest : string; r_node : string;
   r_path : string; r_ref : string; r_detached : bool;
   r_created : int;
 }
 
-let desks_dir = Filename.concat root ".bp3/desks"
-let desk_file run_id = Filename.concat desks_dir (run_id ^ ".json")
+let desks_meta_dir () = Layout.desks_meta_dir (repo_desks_dir ())
+let desk_file run_id = Filename.concat (desks_meta_dir ()) (run_id ^ ".json")
+let legacy_desks_dir () = Filename.concat (main_root ()) Layout.legacy_desks_meta_dir
+let legacy_desk_file run_id = Filename.concat (legacy_desks_dir ()) (run_id ^ ".json")
 
 let record_of_json j =
   match Util.get_str_opt j "run_id" with
@@ -186,36 +214,54 @@ let record_of_json j =
              r_detached = Util.get_bool j "detached" false;
              r_created = Util.get_int j "created_ts" 0 }
 
+let load_record_file file =
+  if not (Sys.file_exists file) then None
+  else
+    try record_of_json (Yojson.Safe.from_string (read_file_or file ""))
+    with _ -> None
+
 let load_record run_id =
   if not (valid_run_id run_id) then None
   else
-    let file = desk_file run_id in
-    if not (Sys.file_exists file) then None
-    else
-      try record_of_json (Yojson.Safe.from_string (read_file_or file ""))
-      with _ -> None
+    match load_record_file (desk_file run_id) with
+    | Some r -> Some r
+    | None -> load_record_file (legacy_desk_file run_id)
 
-let load_records () =
-  if not (Sys.file_exists desks_dir) then []
+let json_run_ids_in dir =
+  if not (Sys.file_exists dir) then []
   else
     try
-      Sys.readdir desks_dir |> Array.to_list
-      |> List.filter (fun name ->
-           let n = String.length name in
-           n > 5 && String.sub name (n - 5) 5 = ".json")
+      Sys.readdir dir |> Array.to_list
       |> List.filter_map (fun name ->
-           load_record (String.sub name 0 (String.length name - 5)))
-      |> List.sort (fun a b -> String.compare a.r_run b.r_run)
+           let n = String.length name in
+           if n > 5 && String.sub name (n - 5) 5 = ".json" then
+             Some (String.sub name 0 (n - 5))
+           else None)
     with _ -> []
+
+let load_records () =
+  let seen = Hashtbl.create 16 in
+  let add_from dir =
+    List.iter (fun run_id ->
+      if valid_run_id run_id && not (Hashtbl.mem seen run_id) then
+        match load_record_file (Filename.concat dir (run_id ^ ".json")) with
+        | Some r -> Hashtbl.replace seen run_id r
+        | None -> ())
+      (json_run_ids_in dir) in
+  add_from (desks_meta_dir ());
+  add_from (legacy_desks_dir ());
+  Hashtbl.fold (fun _ r acc -> r :: acc) seen []
+  |> List.sort (fun a b -> String.compare a.r_run b.r_run)
 
 (* Publish one record exclusively: write a per-process temp
    file in the same directory, then hard-link it to the
    final name. The link fails if the key already exists, so
    no writer ever clobbers another Run's record. *)
 let save_record r =
-  Util.mkdir_p desks_dir;
+  let dir = desks_meta_dir () in
+  Util.mkdir_p dir;
   let final = desk_file r.r_run in
-  let tmp = Filename.concat desks_dir
+  let tmp = Filename.concat dir
       (Printf.sprintf ".%s.%d.tmp" r.r_run (Unix.getpid ())) in
   let json = `Assoc [("run_id", json_str r.r_run);
                      ("quest", json_str r.r_quest);
@@ -232,7 +278,8 @@ let save_record r =
     (try Unix.unlink tmp with _ -> ()); false
 
 let delete_record run_id =
-  try Unix.unlink (desk_file run_id) with _ -> ()
+  (try Unix.unlink (desk_file run_id) with _ -> ());
+  (try Unix.unlink (legacy_desk_file run_id) with _ -> ())
 
 let now_s () = int_of_float (Clock.time ())
 let stale_s r = max 0 (now_s () - r.r_created)
@@ -305,7 +352,7 @@ let do_prepare_quest quest =
         prepare_verdict r true
       end
   | None ->
-      let path = Layout.desk_dir quest in
+      let path = Layout.quest_desk_dir (repo_desks_dir ()) quest in
       let branch = Layout.work_branch quest in
       let _ = do_create path (Some branch) None in
       let i = inspect_info path in
@@ -374,39 +421,53 @@ let do_exit force =
        | `Assoc fs ->
            `Assoc ((List.filter (fun (k, _) -> k <> "ok") fs)
                    @ [("ok", `Bool true);
-                      ("conductor_path", json_str (canon root))])
+                      ("conductor_path", json_str (main_root ()))])
        | other -> other)
 
-(* Orphans: worktrees under the default root with no record.
-   Their quest/node/run are read back from the derived path. *)
-let orphan_entry abs =
-  let croot = canon root in
-  let rel =
-    if String.length abs > String.length croot
-       && String.sub abs 0 (String.length croot) = croot
-    then String.sub abs (String.length croot + 1)
-           (String.length abs - String.length croot - 1)
-    else abs in
-  let prefix = Layout.desks_root ^ "/" in
-  let under_desks =
-    if Store.starts_with rel prefix then
-      String.split_on_char '/'
-        (String.sub rel (String.length prefix) (String.length rel - String.length prefix))
-    else [] in
-  match under_desks with
-  | [q; e; r] ->
-      let shown = String.concat "/" [Layout.desks_root; q; e; r] in
-      let live =
-        (try
-           let i = inspect_info shown in
-           [("ref", json_str i.iref); ("detached", `Bool i.idetached);
-            ("dirty", `Bool i.idirty); ("changed_count", `Int i.ichanged)]
-         with Verdict _ -> [("missing", `Bool true)]) in
-      Some (q, `Assoc ([("run_id", json_str r); ("quest", json_str q);
-                        ("node", json_str e); ("path", json_str shown);
+(* Orphans: worktrees under the repo's central desk dir (or legacy
+   .bp3/worktrees/) with no record. Quest/node/run are read back
+   from the derived path. *)
+let build_orphan ~run_id ~quest ~node ~shown ~inspect_target =
+  let live =
+    (try
+       let i = inspect_info inspect_target in
+       [("ref", json_str i.iref); ("detached", `Bool i.idetached);
+        ("dirty", `Bool i.idirty); ("changed_count", `Int i.ichanged)]
+     with Verdict _ -> [("missing", `Bool true)]) in
+  Some (quest, `Assoc ([("run_id", json_str run_id); ("quest", json_str quest);
+                        ("node", json_str node); ("path", json_str shown);
                         ("orphan", `Bool true); ("missing", `Bool false);
                         ("stale_s", `Int 0)] @ live))
-  | _ -> None
+
+let orphan_entry abs =
+  let c_abs = canon abs in
+  let repo_dir = repo_desks_dir () in
+  let c_repo_dir = canon repo_dir in
+  match Util.strip_prefix ~prefix:(c_repo_dir ^ "/") c_abs with
+  | Some rel ->
+      (match String.split_on_char '/' rel with
+       | [sub; q; e; r] when sub = Layout.runs_desks_subdir ->
+           let shown = Layout.run_desk_dir repo_dir q e r in
+           build_orphan ~run_id:r ~quest:q ~node:e ~shown ~inspect_target:abs
+       | [sub; q] when sub = Layout.quests_desks_subdir ->
+           let shown = Layout.quest_desk_dir repo_dir q in
+           build_orphan ~run_id:(quest_run_id q) ~quest:q ~node:"(quest)"
+             ~shown ~inspect_target:abs
+       | _ -> None)
+  | None ->
+      let legacy_prefix = main_root () ^ "/" ^ Layout.legacy_desks_root ^ "/" in
+      (match Util.strip_prefix ~prefix:legacy_prefix c_abs with
+       | Some rel ->
+           (match String.split_on_char '/' rel with
+            | [q; e; r] ->
+                let shown = String.concat "/" [Layout.legacy_desks_root; q; e; r] in
+                build_orphan ~run_id:r ~quest:q ~node:e ~shown ~inspect_target:abs
+            | [q] ->
+                let shown = Layout.legacy_desks_root ^ "/" ^ q in
+                build_orphan ~run_id:(quest_run_id q) ~quest:q ~node:"(quest)"
+                  ~shown ~inspect_target:abs
+            | _ -> None)
+       | None -> None)
 
 let do_list quest_filter =
   let records = load_records () in

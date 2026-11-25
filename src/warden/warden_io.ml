@@ -62,7 +62,7 @@ let select_real_quests ~last ~all =
   let picked = if all then filtered else take last filtered in
   List.rev picked
 
-(* ---------- desks (read-only from .bp3/desks/*.json) ---------- *)
+(* ---------- desks (read-only via Worktree.load_records) ---------- *)
 
 let open_desks_for q =
   Worktree.load_records ()

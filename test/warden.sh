@@ -10,6 +10,7 @@ work=$(mktemp -d "${TMPDIR:-/tmp}/bp3-warden-tests.XXXXXX")
 trap 'rm -rf -- "$work"' EXIT
 
 mkdir -p "$work/repo/bin" "$work/repo/plans" "$work/home" "$work/empty" "$work/agy"
+export BP3_DESKS_DIR="$work/desks"
 cp "$root/bin/bp3" "$work/repo/bin/"
 cp "$root/_build/default/src/quest/main.exe" "$work/repo/g-bin"
 cp "$root"/plans/*.yaml "$work/repo/plans/"

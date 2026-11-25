@@ -14,6 +14,7 @@ git config user.email t@t.t; git config user.name t
 echo base > a.txt; git add .; git commit -qm base
 
 export BP3_HARNESS=muse-code BP3_MODEL=test-model
+export BP3_DESKS_DIR="$work/desks"
 BP3_VER=$(sed -n 's/.*bp3_version = "\(.*\)".*/\1/p' "$root/src/quest/gitx.ml" | head -1)
 IFS=. read -r _bp3_maj _bp3_min _bp3_pat <<< "$BP3_VER"
 NEXT_MINOR="${_bp3_maj}.$((_bp3_min + 1)).0"
