@@ -170,12 +170,9 @@ let load_registry () =
 let save_registry bindings =
   try
     let path = registry_path () in
-    let tmp = path ^ ".tmp" in
-    let oc = open_out_bin tmp in
-    output_string oc (Yojson.Safe.to_string
-      (`Assoc [("sessions", `Assoc (List.map binding_to_json bindings))]));
-    close_out oc;
-    Sys.rename tmp path
+    Util.write_file_atomic path
+      (Yojson.Safe.to_string
+         (`Assoc [("sessions", `Assoc (List.map binding_to_json bindings))]))
   with _ -> ()
 
 (* A binding is stale only when nothing has touched it for this

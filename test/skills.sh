@@ -164,6 +164,12 @@ assert jq -e '.keepMe == true and .hooks.SessionStart[0].hooks[0].command == "./
 cp "$root/.pi/settings.json" "$work/settings.before"
 "$root/bin/bp3" skills install --harness=pi > /dev/null
 assert cmp "$work/settings.before" "$root/.pi/settings.json"
+# Stale retired bp3 skill exclusions in .pi/settings.json are pruned automatically
+# while unrelated user entries stay untouched (codebase-diet warden fix).
+jq '.skills += ["!**/.agents/skills/induct-inline/SKILL.md","!**/.agents/skills/induct-inline-yolo/SKILL.md","!**/.agents/skills/bp3g/SKILL.md"]' "$root/.pi/settings.json" > "$work/settings.stale"
+mv "$work/settings.stale" "$root/.pi/settings.json"
+"$root/bin/bp3" skills install --harness=pi > /dev/null
+assert cmp "$work/settings.before" "$root/.pi/settings.json"
 
 # Corrupt settings must fail BEFORE rewriting any installed files.
 printf 'sentinel\n' > "$root/.pi/skills/quest/SKILL.md"

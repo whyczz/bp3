@@ -47,7 +47,10 @@ let write_file_atomic path content =
 (* ---------- time ---------- *)
 (* UTC ISO-8601 (YYYY-MM-DDTHH:MM:SSZ) -> epoch seconds (Howard Hinnant's civil algorithm). *)
 let epoch_of_iso s =
-  let digit i = Char.code s.[i] - Char.code '0' in
+  let digit i =
+    let c = s.[i] in
+    if c < '0' || c > '9' then raise Exit
+    else Char.code c - Char.code '0' in
   let num i n =
     let rec go k acc =
       if k = n then acc else go (k + 1) (acc * 10 + digit (i + k)) in

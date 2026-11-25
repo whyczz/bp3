@@ -43,6 +43,8 @@ WORKFLOWS_DIR=".agents/workflows"
 # Workflow renders are retired plain copies (no notice to key on), so
 # legacy ones in downstream repos are pruned by explicit name.
 RETIRED_WORKFLOWS="bp3g-grade bp3g-land bp3g-node node-loop induct-grade induct-land induct-node"
+# Retired bp3 skills whose .pi/settings.json exclusions should also be pruned.
+RETIRED_SKILLS="bp3g bp3g-frame bp3g-no-human bp3g-landing-demo traverse traverse-no-human induct-inline induct-inline-yolo"
 
 # Target repo: BP3_TARGET wins; else the cwd repo when it is not
 # this script's own repo; else this script's repo (self conduct
@@ -164,18 +166,21 @@ skills_install() {
 
   # Pi discovers .agents as well as .pi. Prefer our Pi copies per project,
   # without deleting Codex/Muse skills or hiding unrelated .agents skills.
-  local settings_plan='' existing='{}' ids
+  local settings_plan='' existing='{}' ids retired_ids
   case " $harnesses " in
     *" pi "*)
       if [ -e "$target/.pi/settings.json" ]; then
         existing="$(jq -sce 'select(length == 1) | .[0] | select(type == "object")' "$target/.pi/settings.json")" || { echo 'invalid .pi/settings.json' >&2; exit 1; }
       fi
-      # shellcheck disable=SC2086 # $skills is a space-separated word list by design
+      # shellcheck disable=SC2086 # $skills and $RETIRED_SKILLS are space-separated word lists by design
       ids="$(printf '%s\n' $skills | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')"
-      settings_plan="$(jq -ce --argjson ids "$ids" '
+      # shellcheck disable=SC2086 # $RETIRED_SKILLS is a space-separated word list by design
+      retired_ids="$(printf '%s\n' $RETIRED_SKILLS | LC_ALL=C sort | jq -Rsc 'split("\n") | map(select(length > 0))')"
+      settings_plan="$(jq -ce --argjson ids "$ids" --argjson retired "$retired_ids" '
         if has("skills") and (.skills | type != "array" or any(.[]; type != "string")) then error("skills must be an array of strings") else . end |
-        (.skills // []) as $existing |
-        .skills = ($existing + [$ids[] | "!**/.agents/skills/" + . + "/SKILL.md" | select(. as $p | $existing | index($p) | not)])
+        ([$retired[] | "!**/.agents/skills/" + . + "/SKILL.md"]) as $drop |
+        ((.skills // []) | map(select(. as $p | $drop | index($p) | not))) as $kept |
+        .skills = ($kept + [$ids[] | "!**/.agents/skills/" + . + "/SKILL.md" | select(. as $p | $kept | index($p) | not)])
       ' <<< "$existing")" || { echo 'invalid .pi/settings.json skills list' >&2; exit 1; }
       ;;
   esac
@@ -321,11 +326,10 @@ skills_install() {
   fi
 }
 
-# Render freshness (followup.2, workflow-birth): a dispatch
-# must never launch a render older than its source. Workflow
-# renders are plain copies (byte equality); SKILL.md renders
-# carry one GENERATED notice after frontmatter (body equality
-# plus release tag match when share/bp3/RELEASE is present).
+# Render freshness (followup.2): a dispatch must never launch a render
+# older than its source. SKILL.md renders carry one GENERATED notice
+# after frontmatter (body equality plus release tag match when
+# share/bp3/RELEASE is present).
 # Fresh is silent JSON ok; stale refuses E_RENDER_STALE naming
 # render and source.
 strip_generated_notice() {

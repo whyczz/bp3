@@ -1,9 +1,9 @@
 #!/bin/bash
 # check-changed — change-scoped verification (test-pyramid tier.2).
 # Runs the retired-term sweep first (seconds, before any suite), then
-# `make check` (lint plus the unit tier), then every other suite whose
+# `make check` (lint, dune build, and OCaml unit tests), then every suite whose
 # `paths` globs in test/suites.tsv match a changed path, through
-# run-suites. The unit tier always runs, so the selection is never
+# run-suites. `make check` always runs, so the selection is never
 # empty; a path no row claims (docs/**, say) selects nothing more.
 #
 # Usage:

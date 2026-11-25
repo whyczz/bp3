@@ -57,7 +57,9 @@ let case_epoch_of_iso _ =
   assert_equal None (Util.epoch_of_iso "not-a-date");
   assert_equal None (Util.epoch_of_iso "2026-13-01T00:00:00Z");
   assert_equal None (Util.epoch_of_iso "2026-11-18T25:00:00Z");
-  assert_equal None (Util.epoch_of_iso "2026-11-18T11:06:40+00:00")
+  assert_equal None (Util.epoch_of_iso "2026-11-18T11:06:40+00:00");
+  assert_equal None (Util.epoch_of_iso "202a-01-01T00:00:00Z");
+  assert_equal None (Util.epoch_of_iso "2026-01-01T00:00:/0Z")
 
 let case_total_json_getters _ =
   let j = Yojson.Safe.from_string {|{"s":"hi","n":42,"b":true,"o":{"k":1},"nil":null}|} in

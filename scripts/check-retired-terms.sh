@@ -22,7 +22,7 @@
 #   scripts/migrate-graph-rename.sh | migration rename table:
 #     quotes the retired spellings in order to rename them
 #   src/quest/layout.ml             | declares legacy spellings it folds on read
-#   bin/bp3 RETIRED_WORKFLOWS= line | names the retired renders it prunes
+#   bin/bp3 RETIRED_WORKFLOWS=/RETIRED_SKILLS= | names the retired renders it prunes
 #   scripts/check-retired-terms.sh  | declares the retired list
 #
 # shellcheck disable=SC2086 # $scope is a word list by design.
@@ -62,9 +62,9 @@ while IFS= read -r line; do
   case "$path" in
     scripts/migrate-graph-rename.sh|scripts/check-retired-terms.sh|src/quest/layout.ml) continue ;;
   esac
-  # bin/bp3 declares the retired workflow names it prunes; that one
-  # line only, never the whole live file.
-  case "$line" in bin/bp3:*:RETIRED_WORKFLOWS=*) continue ;; esac
+  # bin/bp3 declares the retired workflow/skill names it prunes; those
+  # declaration lines only, never the whole live file.
+  case "$line" in bin/bp3:*:RETIRED_WORKFLOWS=*|bin/bp3:*:RETIRED_SKILLS=*) continue ;; esac
   printf '%s\n' "$line" >> "$filtered"
 done < "$hits"
 if [ -s "$filtered" ]; then
