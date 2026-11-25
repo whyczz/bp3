@@ -39,6 +39,9 @@ docs/quests/<quest>/     one folder per quest, flat, never moved
 plans/<type>.yaml        goal_type plans (default: up to ten review rounds)
 src/quest/main.ml        the state engine (OCaml, yojson + unix)
 src/warden/              two-layer deterministic Warden plug engine (bp3_warden)
+src/db/                  machine-local SQLite WAL store (bp3_db)
+src/repo/                machine-local git repo registry (bp3_repo)
+src/ticket/              cross-repo ticket queue (bp3_ticket)
 docs/dossiers/           research records; they inform, never decide
 nodes/ inside each quest folder: one record per node, plus
   metrics.jsonl          GENERATED: grade and author cost samples (bp3 q <quest> metrics)
@@ -63,6 +66,9 @@ other repos point at it.
 ./bin/bp3 q <quest> metrics scrape|r   # collect, then read, what grades and author cycles cost
 ./bin/bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table]  # two-layer deterministic plug audit (read-only)
 ./bin/bp3 release (<quest> | --commit <sha>) [--bump ...] [--no-gh] [--dry-run]     # owner-gated atomic CAS promote & semver release
+./bin/bp3 db info [--format json|table]                                             # machine-local SQLite control plane status
+./bin/bp3 repo add|list|remove [...]                                                # local repo registry (auto-registered on bp3 init)
+./bin/bp3 ticket add|list|read|claim|unclaim|done|dismiss [...]                     # cross-repo ticket queue
 ./bin/bp3 e                            # claimed edge door: resolved context
 ./bin/bp3 n r                          # claimed node door: read own node
 dune build src/quest/main.exe          # (make check does this)

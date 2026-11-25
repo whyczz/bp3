@@ -104,11 +104,34 @@ _bp3_candidates() {
 
   if [ "$has_g" -eq 0 ]; then
     if [ "${#a[@]}" -eq 0 ]; then
-      printf '%s\n' q n e warden release init skills harness worktree config | _bp3_filter "$cur"
+      printf '%s\n' q n e warden release db repo ticket init skills harness worktree config | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'warden' ]; then
       { _bp3_quests; printf '%s\n' --last --all --no-sessions --format -h --help; } | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'release' ]; then
       { _bp3_quests; printf '%s\n' --commit --bump --target --remote --reason --tag --no-gh --no-install --dry-run --publish-only --format -h --help; } | _bp3_filter "$cur"
+    # SQLite control-plane doors: bp3 db, bp3 repo, bp3 ticket
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'db' ]; then
+      printf '%s\n' info -h --help | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'db' ] && [ "${a[1]}" = 'info' ]; then
+      printf '%s\n' --format -h --help | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'repo' ]; then
+      printf '%s\n' add list remove -h --help | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'repo' ] && [ "${a[1]}" = 'add' ]; then
+      printf '%s\n' --name -h --help | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'repo' ] && [ "${a[1]}" = 'list' ]; then
+      printf '%s\n' --format -h --help | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'ticket' ]; then
+      printf '%s\n' add list read claim unclaim "done" dismiss -h --help | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'ticket' ] && [ "${a[1]}" = 'add' ]; then
+      printf '%s\n' --to --from --kind --title --body -h --help | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'ticket' ] && [ "${a[1]}" = 'list' ]; then
+      printf '%s\n' --to --from --status --format -h --help | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'ticket' ] && [ "${a[1]}" = 'read' ]; then
+      printf '%s\n' --format -h --help | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'ticket' ] && [ "${a[1]}" = 'claim' ]; then
+      printf '%s\n' --by -h --help | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -eq 2 ] && [ "${a[0]}" = 'ticket' ] && { [ "${a[1]}" = 'unclaim' ] || [ "${a[1]}" = 'done' ] || [ "${a[1]}" = 'dismiss' ]; }; then
+      printf '%s\n' --reason -h --help | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'config' ]; then
       printf '%s\n' --source --format -h --help | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[0]}" = 'n' ]; then

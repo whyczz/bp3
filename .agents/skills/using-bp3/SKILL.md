@@ -92,6 +92,13 @@ General coding in this repo does not need this skill.
    - In self mode, tagged releases refresh `$PREFIX` (`share/bp3/RELEASE`);
      clean host repos auto-sync on `SessionStart` (`BP3_NO_AUTO_SYNC=1`
      disables). See `RELEASING.md`.
+10. Cross-repo SQLite control plane (`~/.local/share/bp3/bp3.sqlite`, `BP3_DB` override):
+    - `./bin/bp3 db info [--format json|table]` — DB path, WAL status, and counts.
+    - `./bin/bp3 repo add [<path>] [--name <slug>] | list | remove <name>` —
+      local repo registry (`bp3 init` / `bp3 skills install` / `bp3 init-repo` auto-register).
+    - `./bin/bp3 ticket add|list|read|claim|unclaim|done|dismiss` — cross-repo
+      ticket queue (`./bin/bp3 ticket list --to bp3` checks incoming tickets from
+      host repos; host repos file via `bp3 ticket add --to bp3 ...`).
 
 ## Rules
 

@@ -87,7 +87,13 @@ has "$out" json; has "$out" table; has "$out" tree
 out=$(_bp3_candidates q toy-drive "")
 has "$out" r; has "$out" u
 out=$(_bp3_candidates "")
-has "$out" harness; has "$out" worktree; has "$out" config; has "$out" warden; has "$out" release
+has "$out" harness; has "$out" worktree; has "$out" config; has "$out" warden; has "$out" release; has "$out" db; has "$out" repo; has "$out" ticket
+out=$(_bp3_candidates db "")
+has "$out" info
+out=$(_bp3_candidates repo "")
+has "$out" add; has "$out" list; has "$out" remove
+out=$(_bp3_candidates ticket "")
+for v in add list read claim unclaim "done" dismiss; do has "$out" "$v"; done
 out=$(_bp3_candidates warden "")
 has "$out" toy-drive; has "$out" --no-sessions; has "$out" --all; has "$out" --last
 out=$(_bp3_candidates release "")
@@ -112,6 +118,10 @@ if command -v zsh >/dev/null 2>&1; then
   for edge in handoff grade verify land block resume; do has "$out" "$edge"; done
   out=$(zcand q toy-drive r parser-fix "--f")
   has "$out" --format
+  out=$(zcand "")
+  has "$out" db; has "$out" repo; has "$out" ticket
+  out=$(zcand ticket "")
+  for v in add list read claim unclaim "done" dismiss; do has "$out" "$v"; done
 fi
 
 # --- silent failure: unbuilt binary / non-bp3 cwd says nothing ---

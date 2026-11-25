@@ -100,6 +100,12 @@ copy, owner as gate) and settle it first.
        `/icebox` or frame as a follow-up quest via `/quest`, and
        record the path in `FEEDBACK.md`.
      - **Skip / defer:** mark `skipped` in `FEEDBACK.md`.
+     - **Cross-repo `bp3` bug or feature (host mode):** never edit
+       `bp3`'s checkout from a downstream repo — file it via
+       `bp3 ticket add --to bp3 --kind bug|feature --title "..." --body "..."`
+       (repos auto-register on `bp3 init`). In self mode, inspect
+       incoming tickets with `bp3 ticket list --to bp3` (then
+       `bp3 ticket read|claim|unclaim|done|dismiss <id>`).
      - **Promote / release (owner go only):** run
        `BP3_DECIDER=human bp3 release <quest>` (or
        `BP3_DECIDER=human ./bin/bp3 release <quest>` in self mode) to

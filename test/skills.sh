@@ -454,4 +454,13 @@ for dir in skills .claude/skills .pi/skills .agents/skills; do
   assert grep -qF 'BP3_DECIDER=human' "$repo/$dir/using-bp3/SKILL.md"
 done
 
+# sqlite-control-plane skills.1: cross-repo bp3 ticket / repo / db across harnesses
+for dir in skills .claude/skills .pi/skills .agents/skills; do
+  assert grep -qF 'bp3 ticket add --to bp3' "$repo/$dir/warden/SKILL.md"
+  assert grep -qF 'bp3 ticket list --to bp3' "$repo/$dir/warden/SKILL.md"
+  assert grep -qF 'bp3 ticket' "$repo/$dir/using-bp3/SKILL.md"
+  assert grep -qF 'bp3 repo' "$repo/$dir/using-bp3/SKILL.md"
+  assert grep -qF 'bp3 db info' "$repo/$dir/using-bp3/SKILL.md"
+done
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"
