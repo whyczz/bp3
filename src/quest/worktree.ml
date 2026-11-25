@@ -340,6 +340,7 @@ let do_prepare quest node run_id commit path_override =
 (* Node 8: one worktree per quest for a whole induct.
    Record key is quest-<quest>; node field is "(quest)". *)
 let quest_run_id quest = "quest-" ^ quest
+let draft_run_id slug = "draft-" ^ slug
 
 let do_prepare_quest quest =
   Store.check_creatable quest;
@@ -357,6 +358,29 @@ let do_prepare_quest quest =
       let _ = do_create path (Some branch) None in
       let i = inspect_info path in
       let r = { r_run = run_id; r_quest = quest; r_node = "(quest)";
+                r_path = path; r_ref = i.iref; r_detached = i.idetached;
+                r_created = now_s () } in
+      if save_record r then prepare_verdict r false
+      else (match load_record run_id with
+            | Some existing -> prepare_verdict existing true
+            | None -> prepare_verdict r false)
+
+let do_prepare_draft slug =
+  Store.check_creatable slug;
+  let run_id = draft_run_id slug in
+  match load_record run_id with
+  | Some r ->
+      if Sys.file_exists (abs_path r.r_path) then prepare_verdict r true
+      else begin
+        let _ = do_create r.r_path (Some r.r_ref) None in
+        prepare_verdict r true
+      end
+  | None ->
+      let path = Layout.draft_desk_dir (repo_desks_dir ()) slug in
+      let branch = Layout.draft_branch slug in
+      let _ = do_create path (Some branch) None in
+      let i = inspect_info path in
+      let r = { r_run = run_id; r_quest = slug; r_node = "(draft)";
                 r_path = path; r_ref = i.iref; r_detached = i.idetached;
                 r_created = now_s () } in
       if save_record r then prepare_verdict r false
@@ -398,6 +422,152 @@ let do_release_quest quest =
   let r = match load_record run_id with
     | Some r -> r | None -> not_found "quest worktree" quest in
   release_record r false
+
+let do_release_draft slug force =
+  Store.check_slug slug;
+  let run_id = draft_run_id slug in
+  let r = match load_record run_id with
+    | Some r -> r | None -> not_found "draft worktree" slug in
+  release_record r force
+
+let worktrees_with_branches () =
+  let mr = main_root () in
+  let out, code = git_in mr ["worktree"; "list"; "--porcelain"] in
+  if code <> 0 || out = "" then []
+  else
+    let lines = String.split_on_char '\n' out in
+    let finish cur_wt cur_br acc =
+      match cur_wt with
+      | Some p -> (p, cur_br) :: acc
+      | None -> acc in
+    let rec go cur_wt cur_br acc = function
+      | [] -> List.rev (finish cur_wt cur_br acc)
+      | ln :: rest ->
+          let t = String.trim ln in
+          if t = "" then go None None (finish cur_wt cur_br acc) rest
+          else match Util.strip_prefix ~prefix:"worktree " t with
+            | Some p -> go (Some p) cur_br acc rest
+            | None ->
+                (match Util.strip_prefix ~prefix:"branch " t with
+                 | Some r ->
+                     let short = match Util.strip_prefix ~prefix:"refs/heads/" r with
+                       | Some b -> b | None -> r in
+                     go cur_wt (Some short) acc rest
+                 | None -> go cur_wt cur_br acc rest) in
+    go None None [] lines
+
+let detect_target_branch = function
+  | Some b ->
+      if ref_tip ("refs/heads/" ^ b) = None then not_found "branch" b
+      else Some b
+  | None ->
+      if ref_tip "refs/heads/master" <> None then Some "master"
+      else if ref_tip "refs/heads/main" <> None then Some "main"
+      else None
+
+let target_status target_opt =
+  match detect_target_branch target_opt with
+  | None -> (None, [], None)
+  | Some target ->
+      let wts =
+        worktrees_with_branches ()
+        |> List.filter_map (fun (p, br_opt) ->
+             match br_opt with
+             | Some b when b = target && Sys.file_exists p -> Some p
+             | _ -> None) in
+      let dirty_wt =
+        List.find_opt (fun p ->
+          try (inspect_info p).idirty with Verdict _ -> false) wts in
+      (Some target, wts, dirty_wt)
+
+let do_land_draft slug target_opt =
+  Store.check_slug slug;
+  let run_id = draft_run_id slug in
+  let r = match load_record run_id with
+    | Some r -> r | None -> not_found "draft worktree" slug in
+  let draft_path = abs_path r.r_path in
+  if not (Sys.file_exists draft_path) then
+    err Names.e_not_found (`Assoc [("draft", json_str slug); ("path", json_str r.r_path)])
+      "Recorded draft worktree is missing on disk." 2;
+  let dinfo = inspect_info r.r_path in
+  if dinfo.idirty then
+    err Names.e_dirty_tree
+      (`Assoc [("path", json_str r.r_path); ("changed_count", `Int dinfo.ichanged)])
+      "Draft worktree is dirty; commit your draft before landing." 1;
+  let branch = Layout.draft_branch slug in
+  if dinfo.idetached || dinfo.iref <> branch then
+    err Names.e_not_ready
+      (`Assoc [("draft", json_str slug); ("expected_branch", json_str branch);
+               ("actual_ref", json_str dinfo.iref)])
+      ("Draft desk is on " ^ dinfo.iref ^ ", expected " ^ branch ^ ".") 1;
+  let mr = main_root () in
+  let rebased = ref false in
+  let max_attempts = 3 in
+  let rec try_cas attempt =
+    let (target_res, target_wts, dirty_wt) = target_status target_opt in
+    let target = match target_res with
+      | Some b -> b
+      | None -> not_found "branch" (Option.value target_opt ~default:"master") in
+    (match dirty_wt with
+     | Some dw ->
+         err Names.e_dirty_tree (`Assoc [("path", json_str dw)])
+           ("Target worktree is dirty (" ^ dw ^ "); commit or clean it before landing.") 1
+     | None -> ());
+    let target_ref = "refs/heads/" ^ target in
+    let old_target = match ref_tip target_ref with
+      | Some s -> s | None -> not_found "branch" target in
+    let draft_ref = "refs/heads/" ^ branch in
+    let draft_tip = match ref_tip draft_ref with
+      | Some s -> s | None -> not_found "branch" branch in
+    let ahead_s, ahead_code = git_in mr ["rev-list"; "--count"; old_target ^ ".." ^ draft_tip] in
+    let ahead = if ahead_code = 0 then Option.value (int_of_string_opt (String.trim ahead_s)) ~default:0 else 0 in
+    if ahead <= 0 then
+      err Names.e_not_ready
+        (`Assoc [("draft", json_str slug); ("target", json_str target); ("commits_ahead", `Int 0)])
+        ("Draft branch " ^ branch ^ " has no commits ahead of " ^ target ^ "; commit your draft or release it.") 1;
+    let draft_tip =
+      if is_ancestor old_target draft_tip then draft_tip
+      else begin
+        if run_status ["git"; "-C"; draft_path; "rebase"; old_target] <> 0 then begin
+          ignore (run_status ["git"; "-C"; draft_path; "rebase"; "--abort"]);
+          invalidate_ref_caches ();
+          err Names.e_merge_conflict
+            (`Assoc [("draft", json_str slug); ("branch", json_str branch); ("target", json_str target)])
+            ("Rebase of " ^ branch ^ " onto " ^ target ^ " conflicted (aborted cleanly); resolve conflicts in " ^ r.r_path ^ " and retry.") 1
+        end;
+        invalidate_ref_caches ();
+        rebased := true;
+        match ref_tip draft_ref with
+        | Some s -> s | None -> not_found "branch" branch
+      end in
+    if move_ref ~branch:target_ref ~new_tip:draft_tip ~expect_tip:old_target then begin
+      List.iter (fun wt ->
+        ignore (run_status ["git"; "-C"; wt; "reset"; "--hard"; "--quiet"; "HEAD"])
+      ) target_wts;
+      (target, draft_tip, attempt)
+    end else begin
+      invalidate_ref_caches ();
+      if attempt >= max_attempts then
+        err Names.e_stale_world
+          (`Assoc [("draft", json_str slug); ("target", json_str target); ("attempts", `Int attempt)])
+          ("Target branch " ^ target ^ " moved concurrently across " ^ string_of_int attempt ^ " CAS attempts; retry.") 1
+      else try_cas (attempt + 1)
+    end in
+  let (target, landed_tip, attempts) = try_cas 1 in
+  ignore (do_remove r.r_path false);
+  delete_record r.r_run;
+  let branch_deleted = run_status ["git"; "-C"; mr; "branch"; "-d"; branch] = 0 in
+  `Assoc [("ok", `Bool true);
+          ("draft", json_str slug);
+          ("branch", json_str branch);
+          ("target", json_str target);
+          ("commit", json_str landed_tip);
+          ("rebased", `Bool !rebased);
+          ("attempts", `Int attempts);
+          ("landed", `Bool true);
+          ("released", `Bool true);
+          ("branch_deleted", `Bool branch_deleted);
+          ("conductor_path", json_str mr)]
 
 let do_release run_id force =
   let r = match load_record run_id with
@@ -453,6 +623,10 @@ let orphan_entry abs =
            let shown = Layout.quest_desk_dir repo_dir q in
            build_orphan ~run_id:(quest_run_id q) ~quest:q ~node:"(quest)"
              ~shown ~inspect_target:abs
+       | [sub; d] when sub = Layout.drafts_desks_subdir ->
+           let shown = Layout.draft_desk_dir repo_dir d in
+           build_orphan ~run_id:(draft_run_id d) ~quest:d ~node:"(draft)"
+             ~shown ~inspect_target:abs
        | _ -> None)
   | None ->
       let legacy_prefix = main_root () ^ "/" ^ Layout.legacy_desks_root ^ "/" in
@@ -487,9 +661,12 @@ let do_list quest_filter =
           (match quest_filter with
            | Some f when f <> q -> None | _ -> Some j)
       | None -> None) wt_paths in
+  let (t_opt, _, dirty_opt) = target_status None in
   `Assoc [("ok", `Bool true);
           ("worktrees", `List (List.map (fun r -> `Assoc (live_json r))
-                                 shown_records @ orphans))]
+                                 shown_records @ orphans));
+          ("target_branch", (match t_opt with Some b -> json_str b | None -> `Null));
+          ("target_dirty", `Bool (dirty_opt <> None))]
 
 (* ---------- dispatch ---------- *)
 let parse_create_flags args =
@@ -562,9 +739,50 @@ let parse_quest_flag args =
     | f :: _ -> usage ("unknown flag: " ^ f) in
   loop None args
 
+let parse_draft_release_flags args =
+  let rec loop draft force = function
+    | [] ->
+        (match draft with
+         | Some s -> (s, force)
+         | None -> usage "worktree release --draft needs a slug")
+    | "--draft" :: v :: rest ->
+        if draft <> None then usage "duplicate flag --draft";
+        loop (Some v) force rest
+    | ["--draft"] -> usage "--draft needs a value"
+    | "--force" :: rest ->
+        if force then usage "duplicate flag --force";
+        loop draft true rest
+    | f :: _ -> usage ("unknown flag: " ^ f) in
+  loop None false args
+
+let parse_draft_land_flags args =
+  let rec loop draft target = function
+    | [] ->
+        (match draft with
+         | Some s -> (s, target)
+         | None -> usage "worktree land needs --draft <slug>")
+    | "--draft" :: v :: rest ->
+        if draft <> None then usage "duplicate flag --draft";
+        loop (Some v) target rest
+    | ["--draft"] -> usage "--draft needs a value"
+    | "--target" :: v :: rest ->
+        if target <> None then usage "duplicate flag --target";
+        loop draft (Some v) rest
+    | ["--target"] -> usage "--target needs a value"
+    | f :: _ -> usage ("unknown flag: " ^ f) in
+  loop None None args
+
 let run = function
   | "prepare" :: "--quest" :: [quest] -> do_prepare_quest quest
+  | "prepare" :: "--draft" :: [slug] -> do_prepare_draft slug
+  | "prepare" :: "--draft" :: _ -> usage "worktree prepare --draft needs one slug"
   | "release" :: "--quest" :: [quest] -> do_release_quest quest
+  | "release" :: rest when List.mem "--draft" rest ->
+      let (slug, force) = parse_draft_release_flags rest in
+      do_release_draft slug force
+  | "land" :: rest ->
+      let (slug, target) = parse_draft_land_flags rest in
+      do_land_draft slug target
   | "prepare" :: quest :: node :: rest ->
       let (run_id, commit, path) = parse_prepare_flags rest in
       let run_id = (match run_id with
@@ -595,4 +813,4 @@ let run = function
   | "remove" :: path :: rest -> do_remove path (parse_force rest)
   | ["remove"] -> usage "worktree remove needs a path"
   | verb :: _ -> usage ("unknown worktree verb: " ^ verb)
-  | [] -> usage "worktree needs a verb: derive, create, inspect, remove, prepare, check, exit, release, or list"
+  | [] -> usage "worktree needs a verb: derive, create, inspect, remove, prepare, check, exit, release, land, or list"

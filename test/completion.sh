@@ -104,9 +104,11 @@ has "$out" --source; has "$out" --format
 out=$(_bp3_candidates harness "")
 has "$out" desk; has "$out" d; lacks "$out" supervisor; lacks "$out" find-tape
 out=$(_bp3_candidates harness desk "")
-for v in derive create inspect remove prepare check exit release list; do has "$out" "$v"; done
+for v in derive create inspect remove prepare check exit release land list; do has "$out" "$v"; done
 out=$(_bp3_candidates harness d "")
-has "$out" prepare; has "$out" release
+has "$out" prepare; has "$out" release; has "$out" land
+out=$(_bp3_candidates worktree "")
+has "$out" land
 
 # --- zsh traces (same candidate logic) ---
 if command -v zsh >/dev/null 2>&1; then
@@ -123,6 +125,10 @@ if command -v zsh >/dev/null 2>&1; then
   has "$out" db; has "$out" repo; has "$out" ticket
   out=$(zcand ticket "")
   for v in add list read claim unclaim "done" dismiss; do has "$out" "$v"; done
+  out=$(zcand harness desk "")
+  has "$out" land
+  out=$(zcand worktree "")
+  has "$out" land
 fi
 
 # --- silent failure: unbuilt binary / non-bp3 cwd says nothing ---

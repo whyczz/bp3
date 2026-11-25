@@ -520,9 +520,12 @@ Shared flags: --format json|table|tree, --target <name>.\n\
 Example: bp3 q my-quest u node-1 handoff --commit abc123 --reason \"ready\"\n"
 
 let help_harness = "bp3 harness - machine-local desks:\n\
-  bp3 harness desk <verb> ...   verbs: derive, create, inspect, remove, prepare, check, exit, release, list\n\
+  bp3 harness desk <verb> ...   verbs: derive, create, inspect, remove, prepare, check, exit, release, land, list\n\
   bp3 harness desk prepare <quest> <node> --run <run-id> [--commit <sha>] [--path <dir>]\n\
   bp3 harness desk prepare --quest <quest>\n\
+  bp3 harness desk prepare --draft <slug>\n\
+  bp3 harness desk land --draft <slug> [--target <branch>]\n\
+  bp3 harness desk release --draft <slug> [--force]\n\
   bp3 harness desk list [--quest <quest>]\n\
 Example: bp3 harness desk prepare --quest my-quest\n"
 
@@ -533,7 +536,7 @@ let do_harness = function
   | ("desk" | "d") :: rest ->
       print_verdict ~fmt:"json" (Worktree.run rest); 0
   | sub :: _ ->
-      usage ("bp3 harness supports only: desk <derive|create|inspect|remove|prepare|check|exit|release|list> (unknown subcommand: " ^ sub ^ ")")
+      usage ("bp3 harness supports only: desk <derive|create|inspect|remove|prepare|check|exit|release|land|list> (unknown subcommand: " ^ sub ^ ")")
 
 let help_icebox = "bp3 q icebox r - search frozen icebox entries (read-only):\n\
   bp3 q icebox r [term...] [--format json|table|tree]   list entries matching all terms\n\
@@ -541,8 +544,10 @@ let help_icebox = "bp3 q icebox r - search frozen icebox entries (read-only):\n\
 Example: bp3 q icebox r table completion\n"
 
 let help_worktree = "bp3 worktree - documented alias of bp3 harness desk, machine-local desks, never ledgered:\n\
-  verbs: derive, create, inspect, remove, prepare, check, exit, release, list\n\
+  verbs: derive, create, inspect, remove, prepare, check, exit, release, land, list\n\
   bp3 harness desk prepare <quest> <node> --run <run-id> [--commit <sha>] [--path <dir>]\n\
+  bp3 harness desk prepare --draft <slug>\n\
+  bp3 harness desk land --draft <slug> [--target <branch>]\n\
   bp3 harness desk list [--quest <quest>]\n\
 Example: bp3 harness desk prepare my-quest node-1 --run R1\n"
 

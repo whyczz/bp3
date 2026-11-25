@@ -278,4 +278,111 @@ echo "$out" | jq -e '.ok == true and .released == true and .removed == true' >/d
 [ ! -e "$work/repo/.bp3/worktrees/legq" ] || fail "legacy release left .bp3/worktrees/legq"
 wt release --run NEW1 >/dev/null
 
+# --- draft desks: prepare|release|land --draft + target_dirty + CAS rebase + conflict abort ---
+out=$(hdesk list)
+echo "$out" | jq -e '.ok == true and .target_branch == "master" and .target_dirty == false' >/dev/null || fail "desk list clean target: $out"
+echo dirty >> "$work/repo/a.txt"
+out=$(hdesk list)
+echo "$out" | jq -e '.target_branch == "master" and .target_dirty == true' >/dev/null || fail "desk list dirty target: $out"
+git -C "$work/repo" checkout -- a.txt
+
+# prepare --draft is idempotent, sibling under drafts/<slug>, zero repo .bp3/
+out=$(hdesk prepare --draft icebox-demo)
+dpath="$repo_dir/drafts/icebox-demo"
+echo "$out" | jq -e --arg p "$dpath" '.ok == true and .run_id == "draft-icebox-demo" and .quest == "icebox-demo" and .node == "(draft)" and .path == $p and .ref == "draft/icebox-demo" and .detached == false' >/dev/null || fail "draft prepare: $out"
+[ -d "$dpath" ] || fail "draft desk missing on disk"
+out=$(hdesk prepare --draft icebox-demo)
+echo "$out" | jq -e '.ok == true and .existing == true' >/dev/null || fail "draft prepare idempotent: $out"
+
+# land --draft with 0 commits ahead -> E_NOT_READY
+if out=$(hdesk land --draft icebox-demo 2>&1); then fail "land 0-ahead accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_READY" and .error.facts.commits_ahead == 0' >/dev/null || fail "land 0-ahead code: $out"
+
+# dirty draft -> release and land both refuse E_DIRTY_TREE
+echo wip > "$dpath/draft1.md"
+if out=$(hdesk release --draft icebox-demo 2>&1); then fail "dirty draft release accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DIRTY_TREE"' >/dev/null || fail "dirty draft release code: $out"
+if out=$(hdesk land --draft icebox-demo 2>&1); then fail "dirty draft land accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DIRTY_TREE"' >/dev/null || fail "dirty draft land code: $out"
+
+# release --draft --force from inside the draft desk itself succeeds (no E_MAIN_WORKTREE) and keeps branch
+out=$(cd "$dpath" && env -u BP3_ROOT "$work/repo/g-bin" worktree release --draft icebox-demo --force)
+echo "$out" | jq -e '.ok == true and .released == true and .removed == true' >/dev/null || fail "in-desk force draft release: $out"
+[ ! -d "$dpath" ] || fail "force draft release left desk"
+git -C "$work/repo" show-ref --verify --quiet refs/heads/draft/icebox-demo || fail "release deleted draft branch"
+
+# re-prepare reuses draft/icebox-demo cleanly; commit draft1.md; happy fast-forward land (unmoved target)
+out=$(hdesk prepare --draft icebox-demo)
+echo "$out" | jq -e '.ok == true and (.existing // false) == false' >/dev/null || fail "re-prepare draft: $out"
+echo "draft one" > "$dpath/draft1.md"
+git -C "$dpath" add draft1.md && git -C "$dpath" commit -qm "docs: draft1"
+# dirty target checkout blocks land --draft with E_DIRTY_TREE
+echo dirty >> "$work/repo/a.txt"
+if out=$(hdesk land --draft icebox-demo 2>&1); then fail "land onto dirty master accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DIRTY_TREE"' >/dev/null || fail "dirty target land code: $out"
+git -C "$work/repo" checkout -- a.txt
+out=$(hdesk land --draft icebox-demo)
+echo "$out" | jq -e --arg c "$conductor" '.ok == true and .draft == "icebox-demo" and .branch == "draft/icebox-demo" and .target == "master" and .rebased == false and .attempts == 1 and .landed == true and .released == true and .branch_deleted == true and .conductor_path == $c' >/dev/null || fail "ff draft land: $out"
+[ ! -d "$dpath" ] || fail "land left draft desk"
+[ ! -e "$repo_dir/.meta/draft-icebox-demo.json" ] || fail "land left draft meta"
+if git -C "$work/repo" show-ref --verify --quiet refs/heads/draft/icebox-demo; then fail "land left draft branch"; fi
+[ -f "$work/repo/draft1.md" ] || fail "master checkout not synced after ff draft land"
+[ -z "$(git -C "$work/repo" status --short)" ] || fail "master dirty after ff draft land"
+
+# rebased land --draft invoked from INSIDE draft desk while an active quest desk is open (zero starvation!)
+hdesk prepare --quest active-q >/dev/null
+qactive="$repo_dir/quests/active-q"
+echo qwork > "$qactive/qwork.txt"
+git -C "$qactive" add qwork.txt && git -C "$qactive" commit -qm "feat: active quest work"
+out=$(hdesk prepare --draft quest-two)
+dpath2="$repo_dir/drafts/quest-two"
+echo "draft two" > "$dpath2/draft2.md"
+git -C "$dpath2" add draft2.md && git -C "$dpath2" commit -qm "docs: draft2"
+# Advance master with a disjoint commit
+echo "other master doc" > "$work/repo/other.md"
+git -C "$work/repo" add other.md && git -C "$work/repo" commit -qm "docs: other"
+out=$(cd "$dpath2" && env -u BP3_ROOT "$work/repo/g-bin" worktree land --draft quest-two)
+echo "$out" | jq -e --arg c "$conductor" '.ok == true and .draft == "quest-two" and .rebased == true and .attempts == 1 and .landed == true and .released == true and .branch_deleted == true and .conductor_path == $c' >/dev/null || fail "rebased in-desk draft land: $out"
+[ ! -d "$dpath2" ] || fail "rebased land left draft desk"
+[ -f "$work/repo/draft2.md" ] && [ -f "$work/repo/other.md" ] || fail "master missing files after rebased draft land"
+[ -z "$(git -C "$work/repo" status --short)" ] || fail "master dirty after rebased draft land"
+hdesk release --quest active-q >/dev/null
+
+# rebase conflict -> clean rebase --abort -> E_MERGE_CONFLICT, draft desk stays clean & unconflicted
+out=$(hdesk prepare --draft conflict-d)
+dpathc="$repo_dir/drafts/conflict-d"
+echo "draft-side" > "$dpathc/a.txt"
+git -C "$dpathc" add a.txt && git -C "$dpathc" commit -qm "docs: draft conflict"
+echo "master-side" > "$work/repo/a.txt"
+git -C "$work/repo" add a.txt && git -C "$work/repo" commit -qm "docs: master conflict"
+before_m=$(git -C "$work/repo" rev-parse master)
+if out=$(hdesk land --draft conflict-d 2>&1); then fail "conflicting draft land accepted"; fi
+echo "$out" | jq -e '.error.code == "E_MERGE_CONFLICT"' >/dev/null || fail "conflict land code: $out"
+[ "$(git -C "$work/repo" rev-parse master)" = "$before_m" ] || fail "conflict land moved master"
+[ -z "$(git -C "$dpathc" status --short)" ] || fail "conflict land left draft desk dirty / mid-rebase"
+[ ! -d "$(git -C "$dpathc" rev-parse --git-path rebase-merge)" ] || fail "conflict land left rebase-merge dir"
+hdesk release --draft conflict-d >/dev/null
+
+# CAS contention: locked refs/heads/master.lock -> E_STALE_WORLD after 3 attempts
+out=$(hdesk prepare --draft race-d)
+dpathr="$repo_dir/drafts/race-d"
+echo "race" > "$dpathr/race.md"
+git -C "$dpathr" add race.md && git -C "$dpathr" commit -qm "docs: race"
+before_m=$(git -C "$work/repo" rev-parse master)
+mkdir -p "$work/repo/.git/refs/heads"
+: > "$work/repo/.git/refs/heads/master.lock"
+if out=$(hdesk land --draft race-d 2>&1); then
+  rm -f "$work/repo/.git/refs/heads/master.lock"
+  fail "locked CAS draft land accepted"
+fi
+rm -f "$work/repo/.git/refs/heads/master.lock"
+echo "$out" | jq -e '.error.code == "E_STALE_WORLD" and .error.facts.attempts == 3' >/dev/null || fail "CAS lock code: $out"
+[ "$(git -C "$work/repo" rev-parse master)" = "$before_m" ] || fail "locked CAS moved master"
+hdesk release --draft race-d >/dev/null
+
+# .gitignore covers review scratch patterns in repo root
+for pat in '*.red-ink.md' '*.2b-reviewed.md' '*.2b-reviewed.md.snapshot'; do
+  grep -qxF "$pat" "$root/.gitignore" || fail ".gitignore missing $pat"
+done
+
 echo "worktree tests: ok"

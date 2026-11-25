@@ -43,12 +43,13 @@ let verb_prepare = "prepare"
 let verb_check = "check"
 let verb_exit = "exit"
 let verb_list = "list"
+let verb_land = "land"
 
 let all_verbs =
   [ verb_c; verb_create; verb_r; verb_read; verb_u; verb_update;
     verb_d; verb_delete; verb_dep; verb_diagram; verb_metrics;
     verb_brief; verb_desk; verb_derive; verb_inspect; verb_remove;
-    verb_prepare; verb_check; verb_exit; verb_list ]
+    verb_prepare; verb_check; verb_exit; verb_list; verb_land ]
 
 (* ---------- edges ---------- *)
 let edge_handoff = "handoff"
@@ -112,3 +113,5 @@ let e_already_promoted = "E_ALREADY_PROMOTED"
 let e_not_ready = "E_NOT_READY"
 let e_not_fast_forward = "E_NOT_FAST_FORWARD"
 let e_bump_missing = "E_BUMP_MISSING"
+let e_merge_conflict = "E_MERGE_CONFLICT"
+let e_verify_failed = "E_VERIFY_FAILED"

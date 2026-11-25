@@ -4,3 +4,6 @@ bp3.install
 dist/
 .bp3-context.json
 **/runs/*/tape.log
+*.red-ink.md
+*.2b-reviewed.md
+*.2b-reviewed.md.snapshot

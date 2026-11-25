@@ -13,6 +13,7 @@ let case_layout_derives_quest_node_ref_branch_and_desk_paths _ =
   eq "refs/heads/bp3/node/q1/" (Layout.node_ref_prefix_of Layout.node_ref_kind "q1");
   eq "bp3/node/q1/node-2-x" (Layout.node_branch_short "q1" "node-2-x");
   eq "quest/q1" (Layout.work_branch "q1");
+  eq "draft/icebox-foo" (Layout.draft_branch "icebox-foo");
   eq ".bp3/worktrees" Layout.legacy_desks_root;
   eq ".bp3/desks" Layout.legacy_desks_meta_dir;
   eq "/d/bp3-01234567" (Layout.repo_desks_dir "/d/" "bp3-01234567");
@@ -20,6 +21,8 @@ let case_layout_derives_quest_node_ref_branch_and_desk_paths _ =
   eq "/.bp3/desks" (Layout.desks_base_of None (Some "/"));
   eq "/d/bp3-01234567/quests/q1" (Layout.quest_desk_dir "/d/bp3-01234567" "q1");
   eq "/quests/q1" (Layout.quest_desk_dir "/" "q1");
+  eq "/d/bp3-01234567/drafts/icebox-demo" (Layout.draft_desk_dir "/d/bp3-01234567" "icebox-demo");
+  eq "/drafts/icebox-demo" (Layout.draft_desk_dir "/" "icebox-demo");
   eq "/d/bp3-01234567/runs/q1/node-2-x/R1" (Layout.run_desk_dir "/d/bp3-01234567" "q1" "node-2-x" "R1");
   eq "/runs/q1/node-2-x/R1" (Layout.run_desk_dir "/" "q1" "node-2-x" "R1");
   eq "/d/bp3-01234567/.meta" (Layout.desks_meta_dir "/d/bp3-01234567");
@@ -95,6 +98,21 @@ let law_run_desk_never_nests_inside_quest_desk =
       && not (String.starts_with ~prefix:(qd ^ "/") rd)
       && not (String.starts_with ~prefix:(rd ^ "/") qd))
 
+let law_draft_quest_run_desks_are_pairwise_non_nesting =
+  QCheck2.Test.make ~count:200 ~name:"law_draft_quest_run_desks_are_pairwise_non_nesting"
+    ~print:(fun (q, n, r, d) -> Printf.sprintf "%s %s %s %s" q n r d)
+    QCheck2.Gen.(quad slug slug slug slug)
+    (fun (q, n, r, d) ->
+      let repo_dir = "/tmp/desks/bp3-01234567" in
+      let qd = Layout.quest_desk_dir repo_dir q in
+      let rd = Layout.run_desk_dir repo_dir q n r in
+      let dd = Layout.draft_desk_dir repo_dir d in
+      let disj a b =
+        a <> b
+        && not (String.starts_with ~prefix:(a ^ "/") b)
+        && not (String.starts_with ~prefix:(b ^ "/") a) in
+      disj qd rd && disj qd dd && disj rd dd)
+
 let any_ascii = QCheck2.Gen.(string_size ~gen:(char_range ' ' '~') (int_range 0 24))
 
 let law_repo_key_matches_slug_dash_8hex =
@@ -123,5 +141,6 @@ let () =
        "case_legacy_quest_ledger_paths_cover_the_graphs_and_goals_roots_only" >:: case_legacy_quest_ledger_paths_cover_the_graphs_and_goals_roots_only;
        QCheck_ounit.to_ounit2_test law_every_legacy_node_path_folds_to_its_canonical_id;
        QCheck_ounit.to_ounit2_test law_run_desk_never_nests_inside_quest_desk;
+       QCheck_ounit.to_ounit2_test law_draft_quest_run_desks_are_pairwise_non_nesting;
        QCheck_ounit.to_ounit2_test law_repo_key_matches_slug_dash_8hex;
      ])

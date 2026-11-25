@@ -26,6 +26,7 @@ let desks_root = legacy_desks_root
 let desks_env_var = "BP3_DESKS_DIR"
 let default_desks_rel = ".bp3/desks"
 let quests_desks_subdir = "quests"
+let drafts_desks_subdir = "drafts"
 let runs_desks_subdir = "runs"
 let desks_meta_subdir = ".meta"
 let context_file = ".bp3-context.json"
@@ -39,6 +40,7 @@ let legacy_quest_ref_kinds = ["graph"; "goal"]
 let node_ref_kind = "node"
 let legacy_node_ref_kinds = ["exp"]
 let work_branch_kind = "quest"
+let draft_branch_kind = "draft"
 
 (* ---------- derived ---------- *)
 let quest_dir_in root q = root ^ "/" ^ q
@@ -49,6 +51,7 @@ let node_ref_prefix_of kind q = ref_root ^ kind ^ "/" ^ q ^ "/"
 (* short branch name (no refs/heads/), as worktree add takes it *)
 let node_branch_short q node = "bp3/" ^ node_ref_kind ^ "/" ^ q ^ "/" ^ node
 let work_branch q = work_branch_kind ^ "/" ^ q
+let draft_branch slug = draft_branch_kind ^ "/" ^ slug
 
 (* ---------- central desks (pure) ---------- *)
 let strip_trailing_slashes s =
@@ -98,6 +101,9 @@ let repo_desks_dir base key =
 
 let quest_desk_dir repo_dir quest =
   join_path repo_dir (quests_desks_subdir ^ "/" ^ quest)
+
+let draft_desk_dir repo_dir slug =
+  join_path repo_dir (drafts_desks_subdir ^ "/" ^ slug)
 
 let run_desk_dir repo_dir quest node run_id =
   join_path repo_dir (String.concat "/" [ runs_desks_subdir; quest; node; run_id ])
