@@ -29,7 +29,7 @@ $ bp3 q demo-m n n1 e land --reason "ship"
 
 # Standalone verify refused cleanly; legacy ledger still folds
 $ bp3 q demo n n1 e verify --verdict pass --reason "old"
--> exit 1, E_EDGE_RETIRED (or E_USAGE per Open question 1)
+-> exit 1, E_USAGE ("unknown edge: verify")
 ```
 
 Runnable goal block:

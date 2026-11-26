@@ -75,6 +75,6 @@ When parallel writers (like `/swarm` worktrees) or separate sessions work on a q
 
 Edge cases:
 - **Deleted dependency (`ds.st = "deleted"`):** skipped; deleted nodes are satisfied without code ancestry.
-- **Commit-less landed dependency (`ds.last_commit = None`):** skipped; preserves forward compatibility with `Spike` and `Gate` nodes in `2026-11-23-dag-contracts`.
-- **Transitive deps:** checking direct landed deps suffices when every upstream node was itself checked on `handoff` (git ancestry is transitive). If a direct dep was deleted/commit-less, walk past it only if needed — keep v1 direct and note transitive walk if `Spike`/`Gate` nodes later sit between two `Code` nodes.
+- **Commit-less landed dependency (`ds.last_commit = None`):** skipped; preserves forward compatibility with `Human_gate` nodes in `2026-11-23-dag-contracts`.
+- **Transitive deps:** checking direct landed deps suffices when every upstream node was itself checked on `handoff` (git ancestry is transitive). If a direct dep was deleted/commit-less, walk past it only if needed — keep v1 direct and note transitive walk if `Human_gate` nodes later sit between two `Code` nodes.
 - **Quest-level `--depends-on`:** left as state-only (`dep_satisfied`), since cross-quest deps live on different branches until promoted to `master`.

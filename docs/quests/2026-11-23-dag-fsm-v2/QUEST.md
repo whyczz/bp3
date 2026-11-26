@@ -15,12 +15,12 @@ Right now every node pays three ceremonies to land (`handoff -> grade --verify-v
 
 ## Context
 
-Framed on 2026-11-23 during the post-`warden-v0` DAG engine review, split cleanly from `2026-11-23-dag-contracts` (node `owns` globs and typed node kinds) so contracts wire onto the lean FSM instead of the legacy 2-bit `grade_ok`/`verify_ok` handshake.
+Framed on 2026-11-23 during the post-`warden-v0` DAG engine review, split cleanly from `2026-11-23-dag-contracts` (typed node flavors `code | direct | research | explore | human-gate` + protected-file locks) so node flavors wire onto the lean FSM instead of the legacy 2-bit `grade_ok`/`verify_ok` handshake.
 
 Sequencing (refreshed 2026-11-25 against `v0.10.0`):
 - **After** `docs/quests/2026-11-23-quest-promote-release/` (**landed**, `v0.4.0` — owns quest exit / atomic CAS promotion via `bp3 release <quest>`, upgraded to Tiered CAS `merge-tree` in `v0.8.0`).
 - **After** `docs/quests/2026-11-23-codebase-diet/` (**landed**, `v0.5.0` — cleaned `src/quest/store.ml`, `src/quest/names.ml`, and renamed `induct-inline` -> `induct`).
-- **Before** `docs/quests/2026-11-23-dag-contracts/` (which layers `owns` globs and `code|direct|spike|gate` kinds onto this FSM).
+- **Before** `docs/quests/2026-11-23-dag-contracts/` (which layers `code | direct | research | explore | human-gate` kinds onto this FSM).
 - **Orthogonal to** `docs/quests/2026-11-23-sqlite-quest-store/` (which owns migrating quest/node state off hidden git refs into `bp3.sqlite`; this quest keeps current storage refs untouched).
 
 Measured ground (re-verified 2026-11-25 on `v0.10.0` from `src/quest/store.ml`, `src/quest/main.ml`, `src/quest/gitx.ml`, `plans/default.yaml`):
@@ -34,7 +34,7 @@ Measured ground (re-verified 2026-11-25 on `v0.10.0` from `src/quest/store.ml`, 
 |---|---|
 | `auto_land` | default node plan behavior (`land: auto` in `plans/*.yaml`, default when omitted): `grade --verdict ship` atomically transitions `handed_off -> landed` and advances the quest ref in one write; `land: manual` preserves the explicit `approved -> land` step |
 | `E_MISSING_ANCESTOR` | typed refusal emitted by `handoff` when a landed dependency node carries a commit `dep_sha` that is not a git ancestor of the handed-off `--commit` (`not (Gitx.is_ancestor dep_sha commit)`) |
-| `E_EDGE_RETIRED` | typed refusal (or `E_USAGE` — settled in Open question 1) when a caller invokes the retired standalone `verify` edge on a new quest while historical ledgers still fold cleanly |
+| retired `verify` edge | standalone `verify` is removed from the writable edge list (returns `E_USAGE`: `unknown edge: verify` per owner call 2026-11-25); historical ledgers containing `verify` lines still fold cleanly in `Store.fold_ledger` |
 | `landed` | terminal node state (`fin: "node_fin"`), reached directly from `grade --verdict ship` under `land: auto` or from `land` under `land: manual` |
 
 ## Inputs
@@ -102,8 +102,8 @@ Keep `bp3`'s DAG engine sharp and trustworthy as `/swarm` parallel branches beco
 | In | Out |
 |---|---|
 | Auto-land on `grade --verdict ship` under default `land: auto` plan + optional `land: manual` (`fsm.1`) | Quest exit / promotion / tagging (`2026-11-23-quest-promote-release`, landed `v0.4.0`; Tiered CAS `v0.8.0`) |
-| Deprecating standalone `verify` edge while preserving `Store.fold_ledger` read-side compat (`fsm.1`) | Node `owns` file globs & parallel-safe batch calculation (`2026-11-23-dag-contracts`) |
-| `Gitx.is_ancestor` check on `handoff` against all landed deps carrying a commit (`ancestry.1`) | Typed node kinds `code\|direct\|spike\|gate` (`2026-11-23-dag-contracts`) |
+| Deprecating standalone `verify` edge while preserving `Store.fold_ledger` read-side compat (`fsm.1`) | Protected-file locks (`2026-11-23-dag-contracts`) |
+| `Gitx.is_ancestor` check on `handoff` against all landed deps carrying a commit (`ancestry.1`) | Typed node kinds `code\|direct\|research\|explore\|human-gate` (`2026-11-23-dag-contracts`) |
 | Updating `skills/` sources, local `DEV_SKILLS` renders (`v0.7.0`), completions, `AGENTS.md`/`CLAUDE.md` (`skills.1`) | Storage migration off hidden git refs (owned by `2026-11-23-sqlite-quest-store`) |
 
 ## Constraints at approval
@@ -159,9 +159,10 @@ Keep `bp3`'s DAG engine sharp and trustworthy as `/swarm` parallel branches beco
 
 ## Open questions
 
-1. On calling the retired standalone `verify` edge (`bp3 q <q> n <n> e verify ...`), should `bp3` return a dedicated `E_EDGE_RETIRED` (guiding the caller to `grade`) or `E_USAGE` (`unknown edge: verify`)? — **owner** (recommended: `E_EDGE_RETIRED` for one release cycle, then drop).
-2. *(Resolved 2026-11-25)* Storage ref layout (per-node refs vs single quest ref): leave current storage refs untouched in `dag-fsm-v2` (zero migration); moving quest/node state off hidden git refs is now owned by [2026-11-23-sqlite-quest-store](../2026-11-23-sqlite-quest-store/QUEST.md).
-3. Does `land` conflict on auto-land (while per-node refs are active) still return `state: "todo"` with `facts.land_conflict: true` just like `main.ml:335` today? — **owner** (recommended: yes, identical rollback contract).
+None — all three owner calls settled on 2026-11-25:
+1. **Retired standalone `verify` edge (settled 2026-11-25):** Throw plain `E_USAGE` (`unknown edge: verify`) — bp3 is personal/local, no 1-release deprecation error code needed; `Store.fold_ledger` retains read-side compatibility for historical ledgers.
+2. **Storage ref layout (settled 2026-11-25):** Leave current storage refs untouched in `dag-fsm-v2` (zero migration); moving quest/node state off hidden git refs is owned by [2026-11-23-sqlite-quest-store](../2026-11-23-sqlite-quest-store/QUEST.md).
+3. **Auto-land conflict rollback (settled 2026-11-25):** Keep today's mechanism (`state: "todo"` with `facts.land_conflict: true` per `main.ml:335`) so the LLM resolves the merge conflict and re-hands-off.
 
 ## Node diagram
 
