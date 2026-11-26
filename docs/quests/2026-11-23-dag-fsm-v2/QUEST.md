@@ -17,14 +17,15 @@ Right now every node pays three ceremonies to land (`handoff -> grade --verify-v
 
 Framed on 2026-11-23 during the post-`warden-v0` DAG engine review, split cleanly from `2026-11-23-dag-contracts` (node `owns` globs and typed node kinds) so contracts wire onto the lean FSM instead of the legacy 2-bit `grade_ok`/`verify_ok` handshake.
 
-Sequencing:
-- **After** `docs/quests/2026-11-23-quest-promote-release/` (which already owns quest exit / atomic CAS promotion via `bp3 release <quest>` — explicitly out of scope here).
-- **After** `docs/quests/2026-11-23-codebase-diet/` (which cleans `src/quest/store.ml`, `src/quest/names.ml`, and `skills/induct*` so this quest avoids merge churn).
+Sequencing (refreshed 2026-11-25 against `v0.10.0`):
+- **After** `docs/quests/2026-11-23-quest-promote-release/` (**landed**, `v0.4.0` — owns quest exit / atomic CAS promotion via `bp3 release <quest>`, upgraded to Tiered CAS `merge-tree` in `v0.8.0`).
+- **After** `docs/quests/2026-11-23-codebase-diet/` (**landed**, `v0.5.0` — cleaned `src/quest/store.ml`, `src/quest/names.ml`, and renamed `induct-inline` -> `induct`).
 - **Before** `docs/quests/2026-11-23-dag-contracts/` (which layers `owns` globs and `code|direct|spike|gate` kinds onto this FSM).
+- **Orthogonal to** `docs/quests/2026-11-23-sqlite-quest-store/` (which owns migrating quest/node state off hidden git refs into `bp3.sqlite`; this quest keeps current storage refs untouched).
 
-Measured ground (read 2026-11-23 from `src/quest/store.ml`, `src/quest/main.ml`, `src/quest/gitx.ml`, `plans/default.yaml`):
-- `Store.node_state` (`src/quest/store.ml:142-143`) carries two mutable bits (`grade_ok`, `verify_ok`), and `Main.do_update` (`src/quest/main.ml:251-304`) handles both `grade` and standalone `verify` edges plus `--verify-verdict pass|fail`, landing in an intermediate `approved` state (`src/quest/store.ml:399`) that immediately requires a separate `land` call (`src/quest/main.ml:305-352`).
-- On `handoff`, `Main.do_update` (`src/quest/main.ml:235-243`) checks only `ds.st <> "landed" && ds.st <> "deleted"` and never calls `Gitx.is_ancestor` (`src/quest/gitx.ml:189`) against `ds.last_commit`.
+Measured ground (re-verified 2026-11-25 on `v0.10.0` from `src/quest/store.ml`, `src/quest/main.ml`, `src/quest/gitx.ml`, `plans/default.yaml`):
+- `Store.node_state` (`src/quest/store.ml:111-117`) carries two mutable bits (`grade_ok`, `verify_ok`), and `Main.do_update` (`src/quest/main.ml:251-304`) handles both `grade` and standalone `verify` edges plus `--verify-verdict pass|fail`, landing in an intermediate `approved` state (`src/quest/store.ml:365`) that immediately requires a separate `land` call (`src/quest/main.ml:305-352`).
+- On `handoff`, `Main.do_update` (`src/quest/main.ml:223-250`) checks only `ds.st <> "landed" && ds.st <> "deleted"` and never calls `Gitx.is_ancestor` (`src/quest/gitx.ml:205`) against `ds.last_commit`.
 - Historical ledgers in `docs/quests/` contain `verify` edges and `approved` states, so `Store.fold_ledger` must continue folding them losslessly.
 
 ## Terms
@@ -56,11 +57,11 @@ Measured ground (read 2026-11-23 from `src/quest/store.ml`, `src/quest/main.ml`,
 
 ## Acceptance gates
 
-Observed today (2026-11-23):
+Observed today (re-verified 2026-11-25 on `v0.10.0`):
 
 ```text
 $ rg -n "verify_ok|grade_ok|approved" src/quest/store.ml src/quest/main.ml | wc -l
-      29
+      27
 $ rg -n "is_ancestor" src/quest/main.ml
 323:      if is_ancestor qtip node_tip then begin
 # (zero is_ancestor calls inside the handoff branch at main.ml:223-250!)
@@ -82,7 +83,7 @@ ancestry.1 bp3 q demo c n2 --depends-on n1
            after rebasing/merging $C1 onto branch ($C2 descends from $C1):
              bp3 q demo n n2 e handoff --commit $C2 --reason "rebased"
              -> ok: true, state: "handed_off"
-skills.1   skills/ + rendered .{agents,claude,pi}/skills/ + AGENTS.md/CLAUDE.md match new FSM;
+skills.1   skills/ sources + local DEV_SKILLS (.{agents,claude,pi}/skills/) + AGENTS.md/CLAUDE.md match new FSM (CORE_SKILLS remain global per v0.7.0);
            make check-full rc 0
 ```
 
@@ -100,10 +101,10 @@ Keep `bp3`'s DAG engine sharp and trustworthy as `/swarm` parallel branches beco
 
 | In | Out |
 |---|---|
-| Auto-land on `grade --verdict ship` under default `land: auto` plan + optional `land: manual` (`fsm.1`) | Quest exit / promotion / tagging (`2026-11-23-quest-promote-release`, already active) |
+| Auto-land on `grade --verdict ship` under default `land: auto` plan + optional `land: manual` (`fsm.1`) | Quest exit / promotion / tagging (`2026-11-23-quest-promote-release`, landed `v0.4.0`; Tiered CAS `v0.8.0`) |
 | Deprecating standalone `verify` edge while preserving `Store.fold_ledger` read-side compat (`fsm.1`) | Node `owns` file globs & parallel-safe batch calculation (`2026-11-23-dag-contracts`) |
 | `Gitx.is_ancestor` check on `handoff` against all landed deps carrying a commit (`ancestry.1`) | Typed node kinds `code\|direct\|spike\|gate` (`2026-11-23-dag-contracts`) |
-| Updating skills, renders, completions, `AGENTS.md`/`CLAUDE.md` (`skills.1`) | Replacing per-node git refs with a single quest state ref (Open question 2 — defer unless settled in `/red-ink`) |
+| Updating `skills/` sources, local `DEV_SKILLS` renders (`v0.7.0`), completions, `AGENTS.md`/`CLAUDE.md` (`skills.1`) | Storage migration off hidden git refs (owned by `2026-11-23-sqlite-quest-store`) |
 
 ## Constraints at approval
 
@@ -159,8 +160,8 @@ Keep `bp3`'s DAG engine sharp and trustworthy as `/swarm` parallel branches beco
 ## Open questions
 
 1. On calling the retired standalone `verify` edge (`bp3 q <q> n <n> e verify ...`), should `bp3` return a dedicated `E_EDGE_RETIRED` (guiding the caller to `grade`) or `E_USAGE` (`unknown edge: verify`)? — **owner** (recommended: `E_EDGE_RETIRED` for one release cycle, then drop).
-2. Should `fsm.1` keep per-node state refs (`refs/heads/bp3/nodes/...`) with `merge-tree` on auto-land, or collapse node ledgers onto one quest state ref (`refs/heads/bp3/quests/<q>`) to eliminate JSONL `merge-tree` conflicts altogether? — **owner** (recommended: keep per-node refs in `dag-fsm-v2` to keep the diff tiny and zero-migration, or spin single-ref storage into a separate icebox if a `merge-tree` conflict ever actually hurts).
-3. Does `land` conflict on auto-land (if per-node refs are kept) still return `state: "todo"` with `facts.land_conflict: true` just like `main.ml:333-341` today? — **owner** (recommended: yes, identical rollback contract).
+2. *(Resolved 2026-11-25)* Storage ref layout (per-node refs vs single quest ref): leave current storage refs untouched in `dag-fsm-v2` (zero migration); moving quest/node state off hidden git refs is now owned by [2026-11-23-sqlite-quest-store](../2026-11-23-sqlite-quest-store/QUEST.md).
+3. Does `land` conflict on auto-land (while per-node refs are active) still return `state: "todo"` with `facts.land_conflict: true` just like `main.ml:335` today? — **owner** (recommended: yes, identical rollback contract).
 
 ## Node diagram
 

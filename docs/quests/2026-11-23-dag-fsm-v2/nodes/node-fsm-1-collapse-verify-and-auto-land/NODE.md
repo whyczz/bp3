@@ -71,14 +71,14 @@ def apply_grade(node_state, knobs, verdict, verify_verdict, mechanical):
 | Lane | standard |
 | Output | Updated `src/quest/store.ml`, `src/quest/main.ml`, `src/quest/render.ml`, `plans/default.yaml`, `plans/direct.yaml`, and unit/fixture tests. |
 | Acceptance | Fails today: `grade --verdict ship` without `--verify-verdict pass` stays in `handed_off`, and with `--verify-verdict pass` stops in `approved` instead of `landed`. |
-| Depends on | none (after `codebase-diet`) |
+| Depends on | none (`codebase-diet` already landed) |
 
 ## Prose
 
-In `induct-inline`, `scripts/receipt` runs as part of the cold grade, so nobody invokes a separate `verify` edge anymore and `approved` is always immediately followed by `land`. Keeping `auto_land: bool` (parsed from `land: auto | manual`, defaulting to `true`) lets default quests cut a full CLI write + CAS round-trip per node while preserving an opt-in manual `approved -> land` step for high-ceremony plans.
+In `induct`, `scripts/receipt` runs as part of the cold grade, so nobody invokes a separate `verify` edge anymore and `approved` is always immediately followed by `land`. Keeping `auto_land: bool` (parsed from `land: auto | manual`, defaulting to `true`) lets default quests cut a full CLI write + CAS round-trip per node while preserving an opt-in manual `approved -> land` step for high-ceremony plans.
 
 Edge cases:
 - `plans/direct.yaml` (`grade.required: false`, `land: auto`): `handoff` transitions straight to `landed` (advancing quest ref) instead of parking in `approved`.
 - `--verify-verdict fail` passed with `--verdict ship` (deprecated compat): still treated as negative (`needs_fix` path) so callers never accidentally ship on a failed receipt.
-- `merge-tree` conflict during auto-land on per-node refs: rolls back cleanly to `todo` with `facts.land_conflict: true`, identical to today's `main.ml:333-341`.
+- `merge-tree` conflict during auto-land on per-node refs: rolls back cleanly to `todo` with `facts.land_conflict: true`, identical to today's `main.ml:335`.
 - Historical ledgers containing `verify` lines and `approved` states continue folding cleanly in `Store.fold_ledger`.

@@ -17,16 +17,16 @@ Right now, deciding whether two ready tasks are safe to run in parallel (`/swarm
 
 Framed on 2026-11-23 during the post-`warden-v0` DAG engine review, cleanly separated from `2026-11-23-dag-fsm-v2` (lean 2-edge FSM + git ancestry).
 
-Sequencing:
+Sequencing (refreshed 2026-11-25 against `v0.10.0`):
 - **After** `docs/quests/2026-11-23-dag-fsm-v2/` (so `code | direct | spike | gate` and `owns` enforcement wire straight into the lean `todo -> handed_off -> landed` FSM with git ancestry already enforced).
 - Directly closes two findings that survived the 2026-11-23 `/red-chair` of `docs/dossiers/2026-11-23-harness-advice.md`:
-  1. **Goodhart / test-locking in code, not prose (`CONTEXT.md:100`):** `brief.ml:48` asks the grader to flag edits to `GRADING.md`, `CONSTRAINTS.md`, or Acceptance gates, whereas `handoff` can enforce it deterministically in milliseconds.
+  1. **Goodhart / test-locking in code, not prose (`CONTEXT.md:100`):** `brief.ml:49` asks the grader to flag edits to `GRADING.md`, `CONSTRAINTS.md`, or Acceptance gates, whereas `handoff` can enforce it deterministically in milliseconds.
   2. **Parallel-writer safety (`get-good-harness-engineering.md:209`):** Zechner, Ronacher, and Cognition all warn that parallel writers break when file/design boundaries overlap; `owns` makes disjointness machine-checkable in `bp3 q r`.
 
-Measured ground (read 2026-11-23 from `src/quest/store.ml`, `src/quest/render.ml`, `src/quest/brief.ml`):
-- `Store.sched_waves` (`src/quest/store.ml:534-546`) computes ready waves purely from `depends_on`; `Render.quest_view` (`src/quest/render.ml:110-119`) emits `ready` and `ready_set_waves` with zero file-overlap metadata.
-- `Store.plan_knobs_from_text` (`src/quest/store.ml:95-122`) parses YAML via `contains_sub` for only 3 booleans (`max_cycles`, `grade_required`, `verify_required`); there is no `Spike` or `Gate` node lifecycle.
-- `Render.commit_changes` (`src/quest/render.ml:9-24`) already extracts the exact changed file list of any commit via `git diff-tree --no-commit-id --name-status -r <sha>`.
+Measured ground (re-verified 2026-11-25 on `v0.10.0` from `src/quest/store.ml`, `src/quest/render.ml`, `src/quest/brief.ml`):
+- `Store.sched_waves` (`src/quest/store.ml:500`) computes ready waves purely from `depends_on`; `Render.quest_view` (`src/quest/render.ml:58-92`) emits `ready` and `ready_set_waves` with zero file-overlap metadata.
+- `Store.plan_knobs_from_text` (`src/quest/store.ml:73-102`) parses YAML via `contains_sub` for only 3 booleans (`max_cycles`, `grade_required`, `verify_required`); there is no `Spike` or `Gate` node lifecycle.
+- `Render.commit_changes` (`src/quest/render.ml:9`) already extracts the exact changed file list of any commit via `git diff-tree --no-commit-id --name-status -r <sha>`.
 
 ## Terms
 
@@ -59,13 +59,13 @@ Measured ground (read 2026-11-23 from `src/quest/store.ml`, `src/quest/render.ml
 
 ## Acceptance gates
 
-Observed today (2026-11-23):
+Observed today (re-verified 2026-11-25 on `v0.10.0`):
 
 ```text
 $ ./bin/bp3 q 2026-11-23-warden-v0 r | jq 'has("parallel_batches")'
 false
 $ rg -n "contains_sub text" src/quest/store.ml
-112:    if contains_sub text "required: false" && contains_sub text "grade:" then false
+90:    if contains_sub text "required: false" && contains_sub text "grade:" then false
 # (3-knob substring parser; zero --owns, zero --kind code|direct|spike|gate)
 ```
 
@@ -106,8 +106,8 @@ Turn `bp3`'s two most important safety rules — *"only parallelize disjoint nod
 | In | Out |
 |---|---|
 | Pure glob matcher + `--owns` storage + `parallel_batches` + `E_SCOPE_VIOLATION`/`E_PROTECTED_FILE` (`owns.1`) | Lean 2-edge FSM & dep git ancestry (`2026-11-23-dag-fsm-v2`, prerequisite) |
-| Typed `node_kind` (`Code \| Direct \| Spike \| Gate`) + clean plan parsing (`kinds.1`) | Quest exit / promotion (`2026-11-23-quest-promote-release`, already active) |
-| Skills, renders, completions, `AGENTS.md`/`CLAUDE.md` (`skills.1`) | External YAML library (stays pure OCaml stdlib/str/yojson per `CONSTRAINTS.md`) |
+| Typed `node_kind` (`Code \| Direct \| Spike \| Gate`) + clean plan parsing (`kinds.1`) | Quest exit / promotion (`2026-11-23-quest-promote-release`, landed `v0.4.0`; Tiered CAS `v0.8.0`) |
+| `skills/` sources, local `DEV_SKILLS` renders (`v0.7.0`), completions, `AGENTS.md`/`CLAUDE.md` (`skills.1`) | External YAML library (stays pure OCaml stdlib/str/yojson per `CONSTRAINTS.md`) |
 
 ## Constraints at approval
 
@@ -142,14 +142,14 @@ Turn `bp3`'s two most important safety rules — *"only parallelize disjoint nod
 
 | Node | TL;DR |
 |---|---|
-| [skills.1 - contracts-skills-and-completions](nodes/node-skills-1-contracts-skills-and-completions/NODE.md) | update `quest`, `induct*`, `using-bp3`, renders, `AGENTS.md`/`CLAUDE.md`, completions, and skill/completion tests |
+| [skills.1 - contracts-skills-and-completions](nodes/node-skills-1-contracts-skills-and-completions/NODE.md) | update `skills/{quest,induct,induct-yolo,using-bp3}/SKILL.md`, local `DEV_SKILLS` renders (`v0.7.0`), `AGENTS.md`/`CLAUDE.md`, completions, and skill/completion tests |
 
 ## Scorecard
 
 | Row | Baseline (2026-11-23) | Target | Read from |
 |---|---|---|---|
 | Parallel-safety check for `/swarm` | LLM prose (`Output` / `Must not touch`) | **100% deterministic** (`parallel_batches`) | `bp3 q r <quest>` |
-| Protected-file lock enforcement | grader prompt (`brief.ml:48`) | **100% deterministic** (`E_PROTECTED_FILE`) | `test_owns.ml` + fixture test |
+| Protected-file lock enforcement | grader prompt (`brief.ml:49`) | **100% deterministic** (`E_PROTECTED_FILE`) | `test_owns.ml` + fixture test |
 | Supported node kinds | 1 (`code` via 3-knob YAML) | **4** (`code`, `direct`, `spike`, `gate`) | `test_store.ml` + fixture test |
 
 ## Risks and red chair
