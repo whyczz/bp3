@@ -5,7 +5,7 @@ node: kinds.1
 # kinds.1 - typed-node-kinds
 
 TL;DR
-Replace `Store.plan_knobs_from_text`'s 3-knob substring parser with five explicit typed node flavors (`Code | Direct | Research | Explore | Human_gate`), expose `--kind` at node creation, add the `BP3_DECIDER=human`-gated `approve` edge for `Human_gate`, and add lightweight `E_PROTECTED_FILE` (+ `--allow-protected`) enforcement on `handoff`.
+Replace `Store.plan_knobs_from_text`'s 3-knob substring parser with five explicit typed node flavors (`Code | Direct | Research | Explore | Human_gate`), expose `--kind` at node creation, add the `approve` edge for `Human_gate` (`BP3_DECIDER=human` -> `decider: "human"`, or `--yolo` -> `decider: "yolo"` surfaced in `bp3 q r` `yolo_approvals`), and add lightweight `E_PROTECTED_FILE` (+ `--allow-protected`) enforcement on `handoff`.
 
 ## Acceptance gates
 
@@ -24,25 +24,30 @@ $ bp3 q demo c d1 --kind direct
 $ bp3 q demo n d1 e handoff --commit $C_SMALL_FIX --reason "verified"
 -> exit 0, state: "landed", fin: "node_fin"
 
-# 3. Human-gate node (human decision checkpoint in the DAG)
+# 3. Human-gate node (interactive human approval OR honest --yolo decision)
 $ bp3 q demo c g1 --kind human-gate --depends-on d1
 $ bp3 q demo n g1 e approve --reason "pick B"
 -> exit 1, E_HUMAN_REQUIRED
 $ BP3_DECIDER=human bp3 q demo n g1 e approve --reason "pick B"
--> exit 0, state: "landed", fin: "node_fin"
+-> exit 0, state: "landed", fin: "node_fin", decider: "human"
+$ bp3 q demo c g2 --kind human-gate --depends-on g1
+$ bp3 q demo n g2 e approve --yolo --reason "chose B: lower risk, reversible"
+-> exit 0, state: "landed", fin: "node_fin", decider: "yolo"
+$ bp3 q r demo | jq '.yolo_approvals'
+-> [{"node": "g2", "reason": "chose B: lower risk, reversible", ...}]
 ```
 
 Runnable goal block:
-- **objective:** Support `code`, `direct`, `research`, `explore`, and `human-gate` as first-class DAG node kinds with clean legal-edge tables, `Human_gate` approval, `E_PROTECTED_FILE`, and full legacy ledger compatibility.
-- **prove by:** Unit tests in `test/unit/test_store.ml` for all 5 `node_kind` variants + legacy ledger default (`Code`) + protected-file helper (including rename old/new paths) + fixture tests exercising `Code`, `Direct`, `Human_gate`, and `E_PROTECTED_FILE` + `make check-full`.
-- **done when:** `make check-full` exits `0`, `Store.plan_knobs_from_text` no longer relies on brittle `contains_sub` heuristics, `Human_gate` never trips Warden `human_steer`, and `E_PROTECTED_FILE` blocks undeclared edits to protected paths.
+- **objective:** Support `code`, `direct`, `research`, `explore`, and `human-gate` as first-class DAG node kinds with clean legal-edge tables, `Human_gate` approval (`human` + `--yolo` with `yolo_approvals` rollup), `E_PROTECTED_FILE`, and full legacy ledger compatibility.
+- **prove by:** Unit tests in `test/unit/test_store.ml` for all 5 `node_kind` variants + legacy ledger default (`Code`) + `Human_gate` `decider` (`human` vs `yolo`) + protected-file helper (including rename old/new paths) + fixture tests exercising `Code`, `Direct`, `Human_gate` (both human and `--yolo`), and `E_PROTECTED_FILE` + `make check-full`.
+- **done when:** `make check-full` exits `0`, `Store.plan_knobs_from_text` no longer relies on brittle `contains_sub` heuristics, `Human_gate` never trips Warden `human_steer`, `yolo_approvals` surfaces every `--yolo` approval in `bp3 q r`, and `E_PROTECTED_FILE` blocks undeclared edits to protected paths.
 
 ## Diagram
 
 ```text
 Code       : todo --handoff(clean+protected+ancestry)--> handed_off --grade(ship)--> landed
 Direct     : todo --handoff(clean+protected+ancestry)--> landed
-Human_gate : todo --approve(BP3_DECIDER=human)---------> landed   (commit = None)
+Human_gate : todo --approve(BP3_DECIDER=human | --yolo)--> landed   (commit = None; decider = "human" | "yolo")
 Research   : todo --handoff(docs-only, wired in research.1)--> landed
 Explore    : todo --[iterate]*--handoff(docs-only+outcome, wired in research.1)--> landed
 ```
