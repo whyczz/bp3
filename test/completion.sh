@@ -127,6 +127,8 @@ if command -v zsh >/dev/null 2>&1; then
   out=$(zcand q toy-drive u parser-fix "")
   for edge in handoff grade land approve iterate block resume; do has "$out" "$edge"; done
   lacks "$out" verify
+  out=$(zcand q toy-drive c new-node "--")
+  for fl in --kind --allow-protected --target --max-iterations --outcome --note; do has "$out" "$fl"; done
   out=$(zcand q toy-drive c new-node --kind "")
   for k in code direct research explore human-gate; do has "$out" "$k"; done
   out=$(zcand q toy-drive u parser-fix handoff --outcome "")

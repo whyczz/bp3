@@ -9,7 +9,7 @@ open Store
 let commit_changes = function
   | None -> None (* unsure: nothing bound yet *)
   | Some c ->
-      let out, code = git_out ["diff-tree"; "--no-commit-id"; "--name-status"; "-r"; c] in
+      let out, code = git_out ["diff-tree"; "-m"; "--first-parent"; "--root"; "--no-commit-id"; "--name-status"; "-r"; c] in
       if code <> 0 then None (* unsure: unreadable diff *) else
       Some (List.filter_map (fun line ->
         match String.split_on_char '\t' line with

@@ -778,6 +778,20 @@ echo "$out" | jq -e '.explore.target == "make check < 10s" and .explore.max_iter
 q kinds-demo c ex2 --kind explore --target "quick feasibility check" >/dev/null
 out=$(q kinds-demo n ex2 e handoff --commit "$C_EX_OK" --outcome inconclusive --reason "single-pass check")
 echo "$out" | jq -e '.ok == true and .state == "landed" and .explore.iterations == 0 and .explore.max_iterations == null and .explore.outcome == "inconclusive"' >/dev/null || fail "zero-iteration explore: $out"
+# Explore --outcome missed also lands cleanly and node read reports changes for --no-ff merge commits:
+q kinds-demo c ex3 --kind explore --target "check missed path" >/dev/null
+out=$(q kinds-demo n ex3 e handoff --commit "$C_EX_OK" --outcome missed --reason "target not met")
+echo "$out" | jq -e '.ok == true and .state == "landed" and .explore.outcome == "missed"' >/dev/null || fail "explore missed outcome: $out"
+q kinds-demo c kmerge --kind direct >/dev/null
+git checkout -qb kmerge-br
+printf 'merged file\n' > merged-change.txt && git add merged-change.txt && git commit -qm "branch change"
+git checkout -q master
+git merge -q --no-ff kmerge-br -m "merge change"
+C_MERGE_OK=$(git rev-parse HEAD)
+git branch -qD kmerge-br
+q kinds-demo n kmerge e handoff --commit "$C_MERGE_OK" --reason "merge direct" >/dev/null
+out=$(q kinds-demo n kmerge r)
+echo "$out" | jq -e '(.changes | map(.path) | index("merged-change.txt")) != null' >/dev/null || fail "merge commit changes empty: $out"
 
 # --- version guard: minor-ahead warns and writes; major-ahead refuses writes ---
 stamp_ledger() { # $1 quest $2 node $3 version
