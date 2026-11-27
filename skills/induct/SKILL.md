@@ -31,15 +31,38 @@ Scope: active in git repos with `backpack.toml` at root (or when explicitly invo
      (running, or finished with its verdict not yet cast): start one
      in the background (Grade, below);
    - when nothing is being authored, take the first `todo` node in
-     `ready` order. Read its NODE.md acceptance gates, make the
-     change, run the node's `prove by` checks (`make check-full`
-     before handoff), and commit clean.
-     Run `./scripts/receipt` on the clean commit (when present in
-     the repo) and pass its receipt summary as `--reason` when
-     casting `bp3 q <quest> n <node> e handoff --commit <sha>
-     --reason "..."`, with the quest and node spelled out (or set
-     as variables in the same command), so the scrape finds the
-     author's window;
+     `ready` order and follow its `kind`:
+     - `code` (default): read its NODE.md acceptance gates, make the
+       change, run the node's `prove by` checks (`make check-full`
+       before handoff), commit clean, run `./scripts/receipt` on the
+       clean commit (when present in the repo), and cast
+       `bp3 q <quest> n <node> e handoff --commit <sha> --reason "..."`
+       (pass `--allow-protected` only when the node intentionally
+       updates a protected governance path; otherwise `E_PROTECTED_FILE`
+       refuses it), with the quest and node spelled out (or set as
+       variables in the same command), so the scrape finds the author's
+       window;
+     - `direct`: run verification, commit clean, and cast `e handoff`
+       (auto-lands directly without a cold grader; `E_PROTECTED_FILE`
+       still applies);
+     - `research`: write the sourced report under `docs/` and sharpen
+       downstream `todo` `NODE.md` / `QUEST.md` specs as needed
+       (never touch non-`docs/` paths -> `E_DOC_ONLY_NODE`, nor own or
+       non-`todo` `NODE.md` -> `E_PROTECTED_FILE`), commit clean, and
+       cast `e handoff` (auto-lands; convention: follow with a
+       `human-gate` node);
+     - `explore`: run bounded experiments under
+       `docs/quests/<q>/explores/<node>/` toward `--target`, logging
+       attempts with `e iterate --note "..."` (stops at
+       `--max-iterations` with `E_EXPLORE_BOUND`), optionally sharpen
+       downstream `todo` specs, commit clean (`docs/` only ->
+       `E_DOC_ONLY_NODE`), and close with
+       `e handoff --commit <sha> --outcome hit|missed|inconclusive --reason "..."`
+       (auto-lands; convention: follow with a `human-gate` node);
+     - `human-gate`: stop and present the decision to the owner so they
+       can run `BP3_DECIDER=human bp3 q <quest> n <node> e approve --reason "..."`
+       (under `induct-yolo`, see `skills/induct-yolo/SKILL.md` for
+       `BP3_DECIDER=human-approved-llm-yolo`);
    - at the **cast boundary** (right after that handoff, or when
      nothing is left to author), cast each finished verdict in
      handoff order (below) — `grade --verdict ship` auto-lands directly
