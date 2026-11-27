@@ -337,6 +337,7 @@ A quest proposing only design traces must say so plainly.
 |---|---|
 | clean-runway guard: if on `master`/`main`, run `bp3 harness desk prepare --draft red-ink-<slug>` before creating the working copy; on settle/adopt, commit and run `bp3 harness desk land --draft red-ink-<slug>` | multi-turn reviews and `*.red-ink.md` working copies never dirty `master` (`E_DIRTY_TREE`); already-isolated `quest/*` or `draft/*` worktrees proceed directly |
 | copy first; name both paths in round one | the original never takes an edit |
+| define new jargon inline on first use | whenever introducing a new or insider term, define it plainly inline before using it in options or questions so the owner never has to ask "what is X?" |
 | research before asking | never ask a question the artifact or codebase already answers |
 | non-obvious questions, options + recommendation | the owner corrects concrete bets instead of answering trivia or blank pages; use the harness's ask tool when available |
 | loop each slice (0-to-N rounds) to 100% confidence | 0 Qs when airtight (no busywork), many rounds when murky or when the owner probes a mental model — catch mismatches here, not mid-`induct` |
