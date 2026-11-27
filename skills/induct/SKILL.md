@@ -97,7 +97,8 @@ it never words the grader's brief either.
 - **The brief is bp3's**: render it with
   `bp3 q <quest> n <node> brief --desk <grade desk path>` and pass
   its `brief` text verbatim, adding nothing and leaving nothing
-  out. The scrape renders it again and counts any difference as
+  out (extract with `jq -j .brief`, not `jq -r`, so trailing newlines
+  stay intact). The scrape renders it again and counts any difference as
   `brief_edited`. The brief carries the join line, the NODE.md
   acceptance gates, the previous round's commit and diff range,
   and `GRADING.md`, which names the grade gate (`make check-full`

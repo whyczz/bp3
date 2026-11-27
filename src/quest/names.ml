@@ -55,7 +55,6 @@ let all_verbs =
 (* ---------- edges ---------- *)
 let edge_handoff = "handoff"
 let edge_grade = "grade"
-let edge_verify = "verify"
 let edge_land = "land"
 let edge_approve = "approve"
 let edge_iterate = "iterate"
