@@ -192,6 +192,10 @@ type node_state = {
   mutable node_kind : node_kind;
   mutable approved_decider : string option;
   mutable approved_reason : string;
+  mutable explore_target : string option;
+  mutable explore_max_iterations : int option;
+  mutable explore_iterations : int;
+  mutable explore_outcome : string option;
 }
 
 let fresh_state () = {
@@ -200,6 +204,8 @@ let fresh_state () = {
   blocked_reason = ""; blocked_checkpoint = None; blocked_since = "";
   last_commit = None; node_type = "default"; node_kind = Code;
   approved_decider = None; approved_reason = "";
+  explore_target = None; explore_max_iterations = None;
+  explore_iterations = 0; explore_outcome = None;
 }
 
 let get_opt = Util.get_str_opt
@@ -256,7 +262,11 @@ let fold_ledger text =
               (get_str j "quest_type" !quest_type);
             s.node_kind <- (match get_opt j "node_kind" with
               | Some k -> (match node_kind_of_string k with Some nk -> nk | None -> Code)
-              | None -> if !quest_type = "direct" || s.node_type = "direct" then Direct else Code)
+              | None -> if !quest_type = "direct" || s.node_type = "direct" then Direct else Code);
+            s.explore_target <- get_opt j "target";
+            s.explore_max_iterations <- (match Yojson.Safe.Util.member "max_iterations" j with
+              | `Int n -> Some n
+              | _ -> None)
           end;
           (try match Yojson.Safe.Util.member "depends_on" j with
              | `List xs -> depends_on := List.map (function `String x -> canon_node_id x | _ -> "") xs
@@ -265,7 +275,11 @@ let fold_ledger text =
         if to_ <> "" then s.st <- to_;
         s.cycle <- cyc;
         (match get_opt j "commit" with Some c -> s.last_commit <- Some c; s.bound <- Some c; s.has_bound <- true | None -> ());
-        if edge = "handoff" then begin s.grade_ok <- false; s.verify_ok <- false end;
+        if edge = "iterate" then s.explore_iterations <- s.explore_iterations + 1;
+        if edge = "handoff" then begin
+          s.grade_ok <- false; s.verify_ok <- false;
+          (match get_opt j "outcome" with Some o -> s.explore_outcome <- Some o | None -> ())
+        end;
         if edge = "grade" && get_str j "verdict" "" = "ship" then s.grade_ok <- true;
         if edge = "verify" && get_str j "verdict" "" = "pass" then s.verify_ok <- true;
         if edge = "grade" && get_str j "verify_verdict" "" = "pass" then s.verify_ok <- true;
@@ -470,6 +484,43 @@ let protected_violations ~quest ~node ~allow_protected changed_paths =
     let locked = protected_files_for ~quest ~node in
     List.filter (fun p -> List.mem p locked) changed_paths
     |> List.sort_uniq String.compare
+
+(* Extract <other> from "docs/quests/<quest>/nodes/<other>/NODE.md". *)
+let node_md_owner ~quest path =
+  let prefix = quest_dir quest ^ "/" ^ Layout.nodes_dir ^ "/" in
+  let suffix = "/NODE.md" in
+  if starts_with path prefix && Filename.check_suffix path suffix then
+    let start = String.length prefix in
+    let len = String.length path - start - String.length suffix in
+    if len > 0 then
+      let other = String.sub path start len in
+      if not (String.contains other '/') then Some other else None
+    else None
+  else None
+
+(* Shared docs-only + downstream-todo NODE.md check for Research and
+   Explore nodes (dag-contracts research.1):
+   1. Any path outside docs/ is refused with E_DOC_ONLY_NODE (even with --allow-protected).
+   2. Edits to own NODE.md or any non-todo node's NODE.md are refused with E_PROTECTED_FILE
+      unless --allow-protected is set; edits to downstream todo NODE.md / QUEST.md are allowed. *)
+let doc_only_violations ~quest ~self_node ~node_state_of ~allow_protected changed_paths =
+  let non_docs =
+    List.filter (fun p -> not (starts_with p "docs/")) changed_paths
+    |> List.sort_uniq String.compare in
+  if non_docs <> [] then Error (Names.e_doc_only_node, non_docs)
+  else if allow_protected then Ok ()
+  else
+    let self_canon = canon_node_id self_node in
+    let bad_nodes =
+      List.filter (fun p ->
+        match node_md_owner ~quest p with
+        | None -> false
+        | Some other ->
+            canon_node_id other = self_canon ||
+            node_state_of other <> Some "todo") changed_paths
+      |> List.sort_uniq String.compare in
+    if bad_nodes <> [] then Error (Names.e_protected_file, bad_nodes)
+    else Ok ()
 
 let state_yaml q e s =
   Printf.sprintf "quest: %s\nnode: %s\nstate: %s\ncycle: %d\ncommit: %s\n"

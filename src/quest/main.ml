@@ -127,26 +127,42 @@ let do_node_create quest node fl id =
         (match node_kind_of_string k with
          | Some nk -> nk
          | None -> usage ("invalid --kind: " ^ k ^ " (expected code, direct, research, explore, or human-gate)")) in
+  let explore_target =
+    if nkind = Explore then
+      (match fl.target with
+       | Some t when String.trim t <> "" -> Some (String.trim t)
+       | _ -> usage "--target is required for --kind explore")
+    else fl.target in
+  let explore_max = if nkind = Explore then fl.max_iterations else None in
   if ref_tip (node_branch quest node) <> None then
     err Names.e_exists (`Assoc [("quest", json_str quest); ("node", json_str node)]) "Node already exists." 1;
   let deps = parse_dep_list fl.depends_on in
   validate_deps quest node deps;
   let qtip = (match ref_tip (quest_branch quest) with Some t -> t | None -> not_found "quest" quest) in
-  let st = { (fresh_state ()) with node_kind = nkind } in
+  let st = { (fresh_state ()) with
+             node_kind = nkind;
+             explore_target;
+             explore_max_iterations = explore_max } in
+  let explore_extra =
+    if nkind = Explore then
+      (match explore_target with Some t -> [("target", json_str t)] | None -> []) @
+      (match explore_max with Some m -> [("max_iterations", `Int m)] | None -> [])
+    else [] in
   let line = ledger_line ~edge:"create" ~from:"" ~to_:"todo" ~cycle:1
     ~commit:None ~verdict:None ~reason:"" ~id
-    ~extra:[("node_type", json_str etype);
-            ("node_kind", json_str (node_kind_to_string nkind));
-            ("depends_on", `List (List.map json_str deps))] () in
+    ~extra:([("node_type", json_str etype);
+             ("node_kind", json_str (node_kind_to_string nkind));
+             ("depends_on", `List (List.map json_str deps))] @ explore_extra) () in
   let _ = create_branch_commit ~branch:(node_branch quest node) ~base_tip:qtip
     ~files:[(node_ledger_path quest node, line ^ "\n");
             (node_state_path quest node, state_yaml quest node st)]
     ~msg:("bp3: create node " ^ node) in
-  with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+  let extra_res = if nkind = Explore then [("explore", explore_json st)] else [] in
+  with_warnings id true ([("ok", `Bool true); ("quest", json_str quest);
     ("node", json_str node); ("kind", json_str (node_kind_to_string nkind));
     ("state", json_str "todo"); ("cycle", `Int 1);
     ("deps", `List (List.map json_str deps));
-    ("legal_edges", `List (List.map json_str (legal_edges_for nkind "todo")))]
+    ("legal_edges", `List (List.map json_str (legal_edges_for nkind "todo")))] @ extra_res)
 
 let do_node_dep quest node fl id =
   check_slug quest; check_slug node;
@@ -216,9 +232,14 @@ let do_brief quest node tail =
 
 let do_update quest node edge fl id =
   check_slug quest; check_slug node;
-  let reason = require_reason fl in
-  if not (List.mem edge ["handoff"; "grade"; "land"; "approve"; "block"; "resume"]) then
+  if not (List.mem edge ["handoff"; "grade"; "land"; "approve"; "iterate"; "block"; "resume"]) then
     usage ("unknown edge: " ^ edge);
+  let reason =
+    if edge = "iterate" then
+      (match fl.note with
+       | Some n when n <> "" -> n
+       | _ -> (match fl.reason with Some r when r <> "" -> r | _ -> usage "--note or --reason is required for iterate"))
+    else require_reason fl in
   (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
   let (_, s, _) = (match fold_node quest node with Some v -> v | None -> not_found "node" node) in
   let (_, qt, deps) = (match fold_quest quest with Some (_, _, a, b, _) -> ((), a, b) | None -> not_found "quest" quest) in
@@ -304,32 +325,81 @@ let do_update quest node edge fl id =
                      `Assoc [("node", json_str d); ("commit", json_str c)]) missing))])
           "Rebase or merge landed dependency commits before handoff." 1;
       let touched = commit_touched_paths full in
-      let bad_prot = protected_violations ~quest ~node ~allow_protected:fl.allow_protected touched in
-      if bad_prot <> [] then
-        err Names.e_protected_file
-          (`Assoc [("commit", json_str full);
-                   ("paths", `List (List.map json_str bad_prot))])
-          "Commit edits protected file(s); pass --allow-protected if intentional." 1;
+      (match s.node_kind with
+       | Research | Explore ->
+           (match doc_only_violations ~quest ~self_node:node
+              ~node_state_of:(fun other ->
+                match fold_node quest other with Some (_, ds, _) -> Some ds.st | None -> None)
+              ~allow_protected:fl.allow_protected touched with
+            | Ok () -> ()
+            | Error (code, bad_paths) when code = Names.e_doc_only_node ->
+                err Names.e_doc_only_node
+                  (`Assoc [("commit", json_str full);
+                           ("paths", `List (List.map json_str bad_paths))])
+                  "Research and explore nodes may only modify docs/ paths." 1
+            | Error (_, bad_paths) ->
+                err Names.e_protected_file
+                  (`Assoc [("commit", json_str full);
+                           ("paths", `List (List.map json_str bad_paths))])
+                  "Commit edits own or non-todo NODE.md; pass --allow-protected if intentional." 1)
+       | Code | Direct | Human_gate ->
+           let bad_prot = protected_violations ~quest ~node ~allow_protected:fl.allow_protected touched in
+           if bad_prot <> [] then
+             err Names.e_protected_file
+               (`Assoc [("commit", json_str full);
+                        ("paths", `List (List.map json_str bad_prot))])
+               "Commit edits protected file(s); pass --allow-protected if intentional." 1);
+      let outcome_opt =
+        if s.node_kind = Explore then
+          (match fl.outcome with
+           | Some o -> Some o
+           | None -> usage "--outcome is required for explore handoff (hit, missed, or inconclusive)")
+        else None in
       let ns_base = { s with bound = Some full; has_bound = true; last_commit = Some full;
-                      grade_ok = false; verify_ok = false } in
+                      grade_ok = false; verify_ok = false;
+                      explore_outcome = (match outcome_opt with Some _ -> outcome_opt | None -> s.explore_outcome) } in
+      let handoff_extra = match outcome_opt with Some o -> [("outcome", json_str o)] | None -> [] in
+      let handoff_res_extra = if s.node_kind = Explore then [("explore", explore_json ns_base)] else [] in
       let skip_grade =
         (not knobs.grade_required) ||
         (match s.node_kind with Direct | Research | Explore -> true | Code | Human_gate -> false) in
       if skip_grade then begin
         if knobs.auto_land then
-          land_and_advance ~from_state:s.st ~ns:ns_base ~edge ~verdict:None ()
+          land_and_advance ~from_state:s.st ~ns:ns_base ~edge ~verdict:None
+            ~extra:handoff_extra ~result_extra:handoff_res_extra ()
         else begin
           let ns = { ns_base with st = "approved" } in
           let line = ledger_line ~edge ~from:s.st ~to_:"approved" ~cycle:s.cycle
-            ~commit:(Some full) ~verdict:None ~reason ~id () in
-          finish ns line
+            ~commit:(Some full) ~verdict:None ~reason ~id ~extra:handoff_extra () in
+          (match finish ns line with
+           | `Assoc fs when handoff_res_extra <> [] -> `Assoc (fs @ handoff_res_extra)
+           | other -> other)
         end
       end else begin
         let ns = { ns_base with st = "handed_off" } in
         let line = ledger_line ~edge ~from:s.st ~to_:"handed_off" ~cycle:s.cycle
-          ~commit:(Some full) ~verdict:None ~reason ~id () in
+          ~commit:(Some full) ~verdict:None ~reason ~id ~extra:handoff_extra () in
         finish ns line
       end
+  | "iterate" ->
+      if s.node_kind <> Explore || s.st <> "todo" then illegal_for s.node_kind s.st edge;
+      (match s.explore_max_iterations with
+       | Some cap when s.explore_iterations >= cap ->
+           err Names.e_explore_bound
+             (`Assoc [("quest", json_str quest); ("node", json_str node);
+                      ("iterations", `Int s.explore_iterations);
+                      ("max_iterations", `Int cap)])
+             "Explore iteration cap reached; write REPORT.md and close with handoff --outcome hit|missed|inconclusive." 1
+       | _ -> ());
+      let ns = { s with explore_iterations = s.explore_iterations + 1 } in
+      let line = ledger_line ~edge ~from:s.st ~to_:s.st ~cycle:s.cycle
+        ~commit:s.last_commit ~verdict:None ~reason ~id () in
+      ignore (append_node_line quest node line ns);
+      with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
+        ("node", json_str node); ("kind", json_str (node_kind_to_string ns.node_kind));
+        ("state", json_str ns.st); ("cycle", `Int ns.cycle);
+        ("explore", explore_json ns);
+        ("legal_edges", `List (List.map json_str (legal_edges_for ns.node_kind ns.st)))]
   | "approve" ->
       if s.node_kind <> Human_gate || s.st <> "todo" then illegal_for s.node_kind s.st edge;
       let decider_str = match id.decider with
@@ -575,14 +645,15 @@ let help_metrics = "bp3 q <quest> metrics - what each grade and author cycle cos
 Example: bp3 q my-quest metrics scrape && bp3 q my-quest metrics r\n"
 
 let help_update = "bp3 q <quest> u <node> <edge> - edges and their flags:\n\
-  edges: handoff grade land approve block resume\n\
-  handoff --commit <sha> [--allow-protected] --reason <why>    bind a clean commit (auto-lands direct/research/explore)\n\
+  edges: handoff grade land approve iterate block resume\n\
+  handoff --commit <sha> [--allow-protected] [--outcome hit|missed|inconclusive] --reason <why>    bind a clean commit (auto-lands direct/research/explore)\n\
   grade   --verdict ship|needs_fix [--verify-verdict pass|fail] [--mechanical] --reason <why>   auto-lands on ship (land: auto) or approves (land: manual)\n\
   land    --reason <why>                   land an approved node (land: manual plans)\n\
   approve --reason <why>                   approve a human-gate (BP3_DECIDER=human or human-approved-llm-yolo)\n\
+  iterate --note <what>                    record one explore iteration (refuses E_EXPLORE_BOUND at --max-iterations)\n\
   block   --reason <why>                   park for a human decision\n\
   resume  --reason <why>                   human only: unblock\n\
-Shared flags: --format json|table|tree, --target <name>, --kind code|direct|research|explore|human-gate.\n\
+Shared flags: --format json|table|tree, --target <name>, --kind code|direct|research|explore|human-gate, --max-iterations <n>.\n\
 Example: bp3 q my-quest u node-1 handoff --commit abc123 --reason \"ready\"\n"
 
 let help_harness = "bp3 harness - machine-local desks:\n\
@@ -801,7 +872,7 @@ let rec run argv =
              let (view, _, _, _) = quest_view q in view) (list_quests ()) in
            print_verdict ~fmt:"json" (`Assoc ([("ok", `Bool true); ("quests", `List qs)] @ repo_config_warnings ())); 0
        | "r", [quest] ->
-           let (pos, fl) = ( [quest], { reason=None; commit=None; verdict=None; target=None; typ=None; kind=None; depends_on=None; fmt="json"; verify_verdict=None; mechanical=false; allow_protected=false } ) in
+           let (pos, fl) = ( [quest], { reason=None; commit=None; verdict=None; target=None; typ=None; kind=None; depends_on=None; fmt="json"; verify_verdict=None; mechanical=false; allow_protected=false; max_iterations=None; outcome=None; note=None } ) in
            ignore pos;
            (* re-parse: quest may be followed by --format in original rest; handled below *)
            ignore fl;

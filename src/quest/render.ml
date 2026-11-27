@@ -44,8 +44,16 @@ let node_fin s = if s.st = "landed" then `String "node_fin" else `Null
 
 let opt_int = function Some n -> `Int n | None -> `Null
 
-let node_json _q e s deps (t : timing) =
+let explore_json s =
   `Assoc [
+    ("target", (match s.explore_target with Some t -> json_str t | None -> `Null));
+    ("max_iterations", opt_int s.explore_max_iterations);
+    ("iterations", `Int s.explore_iterations);
+    ("outcome", (match s.explore_outcome with Some o -> json_str o | None -> `Null));
+  ]
+
+let node_json _q e s deps (t : timing) =
+  let base = [
     ("node", json_str e); ("kind", json_str (node_kind_to_string s.node_kind));
     ("state", json_str s.st); ("fin", node_fin s); ("cycle", `Int s.cycle);
     ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
@@ -65,7 +73,11 @@ let node_json _q e s deps (t : timing) =
        ("since", json_str s.blocked_since)] else `Null));
     ("changes", (match commit_changes s.last_commit with
        | Some xs -> `List xs | None -> `Null)); (* null = unsure *)
-  ]
+  ] in
+  let fields =
+    if s.node_kind = Explore then base @ [("explore", explore_json s)]
+    else base in
+  `Assoc fields
 
 let node_verdict quest e s deps t =
   match node_json quest e s deps t with

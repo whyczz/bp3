@@ -591,6 +591,51 @@ let case_fold_reads_node_kind_and_human_gate_yolo_approval _ =
   assert_equal (Some "human-approved-llm-yolo") s_gate.Store.approved_decider;
   assert_equal "picked B" s_gate.Store.approved_reason
 
+let case_doc_only_violations_enforces_docs_prefix_and_todo_node_md _ =
+  let states = function
+    | "d1" -> Some "landed"
+    | "c2" -> Some "todo"
+    | "r1" -> Some "todo"
+    | _ -> None in
+  assert_equal (Error (Names.e_doc_only_node, ["src/quest/main.ml"]))
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:true ["docs/quests/demo/research/r1/REPORT.md"; "src/quest/main.ml"]);
+  assert_equal (Error (Names.e_doc_only_node, ["GRADING.md"]))
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:false ["GRADING.md"]);
+  assert_equal (Error (Names.e_protected_file, ["docs/quests/demo/nodes/r1/NODE.md"]))
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:false ["docs/quests/demo/nodes/r1/NODE.md"]);
+  assert_equal (Error (Names.e_protected_file, ["docs/quests/demo/nodes/d1/NODE.md"]))
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:false ["docs/quests/demo/nodes/d1/NODE.md"]);
+  assert_equal (Error (Names.e_protected_file, ["docs/quests/demo/nodes/unknown/NODE.md"]))
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:false ["docs/quests/demo/nodes/unknown/NODE.md"]);
+  assert_equal (Ok ())
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:false
+       ["docs/quests/demo/research/r1/REPORT.md"; "docs/quests/demo/QUEST.md";
+        "docs/quests/demo/nodes/c2/NODE.md"]);
+  assert_equal (Ok ())
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:true ["docs/quests/demo/nodes/d1/NODE.md"])
+
+let case_fold_reads_explore_target_max_iterations_iterate_count_and_outcome _ =
+  let (s, _, _) = Store.fold_ledger (text [
+    line [ jstr "edge" "create"; jstr "to" "todo"; jstr "node_kind" "explore";
+           jstr "target" "make check < 10s"; ("max_iterations", `Int 2) ];
+    line [ jstr "edge" "iterate"; jstr "from" "todo"; jstr "to" "todo"; jstr "reason" "run 1: 14.2s" ];
+    line [ jstr "edge" "iterate"; jstr "from" "todo"; jstr "to" "todo"; jstr "reason" "run 2: 8.7s" ];
+    line [ jstr "edge" "handoff"; jstr "from" "todo"; jstr "to" "landed";
+           jstr "commit" "abc1234"; jstr "outcome" "hit"; jstr "reason" "8.7s verified" ] ]) in
+  assert_equal Store.Explore s.Store.node_kind;
+  assert_equal (Some "make check < 10s") s.Store.explore_target;
+  assert_equal (Some 2) s.Store.explore_max_iterations;
+  assert_equal 2 s.Store.explore_iterations;
+  assert_equal (Some "hit") s.Store.explore_outcome;
+  assert_equal "landed" s.Store.st
+
 (* ---------- the longest-copy rule ---------- *)
 
 let case_pick_longest_keeps_the_copy_with_the_most_lines _ =
@@ -697,6 +742,8 @@ let () =
        "case_decider_of_string_maps_human_and_yolo_and_defaults_agent" >:: case_decider_of_string_maps_human_and_yolo_and_defaults_agent;
        "case_protected_violations_blocks_locked_paths_unless_allowed" >:: case_protected_violations_blocks_locked_paths_unless_allowed;
        "case_fold_reads_node_kind_and_human_gate_yolo_approval" >:: case_fold_reads_node_kind_and_human_gate_yolo_approval;
+       "case_doc_only_violations_enforces_docs_prefix_and_todo_node_md" >:: case_doc_only_violations_enforces_docs_prefix_and_todo_node_md;
+       "case_fold_reads_explore_target_max_iterations_iterate_count_and_outcome" >:: case_fold_reads_explore_target_max_iterations_iterate_count_and_outcome;
        "case_pick_longest_keeps_the_copy_with_the_most_lines" >:: case_pick_longest_keeps_the_copy_with_the_most_lines;
        "case_pick_longest_breaks_a_tie_in_favor_of_the_earlier_canonical_copy" >:: case_pick_longest_breaks_a_tie_in_favor_of_the_earlier_canonical_copy;
        "case_pick_longest_reads_no_copy_as_empty_at_the_canonical_path" >:: case_pick_longest_reads_no_copy_as_empty_at_the_canonical_path;

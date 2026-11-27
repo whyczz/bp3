@@ -715,6 +715,70 @@ q kinds-demo n kblk e block --reason "stuck" >/dev/null
 if out=$(BP3_DECIDER=human-approved-llm-yolo q kinds-demo n kblk e resume --reason "try yolo resume" 2>&1); then fail "yolo decider allowed resume"; fi
 echo "$out" | jq -e '.error.code == "E_HUMAN_REQUIRED"' >/dev/null || fail "yolo decider resume refusal: $out"
 
+# --- dag-contracts research.1: Research + Explore docs-only, downstream todo NODE.md, iterate bound, outcome ---
+out=$(q kinds-demo c r1 --kind research)
+echo "$out" | jq -e '.kind == "research" and .legal_edges == ["handoff","block","delete"]' >/dev/null || fail "research kind: $out"
+q kinds-demo c c2 --depends-on r1 >/dev/null
+# Research refuses src/ even with --allow-protected:
+mkdir -p src/quest
+printf 'let x = 1\n' > src/quest/leak.ml && git add src/quest/leak.ml && git commit -qm "research touches src"
+C_SRC=$(git rev-parse HEAD)
+if out=$(q kinds-demo n r1 e handoff --commit "$C_SRC" --allow-protected --reason "oops" 2>&1); then fail "research src accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DOC_ONLY_NODE" and (.error.facts.paths | index("src/quest/leak.ml") != null)' >/dev/null || fail "research src code: $out"
+# Research refuses landed node's NODE.md and own NODE.md:
+mkdir -p docs/quests/kinds-demo/nodes/kd docs/quests/kinds-demo/nodes/r1 docs/quests/kinds-demo/nodes/c2 docs/quests/kinds-demo/research/r1
+printf 'rewrite landed\n' > docs/quests/kinds-demo/nodes/kd/NODE.md && git add docs/quests/kinds-demo/nodes/kd/NODE.md && git commit -qm "touch landed node md"
+C_LANDED_MD=$(git rev-parse HEAD)
+if out=$(q kinds-demo n r1 e handoff --commit "$C_LANDED_MD" --reason "rewrite history" 2>&1); then fail "research landed NODE.md accepted"; fi
+echo "$out" | jq -e '.error.code == "E_PROTECTED_FILE" and (.error.facts.paths | index("docs/quests/kinds-demo/nodes/kd/NODE.md") != null)' >/dev/null || fail "research landed NODE.md code: $out"
+printf 'edit self\n' > docs/quests/kinds-demo/nodes/r1/NODE.md && git add docs/quests/kinds-demo/nodes/r1/NODE.md && git commit -qm "touch own node md"
+C_SELF_MD=$(git rev-parse HEAD)
+if out=$(q kinds-demo n r1 e handoff --commit "$C_SELF_MD" --reason "edit own spec" 2>&1); then fail "research own NODE.md accepted"; fi
+echo "$out" | jq -e '.error.code == "E_PROTECTED_FILE" and (.error.facts.paths | index("docs/quests/kinds-demo/nodes/r1/NODE.md") != null)' >/dev/null || fail "research own NODE.md code: $out"
+# Research allows report + QUEST.md + downstream todo c2/NODE.md and auto-lands:
+printf '# Research Report\n' > docs/quests/kinds-demo/research/r1/REPORT.md
+printf '# Updated c2 spec\n' > docs/quests/kinds-demo/nodes/c2/NODE.md
+printf '# Updated quest\n' > docs/quests/kinds-demo/QUEST.md
+git add docs/quests/kinds-demo/research/r1/REPORT.md docs/quests/kinds-demo/nodes/c2/NODE.md docs/quests/kinds-demo/QUEST.md
+git commit -qm "research report and c2 spec"
+C_RES_OK=$(git rev-parse HEAD)
+out=$(q kinds-demo n r1 e handoff --commit "$C_RES_OK" --reason "grounded c2 spec")
+echo "$out" | jq -e '.ok == true and .kind == "research" and .state == "landed" and .fin == "node_fin"' >/dev/null || fail "research handoff auto-land: $out"
+
+# Explore: requires --target, enforces --max-iterations on iterate, docs-only, requires --outcome on handoff:
+if out=$(q kinds-demo c ex-bad --kind explore 2>&1); then fail "explore without --target accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "explore missing target code: $out"
+if out=$(q kinds-demo c ex-bad2 --kind explore --target "fast" --max-iterations 0 2>&1); then fail "explore max-iterations 0 accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "explore bad max-iterations code: $out"
+out=$(q kinds-demo c ex1 --kind explore --target "make check < 10s" --max-iterations 2)
+echo "$out" | jq -e '.kind == "explore" and .legal_edges == ["iterate","handoff","block","delete"] and .explore.target == "make check < 10s" and .explore.max_iterations == 2 and .explore.iterations == 0 and .explore.outcome == null' >/dev/null || fail "explore create: $out"
+if out=$(q kinds-demo n c2 e iterate --note "wrong kind" 2>&1); then fail "iterate on code node accepted"; fi
+echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE"' >/dev/null || fail "iterate on code node code: $out"
+out=$(q kinds-demo n ex1 e iterate --note "run 1: 14.2s")
+echo "$out" | jq -e '.ok == true and .state == "todo" and .explore.iterations == 1 and .explore.max_iterations == 2' >/dev/null || fail "explore iterate 1: $out"
+out=$(q kinds-demo n ex1 e iterate --note "run 2: 8.7s")
+echo "$out" | jq -e '.ok == true and .state == "todo" and .explore.iterations == 2 and .explore.max_iterations == 2' >/dev/null || fail "explore iterate 2: $out"
+if out=$(q kinds-demo n ex1 e iterate --note "run 3" 2>&1); then fail "explore iterate past cap accepted"; fi
+echo "$out" | jq -e '.error.code == "E_EXPLORE_BOUND" and .error.facts.iterations == 2 and .error.facts.max_iterations == 2' >/dev/null || fail "explore bound code: $out"
+if out=$(q kinds-demo n ex1 e handoff --commit "$C_SRC" --outcome hit --reason "leaked code" 2>&1); then fail "explore src accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DOC_ONLY_NODE"' >/dev/null || fail "explore src code: $out"
+mkdir -p docs/quests/kinds-demo/explores/ex1
+printf '# Explore Report\n8.7s achieved\n' > docs/quests/kinds-demo/explores/ex1/REPORT.md
+printf '# Sharpened c2 spec after explore\n' > docs/quests/kinds-demo/nodes/c2/NODE.md
+git add docs/quests/kinds-demo/explores/ex1/REPORT.md docs/quests/kinds-demo/nodes/c2/NODE.md
+git commit -qm "explore report and c2 update"
+C_EX_OK=$(git rev-parse HEAD)
+if out=$(q kinds-demo n ex1 e handoff --commit "$C_EX_OK" --reason "missing outcome" 2>&1); then fail "explore handoff without outcome accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "explore missing outcome code: $out"
+out=$(q kinds-demo n ex1 e handoff --commit "$C_EX_OK" --outcome hit --reason "8.7s verified")
+echo "$out" | jq -e '.ok == true and .kind == "explore" and .state == "landed" and .fin == "node_fin" and .explore.outcome == "hit" and .explore.iterations == 2' >/dev/null || fail "explore handoff auto-land: $out"
+out=$(q kinds-demo n ex1 r)
+echo "$out" | jq -e '.explore.target == "make check < 10s" and .explore.max_iterations == 2 and .explore.iterations == 2 and .explore.outcome == "hit"' >/dev/null || fail "explore node read: $out"
+# Zero-iteration explore closes cleanly on handoff with --outcome inconclusive:
+q kinds-demo c ex2 --kind explore --target "quick feasibility check" >/dev/null
+out=$(q kinds-demo n ex2 e handoff --commit "$C_EX_OK" --outcome inconclusive --reason "single-pass check")
+echo "$out" | jq -e '.ok == true and .state == "landed" and .explore.iterations == 0 and .explore.max_iterations == null and .explore.outcome == "inconclusive"' >/dev/null || fail "zero-iteration explore: $out"
+
 # --- version guard: minor-ahead warns and writes; major-ahead refuses writes ---
 stamp_ledger() { # $1 quest $2 node $3 version
   local br="bp3/node/$1/$2" path="docs/quests/$1/nodes/$2/ledger.jsonl" tip idx led blob tree nt
