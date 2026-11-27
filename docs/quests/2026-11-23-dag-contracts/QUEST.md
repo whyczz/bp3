@@ -13,7 +13,7 @@ Upgrade `bp3`'s DAG from one-size-fits-all code commits to **five explicit node 
 - **`direct`** lands fast verified commits directly with no AI grade,
 - **`research`** searches the web/repo, commits a sourced report, and may refine downstream `todo` `NODE.md` / `QUEST.md` specs (docs-only, never touches `src/`),
 - **`explore`** runs bounded hands-on experiments (`--target`, `--max-iterations`, `--budget-min`), commits artifacts + `REPORT.md` under `docs/quests/<q>/explores/<node>/` (isolated from prod code), and closes with `--outcome hit | missed | inconclusive`, and
-- **`human-gate`** pauses cleanly in the DAG for `BP3_DECIDER=human approve` in interactive `/induct` — or lets `/induct-yolo` decide and keep moving via `approve --yolo --reason "..."` (recording `decider: "yolo"` honestly in the ledger, surfaced in `bp3 q r` and justified in the final check-in report) instead of stalling or abusing `block`/`resume`.
+- **`human-gate`** pauses cleanly in the DAG for `BP3_DECIDER=human approve` in interactive `/induct` — or lets `/induct-yolo` decide and keep moving via `BP3_DECIDER=human-approved-llm-yolo approve --reason "..."` (recording `decider: "human-approved-llm-yolo"` honestly in the ledger, surfaced in `bp3 q r` `yolo_approvals`, and justified in `LOG.md` + the final check-in report) instead of stalling or abusing `block`/`resume`.
 
 A small `E_PROTECTED_FILE` check on `handoff` mechanically blocks silent edits to `GRADING.md`, `CONSTRAINTS.md`, `scripts/receipt`, `scripts/red-first`, or a node's own `NODE.md` unless `--allow-protected` is passed. *(Owner killed `--owns` globs and `parallel_batches` on 2026-11-25 — parallelism happens across quests via `v0.6.0`–`v0.10.0` desks + Tiered CAS, not intra-quest `/swarm`.)*
 
@@ -26,7 +26,7 @@ Framed on 2026-11-23 during the post-`warden-v0` DAG engine review, and reshaped
 - **Killed `--owns` / `parallel_batches` (owner, 2026-11-25):** *"let's kill owns... i dont really use swarm huh, we parallelize over quests."* Cross-quest parallelism is already solved by `v0.6.0`–`v0.10.0` (central desks, Tiered CAS `merge-tree`, auto-cleanup, session-scoped statusline); inside a quest, work is mostly linear or light DAG BFS.
 - **Renamed `spike` -> `explore` with explicit targets & bounds (owner, 2026-11-25):** *"change spike to explore, terminology wise... experiments and reports, with a time or iteration bound, and a ideal target/direction to hit."*
 - **Added `research` node (owner, 2026-11-25):** searches web/repo, produces a sourced report, and is allowed to update downstream `todo` nodes' `NODE.md` specs.
-- **Renamed `gate` -> `human-gate` with explicit `/induct-yolo` pass-through (owner, 2026-11-25):** avoids colliding with "Acceptance gates" / "`make check-full` gate", and under `/induct-yolo` the LLM decides, passes the gate honestly (`approve --yolo`, logged as `decider: "yolo"` — never spoofing `BP3_DECIDER=human`), keeps moving, and justifies its call in `LOG.md` and the final check-in report.
+- **Renamed `gate` -> `human-gate` with explicit `/induct-yolo` decider env var (owner, 2026-11-25/26):** avoids colliding with "Acceptance gates" / "`make check-full` gate", and under `/induct-yolo` the LLM decides, passes the gate honestly via `BP3_DECIDER=human-approved-llm-yolo` (logged as `decider: "human-approved-llm-yolo"` — no new CLI flag, never spoofing `BP3_DECIDER=human`, and rejected by `bp3 release` / `resume` / `delete`), keeps moving, and justifies its call in `LOG.md` and the final check-in report.
 
 Sequencing (refreshed 2026-11-25 against `v0.10.0`):
 - **After** `docs/quests/2026-11-23-dag-fsm-v2/` (so all 5 flavors wire straight onto the lean `todo -> handed_off -> landed` FSM with git ancestry already enforced).
@@ -44,7 +44,7 @@ Measured ground (re-verified 2026-11-25 on `v0.10.0` from `src/quest/store.ml`, 
 | `node_kind` | typed OCaml variant `Code \| Direct \| Research \| Explore \| Human_gate` declared via `--kind` at node creation (default `Code`), stored in the node create ledger line |
 | `Research` | docs-only node (`--kind research`): searches web/repo, commits a sourced report (`docs/quests/<q>/research/<node>/` or `docs/dossiers/`), and may edit `QUEST.md`, `LOG.md`, and downstream `todo` `NODE.md` files; refuses code edits (`E_DOC_ONLY_NODE`) |
 | `Explore` | bounded experiment node (`--kind explore --target "..." [--max-iterations N] [--budget-min M]`): commits reproducible experiments + `REPORT.md` under `docs/quests/<q>/explores/<node>/` (refuses prod code edits with `E_DOC_ONLY_NODE`), tracks iterations via `e iterate` (hard stop at `max_iterations`), and closes with `--outcome hit \| missed \| inconclusive` |
-| `Human_gate` | generic human decision checkpoint (`--kind human-gate`): takes `approve` gated by `BP3_DECIDER=human` (`decider: "human"`) or `--yolo` (`decider: "yolo"`, for unattended `/induct-yolo`, surfaced in `bp3 q r` `yolo_approvals` and justified in the final report); bare `approve` refuses with `E_HUMAN_REQUIRED`; lands with `commit = None`, never trips Warden `human_steer` |
+| `Human_gate` | generic human decision checkpoint (`--kind human-gate`): takes `approve` gated by `BP3_DECIDER=human` (`decider: "human"`) or `BP3_DECIDER=human-approved-llm-yolo` (`decider: "human-approved-llm-yolo"`, for unattended `/induct-yolo`, surfaced in `bp3 q r` `yolo_approvals` and justified in the final report); unset/other `BP3_DECIDER` refuses with `E_HUMAN_REQUIRED`; lands with `commit = None`, never trips Warden `human_steer` |
 | `protected_files` | built-in lock list (`GRADING.md`, `CONSTRAINTS.md`, `scripts/receipt`, `scripts/red-first`, and the node's own `NODE.md`, plus any non-`todo` `NODE.md` on `Research`) refused on `handoff` with `E_PROTECTED_FILE` unless `--allow-protected` is explicitly passed |
 | `E_DOC_ONLY_NODE` | typed refusal on `handoff` when a `Research` or `Explore` commit touches a non-`docs/` path (e.g. `src/`, `bin/`, `scripts/`) |
 | `E_EXPLORE_BOUND` | typed refusal on `e iterate` when an `Explore` node has already reached `max_iterations` (guiding the caller to write `REPORT.md` and close with `handoff --outcome ...`) |
@@ -59,7 +59,7 @@ Measured ground (re-verified 2026-11-25 on `v0.10.0` from `src/quest/store.ml`, 
 | `e iterate --note <text>` | `bp3 q <q> n <n> e iterate` | optional append-only iteration log for `Explore` nodes; refuses past `max_iterations` with `E_EXPLORE_BOUND` |
 | `--outcome hit\|missed\|inconclusive` | `bp3 q <q> n <n> e handoff` (for `Explore`) | required on `Explore` handoff; all three outcomes land cleanly (`node_fin`) |
 | `--allow-protected` | `bp3 q <q> n <n> e handoff` | explicit opt-in to bypass `E_PROTECTED_FILE` when a node intentionally updates a governance/gate file |
-| `BP3_DECIDER=human` or `--yolo` | env var / flag on `Human_gate` `approve` edge | bare `approve` refuses with `E_HUMAN_REQUIRED`; `BP3_DECIDER=human` logs `decider: "human"`; `--yolo` (for `/induct-yolo`) logs `decider: "yolo"` so the LLM can decide, keep moving, and justify the decision in `LOG.md` + the final check-in report (never spoofing `human`; `bp3 release` remains strictly `BP3_DECIDER=human`) |
+| `BP3_DECIDER=human` or `BP3_DECIDER=human-approved-llm-yolo` | env var on `Human_gate` `approve` edge (`src/quest/store.ml:50`) | unset/other values refuse with `E_HUMAN_REQUIRED`; `human` logs `decider: "human"`; `human-approved-llm-yolo` (for `/induct-yolo`) logs `decider: "human-approved-llm-yolo"` so the LLM can decide, keep moving, and justify the decision in `LOG.md` + the final check-in report. Strictly scoped to `human-gate` `approve`: `bp3 release`, `resume`, and `delete` of blocked nodes remain strictly `BP3_DECIDER=human` |
 
 ## Outputs
 
@@ -67,7 +67,7 @@ Measured ground (re-verified 2026-11-25 on `v0.10.0` from `src/quest/store.ml`, 
 |---|---|
 | `kind` (+ `explore` / `human-gate` metadata) on `bp3 q <q> n <n> r` and `bp3 q r <q>` | `"kind": "explore", "explore": {"target": "...", "max_iterations": 3, "iterations": 2, "budget_min": 15, "outcome": "hit"}`; quest rollup lists `yolo_approvals: [{"node": "g1", "reason": "..."}]` |
 | `E_PROTECTED_FILE` / `E_DOC_ONLY_NODE` / `E_EXPLORE_BOUND` | typed refusals naming offending paths or iteration cap |
-| 5 clean node lifecycles | `Code` (handoff + cold grade), `Direct` (handoff -> landed), `Research` (docs-only report + downstream `todo` `NODE.md` updates -> landed), `Explore` (bounded experiments + report + outcome -> landed), `Human_gate` (`BP3_DECIDER=human` or `--yolo` `approve` -> landed) |
+| 5 clean node lifecycles | `Code` (handoff + cold grade), `Direct` (handoff -> landed), `Research` (docs-only report + downstream `todo` `NODE.md` updates -> landed), `Explore` (bounded experiments + report + outcome -> landed), `Human_gate` (`BP3_DECIDER=human` or `BP3_DECIDER=human-approved-llm-yolo` `approve` -> landed) |
 
 ## Acceptance gates
 
@@ -88,10 +88,11 @@ kinds.1    bp3 q demo c c1   # --kind defaults to code
            bp3 q demo c d1 --kind direct
            handoff d1 --commit $C_DOC -> ok: true, state: "landed" (no AI grade)
            bp3 q demo c g1 --kind human-gate --depends-on d1
-           approve g1 without BP3_DECIDER=human or --yolo -> exit 1, E_HUMAN_REQUIRED
+           approve g1 with BP3_DECIDER unset -> exit 1, E_HUMAN_REQUIRED
            BP3_DECIDER=human bp3 q demo n g1 e approve --reason "go with option B" -> state: "landed", decider: "human"
            bp3 q demo c g2 --kind human-gate --depends-on g1
-           bp3 q demo n g2 e approve --yolo --reason "chose B: faster, reversible" -> state: "landed", decider: "yolo" (listed in bp3 q r yolo_approvals)
+           BP3_DECIDER=human-approved-llm-yolo bp3 q demo n g2 e approve --reason "chose B: faster, reversible" -> state: "landed", decider: "human-approved-llm-yolo" (listed in bp3 q r yolo_approvals)
+           BP3_DECIDER=human-approved-llm-yolo bp3 release demo -> exit 1, E_HUMAN_REQUIRED (release stays strictly human)
 
 research.1 bp3 q demo c r1 --kind research
            handoff r1 touching src/quest/main.ml -> exit 1, E_DOC_ONLY_NODE
