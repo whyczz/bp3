@@ -26,7 +26,7 @@ for shell_file in "$root/completions/_bp3" "$root/completions/bp3.bash"; do
   for edge in $edges; do
     grep -q "\"$edge\"" "$main_ml" || fail "edge $edge in $shell_file not in main.ml/cli.ml"
   done
-  for edge in handoff grade land block resume; do
+  for edge in handoff grade land approve iterate block resume; do
     echo "$edges" | grep -qx -- "$edge" || fail "edge $edge in main.ml/cli.ml not in $shell_file"
   done
   for verb in c create r read u update d delete; do
@@ -79,8 +79,14 @@ has "$out" parser-fix; has "$out" skill-probe
 out=$(_bp3_candidates q toy-drive r "parser-")
 has "$out" parser-fix; lacks "$out" skill-probe
 out=$(_bp3_candidates q toy-drive u parser-fix "")
-for edge in handoff grade land block resume; do has "$out" "$edge"; done
+for edge in handoff grade land approve iterate block resume; do has "$out" "$edge"; done
 lacks "$out" verify
+out=$(_bp3_candidates q toy-drive c new-node "--")
+for fl in --kind --allow-protected --target --max-iterations --outcome --note; do has "$out" "$fl"; done
+out=$(_bp3_candidates q toy-drive c new-node --kind "")
+for k in code direct research explore human-gate; do has "$out" "$k"; done
+out=$(_bp3_candidates q toy-drive u parser-fix handoff --outcome "")
+for o in hit missed inconclusive; do has "$out" "$o"; done
 out=$(_bp3_candidates q toy-drive r parser-fix "--f")
 has "$out" --format; lacks "$out" --reason
 out=$(_bp3_candidates q toy-drive r parser-fix --format "")
@@ -119,8 +125,14 @@ if command -v zsh >/dev/null 2>&1; then
   out=$(zcand q toy-drive r "")
   has "$out" parser-fix; has "$out" skill-probe
   out=$(zcand q toy-drive u parser-fix "")
-  for edge in handoff grade land block resume; do has "$out" "$edge"; done
+  for edge in handoff grade land approve iterate block resume; do has "$out" "$edge"; done
   lacks "$out" verify
+  out=$(zcand q toy-drive c new-node "--")
+  for fl in --kind --allow-protected --target --max-iterations --outcome --note; do has "$out" "$fl"; done
+  out=$(zcand q toy-drive c new-node --kind "")
+  for k in code direct research explore human-gate; do has "$out" "$k"; done
+  out=$(zcand q toy-drive u parser-fix handoff --outcome "")
+  for o in hit missed inconclusive; do has "$out" "$o"; done
   out=$(zcand q toy-drive r parser-fix "--f")
   has "$out" --format
   out=$(zcand "")

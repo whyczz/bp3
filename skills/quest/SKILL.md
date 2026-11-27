@@ -175,10 +175,21 @@ hands-on demo is a different thing: that is `warden`'s job.
 | Field | Carries |
 |---|---|
 | Intent | the bounded contribution |
+| Kind | `code` (default) \| `direct` \| `research` \| `explore` \| `human-gate` |
 | Lane | micro \| standard \| high-blast-radius |
 | Output | an artifact someone can inspect |
 | Acceptance | a check that fails today, with its expected observation |
 | Depends on | prior nodes, exact commits, or none |
+
+Choose the node flavor (`--kind`) to match the work:
+
+| Kind | Lifecycle & contract | When to use |
+|---|---|---|
+| `code` | `todo -> handed_off -> landed` (cold grade; refuses `E_PROTECTED_FILE` unless `--allow-protected`) | Default for implementation, refactor, and skill nodes |
+| `direct` | `todo -> landed` on verified `handoff` (no AI grade; `E_PROTECTED_FILE` still active) | Tiny verified fixes or mechanical chores that do not warrant a cold grader |
+| `research` | `todo -> landed` on docs-only `handoff` (`E_DOC_ONLY_NODE` outside `docs/`; may refine downstream `todo` `NODE.md`/`QUEST.md`, own/non-`todo` `NODE.md` locked) | External/codebase research that grounds downstream specs |
+| `explore` | `todo` -> `e iterate --note` (capped by `--max-iterations` -> `E_EXPLORE_BOUND`) -> `handoff --outcome hit\|missed\|inconclusive` (docs-only under `docs/quests/<q>/explores/<node>/`, may refine downstream `todo` specs) | Bounded hands-on prototypes or benchmarks aimed at `--target` |
+| `human-gate` | `todo -> landed` on `e approve --reason` (no commit; `BP3_DECIDER=human`, or `BP3_DECIDER=human-approved-llm-yolo` under `induct-yolo`) | Explicit decision checkpoints; convention: place a `human-gate` after `research` or `explore` nodes that refine downstream specs |
 
 ## File shape
 

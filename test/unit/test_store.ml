@@ -206,7 +206,7 @@ let law_fold_ignores_event_lines_spliced_anywhere_in_a_ledger =
 
 (* ---------- ledger lines ---------- *)
 
-let fixed_id run_id = { Store.harness = "muse-code"; model = "m-1"; decider_human = false; incomplete = false; run_id }
+let fixed_id run_id = { Store.harness = "muse-code"; model = "m-1"; decider = Store.Agent; decider_human = false; incomplete = false; run_id }
 
 let decode l = Yojson.Safe.from_string l
 let field j k = Yojson.Safe.Util.member k j
@@ -244,7 +244,7 @@ let law_ledger_line_decodes_back_to_the_same_fields_it_encoded =
     gen_ledger_fields
     (fun ((e, from, to_, cycle, commit, verdict, reason, (harness, model), run_id), (checkpoint, extra)) ->
       let extra = List.sort_uniq (fun (a, _) (b, _) -> compare a b) extra in
-      let id = { Store.harness; model; decider_human = false; incomplete = false; run_id } in
+      let id = { Store.harness; model; decider = Store.Agent; decider_human = false; incomplete = false; run_id } in
       let l = Clock.with_fixed 1_795_000_000. (fun () ->
           Store.ledger_line ~edge:e ~from ~to_ ~cycle ~commit ~verdict ~reason ~id ?checkpoint
             ~extra:(List.map (fun (k, v) -> (k, `String v)) extra) ()) in
@@ -541,9 +541,100 @@ let case_fold_reads_two_edge_auto_land_and_timing _ =
   assert_equal (Some 120) t.Store.t_wall;
   assert_equal [ ("handed_off", 120); ("todo", 60) ] t.Store.t_dwell
 
-let char_plan_knobs_read_any_required_false_as_grade_optional_when_a_grade_key_exists _ =
+let case_plan_knobs_scope_required_false_to_its_own_section _ =
   let k = Store.plan_knobs_from_text "grade:\n  required: true\nverify:\n  required: false\n" in
-  assert_bool "grade reads optional" (not k.Store.grade_required)
+  assert_bool "grade stays required when only verify.required is false" k.Store.grade_required;
+  assert_bool "verify becomes optional" (not k.Store.verify_required);
+  let k2 = Store.plan_knobs_from_text "grade:\n  required: false # comment\nland:   manual # trailing\n" in
+  assert_bool "grade.required false honored with comment" (not k2.Store.grade_required);
+  assert_bool "land: manual honored with extra spaces and comment" (not k2.Store.auto_land)
+
+let case_node_kind_roundtrip_and_legal_edges _ =
+  List.iter (fun (s, k) ->
+      assert_equal ~msg:s (Some k) (Store.node_kind_of_string s);
+      assert_equal ~printer:Fun.id s (Store.node_kind_to_string k))
+    [ ("code", Store.Code); ("direct", Store.Direct); ("research", Store.Research);
+      ("explore", Store.Explore); ("human-gate", Store.Human_gate) ];
+  assert_equal None (Store.node_kind_of_string "spike");
+  assert_equal [ "approve"; "block"; "delete" ] (Store.legal_edges_for Store.Human_gate "todo");
+  assert_equal [ "iterate"; "handoff"; "block"; "delete" ] (Store.legal_edges_for Store.Explore "todo");
+  assert_equal [ "handoff"; "block"; "delete" ] (Store.legal_edges_for Store.Research "todo");
+  assert_equal [ "handoff"; "block"; "delete" ] (Store.legal_edges_for Store.Direct "todo");
+  assert_equal [] (Store.legal_edges_for Store.Human_gate "landed")
+
+let case_decider_of_string_maps_human_and_yolo_and_defaults_agent _ =
+  assert_equal Store.Human (Store.decider_of_string (Some "human"));
+  assert_equal Store.Human_approved_llm_yolo (Store.decider_of_string (Some "human-approved-llm-yolo"));
+  assert_equal Store.Agent (Store.decider_of_string (Some "yolo"));
+  assert_equal Store.Agent (Store.decider_of_string None)
+
+let case_protected_violations_blocks_locked_paths_unless_allowed _ =
+  let bad = Store.protected_violations ~quest:"q1" ~node:"n1" ~allow_protected:false
+    [ "src/quest/main.ml"; "GRADING.md"; "docs/quests/q1/nodes/n1/NODE.md"; "scripts/receipt" ] in
+  assert_equal [ "GRADING.md"; "docs/quests/q1/nodes/n1/NODE.md"; "scripts/receipt" ] bad;
+  let ok = Store.protected_violations ~quest:"q1" ~node:"n1" ~allow_protected:true
+    [ "GRADING.md"; "CONSTRAINTS.md" ] in
+  assert_equal [] ok;
+  let clean = Store.protected_violations ~quest:"q1" ~node:"n1" ~allow_protected:false
+    [ "src/quest/main.ml"; "docs/quests/q1/nodes/n2/NODE.md" ] in
+  assert_equal [] clean
+
+let case_fold_reads_node_kind_and_human_gate_yolo_approval _ =
+  let (s_leg, _, _) = Store.fold_ledger (text [ line [ jstr "edge" "create"; jstr "to" "todo"; jstr "goal_type" "direct" ] ]) in
+  assert_equal Store.Direct s_leg.Store.node_kind;
+  let (s_gate, _, _) = Store.fold_ledger (text [
+    line [ jstr "edge" "create"; jstr "to" "todo"; jstr "node_kind" "human-gate" ];
+    line [ jstr "edge" "approve"; jstr "from" "todo"; jstr "to" "landed";
+           jstr "decider" "human-approved-llm-yolo"; jstr "reason" "picked B" ] ]) in
+  assert_equal Store.Human_gate s_gate.Store.node_kind;
+  assert_equal "landed" s_gate.Store.st;
+  assert_equal (Some "human-approved-llm-yolo") s_gate.Store.approved_decider;
+  assert_equal "picked B" s_gate.Store.approved_reason
+
+let case_doc_only_violations_enforces_docs_prefix_and_todo_node_md _ =
+  let states = function
+    | "d1" -> Some "landed"
+    | "c2" -> Some "todo"
+    | "r1" -> Some "todo"
+    | _ -> None in
+  assert_equal (Error (Names.e_doc_only_node, ["src/quest/main.ml"]))
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:true ["docs/quests/demo/research/r1/REPORT.md"; "src/quest/main.ml"]);
+  assert_equal (Error (Names.e_doc_only_node, ["GRADING.md"]))
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:false ["GRADING.md"]);
+  assert_equal (Error (Names.e_protected_file, ["docs/quests/demo/nodes/r1/NODE.md"]))
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:false ["docs/quests/demo/nodes/r1/NODE.md"]);
+  assert_equal (Error (Names.e_protected_file, ["docs/quests/demo/nodes/d1/NODE.md"]))
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:false ["docs/quests/demo/nodes/d1/NODE.md"]);
+  assert_equal (Error (Names.e_protected_file, ["docs/quests/demo/nodes/unknown/NODE.md"]))
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:false ["docs/quests/demo/nodes/unknown/NODE.md"]);
+  assert_equal (Ok ())
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:false
+       ["docs/quests/demo/research/r1/REPORT.md"; "docs/quests/demo/QUEST.md";
+        "docs/quests/demo/nodes/c2/NODE.md"]);
+  assert_equal (Ok ())
+    (Store.doc_only_violations ~quest:"demo" ~self_node:"r1" ~node_state_of:states
+       ~allow_protected:true ["docs/quests/demo/nodes/d1/NODE.md"])
+
+let case_fold_reads_explore_target_max_iterations_iterate_count_and_outcome _ =
+  let (s, _, _) = Store.fold_ledger (text [
+    line [ jstr "edge" "create"; jstr "to" "todo"; jstr "node_kind" "explore";
+           jstr "target" "make check < 10s"; ("max_iterations", `Int 2) ];
+    line [ jstr "edge" "iterate"; jstr "from" "todo"; jstr "to" "todo"; jstr "reason" "run 1: 14.2s" ];
+    line [ jstr "edge" "iterate"; jstr "from" "todo"; jstr "to" "todo"; jstr "reason" "run 2: 8.7s" ];
+    line [ jstr "edge" "handoff"; jstr "from" "todo"; jstr "to" "landed";
+           jstr "commit" "abc1234"; jstr "outcome" "hit"; jstr "reason" "8.7s verified" ] ]) in
+  assert_equal Store.Explore s.Store.node_kind;
+  assert_equal (Some "make check < 10s") s.Store.explore_target;
+  assert_equal (Some 2) s.Store.explore_max_iterations;
+  assert_equal 2 s.Store.explore_iterations;
+  assert_equal (Some "hit") s.Store.explore_outcome;
+  assert_equal "landed" s.Store.st
 
 (* ---------- the longest-copy rule ---------- *)
 
@@ -646,7 +737,13 @@ let () =
        "case_plan_knobs_default_to_one_round_and_read_verify_none_as_optional" >:: case_plan_knobs_default_to_one_round_and_read_verify_none_as_optional;
        "case_plan_knobs_parse_land_auto_and_manual" >:: case_plan_knobs_parse_land_auto_and_manual;
        "case_fold_reads_two_edge_auto_land_and_timing" >:: case_fold_reads_two_edge_auto_land_and_timing;
-       "char_plan_knobs_read_any_required_false_as_grade_optional_when_a_grade_key_exists" >:: char_plan_knobs_read_any_required_false_as_grade_optional_when_a_grade_key_exists;
+       "case_plan_knobs_scope_required_false_to_its_own_section" >:: case_plan_knobs_scope_required_false_to_its_own_section;
+       "case_node_kind_roundtrip_and_legal_edges" >:: case_node_kind_roundtrip_and_legal_edges;
+       "case_decider_of_string_maps_human_and_yolo_and_defaults_agent" >:: case_decider_of_string_maps_human_and_yolo_and_defaults_agent;
+       "case_protected_violations_blocks_locked_paths_unless_allowed" >:: case_protected_violations_blocks_locked_paths_unless_allowed;
+       "case_fold_reads_node_kind_and_human_gate_yolo_approval" >:: case_fold_reads_node_kind_and_human_gate_yolo_approval;
+       "case_doc_only_violations_enforces_docs_prefix_and_todo_node_md" >:: case_doc_only_violations_enforces_docs_prefix_and_todo_node_md;
+       "case_fold_reads_explore_target_max_iterations_iterate_count_and_outcome" >:: case_fold_reads_explore_target_max_iterations_iterate_count_and_outcome;
        "case_pick_longest_keeps_the_copy_with_the_most_lines" >:: case_pick_longest_keeps_the_copy_with_the_most_lines;
        "case_pick_longest_breaks_a_tie_in_favor_of_the_earlier_canonical_copy" >:: case_pick_longest_breaks_a_tie_in_favor_of_the_earlier_canonical_copy;
        "case_pick_longest_reads_no_copy_as_empty_at_the_canonical_path" >:: case_pick_longest_reads_no_copy_as_empty_at_the_canonical_path;

@@ -396,7 +396,8 @@ for dir in "${core_dirs[@]}"; do
   assert grep -qF 'Follow the `induct` skill (`skills/induct/SKILL.md`)' "$iy"
   assert grep -qF 'procedure and rules as written' "$iy"
   assert test -z "$(grep -nE '^[0-9]+\. ' "$iy" || true)"
-  assert grep -qF '**Never attest**: `BP3_DECIDER` stays unset for the whole run.' "$iy"
+  # dag-contracts skills.1: BP3_DECIDER=human is never set; human-approved-llm-yolo is scoped to human-gate approve only
+  assert grep -qF '**Never attest as human**: `BP3_DECIDER=human` is never set' "$iy"
   assert grep -q 'Never take `resume` or `delete`, never promote, never push:' "$iy"
   assert grep -qF '**Park, never page**' "$iy"
   assert grep -q 'only its dependents\.$' "$iy"
@@ -547,5 +548,35 @@ done
 assert cmp -s "$repo/AGENTS.md" "$repo/CLAUDE.md"
 assert grep -qF 'E_MISSING_ANCESTOR' "$repo/AGENTS.md"
 assert grep -qF 'land: auto' "$repo/AGENTS.md"
+
+# dag-contracts skills.1: 5 node flavors, E_PROTECTED_FILE, E_DOC_ONLY_NODE, E_EXPLORE_BOUND, and human-gate yolo rail
+for dir in "${core_dirs[@]}"; do
+  qf="$dir/quest/SKILL.md" ic="$dir/induct/SKILL.md" iy="$dir/induct-yolo/SKILL.md"
+  assert grep -qF '`human-gate`' "$qf"
+  assert grep -qF 'place a `human-gate` after `research` or `explore`' "$qf"
+  assert grep -qF 'E_PROTECTED_FILE' "$qf"
+  assert grep -qF 'E_EXPLORE_BOUND' "$qf"
+  assert grep -qF 'E_PROTECTED_FILE' "$ic"
+  assert grep -qF 'E_DOC_ONLY_NODE' "$ic"
+  assert grep -qF 'E_EXPLORE_BOUND' "$ic"
+  assert grep -qF 'e iterate --note' "$ic"
+  assert grep -qF 'BP3_DECIDER=human-approved-llm-yolo' "$iy"
+  assert grep -qF 'yolo_approvals' "$iy"
+  assert grep -qF 'reversibility' "$iy"
+  assert grep -qF 'LOG.md' "$iy"
+done
+for dir in "${dev_dirs[@]}"; do
+  ub="$dir/using-bp3/SKILL.md"
+  assert grep -qF -- '--kind code|direct|research|explore|human-gate' "$ub"
+  assert grep -qF 'E_PROTECTED_FILE' "$ub"
+  assert grep -qF 'E_DOC_ONLY_NODE' "$ub"
+  assert grep -qF 'E_EXPLORE_BOUND' "$ub"
+  assert grep -qF 'BP3_DECIDER=human-approved-llm-yolo' "$ub"
+done
+assert cmp -s "$repo/AGENTS.md" "$repo/CLAUDE.md"
+assert grep -qF 'E_PROTECTED_FILE' "$repo/AGENTS.md"
+assert grep -qF 'E_EXPLORE_BOUND' "$repo/AGENTS.md"
+assert grep -qF 'e iterate --note' "$repo/AGENTS.md"
+assert grep -qF 'e approve --reason' "$repo/AGENTS.md"
 
 printf 'skills tests: ok (%s assertions)\n' "$checks"

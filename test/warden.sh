@@ -230,4 +230,10 @@ printf 'version = 1\nrepo = "warden-fx"\n\n[warden]\ngrade_wall_s = 400\n' > bac
 out_400=$(bp warden 2026-11-23-q3 --no-sessions)
 assert jq -e 'any(.findings[]; .rule == "cycle_outlier" and .node == "nslow" and .threshold == "> 400s grade wall")' <<< "$out_400" >/dev/null
 
+# 9. dag-contracts kinds.1: human-gate approval does NOT trip Warden human_steer
+bp q 2026-11-23-q3 c ngate --kind human-gate >/dev/null
+BP3_DECIDER=human bp q 2026-11-23-q3 n ngate e approve --reason "go with option B" >/dev/null
+out_gate=$(bp warden 2026-11-23-q3 --no-sessions)
+assert jq -e 'all(.findings[]; .rule != "human_steer")' <<< "$out_gate" >/dev/null
+
 printf 'warden tests: ok (%s assertions)\n' "$checks"

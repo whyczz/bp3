@@ -572,7 +572,8 @@ q brief-demo c bn >/dev/null; q brief-demo c bn2 >/dev/null; q brief-demo c bn3 
 mkdir -p docs/quests/brief-demo/nodes/bn
 printf '# bn\n\n## TL;DR\n\nt\n\n## Acceptance gates\n\nGATE-ROW-ONE\n\n## Diagram\n\nDIAGRAM-TEXT\n' > docs/quests/brief-demo/nodes/bn/NODE.md
 printf '# Grading\n\nRUN-THE-GATE\n' > GRADING.md
-git add -A; git commit -qm "bn: work"; A1=$(git rev-parse HEAD)   # -A: earlier sections leave fixtures untracked, and a handoff needs a clean tree
+git add -A; git commit -qm "bn: setup spec and grading"
+echo bn-code > bn-code.txt; git add bn-code.txt; git commit -qm "bn: work"; A1=$(git rev-parse HEAD)
 q brief-demo n bn e handoff --commit "$A1" --reason "work" >/dev/null
 out=$(q brief-demo n bn brief)
 echo "$out" | jq -e --arg c "$A1" '.ok == true and .quest == "brief-demo" and .node == "bn" and .cycle == 1 and .commit == $c and (.brief | type == "string")' >/dev/null || fail "brief shape: $out"
@@ -656,6 +657,141 @@ q bf-gate n n1 e handoff --commit "$BF_SHA" --reason "h" >/dev/null
 out=$(q bf-gate n n1 brief) || fail "brief with backpack failed: $out"
 echo "$out" | jq -r '.brief' | grep -qF "Repo gate (backpack.toml): echo g-manifest-gate" || fail "brief missing Repo gate: $out"
 git rm -qf backpack.toml && git commit -qm "chore: remove temp backpack.toml"
+
+# --- dag-contracts kinds.1: 5 node kinds, human-gate (human & human-approved-llm-yolo), E_PROTECTED_FILE ---
+q c kinds-demo >/dev/null
+out=$(q kinds-demo c kc)
+echo "$out" | jq -e '.kind == "code" and .legal_edges == ["handoff","block","delete"]' >/dev/null || fail "default code kind: $out"
+out=$(q kinds-demo c kd --kind direct)
+echo "$out" | jq -e '.kind == "direct"' >/dev/null || fail "direct kind: $out"
+out=$(q kinds-demo c kg1 --kind human-gate --depends-on kd)
+echo "$out" | jq -e '.kind == "human-gate" and .legal_edges == ["approve","block","delete"]' >/dev/null || fail "human-gate kind: $out"
+out=$(q kinds-demo c kg2 --kind human-gate --depends-on kg1)
+if out=$(q kinds-demo c kbad --kind bogus 2>&1); then fail "invalid --kind accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "invalid --kind code: $out"
+# Protected file edit (and rename!) refused unless --allow-protected:
+printf 'rule v1\n' > GRADING.md && git add GRADING.md && git commit -qm "add grading"
+printf 'rule v2\n' > GRADING.md && git add GRADING.md && git commit -qm "edit grading"
+PROT_SHA=$(git rev-parse HEAD)
+if out=$(q kinds-demo n kc e handoff --commit "$PROT_SHA" --reason "sneaky" 2>&1); then fail "protected edit accepted"; fi
+echo "$out" | jq -e '.error.code == "E_PROTECTED_FILE" and (.error.facts.paths | index("GRADING.md") != null)' >/dev/null || fail "protected edit code: $out"
+# Renaming a protected file is also blocked:
+git mv GRADING.md GRADING.moved.md && git commit -qm "rename grading"
+RENAME_PROT=$(git rev-parse HEAD)
+if out=$(q kinds-demo n kc e handoff --commit "$RENAME_PROT" --reason "rename sneak" 2>&1); then fail "protected rename accepted"; fi
+echo "$out" | jq -e '.error.code == "E_PROTECTED_FILE" and (.error.facts.paths | index("GRADING.md") != null)' >/dev/null || fail "protected rename code: $out"
+git mv GRADING.moved.md GRADING.md && git commit -qm "restore grading"
+# Merge commit (--no-ff) modifying a protected file is also caught (diff-tree -m --first-parent):
+git checkout -qb prot-merge-branch
+printf 'rule v3\n' > GRADING.md && git add GRADING.md && git commit -qm "branch edit grading"
+git checkout -q master
+git merge -q --no-ff prot-merge-branch -m "merge grading edit"
+MERGE_PROT=$(git rev-parse HEAD)
+git branch -qD prot-merge-branch
+if out=$(q kinds-demo n kc e handoff --commit "$MERGE_PROT" --reason "merge sneak" 2>&1); then fail "protected merge commit accepted"; fi
+echo "$out" | jq -e '.error.code == "E_PROTECTED_FILE" and (.error.facts.paths | index("GRADING.md") != null)' >/dev/null || fail "protected merge code: $out"
+# --allow-protected bypasses E_PROTECTED_FILE explicitly:
+out=$(q kinds-demo n kc e handoff --commit "$PROT_SHA" --allow-protected --reason "intentional rule update")
+echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "allow-protected handoff: $out"
+# Direct kind auto-lands on handoff without AI grade:
+echo direct-work > direct-w.txt && git add direct-w.txt && git commit -qm "direct work"
+DIR_SHA=$(git rev-parse HEAD)
+out=$(q kinds-demo n kd e handoff --commit "$DIR_SHA" --reason "direct verified")
+echo "$out" | jq -e '.ok == true and .kind == "direct" and .state == "landed" and .fin == "node_fin"' >/dev/null || fail "direct handoff auto-land: $out"
+# Human-gate: handoff illegal, bare approve refuses E_HUMAN_REQUIRED, human & human-approved-llm-yolo succeed:
+if out=$(q kinds-demo n kg1 e handoff --commit "$DIR_SHA" --reason "wrong edge" 2>&1); then fail "handoff on human-gate accepted"; fi
+echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE"' >/dev/null || fail "handoff on human-gate code: $out"
+if out=$(q kinds-demo n kg1 e approve --reason "pick B" 2>&1); then fail "bare approve accepted"; fi
+echo "$out" | jq -e '.error.code == "E_HUMAN_REQUIRED"' >/dev/null || fail "bare approve code: $out"
+out=$(BP3_DECIDER=human q kinds-demo n kg1 e approve --reason "pick B")
+echo "$out" | jq -e '.ok == true and .kind == "human-gate" and .state == "landed" and .fin == "node_fin" and .decider == "human" and .commit == null' >/dev/null || fail "human approve: $out"
+out=$(BP3_DECIDER=human-approved-llm-yolo q kinds-demo n kg2 e approve --reason "chose B: lower risk, reversible")
+echo "$out" | jq -e '.ok == true and .kind == "human-gate" and .state == "landed" and .fin == "node_fin" and .decider == "human-approved-llm-yolo"' >/dev/null || fail "yolo approve: $out"
+out=$(q r kinds-demo)
+echo "$out" | jq -e '.yolo_approvals == [{"node":"kg2","decider":"human-approved-llm-yolo","reason":"chose B: lower risk, reversible"}]' >/dev/null || fail "yolo_approvals rollup: $out"
+# Strictly scoped: resume on blocked node rejects BP3_DECIDER=human-approved-llm-yolo!
+q kinds-demo c kblk >/dev/null
+q kinds-demo n kblk e block --reason "stuck" >/dev/null
+if out=$(BP3_DECIDER=human-approved-llm-yolo q kinds-demo n kblk e resume --reason "try yolo resume" 2>&1); then fail "yolo decider allowed resume"; fi
+echo "$out" | jq -e '.error.code == "E_HUMAN_REQUIRED"' >/dev/null || fail "yolo decider resume refusal: $out"
+
+# --- dag-contracts research.1: Research + Explore docs-only, downstream todo NODE.md, iterate bound, outcome ---
+out=$(q kinds-demo c r1 --kind research)
+echo "$out" | jq -e '.kind == "research" and .legal_edges == ["handoff","block","delete"]' >/dev/null || fail "research kind: $out"
+q kinds-demo c c2 --depends-on r1 >/dev/null
+# Research refuses src/ even with --allow-protected:
+mkdir -p src/quest
+printf 'let x = 1\n' > src/quest/leak.ml && git add src/quest/leak.ml && git commit -qm "research touches src"
+C_SRC=$(git rev-parse HEAD)
+if out=$(q kinds-demo n r1 e handoff --commit "$C_SRC" --allow-protected --reason "oops" 2>&1); then fail "research src accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DOC_ONLY_NODE" and (.error.facts.paths | index("src/quest/leak.ml") != null)' >/dev/null || fail "research src code: $out"
+# Research refuses landed node's NODE.md and own NODE.md:
+mkdir -p docs/quests/kinds-demo/nodes/kd docs/quests/kinds-demo/nodes/r1 docs/quests/kinds-demo/nodes/c2 docs/quests/kinds-demo/research/r1
+printf 'rewrite landed\n' > docs/quests/kinds-demo/nodes/kd/NODE.md && git add docs/quests/kinds-demo/nodes/kd/NODE.md && git commit -qm "touch landed node md"
+C_LANDED_MD=$(git rev-parse HEAD)
+if out=$(q kinds-demo n r1 e handoff --commit "$C_LANDED_MD" --reason "rewrite history" 2>&1); then fail "research landed NODE.md accepted"; fi
+echo "$out" | jq -e '.error.code == "E_PROTECTED_FILE" and (.error.facts.paths | index("docs/quests/kinds-demo/nodes/kd/NODE.md") != null)' >/dev/null || fail "research landed NODE.md code: $out"
+printf 'edit self\n' > docs/quests/kinds-demo/nodes/r1/NODE.md && git add docs/quests/kinds-demo/nodes/r1/NODE.md && git commit -qm "touch own node md"
+C_SELF_MD=$(git rev-parse HEAD)
+if out=$(q kinds-demo n r1 e handoff --commit "$C_SELF_MD" --reason "edit own spec" 2>&1); then fail "research own NODE.md accepted"; fi
+echo "$out" | jq -e '.error.code == "E_PROTECTED_FILE" and (.error.facts.paths | index("docs/quests/kinds-demo/nodes/r1/NODE.md") != null)' >/dev/null || fail "research own NODE.md code: $out"
+# Research allows report + QUEST.md + downstream todo c2/NODE.md and auto-lands:
+printf '# Research Report\n' > docs/quests/kinds-demo/research/r1/REPORT.md
+printf '# Updated c2 spec\n' > docs/quests/kinds-demo/nodes/c2/NODE.md
+printf '# Updated quest\n' > docs/quests/kinds-demo/QUEST.md
+git add docs/quests/kinds-demo/research/r1/REPORT.md docs/quests/kinds-demo/nodes/c2/NODE.md docs/quests/kinds-demo/QUEST.md
+git commit -qm "research report and c2 spec"
+C_RES_OK=$(git rev-parse HEAD)
+out=$(q kinds-demo n r1 e handoff --commit "$C_RES_OK" --reason "grounded c2 spec")
+echo "$out" | jq -e '.ok == true and .kind == "research" and .state == "landed" and .fin == "node_fin"' >/dev/null || fail "research handoff auto-land: $out"
+
+# Explore: requires --target, enforces --max-iterations on iterate, docs-only, requires --outcome on handoff:
+if out=$(q kinds-demo c ex-bad --kind explore 2>&1); then fail "explore without --target accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "explore missing target code: $out"
+if out=$(q kinds-demo c ex-bad2 --kind explore --target "fast" --max-iterations 0 2>&1); then fail "explore max-iterations 0 accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "explore bad max-iterations code: $out"
+out=$(q kinds-demo c ex1 --kind explore --target "make check < 10s" --max-iterations 2)
+echo "$out" | jq -e '.kind == "explore" and .legal_edges == ["iterate","handoff","block","delete"] and .explore.target == "make check < 10s" and .explore.max_iterations == 2 and .explore.iterations == 0 and .explore.outcome == null' >/dev/null || fail "explore create: $out"
+if out=$(q kinds-demo n c2 e iterate --note "wrong kind" 2>&1); then fail "iterate on code node accepted"; fi
+echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE"' >/dev/null || fail "iterate on code node code: $out"
+out=$(q kinds-demo n ex1 e iterate --note "run 1: 14.2s")
+echo "$out" | jq -e '.ok == true and .state == "todo" and .explore.iterations == 1 and .explore.max_iterations == 2' >/dev/null || fail "explore iterate 1: $out"
+out=$(q kinds-demo n ex1 e iterate --note "run 2: 8.7s")
+echo "$out" | jq -e '.ok == true and .state == "todo" and .explore.iterations == 2 and .explore.max_iterations == 2' >/dev/null || fail "explore iterate 2: $out"
+if out=$(q kinds-demo n ex1 e iterate --note "run 3" 2>&1); then fail "explore iterate past cap accepted"; fi
+echo "$out" | jq -e '.error.code == "E_EXPLORE_BOUND" and .error.facts.iterations == 2 and .error.facts.max_iterations == 2' >/dev/null || fail "explore bound code: $out"
+if out=$(q kinds-demo n ex1 e handoff --commit "$C_SRC" --outcome hit --reason "leaked code" 2>&1); then fail "explore src accepted"; fi
+echo "$out" | jq -e '.error.code == "E_DOC_ONLY_NODE"' >/dev/null || fail "explore src code: $out"
+mkdir -p docs/quests/kinds-demo/explores/ex1
+printf '# Explore Report\n8.7s achieved\n' > docs/quests/kinds-demo/explores/ex1/REPORT.md
+printf '# Sharpened c2 spec after explore\n' > docs/quests/kinds-demo/nodes/c2/NODE.md
+git add docs/quests/kinds-demo/explores/ex1/REPORT.md docs/quests/kinds-demo/nodes/c2/NODE.md
+git commit -qm "explore report and c2 update"
+C_EX_OK=$(git rev-parse HEAD)
+if out=$(q kinds-demo n ex1 e handoff --commit "$C_EX_OK" --reason "missing outcome" 2>&1); then fail "explore handoff without outcome accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "explore missing outcome code: $out"
+out=$(q kinds-demo n ex1 e handoff --commit "$C_EX_OK" --outcome hit --reason "8.7s verified")
+echo "$out" | jq -e '.ok == true and .kind == "explore" and .state == "landed" and .fin == "node_fin" and .explore.outcome == "hit" and .explore.iterations == 2' >/dev/null || fail "explore handoff auto-land: $out"
+out=$(q kinds-demo n ex1 r)
+echo "$out" | jq -e '.explore.target == "make check < 10s" and .explore.max_iterations == 2 and .explore.iterations == 2 and .explore.outcome == "hit"' >/dev/null || fail "explore node read: $out"
+# Zero-iteration explore closes cleanly on handoff with --outcome inconclusive:
+q kinds-demo c ex2 --kind explore --target "quick feasibility check" >/dev/null
+out=$(q kinds-demo n ex2 e handoff --commit "$C_EX_OK" --outcome inconclusive --reason "single-pass check")
+echo "$out" | jq -e '.ok == true and .state == "landed" and .explore.iterations == 0 and .explore.max_iterations == null and .explore.outcome == "inconclusive"' >/dev/null || fail "zero-iteration explore: $out"
+# Explore --outcome missed also lands cleanly and node read reports changes for --no-ff merge commits:
+q kinds-demo c ex3 --kind explore --target "check missed path" >/dev/null
+out=$(q kinds-demo n ex3 e handoff --commit "$C_EX_OK" --outcome missed --reason "target not met")
+echo "$out" | jq -e '.ok == true and .state == "landed" and .explore.outcome == "missed"' >/dev/null || fail "explore missed outcome: $out"
+q kinds-demo c kmerge --kind direct >/dev/null
+git checkout -qb kmerge-br
+printf 'merged file\n' > merged-change.txt && git add merged-change.txt && git commit -qm "branch change"
+git checkout -q master
+git merge -q --no-ff kmerge-br -m "merge change"
+C_MERGE_OK=$(git rev-parse HEAD)
+git branch -qD kmerge-br
+q kinds-demo n kmerge e handoff --commit "$C_MERGE_OK" --reason "merge direct" >/dev/null
+out=$(q kinds-demo n kmerge r)
+echo "$out" | jq -e '(.changes | map(.path) | index("merged-change.txt")) != null' >/dev/null || fail "merge commit changes empty: $out"
 
 # --- version guard: minor-ahead warns and writes; major-ahead refuses writes ---
 stamp_ledger() { # $1 quest $2 node $3 version

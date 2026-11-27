@@ -6,8 +6,10 @@ open Gitx
 
 type flags = {
   reason : string option; commit : string option; verdict : string option;
-  target : string option; typ : string option; depends_on : string option;
-  fmt : string; verify_verdict : string option; mechanical : bool;
+  target : string option; typ : string option; kind : string option;
+  depends_on : string option; fmt : string; verify_verdict : string option;
+  mechanical : bool; allow_protected : bool;
+  max_iterations : int option; outcome : string option; note : string option;
 }
 
 let parse_flags args =
@@ -18,15 +20,23 @@ let parse_flags args =
     | "--verdict" :: v :: rest -> add acc "verdict" v rest
     | "--target" :: v :: rest -> add acc "target" v rest
     | "--type" :: v :: rest -> add acc "type" v rest
+    | "--kind" :: v :: rest -> add acc "kind" v rest
     | "--depends-on" :: v :: rest -> add acc "depends-on" v rest
     | "--format" :: v :: rest -> add acc "format" v rest
     | "--verify-verdict" :: v :: rest -> add acc "verify-verdict" v rest
+    | "--max-iterations" :: v :: rest -> add acc "max-iterations" v rest
+    | "--outcome" :: v :: rest -> add acc "outcome" v rest
+    | "--note" :: v :: rest -> add acc "note" v rest
     | "--mechanical" :: rest ->
         if acc.mechanical then usage "duplicate flag --mechanical"
         else loop { acc with mechanical = true } rest
+    | "--allow-protected" :: rest ->
+        if acc.allow_protected then usage "duplicate flag --allow-protected"
+        else loop { acc with allow_protected = true } rest
     | "--reason" :: [] | "--commit" :: [] | "--verdict" :: [] | "--target" :: []
-    | "--type" :: [] | "--depends-on" :: [] | "--format" :: []
-    | "--verify-verdict" :: [] ->
+    | "--type" :: [] | "--kind" :: [] | "--depends-on" :: [] | "--format" :: []
+    | "--verify-verdict" :: [] | "--max-iterations" :: [] | "--outcome" :: []
+    | "--note" :: [] ->
         usage "flag needs a value"
     | "--mode" :: _ -> usage mode_flag_usage
     | f :: _ when String.length f >= 7 && String.sub f 0 7 = "--mode=" ->
@@ -43,8 +53,21 @@ let parse_flags args =
     | "verdict" -> if acc.verdict <> None then usage "duplicate flag --verdict" else loop { acc with verdict = Some v } rest
     | "target" -> if acc.target <> None then usage "duplicate flag --target" else loop { acc with target = Some v } rest
     | "type" -> if acc.typ <> None then usage "duplicate flag --type" else loop { acc with typ = Some v } rest
+    | "kind" -> if acc.kind <> None then usage "duplicate flag --kind" else loop { acc with kind = Some v } rest
     | "depends-on" -> if acc.depends_on <> None then usage "duplicate flag --depends-on" else loop { acc with depends_on = Some v } rest
     | "verify-verdict" -> if acc.verify_verdict <> None then usage "duplicate flag --verify-verdict" else loop { acc with verify_verdict = Some v } rest
+    | "note" -> if acc.note <> None then usage "duplicate flag --note" else loop { acc with note = Some v } rest
+    | "max-iterations" ->
+        if acc.max_iterations <> None then usage "duplicate flag --max-iterations"
+        else
+          (match int_of_string_opt v with
+           | Some n when n >= 1 -> loop { acc with max_iterations = Some n } rest
+           | _ -> usage "--max-iterations must be a positive integer")
+    | "outcome" ->
+        if acc.outcome <> None then usage "duplicate flag --outcome"
+        else if v <> "hit" && v <> "missed" && v <> "inconclusive" then
+          usage "--outcome must be hit, missed, or inconclusive"
+        else loop { acc with outcome = Some v } rest
     | "format" ->
         if v <> "json" && v <> "table" && v <> "tree" then usage "--format must be json, table, or tree";
         loop { acc with fmt = v } rest
@@ -55,8 +78,9 @@ let parse_flags args =
     | [] -> n | "--format" :: _ :: r -> count (n + 1) r | _ :: r -> count n r in
   if count 0 args > 1 then usage "duplicate flag --format";
   loop { reason = None; commit = None; verdict = None; target = None;
-         typ = None; depends_on = None; fmt = "json";
-         verify_verdict = None; mechanical = false } args
+         typ = None; kind = None; depends_on = None; fmt = "json";
+         verify_verdict = None; mechanical = false; allow_protected = false;
+         max_iterations = None; outcome = None; note = None } args
 
 let split_flags args =
   (* separate positionals (before first --flag) from flags; any positional

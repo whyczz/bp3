@@ -23,15 +23,17 @@ Scope: active in git repos with `backpack.toml` at root (or when explicitly invo
   `induct`: `/induct` conducts a quest, `/quest` frames one,
   `/induct-yolo` runs unattended (G stands for goal and quest;
   bare "goal" collides across harnesses).
-- Doors: `bp3 q` (quest), `bp3 n` (claimed node), `bp3 e`
-  (claimed edge); the canonical address nests:
+- Doors: `bp3 q` (quest), `bp3 warden`, `bp3 release`, `bp3 harness desk`,
+  `bp3 db`, `bp3 repo`, `bp3 ticket`; the canonical node address nests:
   `bp3 q <quest> n <node> e <edge>`. One door per noun; the
-  retired `bp3 q` door refuses.
+  retired `bp3 g`, `bp3 n`, and `bp3 e` doors refuse.
 - Node states (where a node rests): todo, handed_off, approved,
-  landed, blocked, deleted. Quest lifecycle: proposed, active,
+  landed, blocked, deleted. Node kinds: code, direct, research,
+  explore, human-gate. Quest lifecycle: proposed, active,
   landed, canceled. Never archived, cancelled, aborted, killed.
 - Edges (one transition, executed by exactly one Run):
-  handoff, grade, verify, land, block, resume. A dep links
+  handoff, grade, land, approve, iterate, block, resume (standalone
+  `verify` is retired). A dep links
   nodes; a dep is not an edge. Stages: author, grade, fix,
   ready, landed, blocked, canceled.
 - Goal and quest: the container of work is a **goal** (`docs/quests/<goal>/QUEST.md`, `goal/<slug>` branch, finish word `goal_fin`); its DAG of nodes is the **quest** (`bp3 q` unchanged). Quest id/slug unchanged by the goal rename.

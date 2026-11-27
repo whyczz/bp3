@@ -27,7 +27,10 @@ General coding in this repo does not need this skill.
    (one node). Never read `state.yaml` or `ledger.jsonl` by hand
    to decide anything.
 2. Start a quest with `./bin/bp3 q c <quest> --type <goal_type>`,
-   then each node with `./bin/bp3 q <quest> c <node>`. State is
+   then each node with
+   `./bin/bp3 q <quest> c <node> [--kind code|direct|research|explore|human-gate]`
+   (`explore` nodes require `--target "<goal>"` and accept
+   `--max-iterations <n>`). State is
    written to bp3's state branches (`bp3/quest/<quest>`,
    `bp3/node/<quest>/<node>`), never to the working tree; QUEST.md
    and the node records are authored. `goal_type` is the plan in
@@ -45,15 +48,36 @@ General coding in this repo does not need this skill.
    `q <quest> dep <node> --depends-on <a,b> --reason <why>`.
 4. Take only legal moves: the verdict JSON's `legal_edges`
    lists them, cast as `./bin/bp3 q <quest> n <node> e <edge>`.
-   Default happy path is two edges (`land: auto`): from `todo`,
-   `handoff --commit <sha>` -> `handed_off`; from `handed_off`,
-   `grade --verdict ship|needs_fix` -> `landed` directly on `ship`
-   (or `approved` -> `land` under opt-in `land: manual` plans;
-   standalone `verify` is retired and refuses `E_USAGE`);
-   `block` from any of the three. `resume` is human-only, and
+   Default happy path for `code` nodes is two edges (`land: auto`):
+   from `todo`, `handoff --commit <sha>` -> `handed_off`; from
+   `handed_off`, `grade --verdict ship|needs_fix` -> `landed` directly
+   on `ship` (or `approved` -> `land` under opt-in `land: manual`
+   plans; standalone `verify` is retired and refuses `E_USAGE`);
+   `block` from any of the three. `handoff` refuses edits to protected
+   governance paths (`GRADING.md`, `CONSTRAINTS.md`, `scripts/receipt`,
+   `scripts/red-first`, or the node's own `NODE.md`) with
+   `E_PROTECTED_FILE` unless `--allow-protected` is passed.
+   Non-`code` node flavors:
+   - `direct`: `handoff --commit <sha>` auto-lands directly without a
+     cold grade.
+   - `research`: `handoff --commit <sha>` auto-lands; refuses any
+     non-`docs/` path (`E_DOC_ONLY_NODE`) and own or non-`todo`
+     `NODE.md` (`E_PROTECTED_FILE`), while allowing updates to
+     downstream `todo` `NODE.md` / `QUEST.md`.
+   - `explore`: `e iterate --note "<what>"` logs bounded attempts
+     (refuses `E_EXPLORE_BOUND` once `--max-iterations` is reached);
+     `handoff --commit <sha> --outcome hit|missed|inconclusive`
+     enforces the same docs-only + downstream-`todo` rules and
+     auto-lands.
+   - `human-gate`: `e approve --reason "<why>"` lands with no commit
+     when `BP3_DECIDER=human` (or `BP3_DECIDER=human-approved-llm-yolo`
+     under `induct-yolo`, surfaced in `bp3 q r <quest>`
+     `yolo_approvals`).
+   `resume` is strictly human-only (`BP3_DECIDER=human`), and
    `delete` (`./bin/bp3 q <quest> d <node>`) is the owner's
    call (the engine requires a human only to delete a blocked
-   node). Every move, `d` included, needs `--reason`; it is
+   node). Every move, `d` included, needs `--reason` (or `--note` for
+   `iterate`); it is
    recorded on the move's ledger line. Verdicts bind to the exact
    current commit. A
    `needs_fix` below the cycle cap returns the node to todo; at

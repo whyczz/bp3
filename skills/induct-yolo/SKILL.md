@@ -25,9 +25,20 @@ safe with no human in the room.
 
 ## No-human rails
 
-- **Never attest**: `BP3_DECIDER` stays unset for the whole run.
+- **Never attest as human**: `BP3_DECIDER=human` is never set (keep
+  `BP3_DECIDER` unset everywhere except `human-gate` `approve` below).
   Never take `resume` or `delete`, never promote, never push:
   `goal_fin` stays the owner gate.
+- **`human-gate` nodes (explicit LLM yolo decision)**: when a ready
+  `human-gate` node is reached with no human present, make the
+  decision and cast
+  `BP3_DECIDER=human-approved-llm-yolo bp3 q <quest> n <node> e approve --reason "..."`
+  (never `BP3_DECIDER=human`, and never pass `human-approved-llm-yolo`
+  to `bp3 release`, `resume`, or `delete`, which strictly require
+  `BP3_DECIDER=human`). Justify every `human-approved-llm-yolo`
+  decision — options considered, rationale, and reversibility — in
+  `LOG.md` and in the final Check-in report (also surfaced in
+  `bp3 q r <quest>` under `yolo_approvals`).
 - **Park, never page**: where `induct` would stop for the
   owner, park instead. The node stays where it is with its reason,
   and the quest's other ready nodes keep moving; parking starves
@@ -35,6 +46,7 @@ safe with no human in the room.
 
   | Situation | induct | here |
   |---|---|---|
+  | `human-gate` node ready | stop for `BP3_DECIDER=human` `approve` | decide and cast `BP3_DECIDER=human-approved-llm-yolo` `approve`; justify options, rationale, and reversibility in `LOG.md` + report |
   | node `blocked` (the cycle cap, or a block) | stop, report the owed decision | park; it stays in the inbox |
   | constraints-class `needs_fix` | stop, pitch to the owner (`/teach`) | park, with the pitch written in the report |
   | scope change or acceptance-gate edit | the owner's call | park |
@@ -58,6 +70,9 @@ output and `bp3 harness desk list`, never from memory:
 
 - nodes at `node_fin`, with their rounds;
 - parked nodes, each with its reason and the owner decision it waits on;
+- `human-approved-llm-yolo` decisions (from `.yolo_approvals`), each
+  with options considered, rationale, and reversibility (also logged in
+  `LOG.md`);
 - what this run decided that was not the owner's, one line each;
 - the metrics readout: `author.wall_s` and `author.active_s` per
   cycle, grade wall and `grade.tool_s` (from `metrics r`), and

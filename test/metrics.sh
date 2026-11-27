@@ -342,7 +342,8 @@ q c q4 >/dev/null
 for node in va vb vc vd ve vf vg vh; do q q4 c "$node" >/dev/null; mkdir -p "docs/quests/q4/nodes/$node"
   printf '# %s\n\n## Acceptance gates\n\nGATE %s\n\n## Diagram\n\nx\n' "$node" "$node" > "docs/quests/q4/nodes/$node/NODE.md"; done
 printf '# Grading\n\nRun the gate.\n' > GRADING.md
-git add -A; git commit -qm "q4 nodes"; c4=$(git rev-parse HEAD)
+git add -A; git commit -qm "q4 nodes"
+echo q4-work > q4-work.txt; git add q4-work.txt; git commit -qm "q4 work"; c4=$(git rev-parse HEAD)
 brief4() { q q4 n "$1" brief --desk /tmp | jq -r .brief; }   # a fixed desk: a random mktemp path can hold "vd"
 for node in va vb vc vd ve vg vh; do q q4 u "$node" handoff --commit "$c4" --reason work >/dev/null; done
 sec=$(date -u +%Y-%m-%dT%H:%M:%S)
