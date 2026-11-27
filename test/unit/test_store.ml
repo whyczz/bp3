@@ -396,6 +396,38 @@ let case_dep_cycle_through_names_the_cycle_it_closes _ =
   assert_equal (Some [ "a"; "b"; "a" ]) (Store.dep_cycle_through q "a");
   assert_equal None (Store.dep_cycle_through q "c")
 
+let case_missing_ancestors_flags_only_diverged_landed_deps_with_commits _ =
+  let deps_map = [
+    ("landed-ok", ("landed", Some "sha-a"));
+    ("landed-stale", ("landed", Some "sha-b"));
+    ("landed-nocommit", ("landed", None));
+    ("deleted-dep", ("deleted", Some "sha-del"));
+    ("todo-dep", ("todo", Some "sha-todo"));
+  ] in
+  let fold_dep d = List.assoc_opt d deps_map in
+  let is_ancestor anc desc = (anc = "sha-a" && desc = "sha-head") in
+  let got = Store.missing_ancestors ~is_ancestor ~fold_dep
+    [ "landed-ok"; "landed-stale"; "landed-nocommit"; "deleted-dep"; "todo-dep"; "unknown" ] "sha-head" in
+  assert_equal [ ("landed-stale", "sha-b") ] got;
+  let got_all_ok = Store.missing_ancestors ~is_ancestor:(fun _ _ -> true) ~fold_dep
+    [ "landed-ok"; "landed-stale" ] "sha-head" in
+  assert_equal [] got_all_ok
+
+let law_missing_ancestors_never_flags_deleted_or_commitless_deps =
+  QCheck2.Test.make ~count:200 ~name:"law_missing_ancestors_never_flags_deleted_or_commitless_deps"
+    QCheck2.Gen.(list_size (int_range 0 6)
+      (triple (oneof_list [ "a"; "b"; "c"; "d" ])
+              (oneof_list [ "landed"; "deleted"; "todo"; "blocked" ])
+              (option (oneof_list [ "c1"; "c2" ]))))
+    (fun entries ->
+      let entries = List.sort_uniq (fun (a, _, _) (b, _, _) -> String.compare a b) entries in
+      let fold_dep d = List.find_map (fun (k, st, c) -> if k = d then Some (st, c) else None) entries in
+      let deps = List.map (fun (k, _, _) -> k) entries in
+      let got = Store.missing_ancestors ~is_ancestor:(fun _ _ -> false) ~fold_dep deps "head" in
+      let want = List.filter_map (fun (k, st, c) ->
+        match (st, c) with ("landed", Some sha) -> Some (k, sha) | _ -> None) entries in
+      got = want)
+
 let law_dep_cycle_through_finds_no_cycle_in_a_dag =
   QCheck2.Test.make ~count:200 ~name:"law_dep_cycle_through_finds_no_cycle_in_a_dag" gen_dag
     (fun nodes ->
@@ -599,6 +631,8 @@ let () =
        "case_sched_waves_sort_each_wave_and_never_place_a_node_with_a_dangling_dep" >:: case_sched_waves_sort_each_wave_and_never_place_a_node_with_a_dangling_dep;
        "case_sched_starved_names_the_todo_dependents_of_a_blocked_node" >:: case_sched_starved_names_the_todo_dependents_of_a_blocked_node;
        "case_dep_cycle_through_names_the_cycle_it_closes" >:: case_dep_cycle_through_names_the_cycle_it_closes;
+       "case_missing_ancestors_flags_only_diverged_landed_deps_with_commits" >:: case_missing_ancestors_flags_only_diverged_landed_deps_with_commits;
+       QCheck_ounit.to_ounit2_test law_missing_ancestors_never_flags_deleted_or_commitless_deps;
        QCheck_ounit.to_ounit2_test law_dep_cycle_through_finds_no_cycle_in_a_dag;
        "case_days_from_civil_matches_known_dates" >:: case_days_from_civil_matches_known_dates;
        "case_ts_epoch_parses_utc_timestamps_and_refuses_other_shapes" >:: case_ts_epoch_parses_utc_timestamps_and_refuses_other_shapes;

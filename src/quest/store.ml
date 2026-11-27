@@ -426,6 +426,16 @@ let dep_satisfied dep =
         nodes <> [] && List.for_all (fun e ->
           match fold_node dep e with Some (_, s, _) -> s.st = "landed" || s.st = "deleted" | None -> false) nodes
 
+(* Pure dependency commit-ancestry check (dag-fsm-v2 ancestry.1):
+   returns every landed dependency carrying a commit that is not an
+   ancestor of [commit]. Deleted deps and commit-less deps are skipped. *)
+let missing_ancestors ~is_ancestor ~fold_dep deps commit =
+  List.filter_map (fun d ->
+    match fold_dep d with
+    | Some (st, Some dep_sha) when st = "landed" ->
+        if is_ancestor dep_sha commit then None else Some (d, dep_sha)
+    | _ -> None) deps
+
 (* ---------- schedule and timing (mvp.3) ---------- *)
 (* Node deps live in node ledger records (create and dep
    lines); ready-set waves, the ready set, starved sets,

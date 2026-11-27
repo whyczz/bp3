@@ -279,6 +279,19 @@ let do_update quest node edge fl id =
       if node_blocked <> [] then
         err Names.e_dependency (`Assoc [("blocked_by", `List (List.map json_str node_blocked))])
           "Node deps are not landed yet." 1;
+      let missing = missing_ancestors
+        ~is_ancestor
+        ~fold_dep:(fun d ->
+          match fold_node quest d with
+          | Some (_, ds, _) -> Some (ds.st, ds.last_commit)
+          | None -> None)
+        node_deps full in
+      if missing <> [] then
+        err Names.e_missing_ancestor
+          (`Assoc [("commit", json_str full);
+                   ("missing", `List (List.map (fun (d, c) ->
+                     `Assoc [("node", json_str d); ("commit", json_str c)]) missing))])
+          "Rebase or merge landed dependency commits before handoff." 1;
       let ns_base = { s with bound = Some full; has_bound = true; last_commit = Some full;
                       grade_ok = false; verify_ok = false } in
       if not knobs.grade_required then begin

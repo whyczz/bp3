@@ -67,15 +67,38 @@ echo "$out" | jq -e '.error.code == "E_DEP_CYCLE"' >/dev/null || fail "self cycl
 if out=$(q sched c ghost --depends-on nope 2>&1); then fail "unknown dep accepted"; fi
 echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "unknown dep code: $out"
 
-# --- deps mutable-but-logged, mid-flight edit on the record ---
+# --- deps mutable-but-logged, mid-flight edit on the record + E_MISSING_ANCESTOR ---
 out=$(q sched dep nd --depends-on na --reason "nd waits for na")
 echo "$out" | jq -e '.ok == true and .deps == ["na"] and .state == "todo"' >/dev/null || fail "dep edit: $out"
 node_ledger sched nd | tail -1 | jq -e '.edge == "dep" and .from == "todo" and .to == "todo" and .depends_on == ["na"]' >/dev/null || fail "dep line logged"
-out=$(q sched u nd handoff --commit "$W" --reason work)
-echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "nd handoff (dep landed): $out"
+# $W branched from master, NOT descending from na's landed commit -> E_MISSING_ANCESTOR!
+NA_COMMIT=$(q sched r na | jq -r .commit)
+if out=$(q sched u nd handoff --commit "$W" --reason "diverged" 2>&1); then fail "diverged dep commit accepted"; fi
+echo "$out" | jq -e --arg c "$W" --arg dep "$NA_COMMIT" '.ok == false and .error.code == "E_MISSING_ANCESTOR" and .error.facts.commit == $c and .error.facts.missing == [{"node":"na","commit":$dep}]' >/dev/null || fail "missing ancestor refusal: $out"
+# Commit descending from na's landed commit succeeds:
+ND_DESC=$(git commit-tree "$(git rev-parse "${NA_COMMIT}^{tree}")" -p "$NA_COMMIT" -m "nd descends from na")
+out=$(q sched u nd handoff --commit "$ND_DESC" --reason work)
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "nd handoff (dep ancestor satisfied): $out"
 out=$(q sched dep nd --depends-on nb --reason "mid-flight swap")
 echo "$out" | jq -e '.ok == true and .state == "handed_off" and .deps == ["nb"]' >/dev/null || fail "mid-flight dep edit: $out"
 node_ledger sched nd | tail -1 | jq -e '.edge == "dep" and .from == "handed_off" and .to == "handed_off" and .cycle == 1 and .depends_on == ["nb"]' >/dev/null || fail "mid-flight dep line carries state+cycle"
+# Deleted dep and commit-less landed dep are skipped by ancestry check:
+q c anc-edge >/dev/null
+q anc-edge c del-dep >/dev/null
+q anc-edge c nocommit-dep >/dev/null
+q anc-edge c child --depends-on del-dep,nocommit-dep >/dev/null
+q anc-edge d del-dep --reason "dropped" >/dev/null
+# Plant a landed ledger with commit:null on nocommit-dep (e.g. future commit-less node)
+nc_tip=$(git rev-parse bp3/node/anc-edge/nocommit-dep); nc_idx="$work/idx-nc"; rm -f "$nc_idx"
+printf '{"ts":"2026-01-01T00:00:00Z","edge":"create","from":"","to":"todo","cycle":1,"commit":null,"verdict":null,"reason":"","harness":"t","model":"t","bp3_version":"0.2.0","node_type":"default"}\n{"ts":"2026-01-01T00:01:00Z","edge":"land","from":"approved","to":"landed","cycle":1,"commit":null,"verdict":null,"reason":"gate","harness":"t","model":"t","bp3_version":"0.2.0"}\n' > "$work/nc-ledger.jsonl"
+nc_blob=$(git hash-object -w "$work/nc-ledger.jsonl")
+GIT_INDEX_FILE="$nc_idx" git read-tree "$nc_tip"
+GIT_INDEX_FILE="$nc_idx" git update-index --add --cacheinfo "100644,$nc_blob,docs/quests/anc-edge/nodes/nocommit-dep/ledger.jsonl"
+nc_tree=$(GIT_INDEX_FILE="$nc_idx" git write-tree)
+nc_nt=$(git commit-tree "$nc_tree" -p "$nc_tip" -m "commitless landed fixture")
+git update-ref refs/heads/bp3/node/anc-edge/nocommit-dep "$nc_nt" "$nc_tip"; rm -f "$nc_idx"
+out=$(q anc-edge u child handoff --commit "$W" --reason "skips deleted and commitless")
+echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "deleted/commitless deps should not trigger E_MISSING_ANCESTOR: $out"
 
 # --- blocked blast radius: starved dependents, independents ready ---
 q c blast >/dev/null
