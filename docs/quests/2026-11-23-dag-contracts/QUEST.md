@@ -12,7 +12,7 @@ Upgrade `bp3`'s DAG from one-size-fits-all code commits to **five explicit node 
 - **`code`** (default) runs handoff + cold AI grade -> landed,
 - **`direct`** lands fast verified commits directly with no AI grade,
 - **`research`** searches the web/repo, commits a sourced report, and may refine downstream `todo` `NODE.md` / `QUEST.md` specs (docs-only, never touches `src/`),
-- **`explore`** runs bounded hands-on experiments (`--target`, `--max-iterations`, `--budget-min`), commits artifacts + `REPORT.md` under `docs/quests/<q>/explores/<node>/` (isolated from prod code), and closes with `--outcome hit | missed | inconclusive`, and
+- **`explore`** runs bounded hands-on experiments (`--target`, `--max-iterations`), commits artifacts + `REPORT.md` under `docs/quests/<q>/explores/<node>/` (isolated from prod code, and may update downstream `todo` `NODE.md` / `QUEST.md` followed by a `human-gate`), and closes with `--outcome hit | missed | inconclusive`, and
 - **`human-gate`** pauses cleanly in the DAG for `BP3_DECIDER=human approve` in interactive `/induct` — or lets `/induct-yolo` decide and keep moving via `BP3_DECIDER=human-approved-llm-yolo approve --reason "..."` (recording `decider: "human-approved-llm-yolo"` honestly in the ledger, surfaced in `bp3 q r` `yolo_approvals`, and justified in `LOG.md` + the final check-in report) instead of stalling or abusing `block`/`resume`.
 
 A small `E_PROTECTED_FILE` check on `handoff` mechanically blocks silent edits to `GRADING.md`, `CONSTRAINTS.md`, `scripts/receipt`, `scripts/red-first`, or a node's own `NODE.md` unless `--allow-protected` is passed. *(Owner killed `--owns` globs and `parallel_batches` on 2026-11-25 — parallelism happens across quests via `v0.6.0`–`v0.10.0` desks + Tiered CAS, not intra-quest `/swarm`.)*
@@ -24,7 +24,7 @@ Today every task in a quest — whether it's a web-research pass, a bounded 15-m
 
 Framed on 2026-11-23 during the post-`warden-v0` DAG engine review, and reshaped on 2026-11-25 at the owner's call:
 - **Killed `--owns` / `parallel_batches` (owner, 2026-11-25):** *"let's kill owns... i dont really use swarm huh, we parallelize over quests."* Cross-quest parallelism is already solved by `v0.6.0`–`v0.10.0` (central desks, Tiered CAS `merge-tree`, auto-cleanup, session-scoped statusline); inside a quest, work is mostly linear or light DAG BFS.
-- **Renamed `spike` -> `explore` with explicit targets & bounds (owner, 2026-11-25):** *"change spike to explore, terminology wise... experiments and reports, with a time or iteration bound, and a ideal target/direction to hit."*
+- **Renamed `spike` -> `explore` with explicit targets & iteration bounds (owner, 2026-11-25/26):** *"change spike to explore, terminology wise... experiments and reports, with a time or iteration bound, and a ideal target/direction to hit."* Settled on `--max-iterations` only (no wall-clock `--budget-min`, immune to laptop sleep / API stalls; tokens stay post-hoc via `bp3 q metrics scrape`), allowed to update downstream `todo` `NODE.md` / `QUEST.md` followed by a `human-gate`. Warden evaluates explorations for quality/edge-cases/lessons rather than policing exploration token counts.
 - **Added `research` node (owner, 2026-11-25):** searches web/repo, produces a sourced report, and is allowed to update downstream `todo` nodes' `NODE.md` specs.
 - **Renamed `gate` -> `human-gate` with explicit `/induct-yolo` decider env var (owner, 2026-11-25/26):** avoids colliding with "Acceptance gates" / "`make check-full` gate", and under `/induct-yolo` the LLM decides, passes the gate honestly via `BP3_DECIDER=human-approved-llm-yolo` (logged as `decider: "human-approved-llm-yolo"` — no new CLI flag, never spoofing `BP3_DECIDER=human`, and rejected by `bp3 release` / `resume` / `delete`), keeps moving, and justifies its call in `LOG.md` and the final check-in report.
 
@@ -43,7 +43,7 @@ Measured ground (re-verified 2026-11-25 on `v0.10.0` from `src/quest/store.ml`, 
 |---|---|
 | `node_kind` | typed OCaml variant `Code \| Direct \| Research \| Explore \| Human_gate` declared via `--kind` at node creation (default `Code`), stored in the node create ledger line |
 | `Research` | docs-only node (`--kind research`): searches web/repo, commits a sourced report (`docs/quests/<q>/research/<node>/` or `docs/dossiers/`), and may edit `QUEST.md`, `LOG.md`, and downstream `todo` `NODE.md` files; refuses code edits (`E_DOC_ONLY_NODE`) |
-| `Explore` | bounded experiment node (`--kind explore --target "..." [--max-iterations N] [--budget-min M]`): commits reproducible experiments + `REPORT.md` under `docs/quests/<q>/explores/<node>/` (refuses prod code edits with `E_DOC_ONLY_NODE`), tracks iterations via `e iterate` (hard stop at `max_iterations`), and closes with `--outcome hit \| missed \| inconclusive` |
+| `Explore` | bounded experiment node (`--kind explore --target "..." [--max-iterations N]`): commits reproducible experiments + `REPORT.md` under `docs/quests/<q>/explores/<node>/` (refuses prod code edits with `E_DOC_ONLY_NODE`; may update downstream `todo` `NODE.md` / `QUEST.md` followed by a `human-gate`), tracks iterations via `e iterate` (hard stop at `max_iterations`), and closes with `--outcome hit \| missed \| inconclusive` |
 | `Human_gate` | generic human decision checkpoint (`--kind human-gate`): takes `approve` gated by `BP3_DECIDER=human` (`decider: "human"`) or `BP3_DECIDER=human-approved-llm-yolo` (`decider: "human-approved-llm-yolo"`, for unattended `/induct-yolo`, surfaced in `bp3 q r` `yolo_approvals` and justified in the final report); unset/other `BP3_DECIDER` refuses with `E_HUMAN_REQUIRED`; lands with `commit = None`, never trips Warden `human_steer` |
 | `protected_files` | built-in lock list (`GRADING.md`, `CONSTRAINTS.md`, `scripts/receipt`, `scripts/red-first`, and the node's own `NODE.md`, plus any non-`todo` `NODE.md` on `Research`) refused on `handoff` with `E_PROTECTED_FILE` unless `--allow-protected` is explicitly passed |
 | `E_DOC_ONLY_NODE` | typed refusal on `handoff` when a `Research` or `Explore` commit touches a non-`docs/` path (e.g. `src/`, `bin/`, `scripts/`) |
@@ -55,7 +55,7 @@ Measured ground (re-verified 2026-11-25 on `v0.10.0` from `src/quest/store.ml`, 
 |---|---|---|
 | `--kind code\|direct\|research\|explore\|human-gate` | `bp3 q <q> c <n>` | defaults to `code`; replaces ad-hoc `plans/node-*.yaml` hacks for common node shapes |
 | `--target <text>` | `bp3 q <q> c <n> --kind explore` | required direction / hypothesis / metric threshold for an `Explore` node |
-| `--max-iterations <int>` / `--budget-min <int>` | `bp3 q <q> c <n> --kind explore` | optional stop bounds (recommended default `max_iterations` when omitted: none / unbounded only if explicitly omitted; hard stop on `e iterate` when set; `budget_min` tracked from `started_ts` and surfaced in `bp3 q r` / Warden) |
+| `--max-iterations <int>` | `bp3 q <q> c <n> --kind explore` | optional deterministic stop cap on `e iterate` (hard stop -> `E_EXPLORE_BOUND`; no wall-clock `--budget-min` or live token cap) |
 | `e iterate --note <text>` | `bp3 q <q> n <n> e iterate` | optional append-only iteration log for `Explore` nodes; refuses past `max_iterations` with `E_EXPLORE_BOUND` |
 | `--outcome hit\|missed\|inconclusive` | `bp3 q <q> n <n> e handoff` (for `Explore`) | required on `Explore` handoff; all three outcomes land cleanly (`node_fin`) |
 | `--allow-protected` | `bp3 q <q> n <n> e handoff` | explicit opt-in to bypass `E_PROTECTED_FILE` when a node intentionally updates a governance/gate file |
@@ -65,7 +65,7 @@ Measured ground (re-verified 2026-11-25 on `v0.10.0` from `src/quest/store.ml`, 
 
 | Output | Shape |
 |---|---|
-| `kind` (+ `explore` / `human-gate` metadata) on `bp3 q <q> n <n> r` and `bp3 q r <q>` | `"kind": "explore", "explore": {"target": "...", "max_iterations": 3, "iterations": 2, "budget_min": 15, "outcome": "hit"}`; quest rollup lists `yolo_approvals: [{"node": "g1", "reason": "..."}]` |
+| `kind` (+ `explore` / `human-gate` metadata) on `bp3 q <q> n <n> r` and `bp3 q r <q>` | `"kind": "explore", "explore": {"target": "...", "max_iterations": 3, "iterations": 2, "outcome": "hit"}`; quest rollup lists `yolo_approvals: [{"node": "g1", "decider": "human-approved-llm-yolo", "reason": "..."}]` |
 | `E_PROTECTED_FILE` / `E_DOC_ONLY_NODE` / `E_EXPLORE_BOUND` | typed refusals naming offending paths or iteration cap |
 | 5 clean node lifecycles | `Code` (handoff + cold grade), `Direct` (handoff -> landed), `Research` (docs-only report + downstream `todo` `NODE.md` updates -> landed), `Explore` (bounded experiments + report + outcome -> landed), `Human_gate` (`BP3_DECIDER=human` or `BP3_DECIDER=human-approved-llm-yolo` `approve` -> landed) |
 
@@ -98,7 +98,7 @@ research.1 bp3 q demo c r1 --kind research
            handoff r1 touching src/quest/main.ml -> exit 1, E_DOC_ONLY_NODE
            handoff r1 touching docs/quests/demo/research/r1/REPORT.md + downstream todo c2/NODE.md -> ok: true, state: "landed"
            handoff r1 touching already-landed d1/NODE.md -> exit 1, E_PROTECTED_FILE
-           bp3 q demo c ex1 --kind explore --target "p99 < 50ms" --max-iterations 2 --budget-min 15
+           bp3 q demo c ex1 --kind explore --target "p99 < 50ms" --max-iterations 2
            bp3 q demo n ex1 e iterate --note "try 1: 80ms" -> ok: true (iterations: 1/2)
            bp3 q demo n ex1 e iterate --note "try 2: 42ms" -> ok: true (iterations: 2/2)
            bp3 q demo n ex1 e iterate --note "try 3" -> exit 1, E_EXPLORE_BOUND
@@ -116,7 +116,7 @@ Let quests express real engineering workflows natively in the DAG — web/codeba
 ## Success picture
 
 - `Research` nodes can search, write sourced reports, and update downstream `todo` `NODE.md` specs in one clean docs-only commit without touching `src/` or already-landed nodes.
-- `Explore` nodes carry an explicit `--target` + `--max-iterations`/`--budget-min` cap, isolate throwaway experiments + `REPORT.md` under `docs/quests/<q>/explores/<node>/`, and land cleanly with `hit | missed | inconclusive`.
+- `Explore` nodes carry an explicit `--target` + `--max-iterations` cap, isolate throwaway experiments + `REPORT.md` under `docs/quests/<q>/explores/<node>/`, may update downstream `todo` `NODE.md` specs (followed by a `human-gate`), and land cleanly with `hit | missed | inconclusive`.
 - `Human_gate` nodes sit cleanly in the DAG (`BP3_DECIDER=human approve`) — zero more fake `block`/`resume` cycles that trip Warden `human_steer`.
 - No node commit can silently modify `GRADING.md`, `CONSTRAINTS.md`, `scripts/receipt`, `scripts/red-first`, or its own `NODE.md` without passing `--allow-protected`.
 
@@ -125,7 +125,7 @@ Let quests express real engineering workflows natively in the DAG — web/codeba
 | In | Out |
 |---|---|
 | Typed `node_kind` (`Code \| Direct \| Research \| Explore \| Human_gate`), clean plan parsing, `Human_gate` `approve` edge, and `E_PROTECTED_FILE` + `--allow-protected` (`kinds.1`) | Per-node `--owns` file globs & `parallel_batches` (killed 2026-11-25 — YAGNI; parallelism is across quests, not intra-quest `/swarm`) |
-| `Research` docs-only + downstream `todo` `NODE.md` update rules, and `Explore` `--target` / `--max-iterations` / `--budget-min` / `e iterate` / `--outcome` (`research.1`) | Lean 2-edge FSM & dep git ancestry (`2026-11-23-dag-fsm-v2`, prerequisite) |
+| `Research` & `Explore` docs-only + downstream `todo` `NODE.md` update rules, and `Explore` `--target` / `--max-iterations` / `e iterate` / `--outcome` (`research.1`) | Lean 2-edge FSM & dep git ancestry (`2026-11-23-dag-fsm-v2`, prerequisite) |
 | `skills/` sources, local `DEV_SKILLS` renders (`v0.7.0`), completions, `AGENTS.md`/`CLAUDE.md` (`skills.1`) | Quest exit / promotion (`2026-11-23-quest-promote-release`, landed `v0.4.0`; Tiered CAS `v0.8.0`); external YAML library |
 
 ## Constraints at approval
@@ -156,7 +156,7 @@ Let quests express real engineering workflows natively in the DAG — web/codeba
 
 | Node | TL;DR |
 |---|---|
-| [research.1 - research-and-explore-nodes](nodes/node-research-1-research-and-explore-nodes/NODE.md) | `Research` docs-only + downstream `todo` `NODE.md` allowlist (`E_DOC_ONLY_NODE`), and `Explore` `--target` / `--max-iterations` / `--budget-min` / `e iterate` (`E_EXPLORE_BOUND`) / `--outcome` |
+| [research.1 - research-and-explore-nodes](nodes/node-research-1-research-and-explore-nodes/NODE.md) | `Research` & `Explore` docs-only + downstream `todo` `NODE.md` allowlist (`E_DOC_ONLY_NODE`), and `Explore` `--target` / `--max-iterations` / `e iterate` (`E_EXPLORE_BOUND`) / `--outcome` |
 
 ### Milestone: skills
 
@@ -170,21 +170,22 @@ Let quests express real engineering workflows natively in the DAG — web/codeba
 |---|---|---|---|
 | Supported node flavors | 1 (`code` via 3-knob `contains_sub`) | **5** (`code`, `direct`, `research`, `explore`, `human-gate`) | `test_store.ml` + fixture test |
 | Protected-file lock enforcement | grader prompt (`brief.ml:49`) | **100% deterministic** (`E_PROTECTED_FILE`) | `test_store.ml` + fixture test |
-| Bounded experiment discipline (`Explore`) | ad-hoc prose, no cap or outcome | **structured** (`target`, `max_iterations`, `budget_min`, `outcome`) | `bp3 q <q> n <n> r` + fixture test |
+| Bounded experiment discipline (`Explore`) | ad-hoc prose, no cap or outcome | **structured** (`target`, `max_iterations`, `outcome`) | `bp3 q <q> n <n> r` + fixture test |
 
 ## Risks and red chair
 
 - **Strongest attack (`Research` updating downstream `NODE.md` weakens Goodhart protection):** "If a `Research` node can edit downstream `NODE.md` files, could an agent weaken a downstream coding node's acceptance gates?"
   - **Settled in design:** `Research` may edit only downstream `NODE.md` files still in `todo` state (never its own `NODE.md`, never `handed_off`/`landed` nodes, never `GRADING.md`/`CONSTRAINTS.md`/`scripts/receipt`/`scripts/red-first`), every edited `NODE.md` appears in the `Research` node's `changes` diff, and pairing `Research -> Human_gate -> Code` lets the owner approve rewritten specs before code starts.
-- **Second attack (`Explore` wall-clock `budget_min` hard-failing a commit):** "If an agent spends 16 minutes on a 15-minute `Explore` node and tries to commit its `REPORT.md`, a hard time refusal would trap the node unable to close."
-  - **Settled in design:** Only `e iterate` enforces `max_iterations` (`E_EXPLORE_BOUND`); `handoff --outcome ...` is **always allowed** even past `budget_min` so the agent can always close and commit its report, while `budget_min` overrun is recorded in `bp3 q r` and visible to Warden.
+- **Second attack (`Explore` wall-clock or token limits creating false-positive blocks):** "Wall-clock budgets trip on laptop sleep/API stalls and live token caps require mid-session transcript scraping."
+  - **Settled in design:** Dropped `--budget-min` completely (owner, 2026-11-26). Only deterministic `--max-iterations` is enforced (`e iterate` -> `E_EXPLORE_BOUND`), and `handoff --outcome ...` is always allowed so an agent can always commit its report. Warden does NOT police token spend on explorations — its role on `explore` nodes is future learning/quality validation (edge cases, lessons, report completeness).
 - **Third attack (`Human_gate` vs `dag-fsm-v2` git ancestry):** "If a `Code` node depends on a `Human_gate` node (`commit = None`), does `dag-fsm-v2`'s `is_ancestor` check break?"
   - **Settled in design:** Per `dag-fsm-v2` `ancestry.1`, `is_ancestor` checks only landed deps with `commit = Some sha`, so `Human_gate` deps (`commit = None`) are skipped cleanly.
 
 ## Open questions
 
-1. Should `Explore` also be allowed to update downstream `todo` `NODE.md` files (just like `Research`), or stay strictly scoped to `docs/quests/<q>/explores/<node>/` + `LOG.md`? — **owner** (recommended: allow `Explore` to update downstream `todo` `NODE.md` / `QUEST.md` too — same safe rule as `Research`, zero extra code).
-2. Should `bp3 warden` emit a `[minor]` finding when an `Explore` node exceeds `budget_min`, or just surface `over_budget: true` in `bp3 q r` first? — **owner** (recommended: surface `over_budget: true` in `bp3 q r` in `research.1`; keep Warden untouched until real `Explore` runs exist).
+None — all owner calls settled on 2026-11-26:
+1. **`Explore` updating downstream `todo` `NODE.md` / `QUEST.md` (settled 2026-11-26):** Allowed (same safe docs-only rule as `Research`), with quest/induct convention to place a `human-gate` node right after it.
+2. **`Explore` bound & Warden scope (settled 2026-11-26):** `--max-iterations` only (no `--budget-min`, no live token cap). Warden does not count/penalize exploration tokens; future Warden middleware on explorations should focus on learning quality (catching missing edge cases / improving future explorations).
 
 ## Node diagram
 

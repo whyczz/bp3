@@ -25,7 +25,7 @@ $ ./test/skills.sh && ./test/completion.sh && make check-full
 Runnable goal block:
 - **objective:** Wire the 5 node flavors (`code | direct | research | explore | human-gate`), `E_PROTECTED_FILE`, and `Explore` bounds into all bp3 skills, docs, and shell completions under `v0.7.0`'s global `CORE_SKILLS` + repo-local `DEV_SKILLS` layout.
 - **prove by:** `./bin/bp3 skills check` (with isolated `BP3_GLOBAL_HOME`), `cmp -s CLAUDE.md AGENTS.md`, `./test/skills.sh`, `./test/completion.sh`, `make check-full`.
-- **done when:** `make check-full` exits `0`, `quest` and `induct` skills document when to use `research`, `explore`, `human-gate`, `direct`, and `code`, `induct-yolo` instructs using `BP3_DECIDER=human-approved-llm-yolo bp3 q <q> n <n> e approve --reason "..."` on `human-gate` nodes (never `BP3_DECIDER=human`, never on `release`/`resume`/`delete`) and justifying every decision (options, rationale, reversibility) in `LOG.md` + the final check-in report, and completions cover `--kind`, `approve`, `iterate`, `--target`, `--max-iterations`, `--budget-min`, `--outcome`, and `--allow-protected`.
+- **done when:** `make check-full` exits `0`, `quest` and `induct` skills document when to use `research`, `explore` (placing a `human-gate` after `research`/`explore` nodes that refine downstream specs), `human-gate`, `direct`, and `code`, `induct-yolo` instructs using `BP3_DECIDER=human-approved-llm-yolo bp3 q <q> n <n> e approve --reason "..."` on `human-gate` nodes (never `BP3_DECIDER=human`, never on `release`/`resume`/`delete`) and justifying every decision (options, rationale, reversibility) in `LOG.md` + the final check-in report, and completions cover `--kind`, `approve`, `iterate`, `--target`, `--max-iterations`, `--outcome`, and `--allow-protected`.
 
 ## Diagram
 
@@ -56,7 +56,7 @@ def sync_contracts_skills():
 | Intent | Dedicated skill-change node (per `quest/SKILL.md` step 6.6) syncing all agent instructions and completions to the 5 node flavors and `E_PROTECTED_FILE`. |
 | Lane | micro |
 | Output | Updated `skills/*/SKILL.md`, synced repo-local `DEV_SKILLS` under `.{agents,claude,pi}/skills/`, `AGENTS.md`, `CLAUDE.md`, `completions/{_bp3,bp3.bash}`, `test/{skills,completion}.sh`. |
-| Acceptance | Fails today: skills and completions lack `--kind code|direct|research|explore|human-gate`, `approve`, `iterate`, `--target`, `--max-iterations`, `--budget-min`, `--outcome`, and `--allow-protected`. |
+| Acceptance | Fails today: skills and completions lack `--kind code|direct|research|explore|human-gate`, `approve`, `iterate`, `--target`, `--max-iterations`, `--outcome`, and `--allow-protected`. |
 | Depends on | `research.1 - research-and-explore-nodes` |
 
 ## Prose
