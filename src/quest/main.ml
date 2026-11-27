@@ -33,11 +33,13 @@ let with_warnings id is_write fields =
   | [] -> `Assoc fields
   | ws -> `Assoc (fields @ [("warnings", `List (List.map json_str ws))])
 
-let illegal state edge =
+let illegal_for kind state edge =
   err Names.e_illegal_edge
     (`Assoc [("state", json_str state); ("edge", json_str edge);
-             ("legal_edges", `List (List.map json_str (legal_edges state)))])
+             ("legal_edges", `List (List.map json_str (legal_edges_for kind state)))])
     "Pick a legal edge from legal_edges for the current state." 1
+
+let illegal state edge = illegal_for Code state edge
 
 (* ---------- operations ---------- *)
 let do_quest_create quest fl id =
@@ -113,30 +115,38 @@ let validate_deps quest self deps =
 
 let do_node_create quest node fl id =
   check_slug quest; check_creatable node;
-  (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
+  let qt = match fold_quest quest with
+    | Some (_, _, qt, _, _) -> qt
+    | None -> not_found "quest" quest in
   let etype = (match fl.typ with Some t -> t | None -> "default") in
   (* validate node plan exists for non-default *)
-  (match fold_quest quest with
-   | Some (_, _, qt, _, _) -> ignore (effective_knobs ~quest_type:qt ~node_type:etype)
-   | None -> ());
+  ignore (effective_knobs ~quest_type:qt ~node_type:etype);
+  let nkind = match fl.kind with
+    | None -> if qt = "direct" || etype = "direct" then Direct else Code
+    | Some k ->
+        (match node_kind_of_string k with
+         | Some nk -> nk
+         | None -> usage ("invalid --kind: " ^ k ^ " (expected code, direct, research, explore, or human-gate)")) in
   if ref_tip (node_branch quest node) <> None then
     err Names.e_exists (`Assoc [("quest", json_str quest); ("node", json_str node)]) "Node already exists." 1;
   let deps = parse_dep_list fl.depends_on in
   validate_deps quest node deps;
   let qtip = (match ref_tip (quest_branch quest) with Some t -> t | None -> not_found "quest" quest) in
-  let st = fresh_state () in
+  let st = { (fresh_state ()) with node_kind = nkind } in
   let line = ledger_line ~edge:"create" ~from:"" ~to_:"todo" ~cycle:1
     ~commit:None ~verdict:None ~reason:"" ~id
     ~extra:[("node_type", json_str etype);
+            ("node_kind", json_str (node_kind_to_string nkind));
             ("depends_on", `List (List.map json_str deps))] () in
   let _ = create_branch_commit ~branch:(node_branch quest node) ~base_tip:qtip
     ~files:[(node_ledger_path quest node, line ^ "\n");
             (node_state_path quest node, state_yaml quest node st)]
     ~msg:("bp3: create node " ^ node) in
   with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
-    ("node", json_str node); ("state", json_str "todo"); ("cycle", `Int 1);
+    ("node", json_str node); ("kind", json_str (node_kind_to_string nkind));
+    ("state", json_str "todo"); ("cycle", `Int 1);
     ("deps", `List (List.map json_str deps));
-    ("legal_edges", `List (List.map json_str (legal_edges "todo")))]
+    ("legal_edges", `List (List.map json_str (legal_edges_for nkind "todo")))]
 
 let do_node_dep quest node fl id =
   check_slug quest; check_slug node;
@@ -158,7 +168,7 @@ let do_node_dep quest node fl id =
        with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
          ("node", json_str node); ("state", json_str s.st); ("cycle", `Int s.cycle);
          ("deps", `List (List.map json_str (deps_of_text text)));
-         ("legal_edges", `List (List.map json_str (legal_edges s.st)))]
+         ("legal_edges", `List (List.map json_str (legal_edges_for s.node_kind s.st)))]
    | None -> not_found "node" node)
 
 let do_node_delete quest node fl id =
@@ -197,7 +207,7 @@ let do_brief quest node tail =
     | "handed_off", Some c -> c
     | _ ->
         err Names.e_not_handed_off
-          (`Assoc [("state", json_str s.st); ("legal_edges", `List (List.map json_str (legal_edges s.st)))])
+          (`Assoc [("state", json_str s.st); ("legal_edges", `List (List.map json_str (legal_edges_for s.node_kind s.st)))])
           "A brief exists only for a commit waiting on its grade; re-read the node." 1) in
   let i = Brief.inputs ~quest ~node ~cycle:s.cycle ~commit ~upto:None in
   `Assoc [("ok", `Bool true); ("quest", json_str quest); ("node", json_str node);
@@ -207,7 +217,7 @@ let do_brief quest node tail =
 let do_update quest node edge fl id =
   check_slug quest; check_slug node;
   let reason = require_reason fl in
-  if not (List.mem edge ["handoff"; "grade"; "land"; "block"; "resume"]) then
+  if not (List.mem edge ["handoff"; "grade"; "land"; "approve"; "block"; "resume"]) then
     usage ("unknown edge: " ^ edge);
   (match fold_quest quest with None -> not_found "quest" quest | Some _ -> ());
   let (_, s, _) = (match fold_node quest node with Some v -> v | None -> not_found "node" node) in
@@ -216,10 +226,11 @@ let do_update quest node edge fl id =
   let finish ns line =
     ignore (append_node_line quest node line ns);
     with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
-      ("node", json_str node); ("state", json_str ns.st); ("cycle", `Int ns.cycle);
+      ("node", json_str node); ("kind", json_str (node_kind_to_string ns.node_kind));
+      ("state", json_str ns.st); ("cycle", `Int ns.cycle);
       ("commit", (match ns.last_commit with Some c -> json_str c | None -> `Null));
-      ("legal_edges", `List (List.map json_str (legal_edges ns.st)))] in
-  let land_and_advance ~from_state ~ns ~edge ~verdict ?extra () =
+      ("legal_edges", `List (List.map json_str (legal_edges_for ns.node_kind ns.st)))] in
+  let land_and_advance ~from_state ~ns ~edge ~verdict ?extra ?(result_extra = []) () =
     let ns_landed = { ns with st = "landed" } in
     let line = ledger_line ~edge ~from:from_state ~to_:"landed" ~cycle:ns.cycle
       ~commit:ns.last_commit ~verdict ~reason ~id ?extra () in
@@ -227,13 +238,16 @@ let do_update quest node edge fl id =
     let node_tip = (match ref_tip (node_branch quest node) with Some t -> t | None -> "") in
     let qbranch = quest_branch quest in
     let qtip = (match ref_tip qbranch with Some t -> t | None -> "") in
+    let landed_verdict () =
+      with_warnings id true ([("ok", `Bool true); ("quest", json_str quest);
+        ("node", json_str node); ("kind", json_str (node_kind_to_string ns.node_kind));
+        ("state", json_str "landed"); ("fin", json_str "node_fin"); ("cycle", `Int ns.cycle);
+        ("commit", (match ns.last_commit with Some c -> json_str c | None -> `Null));
+        ("legal_edges", `List [])] @ result_extra) in
     if is_ancestor qtip node_tip then begin
       if not (move_ref ~branch:qbranch ~new_tip:node_tip ~expect_tip:qtip) then
         err Names.e_stale_world (`Assoc []) "Quest tip moved; re-read and retry." 1;
-      with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
-        ("node", json_str node); ("state", json_str "landed"); ("fin", json_str "node_fin"); ("cycle", `Int ns.cycle);
-        ("commit", (match ns.last_commit with Some c -> json_str c | None -> `Null));
-        ("legal_edges", `List [])]
+      landed_verdict ()
     end else begin
       let tree_out, code = git_out ["merge-tree"; "--write-tree"; qtip; node_tip] in
       let tree = (match String.split_on_char '\n' tree_out with t :: _ -> String.trim t | [] -> "") in
@@ -245,21 +259,18 @@ let do_update quest node edge fl id =
         `Assoc [("ok", `Bool true); ("quest", json_str quest); ("node", json_str node);
           ("state", json_str "todo"); ("cycle", `Int ns.cycle);
           ("facts", `Assoc [("land_conflict", `Bool true)]);
-          ("legal_edges", `List (List.map json_str (legal_edges "todo")))]
+          ("legal_edges", `List (List.map json_str (legal_edges_for ns.node_kind "todo")))]
       end else begin
         let mtip, _ = git_out ~input:("bp3: land " ^ node)
             ["commit-tree"; tree; "-p"; qtip; "-p"; node_tip] in
         if not (move_ref ~branch:qbranch ~new_tip:mtip ~expect_tip:qtip) then
           err Names.e_stale_world (`Assoc []) "Quest tip moved; re-read and retry." 1;
-        with_warnings id true [("ok", `Bool true); ("quest", json_str quest);
-          ("node", json_str node); ("state", json_str "landed"); ("fin", json_str "node_fin"); ("cycle", `Int ns.cycle);
-          ("commit", (match ns.last_commit with Some c -> json_str c | None -> `Null));
-          ("legal_edges", `List [])]
+        landed_verdict ()
       end
     end in
   match edge with
   | "handoff" ->
-      if s.st <> "todo" then illegal s.st edge;
+      if s.st <> "todo" || s.node_kind = Human_gate then illegal_for s.node_kind s.st edge;
       let raw = (match fl.commit with Some c -> c | None -> usage "--commit is required for handoff") in
       let full = (match resolve_commit raw with Some f -> f
         | None -> err Names.e_commit_mismatch (`Assoc [("commit", json_str raw)])
@@ -292,9 +303,19 @@ let do_update quest node edge fl id =
                    ("missing", `List (List.map (fun (d, c) ->
                      `Assoc [("node", json_str d); ("commit", json_str c)]) missing))])
           "Rebase or merge landed dependency commits before handoff." 1;
+      let touched = commit_touched_paths full in
+      let bad_prot = protected_violations ~quest ~node ~allow_protected:fl.allow_protected touched in
+      if bad_prot <> [] then
+        err Names.e_protected_file
+          (`Assoc [("commit", json_str full);
+                   ("paths", `List (List.map json_str bad_prot))])
+          "Commit edits protected file(s); pass --allow-protected if intentional." 1;
       let ns_base = { s with bound = Some full; has_bound = true; last_commit = Some full;
                       grade_ok = false; verify_ok = false } in
-      if not knobs.grade_required then begin
+      let skip_grade =
+        (not knobs.grade_required) ||
+        (match s.node_kind with Direct | Research | Explore -> true | Code | Human_gate -> false) in
+      if skip_grade then begin
         if knobs.auto_land then
           land_and_advance ~from_state:s.st ~ns:ns_base ~edge ~verdict:None ()
         else begin
@@ -309,8 +330,34 @@ let do_update quest node edge fl id =
           ~commit:(Some full) ~verdict:None ~reason ~id () in
         finish ns line
       end
+  | "approve" ->
+      if s.node_kind <> Human_gate || s.st <> "todo" then illegal_for s.node_kind s.st edge;
+      let decider_str = match id.decider with
+        | Human -> decider_to_string Human
+        | Human_approved_llm_yolo -> decider_to_string Human_approved_llm_yolo
+        | Agent ->
+            err Names.e_human_required (`Assoc [("quest", json_str quest); ("node", json_str node)])
+              "Approving a human-gate requires BP3_DECIDER=human (or BP3_DECIDER=human-approved-llm-yolo under /induct-yolo)." 1 in
+      let blocked_by = List.filter (fun d -> not (dep_satisfied d)) deps in
+      if blocked_by <> [] then
+        err Names.e_dependency (`Assoc [("blocked_by", `List (List.map json_str blocked_by))])
+          "Dependencies are not landed yet." 1;
+      let node_deps = (match fold_node quest node with
+        | Some (_, _, text) -> deps_of_text text | None -> []) in
+      let node_blocked = List.filter (fun d ->
+        match fold_node quest d with
+        | Some (_, ds, _) -> ds.st <> "landed" && ds.st <> "deleted"
+        | None -> true) node_deps in
+      if node_blocked <> [] then
+        err Names.e_dependency (`Assoc [("blocked_by", `List (List.map json_str node_blocked))])
+          "Node deps are not landed yet." 1;
+      let ns = { s with bound = None; has_bound = false; last_commit = None;
+                        approved_decider = Some decider_str; approved_reason = reason } in
+      land_and_advance ~from_state:s.st ~ns ~edge ~verdict:None
+        ~extra:[("decider", json_str decider_str)]
+        ~result_extra:[("decider", json_str decider_str)] ()
   | "grade" ->
-      if s.st <> "handed_off" then illegal s.st edge;
+      if s.st <> "handed_off" then illegal_for s.node_kind s.st edge;
       let v = (match fl.verdict with Some v -> v | None -> usage "--verdict is required") in
       if v <> "ship" && v <> "needs_fix" then usage ("invalid verdict for " ^ edge ^ ": " ^ v);
       (match fl.commit with
@@ -528,13 +575,14 @@ let help_metrics = "bp3 q <quest> metrics - what each grade and author cycle cos
 Example: bp3 q my-quest metrics scrape && bp3 q my-quest metrics r\n"
 
 let help_update = "bp3 q <quest> u <node> <edge> - edges and their flags:\n\
-  edges: handoff grade land block resume\n\
-  handoff --commit <sha> --reason <why>    bind a clean commit for grade (auto-lands direct plans)\n\
-  grade  --verdict ship|needs_fix [--verify-verdict pass|fail] [--mechanical] --reason <why>   auto-lands on ship (land: auto) or approves (land: manual); --mechanical never blocks\n\
-  land   --reason <why>                    land an approved node (land: manual plans)\n\
-  block  --reason <why>                    park for a human decision\n\
-  resume --reason <why>                    human only: unblock\n\
-Shared flags: --format json|table|tree, --target <name>.\n\
+  edges: handoff grade land approve block resume\n\
+  handoff --commit <sha> [--allow-protected] --reason <why>    bind a clean commit (auto-lands direct/research/explore)\n\
+  grade   --verdict ship|needs_fix [--verify-verdict pass|fail] [--mechanical] --reason <why>   auto-lands on ship (land: auto) or approves (land: manual)\n\
+  land    --reason <why>                   land an approved node (land: manual plans)\n\
+  approve --reason <why>                   approve a human-gate (BP3_DECIDER=human or human-approved-llm-yolo)\n\
+  block   --reason <why>                   park for a human decision\n\
+  resume  --reason <why>                   human only: unblock\n\
+Shared flags: --format json|table|tree, --target <name>, --kind code|direct|research|explore|human-gate.\n\
 Example: bp3 q my-quest u node-1 handoff --commit abc123 --reason \"ready\"\n"
 
 let help_harness = "bp3 harness - machine-local desks:\n\
@@ -753,7 +801,7 @@ let rec run argv =
              let (view, _, _, _) = quest_view q in view) (list_quests ()) in
            print_verdict ~fmt:"json" (`Assoc ([("ok", `Bool true); ("quests", `List qs)] @ repo_config_warnings ())); 0
        | "r", [quest] ->
-           let (pos, fl) = ( [quest], { reason=None; commit=None; verdict=None; target=None; typ=None; depends_on=None; fmt="json"; verify_verdict=None; mechanical=false } ) in
+           let (pos, fl) = ( [quest], { reason=None; commit=None; verdict=None; target=None; typ=None; kind=None; depends_on=None; fmt="json"; verify_verdict=None; mechanical=false; allow_protected=false } ) in
            ignore pos;
            (* re-parse: quest may be followed by --format in original rest; handled below *)
            ignore fl;

@@ -57,11 +57,12 @@ let edge_handoff = "handoff"
 let edge_grade = "grade"
 let edge_verify = "verify"
 let edge_land = "land"
+let edge_approve = "approve"
 let edge_block = "block"
 let edge_resume = "resume"
 
 let all_edges =
-  [ edge_handoff; edge_grade; edge_verify; edge_land; edge_block; edge_resume ]
+  [ edge_handoff; edge_grade; edge_land; edge_approve; edge_block; edge_resume ]
 
 (* ---------- states ---------- *)
 let st_proposed = "proposed"
@@ -83,6 +84,8 @@ let flag_verify_verdict = "--verify-verdict"
 let flag_mechanical = "--mechanical"
 let flag_target = "--target"
 let flag_type = "--type"
+let flag_kind = "--kind"
+let flag_allow_protected = "--allow-protected"
 let flag_depends_on = "--depends-on"
 let flag_format = "--format"
 let flag_desk = "--desk"
@@ -97,6 +100,7 @@ let e_dirty_tree = "E_DIRTY_TREE"
 let e_commit_mismatch = "E_COMMIT_MISMATCH"
 let e_dependency = "E_DEPENDENCY"
 let e_missing_ancestor = "E_MISSING_ANCESTOR"
+let e_protected_file = "E_PROTECTED_FILE"
 let e_dep_cycle = "E_DEP_CYCLE"
 let e_human_required = "E_HUMAN_REQUIRED"
 let e_stale_world = "E_STALE_WORLD"

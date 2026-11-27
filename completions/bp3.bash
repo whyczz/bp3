@@ -3,8 +3,8 @@
 # current one); completion fails silently on any error.
 # shellcheck shell=bash
 
-_bp3_flags='--format --reason --commit --verdict --verify-verdict --mechanical --target --type --depends-on --mode'
-_bp3_edges='handoff grade land block resume'
+_bp3_flags='--format --reason --commit --verdict --verify-verdict --mechanical --target --type --kind --allow-protected --depends-on --mode'
+_bp3_edges='handoff grade land approve block resume'
 _bp3_quest_verbs='c r d create read delete'
 _bp3_node_verbs='c r u d create read update delete dep diagram n'
 _bp3_format_values='json table tree'

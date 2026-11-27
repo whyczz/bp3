@@ -23,6 +23,22 @@ let commit_changes = function
         | _ -> None)
       (List.filter (fun l -> l <> "") (String.split_on_char '\n' out)))
 
+(* Every repo-relative path touched by [commit] against its first parent,
+   returning BOTH old and new paths on renames/copies so renaming a
+   protected file cannot bypass E_PROTECTED_FILE. *)
+let commit_touched_paths commit =
+  let out, code = git_out ["diff-tree"; "--no-commit-id"; "--name-status"; "-r"; "-M"; commit] in
+  if code <> 0 then []
+  else
+    String.split_on_char '\n' out
+    |> List.filter (fun l -> l <> "")
+    |> List.concat_map (fun line ->
+         match String.split_on_char '\t' line with
+         | [_; path] -> [path]
+         | [_; old_p; new_p] -> [old_p; new_p]
+         | _ -> [])
+    |> List.sort_uniq String.compare
+
 (* Report word for an node finish line: state stays [landed]. *)
 let node_fin s = if s.st = "landed" then `String "node_fin" else `Null
 
@@ -30,13 +46,14 @@ let opt_int = function Some n -> `Int n | None -> `Null
 
 let node_json _q e s deps (t : timing) =
   `Assoc [
-    ("node", json_str e); ("state", json_str s.st); ("fin", node_fin s); ("cycle", `Int s.cycle);
+    ("node", json_str e); ("kind", json_str (node_kind_to_string s.node_kind));
+    ("state", json_str s.st); ("fin", node_fin s); ("cycle", `Int s.cycle);
     ("commit", (match s.last_commit with Some c -> json_str c | None -> `Null));
     ("deps", `List (List.map json_str deps));
     ("timing", `Assoc [("wall_s", opt_int t.t_wall); ("wait_s", opt_int t.t_wait);
                        ("dwell_s", `Assoc (List.map (fun (st, secs) -> (st, `Int secs)) t.t_dwell));
                        ("cycles", `Int s.cycle)]);
-    ("legal_edges", `List (List.map json_str (legal_edges s.st)));
+    ("legal_edges", `List (List.map json_str (legal_edges_for s.node_kind s.st)));
     (* The decision point, on the node read itself (mvp.5):
        a fresh worker resuming after [resume] — or a root
        worker reviving after its own death — reconstructs
@@ -78,6 +95,15 @@ let quest_view q =
           ("checkpoint", (match s.blocked_checkpoint with Some c -> json_str c | None -> `Null));
           ("cycle", `Int s.cycle); ("since", json_str s.blocked_since);
         ]) else None) node_states in
+      let yolo_approvals = List.filter_map (fun (e, s) ->
+        match s.approved_decider with
+        | Some d when d = decider_to_string Human_approved_llm_yolo ->
+            Some (`Assoc [
+              ("node", json_str e);
+              ("decider", json_str d);
+              ("reason", json_str s.approved_reason);
+            ])
+        | _ -> None) node_states in
       let rollup =
         if qs.st = "deleted" then "deleted"
         else if node_states <> [] && List.for_all (fun (_, s) -> s.st = "landed" || s.st = "deleted") node_states then "landed"
@@ -94,6 +120,7 @@ let quest_view q =
         ("starved", `List (List.map (fun (b, ids) ->
            `Assoc [("blocked", json_str b); ("starved", `List (List.map json_str ids))]) starved));
         ("setup", `List []);
+        ("yolo_approvals", `List yolo_approvals);
         ("rollup", json_str rollup); ("fin", fin); ("inbox", `List inbox);
       ],
        inbox, rollup, qs)

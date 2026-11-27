@@ -36,12 +36,15 @@ let case_split_flags_returns_every_positional_in_order_when_no_flag_follows _ =
 
 let case_parse_flags_stores_each_flag_in_its_own_field _ =
   let fl = Cli.parse_flags [ "--reason"; "r"; "--commit"; "c"; "--verdict"; "ship"; "--target"; "t"; "--type"; "spike";
+                             "--kind"; "human-gate"; "--allow-protected";
                              "--depends-on"; "a,b"; "--format"; "tree"; "--verify-verdict"; "pass"; "--mechanical" ] in
   assert_equal (Some "r") fl.Cli.reason; assert_equal (Some "c") fl.Cli.commit;
   assert_equal (Some "ship") fl.Cli.verdict; assert_equal (Some "t") fl.Cli.target;
-  assert_equal (Some "spike") fl.Cli.typ; assert_equal (Some "a,b") fl.Cli.depends_on;
+  assert_equal (Some "spike") fl.Cli.typ; assert_equal (Some "human-gate") fl.Cli.kind;
+  assert_equal (Some "a,b") fl.Cli.depends_on;
   assert_equal ~printer:Fun.id "tree" fl.Cli.fmt; assert_equal (Some "pass") fl.Cli.verify_verdict;
-  assert_bool "mechanical" fl.Cli.mechanical
+  assert_bool "mechanical" fl.Cli.mechanical;
+  assert_bool "allow_protected" fl.Cli.allow_protected
 
 let case_parse_flags_refuses_a_second_copy_of_every_valued_flag _ =
   List.iter (fun f ->

@@ -572,7 +572,8 @@ q brief-demo c bn >/dev/null; q brief-demo c bn2 >/dev/null; q brief-demo c bn3 
 mkdir -p docs/quests/brief-demo/nodes/bn
 printf '# bn\n\n## TL;DR\n\nt\n\n## Acceptance gates\n\nGATE-ROW-ONE\n\n## Diagram\n\nDIAGRAM-TEXT\n' > docs/quests/brief-demo/nodes/bn/NODE.md
 printf '# Grading\n\nRUN-THE-GATE\n' > GRADING.md
-git add -A; git commit -qm "bn: work"; A1=$(git rev-parse HEAD)   # -A: earlier sections leave fixtures untracked, and a handoff needs a clean tree
+git add -A; git commit -qm "bn: setup spec and grading"
+echo bn-code > bn-code.txt; git add bn-code.txt; git commit -qm "bn: work"; A1=$(git rev-parse HEAD)
 q brief-demo n bn e handoff --commit "$A1" --reason "work" >/dev/null
 out=$(q brief-demo n bn brief)
 echo "$out" | jq -e --arg c "$A1" '.ok == true and .quest == "brief-demo" and .node == "bn" and .cycle == 1 and .commit == $c and (.brief | type == "string")' >/dev/null || fail "brief shape: $out"
@@ -656,6 +657,54 @@ q bf-gate n n1 e handoff --commit "$BF_SHA" --reason "h" >/dev/null
 out=$(q bf-gate n n1 brief) || fail "brief with backpack failed: $out"
 echo "$out" | jq -r '.brief' | grep -qF "Repo gate (backpack.toml): echo g-manifest-gate" || fail "brief missing Repo gate: $out"
 git rm -qf backpack.toml && git commit -qm "chore: remove temp backpack.toml"
+
+# --- dag-contracts kinds.1: 5 node kinds, human-gate (human & human-approved-llm-yolo), E_PROTECTED_FILE ---
+q c kinds-demo >/dev/null
+out=$(q kinds-demo c kc)
+echo "$out" | jq -e '.kind == "code" and .legal_edges == ["handoff","block","delete"]' >/dev/null || fail "default code kind: $out"
+out=$(q kinds-demo c kd --kind direct)
+echo "$out" | jq -e '.kind == "direct"' >/dev/null || fail "direct kind: $out"
+out=$(q kinds-demo c kg1 --kind human-gate --depends-on kd)
+echo "$out" | jq -e '.kind == "human-gate" and .legal_edges == ["approve","block","delete"]' >/dev/null || fail "human-gate kind: $out"
+out=$(q kinds-demo c kg2 --kind human-gate --depends-on kg1)
+if out=$(q kinds-demo c kbad --kind bogus 2>&1); then fail "invalid --kind accepted"; fi
+echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "invalid --kind code: $out"
+# Protected file edit (and rename!) refused unless --allow-protected:
+printf 'rule v1\n' > GRADING.md && git add GRADING.md && git commit -qm "add grading"
+printf 'rule v2\n' > GRADING.md && git add GRADING.md && git commit -qm "edit grading"
+PROT_SHA=$(git rev-parse HEAD)
+if out=$(q kinds-demo n kc e handoff --commit "$PROT_SHA" --reason "sneaky" 2>&1); then fail "protected edit accepted"; fi
+echo "$out" | jq -e '.error.code == "E_PROTECTED_FILE" and (.error.facts.paths | index("GRADING.md") != null)' >/dev/null || fail "protected edit code: $out"
+# Renaming a protected file is also blocked:
+git mv GRADING.md GRADING.moved.md && git commit -qm "rename grading"
+RENAME_PROT=$(git rev-parse HEAD)
+if out=$(q kinds-demo n kc e handoff --commit "$RENAME_PROT" --reason "rename sneak" 2>&1); then fail "protected rename accepted"; fi
+echo "$out" | jq -e '.error.code == "E_PROTECTED_FILE" and (.error.facts.paths | index("GRADING.md") != null)' >/dev/null || fail "protected rename code: $out"
+git mv GRADING.moved.md GRADING.md && git commit -qm "restore grading"
+# --allow-protected bypasses E_PROTECTED_FILE explicitly:
+out=$(q kinds-demo n kc e handoff --commit "$PROT_SHA" --allow-protected --reason "intentional rule update")
+echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "allow-protected handoff: $out"
+# Direct kind auto-lands on handoff without AI grade:
+echo direct-work > direct-w.txt && git add direct-w.txt && git commit -qm "direct work"
+DIR_SHA=$(git rev-parse HEAD)
+out=$(q kinds-demo n kd e handoff --commit "$DIR_SHA" --reason "direct verified")
+echo "$out" | jq -e '.ok == true and .kind == "direct" and .state == "landed" and .fin == "node_fin"' >/dev/null || fail "direct handoff auto-land: $out"
+# Human-gate: handoff illegal, bare approve refuses E_HUMAN_REQUIRED, human & human-approved-llm-yolo succeed:
+if out=$(q kinds-demo n kg1 e handoff --commit "$DIR_SHA" --reason "wrong edge" 2>&1); then fail "handoff on human-gate accepted"; fi
+echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE"' >/dev/null || fail "handoff on human-gate code: $out"
+if out=$(q kinds-demo n kg1 e approve --reason "pick B" 2>&1); then fail "bare approve accepted"; fi
+echo "$out" | jq -e '.error.code == "E_HUMAN_REQUIRED"' >/dev/null || fail "bare approve code: $out"
+out=$(BP3_DECIDER=human q kinds-demo n kg1 e approve --reason "pick B")
+echo "$out" | jq -e '.ok == true and .kind == "human-gate" and .state == "landed" and .fin == "node_fin" and .decider == "human" and .commit == null' >/dev/null || fail "human approve: $out"
+out=$(BP3_DECIDER=human-approved-llm-yolo q kinds-demo n kg2 e approve --reason "chose B: lower risk, reversible")
+echo "$out" | jq -e '.ok == true and .kind == "human-gate" and .state == "landed" and .fin == "node_fin" and .decider == "human-approved-llm-yolo"' >/dev/null || fail "yolo approve: $out"
+out=$(q r kinds-demo)
+echo "$out" | jq -e '.yolo_approvals == [{"node":"kg2","decider":"human-approved-llm-yolo","reason":"chose B: lower risk, reversible"}]' >/dev/null || fail "yolo_approvals rollup: $out"
+# Strictly scoped: resume on blocked node rejects BP3_DECIDER=human-approved-llm-yolo!
+q kinds-demo c kblk >/dev/null
+q kinds-demo n kblk e block --reason "stuck" >/dev/null
+if out=$(BP3_DECIDER=human-approved-llm-yolo q kinds-demo n kblk e resume --reason "try yolo resume" 2>&1); then fail "yolo decider allowed resume"; fi
+echo "$out" | jq -e '.error.code == "E_HUMAN_REQUIRED"' >/dev/null || fail "yolo decider resume refusal: $out"
 
 # --- version guard: minor-ahead warns and writes; major-ahead refuses writes ---
 stamp_ledger() { # $1 quest $2 node $3 version

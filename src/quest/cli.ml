@@ -6,8 +6,9 @@ open Gitx
 
 type flags = {
   reason : string option; commit : string option; verdict : string option;
-  target : string option; typ : string option; depends_on : string option;
-  fmt : string; verify_verdict : string option; mechanical : bool;
+  target : string option; typ : string option; kind : string option;
+  depends_on : string option; fmt : string; verify_verdict : string option;
+  mechanical : bool; allow_protected : bool;
 }
 
 let parse_flags args =
@@ -18,14 +19,18 @@ let parse_flags args =
     | "--verdict" :: v :: rest -> add acc "verdict" v rest
     | "--target" :: v :: rest -> add acc "target" v rest
     | "--type" :: v :: rest -> add acc "type" v rest
+    | "--kind" :: v :: rest -> add acc "kind" v rest
     | "--depends-on" :: v :: rest -> add acc "depends-on" v rest
     | "--format" :: v :: rest -> add acc "format" v rest
     | "--verify-verdict" :: v :: rest -> add acc "verify-verdict" v rest
     | "--mechanical" :: rest ->
         if acc.mechanical then usage "duplicate flag --mechanical"
         else loop { acc with mechanical = true } rest
+    | "--allow-protected" :: rest ->
+        if acc.allow_protected then usage "duplicate flag --allow-protected"
+        else loop { acc with allow_protected = true } rest
     | "--reason" :: [] | "--commit" :: [] | "--verdict" :: [] | "--target" :: []
-    | "--type" :: [] | "--depends-on" :: [] | "--format" :: []
+    | "--type" :: [] | "--kind" :: [] | "--depends-on" :: [] | "--format" :: []
     | "--verify-verdict" :: [] ->
         usage "flag needs a value"
     | "--mode" :: _ -> usage mode_flag_usage
@@ -43,6 +48,7 @@ let parse_flags args =
     | "verdict" -> if acc.verdict <> None then usage "duplicate flag --verdict" else loop { acc with verdict = Some v } rest
     | "target" -> if acc.target <> None then usage "duplicate flag --target" else loop { acc with target = Some v } rest
     | "type" -> if acc.typ <> None then usage "duplicate flag --type" else loop { acc with typ = Some v } rest
+    | "kind" -> if acc.kind <> None then usage "duplicate flag --kind" else loop { acc with kind = Some v } rest
     | "depends-on" -> if acc.depends_on <> None then usage "duplicate flag --depends-on" else loop { acc with depends_on = Some v } rest
     | "verify-verdict" -> if acc.verify_verdict <> None then usage "duplicate flag --verify-verdict" else loop { acc with verify_verdict = Some v } rest
     | "format" ->
@@ -55,8 +61,8 @@ let parse_flags args =
     | [] -> n | "--format" :: _ :: r -> count (n + 1) r | _ :: r -> count n r in
   if count 0 args > 1 then usage "duplicate flag --format";
   loop { reason = None; commit = None; verdict = None; target = None;
-         typ = None; depends_on = None; fmt = "json";
-         verify_verdict = None; mechanical = false } args
+         typ = None; kind = None; depends_on = None; fmt = "json";
+         verify_verdict = None; mechanical = false; allow_protected = false } args
 
 let split_flags args =
   (* separate positionals (before first --flag) from flags; any positional

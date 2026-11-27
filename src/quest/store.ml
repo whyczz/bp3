@@ -23,7 +23,22 @@ let check_creatable s =
   if List.mem s reserved_slugs then
     usage ("reserved slug: " ^ s ^ " names a bp3 door or verb")
 
-type identity = { harness : string; model : string; decider_human : bool; incomplete : bool; run_id : string option }
+type decider = Agent | Human | Human_approved_llm_yolo
+
+let decider_of_string = function
+  | Some "human" -> Human
+  | Some "human-approved-llm-yolo" -> Human_approved_llm_yolo
+  | _ -> Agent
+
+let decider_to_string = function
+  | Agent -> "agent"
+  | Human -> "human"
+  | Human_approved_llm_yolo -> "human-approved-llm-yolo"
+
+type identity = {
+  harness : string; model : string; decider : decider; decider_human : bool;
+  incomplete : bool; run_id : string option;
+}
 
 let run_id_of_env () =
   match Sys.getenv_opt "BP3_RUN_ID" with Some v when v <> "" -> Some v | _ -> None
@@ -47,13 +62,14 @@ let identity () =
          err Names.e_identity (`Assoc [("harness", json_str v)])
            "BP3_HARNESS must be one of muse-code, codex, muse, human, claude, pi, agy." 2
    | _ -> ());
-  let decider_human = (Sys.getenv_opt "BP3_DECIDER" = Some "human") in
+  let decider = decider_of_string (Sys.getenv_opt "BP3_DECIDER") in
+  let decider_human = (decider = Human) in
   let harness = match h with Some v when v <> "" -> v | _ -> "unknown" in
   let model =
     if decider_human then "none"
     else match Sys.getenv_opt "BP3_MODEL" with Some v when v <> "" -> v | _ -> "unknown" in
   let incomplete = harness = "unknown" || model = "unknown" in
-  { harness; model; decider_human; incomplete; run_id = run_id_of_env () }
+  { harness; model; decider; decider_human; incomplete; run_id = run_id_of_env () }
 
 let parse_version s =
   try List.map int_of_string (String.split_on_char '.' s) with _ -> [0]
@@ -67,37 +83,86 @@ let rec version_cmp a b =
 
 let version_major v = match parse_version v with m :: _ -> m | [] -> 0
 
-(* ---------- plans ---------- *)
+(* ---------- node kinds & plans ---------- *)
+type node_kind = Code | Direct | Research | Explore | Human_gate
+
+let node_kind_of_string = function
+  | "code" -> Some Code
+  | "direct" -> Some Direct
+  | "research" -> Some Research
+  | "explore" -> Some Explore
+  | "human-gate" -> Some Human_gate
+  | _ -> None
+
+let node_kind_to_string = function
+  | Code -> "code"
+  | Direct -> "direct"
+  | Research -> "research"
+  | Explore -> "explore"
+  | Human_gate -> "human-gate"
+
 type knobs = { max_cycles : int; grade_required : bool; verify_required : bool; auto_land : bool }
 
+let strip_yaml_comment s =
+  match String.index_opt s '#' with
+  | Some i -> String.sub s 0 i
+  | None -> s
+
+let leading_spaces s =
+  let n = String.length s in
+  let rec go i = if i < n && (s.[i] = ' ' || s.[i] = '\t') then go (i + 1) else i in
+  go 0
+
+(* Section-aware YAML line parser (dag-contracts kinds.1): replaces the
+   3-knob contains_sub heuristics with indentation-scoped key/value
+   parsing so verify.required: false never flips grade.required. *)
 let plan_knobs_from_text text =
-  (* reject stages:/edges: keys at line start (after spaces) *)
   let lines = String.split_on_char '\n' text in
-  List.iter (fun ln ->
-    let t = String.trim ln in
-    if t = "stages:" || (String.length t > 7 && String.sub t 0 7 = "stages:") ||
-       t = "edges:" || (String.length t > 6 && String.sub t 0 6 = "edges:") then
-      err Names.e_invalid_plan (`Assoc []) "Plan contains stages:/edges: keys; plans carry knobs only." 1
+  let max_cycles = ref 1 in
+  let grade_required = ref true in
+  let verify_required = ref true in
+  let auto_land = ref true in
+  let section = ref "" in
+  List.iter (fun raw ->
+    let clean = strip_yaml_comment raw in
+    let indent = leading_spaces clean in
+    let t = String.trim clean in
+    if t <> "" then begin
+      if t = "stages:" || String.starts_with ~prefix:"stages:" t ||
+         t = "edges:" || String.starts_with ~prefix:"edges:" t then
+        err Names.e_invalid_plan (`Assoc []) "Plan contains stages:/edges: keys; plans carry knobs only." 1;
+      match String.index_opt t ':' with
+      | None -> ()
+      | Some idx ->
+          let key = String.trim (String.sub t 0 idx) in
+          let value = String.trim (String.sub t (idx + 1) (String.length t - idx - 1)) in
+          if indent = 0 || !section = "" then begin
+            if indent = 0 then section := (if value = "" then key else "");
+            (match key with
+             | "max_cycles" -> (match int_of_string_opt value with Some n -> max_cycles := n | None -> ())
+             | "grade.required" ->
+                 if value = "false" then grade_required := false
+                 else if value = "true" then grade_required := true
+             | "verify" ->
+                 if value = "optional" || value = "none" then verify_required := false
+             | "land" ->
+                 if value = "manual" then auto_land := false
+                 else if value = "auto" then auto_land := true
+             | _ -> ())
+          end else begin
+            match (!section, key) with
+            | ("grade", "required") ->
+                if value = "false" then grade_required := false
+                else if value = "true" then grade_required := true
+            | ("verify", "required") ->
+                if value = "false" then verify_required := false
+                else if value = "true" then verify_required := true
+            | _ -> ()
+          end
+    end
   ) lines;
-  let max_cycles =
-    try
-      let re = Str.regexp "max_cycles:[ \t]*\\([0-9]+\\)" in
-      ignore (Str.search_forward re text 0);
-      int_of_string (Str.matched_group 1 text)
-    with _ -> 1 in
-  let grade_required =
-    (* look at grade section: 'required: false' after 'grade:' *)
-    if contains_sub text "required: false" && contains_sub text "grade:" then false
-    else if contains_sub text "grade.required: false" then false
-    else true in
-  let verify_required =
-    not (contains_sub text "verify: optional" || contains_sub text "verify: none"
-         || contains_sub text "verify:optional" || contains_sub text "verify:none") in
-  let auto_land =
-    not (List.exists (fun ln ->
-      let t = String.trim ln in
-      t = "land: manual" || t = "land:manual") lines) in
-  { max_cycles; grade_required; verify_required; auto_land }
+  { max_cycles = !max_cycles; grade_required = !grade_required;
+    verify_required = !verify_required; auto_land = !auto_land }
 
 let load_plan_file path =
   let full = Filename.concat (current_root ()) path in
@@ -124,13 +189,17 @@ type node_state = {
   mutable blocked_since : string;
   mutable last_commit : string option;
   mutable node_type : string;
+  mutable node_kind : node_kind;
+  mutable approved_decider : string option;
+  mutable approved_reason : string;
 }
 
 let fresh_state () = {
   st = "todo"; cycle = 1; bound = None; has_bound = false;
   grade_ok = false; verify_ok = false;
   blocked_reason = ""; blocked_checkpoint = None; blocked_since = "";
-  last_commit = None; node_type = "default";
+  last_commit = None; node_type = "default"; node_kind = Code;
+  approved_decider = None; approved_reason = "";
 }
 
 let get_opt = Util.get_str_opt
@@ -184,7 +253,10 @@ let fold_ledger text =
               (fold_type_key j "goal_type" "graph_type"
                  (get_str j "quest_type" "default"));
             quest_type := fold_type_key j "goal_type" "graph_type"
-              (get_str j "quest_type" !quest_type)
+              (get_str j "quest_type" !quest_type);
+            s.node_kind <- (match get_opt j "node_kind" with
+              | Some k -> (match node_kind_of_string k with Some nk -> nk | None -> Code)
+              | None -> if !quest_type = "direct" || s.node_type = "direct" then Direct else Code)
           end;
           (try match Yojson.Safe.Util.member "depends_on" j with
              | `List xs -> depends_on := List.map (function `String x -> canon_node_id x | _ -> "") xs
@@ -205,6 +277,10 @@ let fold_ledger text =
           s.grade_ok <- false; s.verify_ok <- false
         end;
         if edge = "resume" then begin s.bound <- None; s.has_bound <- false; s.grade_ok <- false; s.verify_ok <- false end;
+        if edge = "approve" && to_ = "landed" then begin
+          s.approved_decider <- get_opt j "decider";
+          s.approved_reason <- get_str j "reason" ""
+        end;
         if to_ = "blocked" then begin
           s.blocked_reason <- get_str j "reason" "";
           s.blocked_checkpoint <- get_opt j "checkpoint";
@@ -362,13 +438,38 @@ let fold_quest q =
   | None -> None
   | Some (tip, text, _) -> let (s, qt, deps) = fold_ledger text in Some (tip, s, qt, deps, text)
 
-let legal_edges st =
+let legal_edges_for kind st =
   match st with
-  | "todo" -> ["handoff"; "block"; "delete"]
-  | "handed_off" -> ["grade"; "block"; "delete"]
-  | "approved" -> ["land"; "block"; "delete"]
+  | "landed" | "deleted" -> []
   | "blocked" -> ["resume"; "delete"]
-  | _ -> []
+  | _ ->
+      (match kind with
+       | Human_gate -> if st = "todo" then ["approve"; "block"; "delete"] else []
+       | Explore -> if st = "todo" then ["iterate"; "handoff"; "block"; "delete"] else []
+       | Direct | Research -> if st = "todo" then ["handoff"; "block"; "delete"] else []
+       | Code ->
+           (match st with
+            | "todo" -> ["handoff"; "block"; "delete"]
+            | "handed_off" -> ["grade"; "block"; "delete"]
+            | "approved" -> ["land"; "block"; "delete"]
+            | _ -> []))
+
+let legal_edges st = legal_edges_for Code st
+
+(* Built-in protected governance/gate paths (dag-contracts kinds.1):
+   handoff refuses edits to these paths unless --allow-protected is set. *)
+let default_protected_files =
+  [ "GRADING.md"; "CONSTRAINTS.md"; "scripts/receipt"; "scripts/red-first" ]
+
+let protected_files_for ~quest ~node =
+  default_protected_files @ [ node_dir quest node ^ "/NODE.md" ]
+
+let protected_violations ~quest ~node ~allow_protected changed_paths =
+  if allow_protected then []
+  else
+    let locked = protected_files_for ~quest ~node in
+    List.filter (fun p -> List.mem p locked) changed_paths
+    |> List.sort_uniq String.compare
 
 let state_yaml q e s =
   Printf.sprintf "quest: %s\nnode: %s\nstate: %s\ncycle: %d\ncommit: %s\n"

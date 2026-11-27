@@ -90,6 +90,9 @@ echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "commit bump n
 
 # --- 2. Dry-run & human gate & dirty tree & missing bump ---
 land_one_node "$r1" q-nobump n1 "feat: nobump" "MISSING"
+# Strictly scoped: BP3_DECIDER=human-approved-llm-yolo is rejected by bp3 release (E_HUMAN_REQUIRED)
+if out=$(BP3_DECIDER=human-approved-llm-yolo run_bp3 "$r1" release q-nobump 2>&1); then fail "yolo decider allowed release"; fi
+echo "$out" | jq -e '.error.code == "E_HUMAN_REQUIRED"' >/dev/null || fail "yolo decider release code: $out"; ok
 if out=$(BP3_DECIDER=human run_bp3 "$r1" release q-nobump 2>&1); then fail "missing bump accepted"; fi
 echo "$out" | jq -e '.error.code == "E_BUMP_MISSING"' >/dev/null || fail "missing bump code: $out"; ok
 
