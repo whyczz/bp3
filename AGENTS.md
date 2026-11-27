@@ -63,9 +63,9 @@ other repos point at it.
 ./bin/bp3 q c <quest> --type default   # create a quest
 ./bin/bp3 q r <quest>                  # rollup JSON: nodes, states, legal edges
 ./bin/bp3 q <quest> n <node> r         # read one node
-./bin/bp3 q <quest> n <node> e handoff --commit <sha> --reason "..."
-./bin/bp3 q <quest> n <node> e grade --verdict ship|needs_fix --reason "..."
-./bin/bp3 q <quest> n <node> e land --reason "..."
+./bin/bp3 q <quest> n <node> e handoff --commit <sha> --reason "..."   # checks clean tree + dep git ancestry (E_MISSING_ANCESTOR)
+./bin/bp3 q <quest> n <node> e grade --verdict ship|needs_fix --reason "..."   # auto-lands on ship under default land: auto
+./bin/bp3 q <quest> n <node> e land --reason "..."                     # opt-in land: manual plans only
 ./bin/bp3 q <quest> n <node> brief [--desk <path>]   # the grader's cold brief, rendered from the bound commit (GRADING.md)
 ./bin/bp3 q <quest> metrics scrape|r   # collect, then read, what grades and author cycles cost
 ./bin/bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table]  # two-layer deterministic plug audit (read-only)

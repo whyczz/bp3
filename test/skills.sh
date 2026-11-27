@@ -534,4 +534,18 @@ for dir in "${dev_dirs[@]}"; do
   assert grep -qF 'auto-releases clean quest/grade desks' "$dir/using-bp3/SKILL.md"
 done
 
+# dag-fsm-v2 skills.1: 2-edge auto-land, retired standalone verify, and E_MISSING_ANCESTOR
+for dir in "${core_dirs[@]}"; do
+  assert grep -qF 'auto-lands directly' "$dir/induct/SKILL.md"
+  assert grep -qF 'E_MISSING_ANCESTOR' "$dir/induct/SKILL.md"
+done
+for dir in "${dev_dirs[@]}"; do
+  assert grep -qF 'E_MISSING_ANCESTOR' "$dir/using-bp3/SKILL.md"
+  assert grep -qF 'land: auto' "$dir/using-bp3/SKILL.md"
+  assert test -z "$(grep -n -- '--verify-verdict' "$dir/using-bp3/SKILL.md" || true)"
+done
+assert cmp -s "$repo/AGENTS.md" "$repo/CLAUDE.md"
+assert grep -qF 'E_MISSING_ANCESTOR' "$repo/AGENTS.md"
+assert grep -qF 'land: auto' "$repo/AGENTS.md"
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"

@@ -42,12 +42,15 @@ Scope: active in git repos with `backpack.toml` at root (or when explicitly invo
      author's window;
    - at the **cast boundary** (right after that handoff, or when
      nothing is left to author), cast each finished verdict in
-     handoff order (below), land each `approved` node with
-     `e land --reason "..."`, and release its grade desk;
+     handoff order (below) — `grade --verdict ship` auto-lands directly
+     on default `land: auto` plans (only cast `e land --reason "..."`
+     if a `land: manual` plan stopped in `approved`) — and release its
+     grade desk;
    - `blocked`: stop and report the owed decision.
    Wait for a grader only when nothing is left to author.
 3. Re-read after every edge. A refusal is information: re-read,
-   never retry unchanged.
+   never retry unchanged (e.g. `E_MISSING_ANCESTOR` on `handoff` means
+   rebase or merge the named landed dependency commits first).
 4. Loop until no node is ready and no grader is running, or one
    blocks; give the report (and hand off to `warden` when all nodes
    reach `node_fin`).

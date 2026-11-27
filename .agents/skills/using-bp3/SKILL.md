@@ -40,13 +40,17 @@ General coding in this repo does not need this skill.
    refuses (`E_DEPENDENCY`, `facts.blocked_by`) until every
    node dependency is `landed` or `deleted` (a quest dependency:
    it has nodes, all `landed` or `deleted`, and is not itself
-   deleted). Node deps can be redeclared later with
+   deleted), and refuses (`E_MISSING_ANCESTOR`, `facts.missing`)
+   if any landed node dependency carrying a commit is not a git
+   ancestor of `--commit`. Node deps can be redeclared later with
    `q <quest> dep <node> --depends-on <a,b> --reason <why>`.
 4. Take only legal moves: the verdict JSON's `legal_edges`
    lists them, cast as `./bin/bp3 q <quest> n <node> e <edge>`.
-   From todo, `handoff --commit <sha>`; from handed_off,
-   `grade --verdict ship|needs_fix [--verify-verdict pass|fail]`
-   (one combined cast) or `verify`; from approved, `land`;
+   Default happy path is two edges (`land: auto`): from `todo`,
+   `handoff --commit <sha>` -> `handed_off`; from `handed_off`,
+   `grade --verdict ship|needs_fix` -> `landed` directly on `ship`
+   (or `approved` -> `land` under opt-in `land: manual` plans;
+   standalone `verify` is retired and refuses `E_USAGE`);
    `block` from any of the three. `resume` is human-only, and
    `delete` (`./bin/bp3 q <quest> d <node>`) is the owner's
    call (the engine requires a human only to delete a blocked
