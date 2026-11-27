@@ -27,7 +27,7 @@ let commit_changes = function
    returning BOTH old and new paths on renames/copies so renaming a
    protected file cannot bypass E_PROTECTED_FILE. *)
 let commit_touched_paths commit =
-  let out, code = git_out ["diff-tree"; "--no-commit-id"; "--name-status"; "-r"; "-M"; commit] in
+  let out, code = git_out ["diff-tree"; "-m"; "--first-parent"; "--root"; "--no-commit-id"; "--name-status"; "-r"; "-M"; commit] in
   if code <> 0 then []
   else
     String.split_on_char '\n' out

@@ -178,7 +178,7 @@ let do_node_delete quest node fl id =
   (match fold_node quest node with
    | None -> not_found "node" node
    | Some (_, s, _) ->
-       if s.st = "landed" || s.st = "deleted" then illegal s.st "delete";
+       if s.st = "landed" || s.st = "deleted" then illegal_for s.node_kind s.st "delete";
        if s.st = "blocked" && not id.decider_human then
          err Names.e_human_required (`Assoc [("quest", json_str quest); ("node", json_str node)])
            "Deleting a blocked node requires a human (BP3_DECIDER=human)." 1;
@@ -406,7 +406,7 @@ let do_update quest node edge fl id =
         end
       end
   | "land" ->
-      if s.st <> "approved" then illegal s.st edge;
+      if s.st <> "approved" then illegal_for s.node_kind s.st edge;
       (match fl.commit with
        | Some c ->
            let rc = (match resolve_commit c with Some f -> f | None -> c) in
@@ -417,7 +417,7 @@ let do_update quest node edge fl id =
        | None -> ());
       land_and_advance ~from_state:s.st ~ns:s ~edge ~verdict:None ()
   | "block" ->
-      if not (List.mem s.st ["todo"; "handed_off"; "approved"]) then illegal s.st edge;
+      if not (List.mem s.st ["todo"; "handed_off"; "approved"]) then illegal_for s.node_kind s.st edge;
       let checkpoint = if worktree_dirty () then Some (make_checkpoint ()) else None in
       let ns = { s with st = "blocked"; blocked_reason = reason;
                  blocked_checkpoint = checkpoint; blocked_since = now_ts () } in
@@ -426,7 +426,7 @@ let do_update quest node edge fl id =
       let base = finish ns line in
       (match base with `Assoc fs -> `Assoc (fs @ [("human_action_required", `Bool true)]) | o -> o)
   | "resume" ->
-      if s.st <> "blocked" then illegal s.st edge;
+      if s.st <> "blocked" then illegal_for s.node_kind s.st edge;
       if not id.decider_human then
         err Names.e_human_required (`Assoc [("quest", json_str quest); ("node", json_str node)])
           "Resume requires a human decision (BP3_DECIDER=human)." 1;

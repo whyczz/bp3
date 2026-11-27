@@ -49,7 +49,7 @@ let case_parse_flags_stores_each_flag_in_its_own_field _ =
 let case_parse_flags_refuses_a_second_copy_of_every_valued_flag _ =
   List.iter (fun f ->
       assert_equal ~msg:f ~printer:Fun.id ("duplicate flag " ^ f) (detail (fun () -> Cli.parse_flags [ f; "x"; f; "y" ])))
-    [ "--reason"; "--commit"; "--verdict"; "--target"; "--type"; "--depends-on"; "--verify-verdict" ]
+    [ "--reason"; "--commit"; "--verdict"; "--target"; "--type"; "--kind"; "--depends-on"; "--verify-verdict" ]
 
 let case_parse_flags_names_what_is_wrong_in_each_refusal _ =
   List.iter (fun (args, want) ->
@@ -58,7 +58,8 @@ let case_parse_flags_names_what_is_wrong_in_each_refusal _ =
       ([ "--reason=a" ], "unknown flag form: --reason=a"); ([ "stray" ], "stray positional: stray");
       ([ "--mode"; "self" ], Gitx.mode_flag_usage); ([ "--format"; "yaml" ], "--format must be json, table, or tree");
       ([ "--format"; "json"; "--format"; "json" ], "duplicate flag --format");
-      ([ "--mechanical"; "--mechanical" ], "duplicate flag --mechanical") ]
+      ([ "--mechanical"; "--mechanical" ], "duplicate flag --mechanical");
+      ([ "--allow-protected"; "--allow-protected" ], "duplicate flag --allow-protected") ]
 
 let case_thresholds_of_json_reads_nested_or_flat_keys_and_keeps_defaults_otherwise _ =
   let t s = Config.thresholds_of_json (Yojson.Safe.from_string s) in

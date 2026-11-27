@@ -681,6 +681,15 @@ RENAME_PROT=$(git rev-parse HEAD)
 if out=$(q kinds-demo n kc e handoff --commit "$RENAME_PROT" --reason "rename sneak" 2>&1); then fail "protected rename accepted"; fi
 echo "$out" | jq -e '.error.code == "E_PROTECTED_FILE" and (.error.facts.paths | index("GRADING.md") != null)' >/dev/null || fail "protected rename code: $out"
 git mv GRADING.moved.md GRADING.md && git commit -qm "restore grading"
+# Merge commit (--no-ff) modifying a protected file is also caught (diff-tree -m --first-parent):
+git checkout -qb prot-merge-branch
+printf 'rule v3\n' > GRADING.md && git add GRADING.md && git commit -qm "branch edit grading"
+git checkout -q master
+git merge -q --no-ff prot-merge-branch -m "merge grading edit"
+MERGE_PROT=$(git rev-parse HEAD)
+git branch -qD prot-merge-branch
+if out=$(q kinds-demo n kc e handoff --commit "$MERGE_PROT" --reason "merge sneak" 2>&1); then fail "protected merge commit accepted"; fi
+echo "$out" | jq -e '.error.code == "E_PROTECTED_FILE" and (.error.facts.paths | index("GRADING.md") != null)' >/dev/null || fail "protected merge code: $out"
 # --allow-protected bypasses E_PROTECTED_FILE explicitly:
 out=$(q kinds-demo n kc e handoff --commit "$PROT_SHA" --allow-protected --reason "intentional rule update")
 echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "allow-protected handoff: $out"
