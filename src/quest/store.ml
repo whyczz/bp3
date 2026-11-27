@@ -68,7 +68,7 @@ let rec version_cmp a b =
 let version_major v = match parse_version v with m :: _ -> m | [] -> 0
 
 (* ---------- plans ---------- *)
-type knobs = { max_cycles : int; grade_required : bool; verify_required : bool }
+type knobs = { max_cycles : int; grade_required : bool; verify_required : bool; auto_land : bool }
 
 let plan_knobs_from_text text =
   (* reject stages:/edges: keys at line start (after spaces) *)
@@ -93,7 +93,11 @@ let plan_knobs_from_text text =
   let verify_required =
     not (contains_sub text "verify: optional" || contains_sub text "verify: none"
          || contains_sub text "verify:optional" || contains_sub text "verify:none") in
-  { max_cycles; grade_required; verify_required }
+  let auto_land =
+    not (List.exists (fun ln ->
+      let t = String.trim ln in
+      t = "land: manual" || t = "land:manual") lines) in
+  { max_cycles; grade_required; verify_required; auto_land }
 
 let load_plan_file path =
   let full = Filename.concat (current_root ()) path in
@@ -361,7 +365,7 @@ let fold_quest q =
 let legal_edges st =
   match st with
   | "todo" -> ["handoff"; "block"; "delete"]
-  | "handed_off" -> ["grade"; "verify"; "block"; "delete"]
+  | "handed_off" -> ["grade"; "block"; "delete"]
   | "approved" -> ["land"; "block"; "delete"]
   | "blocked" -> ["resume"; "delete"]
   | _ -> []

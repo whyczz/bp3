@@ -35,8 +35,6 @@ land_node() { # $1 quest $2 node $3 path
   local c; c=$(commit_on_node "$1" "$2" "$3" "content-$2")
   q "$1" u "$2" handoff --commit "$c" --reason work >/dev/null
   q "$1" u "$2" grade --verdict ship --reason ok >/dev/null
-  q "$1" u "$2" verify --verdict pass --reason ok >/dev/null
-  q "$1" u "$2" land --reason ship >/dev/null
 }
 
 # --- diamond: waves, deps, landed marker, honest labels ---

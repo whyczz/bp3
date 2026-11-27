@@ -55,8 +55,6 @@ land_one_node() { # dir quest node commit_msg [bump]
   local sha
   sha=$(git -C "$d" rev-parse HEAD)
   run_bp3 "$d" q "$q" n "$n" e handoff --commit "$sha" --reason "handoff" >/dev/null
-  run_bp3 "$d" q "$q" n "$n" e verify --verdict pass --reason "verify" >/dev/null
-  run_bp3 "$d" q "$q" n "$n" e land --reason "land" >/dev/null
 }
 
 # --- 1. Help & preflight refusals ---

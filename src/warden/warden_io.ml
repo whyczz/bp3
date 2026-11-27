@@ -123,7 +123,7 @@ let last_land_commit (nodes : Warden.node_evidence list) =
           List.iter (fun (e : Warden.ledger_entry) ->
               if not e.le_refused then begin
                 (match e.le_commit with Some c when c <> "" -> last_c := c | _ -> ());
-                if e.le_edge = "land" && !last_c <> "" && e.le_ts >= fst !best then
+                if (e.le_edge = "land" || e.le_to = "landed") && !last_c <> "" && e.le_ts >= fst !best then
                   best := (e.le_ts, !last_c)
               end) ne.ne_entries) nodes;
     let sha = snd !best in

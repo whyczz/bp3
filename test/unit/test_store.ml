@@ -264,7 +264,7 @@ let case_legal_edges_name_the_moves_each_state_allows _ =
   List.iter (fun (st, want) ->
       assert_equal ~msg:st ~printer:(String.concat ",") want (Store.legal_edges st))
     [ ("todo", [ "handoff"; "block"; "delete" ]);
-      ("handed_off", [ "grade"; "verify"; "block"; "delete" ]);
+      ("handed_off", [ "grade"; "block"; "delete" ]);
       ("approved", [ "land"; "block"; "delete" ]);
       ("blocked", [ "resume"; "delete" ]);
       ("landed", []); ("deleted", []); ("submitted", []) ]
@@ -481,7 +481,33 @@ let case_plan_knobs_refuse_stages_and_edges_keys_with_E_INVALID_PLAN _ =
 let case_plan_knobs_default_to_one_round_and_read_verify_none_as_optional _ =
   let k = Store.plan_knobs_from_text "grade:\n  required: true\nverify: none\n" in
   assert_equal ~printer:string_of_int 1 k.Store.max_cycles;
-  assert_bool "verify none is optional" (not k.Store.verify_required)
+  assert_bool "verify none is optional" (not k.Store.verify_required);
+  assert_bool "auto_land defaults true" k.Store.auto_land
+
+let case_plan_knobs_parse_land_auto_and_manual _ =
+  let k_default = Store.plan_knobs_from_text "goal_type: default\nmax_cycles: 10\ngrade:\n  required: true\n" in
+  assert_bool "omitted land defaults to auto" k_default.Store.auto_land;
+  let k_auto = Store.plan_knobs_from_text "goal_type: default\nland: auto\n" in
+  assert_bool "explicit land: auto" k_auto.Store.auto_land;
+  let k_manual = Store.plan_knobs_from_text "goal_type: default\nland: manual\n" in
+  assert_bool "explicit land: manual" (not k_manual.Store.auto_land);
+  let k_manual_nospace = Store.plan_knobs_from_text "goal_type: default\n  land:manual  \n" in
+  assert_bool "land:manual without space" (not k_manual_nospace.Store.auto_land)
+
+let case_fold_reads_two_edge_auto_land_and_timing _ =
+  let lines = [
+    edge ~ts:"2026-11-26T00:00:00Z" "create" "" "todo";
+    edge ~ts:"2026-11-26T00:01:00Z" ~commit:"c1" "handoff" "todo" "handed_off";
+    edge ~ts:"2026-11-26T00:03:00Z" ~verdict:"ship" "grade" "handed_off" "landed";
+  ] in
+  let s = fold (text lines) in
+  assert_equal ~printer:Fun.id "landed" s.Store.st;
+  assert_bool "grade_ok set on ship" s.Store.grade_ok;
+  assert_equal (Some "c1") s.Store.bound;
+  let t = Store.timing_of_text (text lines) in
+  assert_equal (Some 60) t.Store.t_wait;
+  assert_equal (Some 120) t.Store.t_wall;
+  assert_equal [ ("handed_off", 120); ("todo", 60) ] t.Store.t_dwell
 
 let char_plan_knobs_read_any_required_false_as_grade_optional_when_a_grade_key_exists _ =
   let k = Store.plan_knobs_from_text "grade:\n  required: true\nverify:\n  required: false\n" in
@@ -584,6 +610,8 @@ let () =
        "case_plan_knobs_read_the_default_plan_as_one_round_grade_and_verify_required" >:: case_plan_knobs_read_the_default_plan_as_one_round_grade_and_verify_required;
        "case_plan_knobs_refuse_stages_and_edges_keys_with_E_INVALID_PLAN" >:: case_plan_knobs_refuse_stages_and_edges_keys_with_E_INVALID_PLAN;
        "case_plan_knobs_default_to_one_round_and_read_verify_none_as_optional" >:: case_plan_knobs_default_to_one_round_and_read_verify_none_as_optional;
+       "case_plan_knobs_parse_land_auto_and_manual" >:: case_plan_knobs_parse_land_auto_and_manual;
+       "case_fold_reads_two_edge_auto_land_and_timing" >:: case_fold_reads_two_edge_auto_land_and_timing;
        "char_plan_knobs_read_any_required_false_as_grade_optional_when_a_grade_key_exists" >:: char_plan_knobs_read_any_required_false_as_grade_optional_when_a_grade_key_exists;
        "case_pick_longest_keeps_the_copy_with_the_most_lines" >:: case_pick_longest_keeps_the_copy_with_the_most_lines;
        "case_pick_longest_breaks_a_tie_in_favor_of_the_earlier_canonical_copy" >:: case_pick_longest_breaks_a_tie_in_favor_of_the_earlier_canonical_copy;

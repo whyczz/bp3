@@ -48,8 +48,6 @@ printf -- '---\nstatus: active\ndate: 2026-11-23\nbump: minor\n---\n\n# sync rel
 git -C "$self_repo" add . && git -C "$self_repo" commit -qm "feat: sync release"
 sha=$(git -C "$self_repo" rev-parse HEAD)
 (cd "$self_repo" && BP3_ROOT="$self_repo" "$qbin" q q-sync n n1 e handoff --commit "$sha" --reason "h" >/dev/null)
-(cd "$self_repo" && BP3_ROOT="$self_repo" "$qbin" q q-sync n n1 e verify --verdict pass --reason "v" >/dev/null)
-(cd "$self_repo" && BP3_ROOT="$self_repo" "$qbin" q q-sync n n1 e land --reason "l" >/dev/null)
 
 prefix="$work/prefix"
 out=$(cd "$self_repo" && PREFIX="$prefix" BP3_RELEASE_ARTIFACT="$qbin" BP3_DECIDER=human BP3_ROOT="$self_repo" "$qbin" release q-sync --no-gh) || fail "self release install failed: $out"

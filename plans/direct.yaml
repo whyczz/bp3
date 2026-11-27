@@ -2,4 +2,4 @@ goal_type: direct
 max_cycles: 0
 grade:
   required: false
-verify: required
+land: auto

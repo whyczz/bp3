@@ -104,19 +104,37 @@ out=$(env -u BP3_HARNESS -u BP3_MODEL -u BP3_RUN_ID BP3_Q_BIN="$work/repo/g-bin"
 echo "$out" | jq -e '.ok == true and (has("run_id") | not) and (.warnings | index("W_IDENTITY_UNKNOWN") != null)' >/dev/null || fail "run-id unset identity warning: $out"
 git show bp3/node/runq/rid-unknown:docs/quests/runq/nodes/rid-unknown/ledger.jsonl | tail -1 | jq -e '(has("run_id") | not) and .harness == "unknown"' >/dev/null || fail "run-id unset unknown ledger"
 
-# --- happy path handoff/grade/verify/land (alias spellings mixed) ---
+# --- happy path handoff/grade auto-land (default land: auto) + retired verify refusal ---
 echo work > b.txt; git add b.txt; git commit -qm work
 B=$(git rev-parse HEAD)
 out=$(q demo u parser-fix handoff --commit "$B" --reason "first cut")
-echo "$out" | jq -e '.ok == true and .state == "handed_off" and .cycle == 1' >/dev/null || fail "handoff: $out"
+echo "$out" | jq -e '.ok == true and .state == "handed_off" and .cycle == 1 and (.legal_edges | index("grade") != null) and (.legal_edges | index("verify") == null)' >/dev/null || fail "handoff: $out"
+# Standalone verify edge is retired -> E_USAGE
+if out=$(q demo u parser-fix verify --verdict pass --reason "retired" 2>&1); then fail "retired verify accepted"; fi
+echo "$out" | jq -e '.ok == false and .error.code == "E_USAGE"' >/dev/null || fail "retired verify code: $out"
+# grade --verdict ship auto-lands directly on default plan (2 edges: handoff -> grade)
 out=$(q demo update parser-fix grade --verdict ship --reason "looks right")
-echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "grade ship stays handed_off until verify: $out"
-out=$(q demo u parser-fix verify --verdict pass --reason "green")
-echo "$out" | jq -e '.ok == true and .state == "approved"' >/dev/null || fail "verify pass approves: $out"
-out=$(q demo u parser-fix land --reason "ship it")
-echo "$out" | jq -e '.ok == true and .state == "landed" and .fin == "node_fin"' >/dev/null || fail "land: $out"
+echo "$out" | jq -e '.ok == true and .state == "landed" and .fin == "node_fin" and .legal_edges == []' >/dev/null || fail "grade ship auto-lands: $out"
 out=$(q r demo)
 echo "$out" | jq -e '.ok == true and (.nodes[] | select(.node == "parser-fix") | .state == "landed" and .fin == "node_fin")' >/dev/null || fail "read after land: $out"
+
+# --- land: manual opt-in preserves approved -> land; direct auto-lands on handoff ---
+printf 'goal_type: manual\nmax_cycles: 1\ngrade:\n  required: true\nland: manual\n' > plans/manual.yaml
+git add plans/manual.yaml; git commit -qm manual-plan
+out=$(q c manual-demo --type manual)
+echo "$out" | jq -e '.ok == true' >/dev/null || fail "manual quest create: $out"
+out=$(q manual-demo c mn1)
+out=$(q manual-demo u mn1 handoff --commit "$B" --reason "work")
+echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "manual handoff: $out"
+out=$(q manual-demo u mn1 grade --verdict ship --reason "looks right")
+echo "$out" | jq -e '.ok == true and .state == "approved" and (.legal_edges | index("land") != null)' >/dev/null || fail "manual grade approves: $out"
+out=$(q manual-demo u mn1 land --reason "ship it")
+echo "$out" | jq -e '.ok == true and .state == "landed" and .fin == "node_fin"' >/dev/null || fail "manual land: $out"
+# direct plan (grade.required: false, land: auto): handoff lands directly
+out=$(q c direct-demo --type direct)
+out=$(q direct-demo c dn1)
+out=$(q direct-demo u dn1 handoff --commit "$B" --reason "direct ship")
+echo "$out" | jq -e '.ok == true and .state == "landed" and .fin == "node_fin"' >/dev/null || fail "direct handoff auto-lands: $out"
 
 # --- mig.1 compat: frozen pre-rename ledger folds to new words, file untouched ---
 out=$(q demo c compat-node)
@@ -137,7 +155,7 @@ append_ledger_line() { # $1 node $2 json-line
 compat_tip_before=$(git rev-parse bp3/node/demo/compat-node)
 append_ledger_line compat-node "{\"ts\":\"2026-01-01T00:00:00Z\",\"edge\":\"submit\",\"from\":\"todo\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":null,\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
 out=$(q demo r compat-node)
-echo "$out" | jq -e --arg c "$B" '.state == "handed_off" and .cycle == 1 and .commit == $c and (.legal_edges | index("grade") != null) and (.legal_edges | index("verify") != null)' >/dev/null || fail "compat old submit folds handed_off: $out"
+echo "$out" | jq -e --arg c "$B" '.state == "handed_off" and .cycle == 1 and .commit == $c and (.legal_edges | index("grade") != null) and (.legal_edges | index("verify") == null)' >/dev/null || fail "compat old submit folds handed_off: $out"
 append_ledger_line compat-node "{\"ts\":\"2026-01-01T00:01:00Z\",\"edge\":\"review\",\"from\":\"submitted\",\"to\":\"submitted\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"ship\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
 append_ledger_line compat-node "{\"ts\":\"2026-01-01T00:02:00Z\",\"edge\":\"check\",\"from\":\"submitted\",\"to\":\"approved\",\"cycle\":1,\"commit\":\"$B\",\"verdict\":\"pass\",\"reason\":\"frozen\",\"harness\":\"t\",\"model\":\"t\",\"bp3_version\":\"0.2.0\"}"
 out=$(q demo r compat-node)
@@ -172,9 +190,7 @@ echo "$out" | jq -e '.state == "todo" and .fin == null' >/dev/null || fail "fin 
 out=$(q fin-demo u only-node handoff --commit "$B" --reason "work")
 echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "fin handoff: $out"
 out=$(q fin-demo u only-node grade --verdict ship --reason "ok")
-out=$(q fin-demo u only-node verify --verdict pass --reason "ok")
-out=$(q fin-demo u only-node land --reason "done")
-echo "$out" | jq -e '.state == "landed" and .fin == "node_fin"' >/dev/null || fail "fin land: $out"
+echo "$out" | jq -e '.state == "landed" and .fin == "node_fin"' >/dev/null || fail "fin auto-land: $out"
 out=$(q r fin-demo)
 echo "$out" | jq -e '.rollup == "landed" and .fin == "goal_fin" and (.nodes[0] | .state == "landed" and .fin == "node_fin")' >/dev/null || fail "goal_fin read: $out"
 out=$(q r demo)
@@ -188,14 +204,19 @@ echo "$out" | jq -e '.ok == true and .state == "blocked" and .human_action_requi
 out=$(q r demo)
 echo "$out" | jq -e '(.inbox | length == 1) and .inbox[0].quest == "demo" and .inbox[0].node == "parser-fix2" and .inbox[0].reason == "broken" and (.inbox[0] | has("checkpoint")) and (.inbox[0] | has("cycle")) and (.inbox[0] | has("since"))' >/dev/null || fail "blocked inbox: $out"
 
-# --- pure-grade (followup.5): one combined cast approves; mechanical never blocks ---
+# --- pure-grade (followup.5 + fsm.1): optional --verify-verdict compat; mechanical never blocks ---
 out=$(q demo c pure-node)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "pure create: $out"
 out=$(q demo u pure-node handoff --commit "$B" --reason "work")
 echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "pure handoff: $out"
 out=$(q demo u pure-node grade --verdict ship --verify-verdict pass --commit "$B" --reason "grade ship; verify pass")
-echo "$out" | jq -e '.ok == true and .state == "approved" and .cycle == 1' >/dev/null || fail "combined cast approves once: $out"
-git show bp3/node/demo/pure-node:docs/quests/demo/nodes/pure-node/ledger.jsonl | jq -se '([.[] | select(.edge == "grade")] | length == 1) and ([.[] | select(.edge == "grade")][0] | .verify_verdict == "pass")' >/dev/null || fail "combined cast is one ledger line"
+echo "$out" | jq -e '.ok == true and .state == "landed" and .fin == "node_fin" and .cycle == 1' >/dev/null || fail "combined cast auto-lands: $out"
+git show bp3/node/demo/pure-node:docs/quests/demo/nodes/pure-node/ledger.jsonl | jq -se '([.[] | select(.edge == "grade")] | length == 1) and ([.[] | select(.edge == "grade")][0] | .verify_verdict == "pass" and .to == "landed")' >/dev/null || fail "combined cast is one ledger line"
+# --verify-verdict fail still overrides ship to needs_fix path (never accidentally lands)
+out=$(q demo c vf-fail-node)
+out=$(q demo u vf-fail-node handoff --commit "$B" --reason "work")
+out=$(q demo u vf-fail-node grade --verdict ship --verify-verdict fail --mechanical --reason "receipt failed")
+echo "$out" | jq -e '.ok == true and .state == "todo" and .cycle == 2' >/dev/null || fail "verify-verdict fail must not ship: $out"
 out=$(q demo c mech-node)
 out=$(q demo u mech-node handoff --commit "$B" --reason "work")
 out=$(q demo u mech-node grade --verdict needs_fix --mechanical --reason "skills/induct/SKILL.md:12 stale term")
@@ -208,7 +229,7 @@ out=$(q demo u mech-node grade --verdict needs_fix --reason "same row still fail
 echo "$out" | jq -e '.ok == true and .state == "blocked" and .human_action_required == true' >/dev/null || fail "disagreement blocks at cap: $out"
 out=$(q demo c misuse-node)
 out=$(q demo u misuse-node handoff --commit "$B" --reason "work")
-if out=$(q demo u misuse-node verify --verdict pass --verify-verdict pass --reason "bad combo" 2>&1); then fail "verify-verdict on verify accepted"; fi
+if out=$(q demo u misuse-node verify --verdict pass --verify-verdict pass --reason "bad combo" 2>&1); then fail "retired verify accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "verify-verdict misuse code: $out"
 
 # table format contains same facts
@@ -296,12 +317,8 @@ ALT=$(git rev-parse HEAD)
 out=$(qa demo u alt-node handoff --commit "$ALT" --reason "work")
 echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "alt handoff A: $out"
 out=$(qb demo u alt-node grade --verdict ship --reason "ok")
-echo "$out" | jq -e '.ok == true and .state == "handed_off"' >/dev/null || fail "alt grade B: $out"
-out=$(qa demo u alt-node verify --verdict pass --reason "ok")
-echo "$out" | jq -e '.ok == true and .state == "approved"' >/dev/null || fail "alt verify A: $out"
-out=$(qb demo u alt-node land --reason "ship")
-echo "$out" | jq -e '.ok == true and .state == "landed"' >/dev/null || fail "alt land B: $out"
-node_ledger alt-node | jq -se '([.[] | select(.edge == "handoff") | .model] == ["executor-a"]) and ([.[] | select(.edge == "grade") | .model] == ["executor-b"]) and ([.[] | select(.edge == "verify") | .model] == ["executor-a"]) and ([.[] | select(.edge == "land") | .model] == ["executor-b"])' >/dev/null || fail "alt ledger models"
+echo "$out" | jq -e '.ok == true and .state == "landed" and .fin == "node_fin"' >/dev/null || fail "alt grade B auto-lands: $out"
+node_ledger alt-node | jq -se '([.[] | select(.edge == "handoff") | .model] == ["executor-a"]) and ([.[] | select(.edge == "grade") | .model] == ["executor-b"])' >/dev/null || fail "alt ledger models"
 
 # --- verdict naming a superseded commit refused ---
 out=$(q demo c stale-node)
@@ -321,20 +338,14 @@ echo "$out" | jq -e '.state == "handed_off" and .cycle == 2' >/dev/null || fail 
 before=$(node_ledger stale-node | wc -l)
 if out=$(q demo u stale-node grade --verdict ship --commit "$STALE_A" --reason "stale" 2>&1); then fail "stale grade accepted"; fi
 echo "$out" | jq -e --arg b "$STALE_B" '.ok == false and .error.code == "E_COMMIT_MISMATCH" and .error.facts.bound == $b' >/dev/null || fail "stale grade code: $out"
-if out=$(q demo u stale-node verify --verdict pass --commit "$STALE_A" --reason "stale" 2>&1); then fail "stale verify accepted"; fi
-echo "$out" | jq -e '.ok == false and .error.code == "E_COMMIT_MISMATCH"' >/dev/null || fail "stale verify code: $out"
 after=$(node_ledger stale-node | wc -l)
 [ "$before" = "$after" ] || fail "stale verdict ledgered"
 out=$(q demo r stale-node)
 echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "stale still handed_off: $out"
 out=$(q demo u stale-node grade --verdict ship --commit "$STALE_B" --reason "current")
-echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "stale grade current: $out"
-out=$(q demo u stale-node verify --verdict pass --commit "$STALE_B" --reason "current")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "stale verify current: $out"
-out=$(q demo u stale-node land --reason "ship")
-echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "stale land: $out"
+echo "$out" | jq -e '.state == "landed" and .fin == "node_fin"' >/dev/null || fail "stale grade current auto-lands: $out"
 
-# --- grade + verify on same commit while handed_off: approved exactly once ---
+# --- extra grade after auto-land refused with E_ILLEGAL_EDGE ---
 out=$(q demo c parallel-node)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "parallel create: $out"
 echo par-work > par.txt; git add par.txt; git commit -qm par-work
@@ -342,28 +353,13 @@ PAR=$(git rev-parse HEAD)
 out=$(q demo u parallel-node handoff --commit "$PAR" --reason "work")
 echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel handoff: $out"
 out=$(q demo u parallel-node grade --verdict ship --reason "ok")
-echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel grade first: $out"
-out=$(q demo u parallel-node verify --verdict pass --reason "ok")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "parallel verify approves: $out"
-[ "$(node_ledger parallel-node | grep -c '"to":"approved"')" = "1" ] || fail "parallel approved count"
+echo "$out" | jq -e '.state == "landed" and .fin == "node_fin"' >/dev/null || fail "parallel grade auto-lands: $out"
+[ "$(node_ledger parallel-node | grep -c '"to":"landed"')" = "1" ] || fail "parallel landed count"
 if out=$(q demo u parallel-node grade --verdict ship --reason "again" 2>&1); then fail "parallel extra grade accepted"; fi
-echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "approved"' >/dev/null || fail "parallel extra grade code: $out"
-if out=$(q demo u parallel-node verify --verdict pass --reason "again" 2>&1); then fail "parallel extra verify accepted"; fi
-echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "approved"' >/dev/null || fail "parallel extra verify code: $out"
-[ "$(node_ledger parallel-node | grep -c '"to":"approved"')" = "1" ] || fail "parallel approved twice"
-out=$(q demo u parallel-node land --reason "ship")
-echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "parallel land: $out"
-out=$(q demo c parallel-rev)
-echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "parallel-rev create: $out"
-out=$(q demo u parallel-rev handoff --commit "$PAR" --reason "work")
-echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel-rev handoff: $out"
-out=$(q demo u parallel-rev verify --verdict pass --reason "ok")
-echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "parallel-rev verify first: $out"
-out=$(q demo u parallel-rev grade --verdict ship --reason "ok")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "parallel-rev grade approves: $out"
-[ "$(node_ledger parallel-rev | grep -c '"to":"approved"')" = "1" ] || fail "parallel-rev approved count"
-out=$(q demo u parallel-rev land --reason "ship")
-echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "parallel-rev land: $out"
+echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "landed"' >/dev/null || fail "parallel extra grade code: $out"
+if out=$(q demo u parallel-node land --reason "redundant" 2>&1); then fail "redundant land after auto-land accepted"; fi
+echo "$out" | jq -e '.error.code == "E_ILLEGAL_EDGE" and .error.facts.state == "landed"' >/dev/null || fail "redundant land code: $out"
+[ "$(node_ledger parallel-node | grep -c '"to":"landed"')" = "1" ] || fail "parallel landed twice"
 
 # --- needs_fix at max_cycles blocked; resume human gate (parser-fix2 above) ---
 before=$(node_ledger parser-fix2 | wc -l)
@@ -378,7 +374,7 @@ echo "$out" | jq -e '.ok == true and .state == "todo" and .cycle == 2' >/dev/nul
 out=$(q r demo)
 echo "$out" | jq -e '[.inbox[] | select(.node == "parser-fix2")] | length == 0' >/dev/null || fail "resumed node still in inbox: $out"
 
-# --- two nodes land into one quest branch: clean merge keeps verdicts ---
+# --- two nodes auto-land into one quest branch: clean merge keeps verdicts ---
 out=$(q demo c land-a)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "land-a create: $out"
 out=$(q demo c land-b)
@@ -390,26 +386,18 @@ echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-a handoff:
 out=$(q demo u land-b handoff --commit "$LAND_B" --reason "work")
 echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-b handoff: $out"
 out=$(q demo u land-a grade --verdict ship --reason "ok")
-echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-a grade: $out"
-out=$(q demo u land-a verify --verdict pass --reason "ok")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-a verify: $out"
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-a auto-land: $out"
 out=$(q demo u land-b grade --verdict ship --reason "ok")
-echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-b grade: $out"
-out=$(q demo u land-b verify --verdict pass --reason "ok")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-b verify: $out"
-out=$(q demo u land-a land --reason "ship")
-echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-a land: $out"
-out=$(q demo u land-b land --reason "ship")
-echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-b clean merge: $out"
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-b clean merge auto-land: $out"
 [ "$(git show bp3/quest/demo:fa.txt)" = "A-content" ] || fail "clean merge lost fa.txt"
 [ "$(git show bp3/quest/demo:fb.txt)" = "B-content" ] || fail "clean merge lost fb.txt"
 git merge-base --is-ancestor "$LAND_A" bp3/quest/demo || fail "land-a reviewed commit not ancestor of quest tip"
 git merge-base --is-ancestor "$LAND_B" bp3/quest/demo || fail "land-b reviewed commit not ancestor of quest tip"
 out=$(q demo r land-b)
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-b verdicts kept: $out"
-[ "$(node_ledger land-b | grep -c '"to":"approved"')" = "1" ] || fail "land-b approved verdict lost"
+[ "$(node_ledger land-b | grep -c '"to":"landed"')" = "1" ] || fail "land-b landed verdict lost"
 
-# --- two nodes land: conflict demotes only the conflicting node ---
+# --- two nodes auto-land: conflict demotes only the conflicting node ---
 out=$(q demo c land-c)
 echo "$out" | jq -e '.state == "todo"' >/dev/null || fail "land-c create: $out"
 out=$(q demo c land-d)
@@ -421,17 +409,9 @@ echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-c handoff:
 out=$(q demo u land-d handoff --commit "$LAND_D" --reason "work")
 echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-d handoff: $out"
 out=$(q demo u land-c grade --verdict ship --reason "ok")
-echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-c grade: $out"
-out=$(q demo u land-c verify --verdict pass --reason "ok")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-c verify: $out"
-out=$(q demo u land-d grade --verdict ship --reason "ok")
-echo "$out" | jq -e '.state == "handed_off"' >/dev/null || fail "land-d grade: $out"
-out=$(q demo u land-d verify --verdict pass --reason "ok")
-echo "$out" | jq -e '.state == "approved"' >/dev/null || fail "land-d verify: $out"
-out=$(q demo u land-c land --reason "ship")
-echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-c land: $out"
+echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "land-c auto-land: $out"
 cycle_before=$(q demo r land-d | jq -r '.cycle')
-out=$(q demo u land-d land --reason "ship")
+out=$(q demo u land-d grade --verdict ship --reason "ok")
 echo "$out" | jq -e --argjson cyc "$cycle_before" '.ok == true and .state == "todo" and .cycle == $cyc and .facts.land_conflict == true' >/dev/null || fail "land-d conflict demotion: $out"
 out=$(q demo r land-d)
 echo "$out" | jq -e --argjson cyc "$cycle_before" '.state == "todo" and .cycle == $cyc' >/dev/null || fail "land-d cycle changed: $out"
@@ -636,9 +616,9 @@ echo "$b" | grep -qF "Previous round: ${A1:0:7} was graded needs_fix. Delta re-g
 echo "$b" | grep -qF "Re-judge the gates in full" && fail "brief still says Re-judge the gates in full: $b"
 echo "$b" | grep -qF "Other nodes' commits in that range: ${B2:0:7} (bn2)." || fail "brief others: $b"
 echo "$b" | grep -q SENTINEL-REASON && fail "brief quotes the author's --reason: $b"
-q brief-demo n bn2 e grade --verdict ship --verify-verdict pass --reason "ok" >/dev/null
-if out=$(q brief-demo n bn2 brief 2>&1); then fail "brief in approved accepted"; fi
-echo "$out" | jq -e '.error.code == "E_NOT_HANDED_OFF" and .error.facts.state == "approved"' >/dev/null || fail "brief approved code: $out"
+q brief-demo n bn2 e grade --verdict ship --reason "ok" >/dev/null
+if out=$(q brief-demo n bn2 brief 2>&1); then fail "brief in landed accepted"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_HANDED_OFF" and .error.facts.state == "landed"' >/dev/null || fail "brief landed code: $out"
 # the verb's word is reserved: no node can be named after it
 if out=$(q brief-demo c brief 2>&1); then fail "node named brief accepted"; fi
 echo "$out" | jq -e '.error.code == "E_USAGE"' >/dev/null || fail "reserved brief code: $out"
@@ -653,11 +633,9 @@ sdesk=$(BP3_Q_BIN="$work/repo/g-bin" ./bin/bp3 harness desk prepare --quest stac
   q stack-demo n sa e handoff --commit "$SA" --reason a >/dev/null
   echo B > sb.txt; git add sb.txt; git commit -qm "sb: work"; SB=$(git rev-parse HEAD)
   q stack-demo n sb e handoff --commit "$SB" --reason b >/dev/null
-  q stack-demo n sa e grade --verdict ship --verify-verdict pass --reason ok >/dev/null
-  q stack-demo n sa e land --reason ok | jq -e '.state == "landed"' >/dev/null || fail "stacked land sa"
+  q stack-demo n sa e grade --verdict ship --reason ok | jq -e '.state == "landed"' >/dev/null || fail "stacked auto-land sa"
   [ -z "$(git status --short)" ] || fail "desk dirty after the first stacked land: $(git status --short)"
-  q stack-demo n sb e grade --verdict ship --verify-verdict pass --reason ok >/dev/null
-  q stack-demo n sb e land --reason ok | jq -e '.state == "landed"' >/dev/null || fail "stacked land sb"
+  q stack-demo n sb e grade --verdict ship --reason ok | jq -e '.state == "landed"' >/dev/null || fail "stacked auto-land sb"
   [ -z "$(git status --short)" ] || fail "desk dirty after the second stacked land"
   [ "$(git rev-parse HEAD)" = "$SB" ] || fail "a land moved the desk's branch"
   [ "$(git rev-parse quest/stack-demo)" = "$SB" ] || fail "quest branch tip"
@@ -735,7 +713,7 @@ for w in --type --depends-on --format --reason; do echo "$out" | grep -q -- "$w"
 out=$(q demo -h) || fail "node door -h exit"
 echo "$out" | grep -q "node door" || fail "node door help: $out"
 out=$(q demo u -h) || fail "update -h exit"
-for w in handoff grade verify land block resume --verdict --commit --reason --target; do echo "$out" | grep -qw -- "$w" || fail "update help missing $w: $out"; done
+for w in handoff grade land block resume --verdict --commit --reason --target; do echo "$out" | grep -qw -- "$w" || fail "update help missing $w: $out"; done
 out=$(q icebox -h) || fail "icebox -h exit"
 echo "$out" | grep -q "icebox r" || fail "icebox help: $out"
 out=$(q icebox r --help) || fail "icebox r --help exit"

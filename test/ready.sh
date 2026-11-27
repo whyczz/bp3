@@ -36,8 +36,6 @@ land_node() { # $1 quest $2 node $3 path
   local c; c=$(commit_on_node "$1" "$2" "$3" "content-$2")
   q "$1" u "$2" handoff --commit "$c" --reason work >/dev/null
   q "$1" u "$2" grade --verdict ship --reason ok >/dev/null
-  q "$1" u "$2" verify --verdict pass --reason ok >/dev/null
-  q "$1" u "$2" land --reason ship >/dev/null
 }
 node_ledger() { git show "bp3/node/$1/$2:docs/quests/$1/nodes/$2/ledger.jsonl"; }
 
@@ -126,14 +124,15 @@ echo "tracked ledger/state files on fixture tip: $tracked_state"
 out=$(q r sched)
 echo "$out" | jq -e '.setup == [] and ((has("warnings") | not) or (.warnings | index("W_SETUP_SLOW") == null))' >/dev/null || fail "setup empty compat: $out"
 
-# --- serial land: second land re-checks against the new tip ---
-q c serial >/dev/null; q serial c sl-a >/dev/null; q serial c sl-b >/dev/null
+# --- serial land (land: manual): second land re-checks against the new tip ---
+printf 'goal_type: manual\nmax_cycles: 1\ngrade:\n  required: true\nland: manual\n' > plans/manual.yaml
+git add plans/manual.yaml; git commit -qm manual-plan
+q c serial --type manual >/dev/null; q serial c sl-a >/dev/null; q serial c sl-b >/dev/null
 CA=$(commit_on_node serial sl-a sa.txt "A"); CB=$(commit_on_node serial sl-b sb.txt "B")
 for e in sl-a sl-b; do
   c=$CA; [ "$e" = sl-b ] && c=$CB
   q serial u "$e" handoff --commit "$c" --reason work >/dev/null
   q serial u "$e" grade --verdict ship --reason ok >/dev/null
-  q serial u "$e" verify --verdict pass --reason ok >/dev/null
 done
 out=$(q serial u sl-a land --reason first)
 echo "$out" | jq -e '.state == "landed"' >/dev/null || fail "first land: $out"
@@ -157,7 +156,7 @@ echo "$out" | grep -q -- "--depends-on" || fail "node door help depends-on: $out
 # --- quest-level deps (Store.dep_satisfied): a handoff waits until
 # every node of each dependency quest is landed or deleted; a node in
 # flight (approved, not landed) still holds it back ---
-q c qdep-a >/dev/null; q qdep-a c e1 >/dev/null; q qdep-a c e2 >/dev/null; q qdep-a c e3 >/dev/null
+q c qdep-a --type manual >/dev/null; q qdep-a c e1 >/dev/null; q qdep-a c e2 >/dev/null; q qdep-a c e3 >/dev/null
 q c qdep-b --depends-on qdep-a >/dev/null; q qdep-b c e1 >/dev/null
 echo qdep > qdep.txt; git add qdep.txt; git commit -qm qdep; QD=$(git rev-parse HEAD)
 qdep_refused() { # why
@@ -166,11 +165,11 @@ qdep_refused() { # why
 }
 qdep_refused "every dependency node todo"
 q qdep-a u e2 handoff --commit "$QD" --reason w >/dev/null
-q qdep-a u e2 grade --verdict ship --verify-verdict pass --reason ok >/dev/null
+q qdep-a u e2 grade --verdict ship --reason ok >/dev/null
 q qdep-a u e2 land --reason "landed" >/dev/null
 q qdep-a d e3 --reason "dropped" >/dev/null
 q qdep-a u e1 handoff --commit "$QD" --reason w >/dev/null
-q qdep-a u e1 grade --verdict ship --verify-verdict pass --reason ok >/dev/null
+q qdep-a u e1 grade --verdict ship --reason ok >/dev/null
 qdep_refused "one dependency node approved but not landed"
 q qdep-a u e1 land --reason "landed" >/dev/null
 out=$(q qdep-b u e1 handoff --commit "$QD" --reason w) || fail "handoff refused once every dependency node was landed or deleted: $out"

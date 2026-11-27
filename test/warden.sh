@@ -104,15 +104,13 @@ mkdir -p "$grade_dir"
 
 # Leave a grade-* desk open on na after landing -> desk_leak
 bp harness desk prepare 2026-11-23-q1 na --run grade-na-c3-a1 --commit "$sha3" >/dev/null
-bp q 2026-11-23-q1 n na e grade --verdict ship --verify-verdict pass --reason "clean" >/dev/null
-bp q 2026-11-23-q1 n na e land --reason "landed c3" >/dev/null
+bp q 2026-11-23-q1 n na e grade --verdict ship --reason "clean" >/dev/null
 
 # Node nb: landed with zero metrics -> coverage_gap
 echo nb1 >> a.txt && git add a.txt && git commit -qm "nb c1"
 sha_nb=$(git rev-parse HEAD)
 bp q 2026-11-23-q1 n nb e handoff --commit "$sha_nb" --reason "nb" >/dev/null
-bp q 2026-11-23-q1 n nb e grade --verdict ship --verify-verdict pass --reason "clean" >/dev/null
-bp q 2026-11-23-q1 n nb e land --reason "landed nb" >/dev/null
+bp q 2026-11-23-q1 n nb e grade --verdict ship --reason "clean" >/dev/null
 
 # Scrape metrics so na has grade + author samples (grade_inversion) and nb has 0 (coverage_gap).
 bp q 2026-11-23-q1 metrics scrape --claude-dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$work/agy" >/dev/null
@@ -208,8 +206,7 @@ bp q 2026-11-23-q3 c nslow >/dev/null
 echo slow1 >> a.txt && git add docs/quests a.txt && git commit -qm "nslow c1"
 sha_ns=$(git rev-parse HEAD)
 bp q 2026-11-23-q3 n nslow e handoff --commit "$sha_ns" --reason "nslow" >/dev/null
-bp q 2026-11-23-q3 n nslow e grade --verdict ship --verify-verdict pass --reason "clean" >/dev/null
-bp q 2026-11-23-q3 n nslow e land --reason "landed nslow" >/dev/null
+bp q 2026-11-23-q3 n nslow e grade --verdict ship --reason "clean" >/dev/null
 # Plant a 450s grade.wall_s sample on nslow's state branch so we test the threshold without sleeping 450s
 ns_br="bp3/node/2026-11-23-q3/nslow"
 ns_tip=$(git rev-parse "$ns_br")

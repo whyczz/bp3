@@ -2,4 +2,4 @@ goal_type: default
 max_cycles: 10
 grade:
   required: true
-verify: required
+land: auto

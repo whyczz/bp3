@@ -45,8 +45,7 @@ git -C "$proj" add -A && git -C "$proj" commit -qm init
 (cd "$proj" && ./bin/bp3 q demo-q c node-2-second >/dev/null)
 sha="$(git -C "$proj" rev-parse HEAD)"
 (cd "$proj" && ./bin/bp3 q demo-q n node-1-first e handoff --commit "$sha" --reason "ok" >/dev/null)
-(cd "$proj" && ./bin/bp3 q demo-q n node-1-first e grade --verdict ship --verify-verdict pass --reason "ok" >/dev/null)
-(cd "$proj" && ./bin/bp3 q demo-q n node-1-first e land --reason "ok" >/dev/null)
+(cd "$proj" && ./bin/bp3 q demo-q n node-1-first e grade --verdict ship --reason "ok" >/dev/null)
 (cd "$proj" && ./bin/bp3 q demo-q n node-2-second e handoff --commit "$sha" --reason "wip" >/dev/null)
 
 payload="$(printf '{"cwd":"%s","context_window":{"context_window_size":1048576,"used_percentage":25.0,"total_input_tokens":200000,"total_output_tokens":60000}}' "$proj")"
@@ -99,8 +98,7 @@ sha2="$(git -C "$proj" rev-parse HEAD)"
 (cd "$proj" && ./bin/bp3 q q-alpha c node-1-first >/dev/null)
 (cd "$proj" && ./bin/bp3 q q-alpha c node-2-second >/dev/null)
 (cd "$proj" && ./bin/bp3 q q-alpha n node-1-first e handoff --commit "$sha2" --reason "ok" >/dev/null)
-(cd "$proj" && ./bin/bp3 q q-alpha n node-1-first e grade --verdict ship --verify-verdict pass --reason "ok" >/dev/null)
-(cd "$proj" && ./bin/bp3 q q-alpha n node-1-first e land --reason "ok" >/dev/null)
+(cd "$proj" && ./bin/bp3 q q-alpha n node-1-first e grade --verdict ship --reason "ok" >/dev/null)
 (cd "$proj" && ./bin/bp3 q q-alpha n node-2-second e handoff --commit "$sha2" --reason "wip" >/dev/null)
 
 touch "$proj/docs/quests/q-beta/QUEST.red-ink.md"
