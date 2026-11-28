@@ -793,6 +793,115 @@ q kinds-demo n kmerge e handoff --commit "$C_MERGE_OK" --reason "merge direct" >
 out=$(q kinds-demo n kmerge r)
 echo "$out" | jq -e '(.changes | map(.path) | index("merged-change.txt")) != null' >/dev/null || fail "merge commit changes empty: $out"
 
+# --- declarative-json-quest-init init.1: atomic bp3 q c --file, E_INVALID_SPEC, JSON brief, quest.json diff guard, --scaffold ---
+cat > "$work/bad-cycle.json" <<'JSON'
+{"version":1,"quest":"bad-json","title":"Bad","tldr":"cycle","bump":"patch","nodes":[
+  {"id":"n1","title":"1","depends_on":["n2"],"intent":"i","output":"o","acceptance":{"objective":"o","prove_by":["p"],"done_when":"d"}},
+  {"id":"n2","title":"2","depends_on":["n1"],"intent":"i","output":"o","acceptance":{"objective":"o","prove_by":["p"],"done_when":"d"}}
+]}
+JSON
+if out=$(q c bad-json --file "$work/bad-cycle.json" 2>&1); then fail "cyclic quest.json accepted"; fi
+echo "$out" | jq -e '.error.code == "E_INVALID_SPEC"' >/dev/null || fail "cyclic quest.json code: $out"
+if out=$(q r bad-json 2>&1); then fail "partial ref left on E_INVALID_SPEC"; fi
+echo "$out" | jq -e '.error.code == "E_NOT_FOUND"' >/dev/null || fail "partial ref check: $out"
+
+mkdir -p docs/quests/json-demo
+cat > docs/quests/json-demo/quest.json <<'JSON'
+{
+  "version": 1,
+  "quest": "json-demo",
+  "title": "JSON Demo",
+  "tldr": "Declarative quest test",
+  "bump": "minor",
+  "nodes": [
+    {
+      "id": "node-c-1",
+      "node": "c.1",
+      "title": "Code step",
+      "kind": "code",
+      "depends_on": ["node-r-1"],
+      "intent": "Implement feature",
+      "output": "src/feat.ml",
+      "acceptance": {
+        "objective": "Ship JSON-gated feature",
+        "prove_by": ["make check-full"],
+        "done_when": "all green",
+        "trace": ["$ run -> ok"]
+      }
+    },
+    {
+      "id": "node-r-1",
+      "node": "r.1",
+      "title": "Research step",
+      "kind": "research",
+      "depends_on": [],
+      "intent": "Research options",
+      "output": "docs/quests/json-demo/REPORT.md",
+      "acceptance": {
+        "objective": "Ground c.1",
+        "prove_by": ["report"],
+        "done_when": "landed"
+      }
+    },
+    {
+      "id": "node-ex-1",
+      "node": "ex.1",
+      "title": "Explore step",
+      "kind": "explore",
+      "target": "latency < 10ms",
+      "max_iterations": 2,
+      "depends_on": [],
+      "intent": "Probe latency",
+      "output": "docs/quests/json-demo/EXPLORE.md",
+      "acceptance": {
+        "objective": "Measure latency",
+        "prove_by": ["bench"],
+        "done_when": "reported"
+      }
+    }
+  ]
+}
+JSON
+git add docs/quests/json-demo/quest.json && git commit -qm "add json-demo quest.json"
+if out=$(q c wrong-name --file docs/quests/json-demo/quest.json 2>&1); then fail "mismatched quest arg accepted"; fi
+echo "$out" | jq -e '.error.code == "E_INVALID_SPEC"' >/dev/null || fail "mismatched quest arg code: $out"
+out=$(q c json-demo --file docs/quests/json-demo/quest.json)
+echo "$out" | jq -e '.ok == true and .quest == "json-demo" and (.nodes | length) == 3 and .nodes[0].node == "node-r-1" and .nodes[2].node == "node-c-1"' >/dev/null || fail "atomic json create: $out"
+if out=$(q c json-demo --file docs/quests/json-demo/quest.json 2>&1); then fail "duplicate json create accepted"; fi
+echo "$out" | jq -e '.error.code == "E_EXISTS"' >/dev/null || fail "duplicate json create code: $out"
+out=$(q json-demo n node-ex-1 r)
+echo "$out" | jq -e '.kind == "explore" and .explore.target == "latency < 10ms" and .explore.max_iterations == 2' >/dev/null || fail "json explore metadata: $out"
+# Research node refining own entry in quest.json is refused E_PROTECTED_FILE, while refining downstream todo c.1 succeeds:
+jq '.nodes[1].intent = "Weaken self"' docs/quests/json-demo/quest.json > "$work/qj.tmp" && mv "$work/qj.tmp" docs/quests/json-demo/quest.json
+git add docs/quests/json-demo/quest.json && git commit -qm "research edits own quest.json entry"
+C_QJ_SELF=$(git rev-parse HEAD)
+if out=$(q json-demo n node-r-1 e handoff --commit "$C_QJ_SELF" --reason "edit own entry" 2>&1); then fail "research self quest.json edit accepted"; fi
+echo "$out" | jq -e '.error.code == "E_PROTECTED_FILE"' >/dev/null || fail "research self quest.json code: $out"
+git reset -q --hard HEAD~1
+jq '.nodes[0].intent = "Sharpened feature intent"' docs/quests/json-demo/quest.json > "$work/qj.tmp" && mv "$work/qj.tmp" docs/quests/json-demo/quest.json
+git add docs/quests/json-demo/quest.json && git commit -qm "research sharpens todo c.1 in quest.json"
+C_QJ_TODO=$(git rev-parse HEAD)
+out=$(q json-demo n node-r-1 e handoff --commit "$C_QJ_TODO" --reason "sharpened c.1")
+echo "$out" | jq -e '.ok == true and .state == "landed"' >/dev/null || fail "research todo quest.json edit: $out"
+# Code node editing quest.json without --allow-protected is refused; clean code commit gets JSON-backed brief with zero NODE.md!
+echo "code" > feat.txt && git add feat.txt && git commit -qm "feat: c.1"
+C_JSON_CODE=$(git rev-parse HEAD)
+q json-demo n node-c-1 e handoff --commit "$C_JSON_CODE" --reason "ready" >/dev/null
+out=$(q json-demo n node-c-1 brief)
+echo "$out" | jq -r '.brief' | grep -qF "Acceptance gates (quest.json at" || fail "brief missing quest.json heading: $out"
+echo "$out" | jq -r '.brief' | grep -qF "Ship JSON-gated feature" || fail "brief missing JSON objective: $out"
+# Omit positional quest name + pass --scaffold to generate QUEST.md and NODE.md views:
+cat > "$work/scaf.json" <<'JSON'
+{"version":1,"quest":"scaf-demo","title":"Scaffold Demo","tldr":"Auto-scaffold views","bump":"patch","nodes":[
+  {"id":"node-s-1","node":"s.1","title":"Step one","intent":"Do thing","output":"out.txt","acceptance":{"objective":"Work","prove_by":["make check"],"done_when":"green"}}
+]}
+JSON
+out=$(q c --file "$work/scaf.json" --scaffold)
+echo "$out" | jq -e '.ok == true and .quest == "scaf-demo" and (.scaffolded | length) == 2' >/dev/null || fail "scaffold create: $out"
+grep -qF "## Acceptance gates" docs/quests/scaf-demo/nodes/node-s-1/NODE.md || fail "scaffold NODE.md missing Acceptance gates"
+"$root/scripts/check-bump" --root "$work/repo" >/dev/null || fail "check-bump rejected valid quest.json"
+rm -rf docs/quests/scaf-demo && git checkout -q -- .
+
 # --- version guard: minor-ahead warns and writes; major-ahead refuses writes ---
 stamp_ledger() { # $1 quest $2 node $3 version
   local br="bp3/node/$1/$2" path="docs/quests/$1/nodes/$2/ledger.jsonl" tip idx led blob tree nt

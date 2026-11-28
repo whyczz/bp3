@@ -641,7 +641,18 @@ let run argv id =
             | None -> head_sha () in
           let qpath = Layout.quest_dir q ^ "/" ^ Layout.quest_file in
           let qmd = match git_show src qpath with Some t -> t | None -> "" in
-          let meta = Release.parse_quest_md qmd in
+          let meta_md = Release.parse_quest_md qmd in
+          let meta =
+            match git_show src (Store.quest_json_path q) with
+            | Some raw ->
+                (match Quest_spec.parse_string raw with
+                 | Ok spec ->
+                     let bump = match meta_md.Release.bump with Some _ as b -> b | None -> Some spec.Quest_spec.bump in
+                     let title = if meta_md.Release.title <> "" then meta_md.Release.title else spec.Quest_spec.title in
+                     let tldr = if meta_md.Release.tldr <> "" then meta_md.Release.tldr else spec.Quest_spec.tldr in
+                     { meta_md with Release.title; tldr; bump }
+                 | Error _ -> meta_md)
+            | None -> meta_md in
           let summaries =
             List.filter_map (fun (n, s) ->
               if s.st = "deleted" then None

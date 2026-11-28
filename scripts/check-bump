@@ -47,6 +47,20 @@ if [ -d "$quests_dir" ]; then
         fails=$((fails + 1)) ;;
     esac
   done
+  for jf in "$quests_dir"/*/quest.json; do
+    [ -f "$jf" ] || continue
+    rel="${jf#"$root"/}"
+    bump=$(jq -r '.bump // ""' "$jf" 2>/dev/null || echo "__invalid_json__")
+    case "$bump" in
+      major|minor|patch|none) ;;
+      "")
+        echo "check-bump: FAIL $rel: quest.json needs bump: major|minor|patch|none" >&2
+        fails=$((fails + 1)) ;;
+      *)
+        echo "check-bump: FAIL $rel: invalid bump: $bump (expected major|minor|patch|none)" >&2
+        fails=$((fails + 1)) ;;
+    esac
+  done
 fi
 
 [ "$fails" -eq 0 ] || exit 1
