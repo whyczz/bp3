@@ -130,7 +130,24 @@ let case_parse_rejects_malformed_and_invalid_specs _ =
     {|{"version":1,"quest":"a","title":"t","tldr":"x","bump":"patch","nodes":[
        {"id":"n1","title":"1","depends_on":["n2"],"intent":"i","output":"o","acceptance":{"objective":"o","prove_by":["p"],"done_when":"d"}},
        {"id":"n2","title":"2","depends_on":["n1"],"intent":"i","output":"o","acceptance":{"objective":"o","prove_by":["p"],"done_when":"d"}}]}|}
+    "dependency cycle";
+  assert_invalid "exp-prefixed cycle"
+    {|{"version":1,"quest":"a","title":"t","tldr":"x","bump":"patch","nodes":[
+       {"id":"exp-a","title":"1","depends_on":["exp-b"],"intent":"i","output":"o","acceptance":{"objective":"o","prove_by":["p"],"done_when":"d"}},
+       {"id":"exp-b","title":"2","depends_on":["exp-a"],"intent":"i","output":"o","acceptance":{"objective":"o","prove_by":["p"],"done_when":"d"}}]}|}
     "dependency cycle"
+
+let case_topo_sort_handles_exp_prefixed_ids _ =
+  let raw = {|{"version":1,"quest":"a","title":"t","tldr":"x","bump":"patch","nodes":[
+    {"id":"node-b","title":"2","depends_on":["exp-a"],"intent":"i","output":"o","acceptance":{"objective":"o","prove_by":["p"],"done_when":"d"}},
+    {"id":"exp-a","title":"1","depends_on":[],"intent":"i","output":"o","acceptance":{"objective":"o","prove_by":["p"],"done_when":"d"}}]}|} in
+  match Quest_spec.parse_string raw with
+  | Error es -> assert_failure ("unexpected parse error: " ^ String.concat "; " es)
+  | Ok spec ->
+      (match Quest_spec.topo_sort spec.nodes with
+       | Error es -> assert_failure ("unexpected topo error: " ^ String.concat "; " es)
+       | Ok ordered ->
+           assert_equal [ "exp-a"; "node-b" ] (List.map (fun (n : Quest_spec.node_spec) -> n.id) ordered))
 
 let case_json_diff_violations_allows_only_non_self_todo_node_edits _ =
   let states = function
@@ -196,6 +213,7 @@ let () =
     ("quest_spec" >::: [
        "case_parse_valid_spec_and_render_acceptance" >:: case_parse_valid_spec_and_render_acceptance;
        "case_parse_rejects_malformed_and_invalid_specs" >:: case_parse_rejects_malformed_and_invalid_specs;
+       "case_topo_sort_handles_exp_prefixed_ids" >:: case_topo_sort_handles_exp_prefixed_ids;
        "case_json_diff_violations_allows_only_non_self_todo_node_edits" >:: case_json_diff_violations_allows_only_non_self_todo_node_edits;
        QCheck_ounit.to_ounit2_test law_topo_sort_places_every_dep_before_dependent;
      ])

@@ -175,7 +175,11 @@ let case_quest_json_gates_take_precedence_and_pass_is_verbatim _ =
   assert_bool "objective rendered" (has b "- **objective:** ship json gates");
   assert_bool "trace rendered" (has b "$ bp3 q q1 r -> ok");
   assert_bool "no missing NODE.md finding" (not (has b "no NODE.md"));
-  assert_bool "is_verbatim passes" (Brief.is_verbatim b i)
+  assert_bool "is_verbatim passes" (Brief.is_verbatim b i);
+  (* When both quest_json and node_md exist, quest.json takes precedence *)
+  let both = Brief.render ~desk:"/d/g" { base with quest_json = Some qjson } in
+  assert_bool "overrides NODE.md" (has both "Acceptance gates (quest.json at abc1234):" && has both "ship json gates");
+  assert_bool "markdown gate not used" (not (has both "gate line one"))
 
 let () =
   run_test_tt_main

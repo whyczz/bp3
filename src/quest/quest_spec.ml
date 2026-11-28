@@ -238,11 +238,11 @@ let parse_json j =
           n.depends_on) nodes;
       (* Cycles via Store.dep_cycle_through *)
       if !errs = [] then begin
-        let dgraph = List.map (fun n -> (n.id, n.depends_on)) nodes in
+        let dgraph = List.map (fun (n : node_spec) -> (Store.canon_node_id n.id, n.depends_on)) nodes in
         let rec check_cycles = function
           | [] -> ()
-          | n :: rest ->
-              (match Store.dep_cycle_through dgraph n.id with
+          | (n : node_spec) :: rest ->
+              (match Store.dep_cycle_through dgraph (Store.canon_node_id n.id) with
                | Some cyc ->
                    errs := ("dependency cycle: " ^ String.concat " -> " cyc) :: !errs
                | None -> check_cycles rest) in
@@ -262,10 +262,10 @@ let topo_sort (nodes : node_spec list) =
     match remaining with
     | [] -> Ok (List.rev placed)
     | _ ->
-        let placed_ids = List.map (fun (n : node_spec) -> n.id) placed in
+        let placed_ids = List.map (fun (n : node_spec) -> Store.canon_node_id n.id) placed in
         let ready, blocked =
           List.partition (fun (n : node_spec) ->
-            List.for_all (fun d -> List.mem d placed_ids) n.depends_on) remaining in
+            List.for_all (fun d -> List.mem (Store.canon_node_id d) placed_ids) n.depends_on) remaining in
         match ready with
         | [] ->
             let ids = List.map (fun (n : node_spec) -> n.id) blocked in
