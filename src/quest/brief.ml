@@ -65,15 +65,24 @@ let verdict_shape =
 let node_md_path q n = Store.node_dir q n ^ "/NODE.md"
 let quest_md_path q = Store.quest_dir q ^ "/QUEST.md"
 
+let extract_gates md =
+  let non_empty h =
+    match section h md with
+    | Some s when String.trim s <> "" -> Some s
+    | _ -> None in
+  match non_empty "Acceptance gates" with
+  | Some _ as hit -> hit
+  | None -> non_empty "Acceptance test"
+
 let desk_line desk commit = "Desk: " ^ desk ^ " (check that `git rev-parse HEAD` prints " ^ commit ^ ")"
 
 let render ?desk i =
   let c7 = short i.commit in
   let gates = match i.node_md with
     | None -> "(no NODE.md at " ^ c7 ^ ": that is a finding)"
-    | Some md -> (match section "Acceptance gates" md with
-        | Some s when String.trim s <> "" -> s
-        | _ -> "(NODE.md at " ^ c7 ^ " has no Acceptance gates section: that is a finding)") in
+    | Some md -> (match extract_gates md with
+        | Some s -> s
+        | None -> "(NODE.md at " ^ c7 ^ " has no Acceptance gates section: that is a finding)") in
   let read_first =
     String.concat "\n"
       ([ "Read first:";

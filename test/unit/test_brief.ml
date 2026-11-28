@@ -140,6 +140,31 @@ let case_repo_gate_from_backpack_renders_and_passes_is_verbatim _ =
   assert_bool "passes is_verbatim" (Brief.is_verbatim b i);
   assert_bool "omitted when gate is None" (not (has (Brief.render base) "Repo gate (backpack.toml):"))
 
+let case_extract_gates_falls_back_to_acceptance_test_and_prefers_acceptance_gates _ =
+  let test_only = "## TL;DR\n\nsummary\n\n## Acceptance test\n\nrun test_a\n\n## Diagram\n\nboxes\n" in
+  assert_equal ~printer:(Option.value ~default:"<none>") (Some "run test_a") (Brief.extract_gates test_only);
+  let b = Brief.render { base with node_md = Some test_only } in
+  assert_bool "fallback rendered" (has b "Acceptance gates (NODE.md at abc1234):\n\nrun test_a\n\n");
+  assert_bool "no missing-gates finding" (not (has b "has no Acceptance gates section"));
+  let both = "## Acceptance gates\n\nprimary gates\n\n## Acceptance test\n\nfallback test\n" in
+  assert_equal ~printer:(Option.value ~default:"<none>") (Some "primary gates") (Brief.extract_gates both);
+  let empty_primary = "## Acceptance gates\n\n   \n\n## Acceptance test\n\nreal fallback\n" in
+  assert_equal ~printer:(Option.value ~default:"<none>") (Some "real fallback") (Brief.extract_gates empty_primary);
+  let neither = "## TL;DR\n\njust prose\n" in
+  assert_equal None (Brief.extract_gates neither)
+
+let law_acceptance_test_fallback_inlines_verbatim =
+  let open QCheck2.Gen in
+  let word = string_size ~gen:(char_range 'a' 'z') (int_range 1 8) in
+  let body = list_size (int_range 1 5) word >|= String.concat "\n" in
+  QCheck2.Test.make ~count:200 ~name:"law_acceptance_test_fallback_inlines_verbatim" body
+    (fun gates ->
+       let md = "## TL;DR\n\nx\n\n## Acceptance test\n\n" ^ gates ^ "\n\n## Prose\n\np\n" in
+       let b = Brief.render { base with node_md = Some md } in
+       Brief.extract_gates md = Some gates
+       && has b ("Acceptance gates (NODE.md at abc1234):\n\n" ^ gates ^ "\n\n")
+       && not (has b "has no Acceptance gates section"))
+
 let () =
   run_test_tt_main
     ("brief" >::: [
@@ -149,6 +174,8 @@ let () =
        "case_cycle_two_shows_the_range_and_other_nodes_never_a_reason" >:: case_cycle_two_shows_the_range_and_other_nodes_never_a_reason;
        "case_missing_files_are_named_not_hidden" >:: case_missing_files_are_named_not_hidden;
        "case_repo_gate_from_backpack_renders_and_passes_is_verbatim" >:: case_repo_gate_from_backpack_renders_and_passes_is_verbatim;
+       "case_extract_gates_falls_back_to_acceptance_test_and_prefers_acceptance_gates" >:: case_extract_gates_falls_back_to_acceptance_test_and_prefers_acceptance_gates;
+       QCheck_ounit.to_ounit2_test law_acceptance_test_fallback_inlines_verbatim;
        QCheck_ounit.to_ounit2_test law_gates_verbatim_and_join_line;
        "case_is_verbatim_takes_the_render_and_nothing_else" >:: case_is_verbatim_takes_the_render_and_nothing_else;
        QCheck_ounit.to_ounit2_test law_is_verbatim_exact;
