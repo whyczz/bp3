@@ -1,6 +1,6 @@
 ---
 name: red-ink
-description: "Present an existing design back to its owner slice by slice, interviewing within each slice (like /ask and AskUserQuestion) until 100% confident in that section's scope before moving on: copy the design first (original untouched), open with a greentext TL;DR + PRFAQ-style 10k-ft Shape demo, walk output, inputs, internals (data, state, functions, names, concepts), and close with Plan (nodes — with optional zoom-in on any node); loop Observe -> Orient -> Decide (non-obvious questions with options + recommendation) -> Act -> IIUC per slice, emit a before -> after TL;DR when each slice settles, and end with a closing red chair and full Exit pack. Use for Socratic design review of an existing artifact. Not for one-shot adversarial review (red-chair), authoring a new design (design), or interviewing a blank request with no design yet (ask, grill)."
+description: "Present an existing design back to its owner slice by slice, interviewing within each slice (like /ask and AskUserQuestion) until 100% confident in that section's scope before moving on: copy the design first (original untouched), open with a greentext TL;DR + PRFAQ-style 10k-ft Shape demo, walk output, inputs, internals (data, state, functions, layout, names, concepts), and close with Plan (nodes — with optional zoom-in on any node); loop Observe -> Orient -> Decide (non-obvious questions with options + recommendation) -> Act -> IIUC per slice, emit a before -> after TL;DR when each slice settles and wait for explicit owner LGTM before opening the next slice, and end with a closing red chair and full Exit pack. Use for Socratic design review of an existing artifact. Not for one-shot adversarial review (red-chair), authoring a new design (design), or interviewing a blank request with no design yet (ask, grill)."
 ---
 
 # Red ink
@@ -10,11 +10,11 @@ existing artifact
     |
     +-- copy --> working copy        (original stays untouched)
                      |
-    walk:  shape (10k-ft) -> output -> inputs -> data -> state -> fn -> names -> concepts -> plan (nodes)
+    walk:  shape (10k-ft) -> output -> inputs -> data -> state -> fn -> layout -> names -> concepts -> plan (nodes)
                      |
     per slice: Observe -> [Orient -> Decide -> Act -> IIUC]*  (loop until 100% confident in slice)
                      |
-                     +--> Slice TL;DR (before -> after) --> next slice
+                     +--> Slice TL;DR (before -> after) --> explicit owner LGTM ("lgtm"/"okay"/"next") --> next slice
                      |
     owner: "happy / settle"
                      v
@@ -25,7 +25,7 @@ existing artifact
 def red_ink(artifact, expert=None):
     copy = duplicate(artifact)             # original never edited
     icebox_hits = search_icebox(artifact)  # where we want to get to
-    for slice in [shape, output, inputs, data, state, fn, names, concepts, plan]:
+    for slice in [shape, output, inputs, data, state, fn, layout, names, concepts, plan]:
         teach(slice)                       # Observe: ground in artifact + codebase first
         while not (confident_100pct(slice) and owner.model_clear(slice)):
             orient(slice)                  # remaining tensions, edge cases, blind spots
@@ -35,6 +35,8 @@ def red_ink(artifact, expert=None):
             if owner.advances_slice:
                 break
         slice_tldr_before_after(slice)     # before -> after TL;DR once slice is settled
+        if not owner.explicitly_advanced_in_turn:
+            wait_for_owner_lgtm()          # require explicit "lgtm"/"okay"/"next" before next slice
         if owner.happy:
             break
     chair = red_chair(copy)                # closing pass on the settled design
@@ -126,9 +128,10 @@ Shape gate** (`Shape` is slice 1, before `Output`):
 | Internals: data | shapes and schemas |
 | Internals: state | lifecycle, stored vs derived |
 | Internals: functions | edges, who does what |
+| Internals: layout | repo file/directory layout (authored configs, libraries, CLIs, runtime data paths — `before -> after` directory tree) |
 | Internals: names | every variable and term, one line each |
 | Internals: concepts | the coined vocabulary a newcomer must learn |
-| Plan (nodes) | how to get there: node breakdown, dependency railway, parallel waves, per-node acceptance & test split (with optional zoom-in on any node the owner wants to inspect before settling) |
+| Plan (nodes) | how to get there: node breakdown, dependency railway, per-node acceptance & test split (with optional zoom-in on any node the owner wants to inspect before settling) |
 
 Domain experts supply slice definitions where one exists
 (see Expert index).
@@ -189,6 +192,13 @@ shared mental model:
   broken mental model or cascading tradeoffs, keep interviewing
   and answering the owner's questions until it is completely
   solid.
+- **Explicit owner LGTM before advancing:** after applying the
+  owner's answers (`Act + IIUC + Slice TL;DR`), pause and require
+  explicit owner confirmation (`lgtm` / `okay` / `next`) before
+  opening the next slice — never auto-advance straight into the
+  following slice on the same turn where a Decide answer was just
+  applied, unless the owner explicitly wrote `next` / `move on`
+  in that message.
 - **Owner override:** the owner can always say “settled / next”
   to advance early, or “dig deeper” / ask their own questions
   to keep probing.
@@ -214,7 +224,7 @@ with a crisp delta so the owner sees what actually moved:
 | slice already airtight (0 gaps found) | present `Observe`, say *"0 questions"*, give the owner the floor to ask anything; if waved through, emit `Slice TL;DR (unchanged)` and advance |
 | Decide question still unanswered | stay on the slice |
 | <100% confident in slice, or owner asks probing questions | stay on the slice; answer plainly (fixing any mental-model mismatch) and run another `Orient -> Decide -> Act -> IIUC` round until both sides are 100% clear |
-| 100% confident in slice (no load-bearing gaps left) | emit the **Slice TL;DR (`before -> after`)** and advance to the next slice |
+| 100% confident in slice (no load-bearing gaps left) | emit `Act + IIUC + Slice TL;DR (before -> after)`, then pause and require explicit owner confirmation (`lgtm` / `okay` / `next`) before opening the next slice (do not auto-advance in the same turn unless the owner already wrote `next` / `move on`) |
 | owner defers a question | record it under Deliberately open (with an owner or icebox path); counts as disposed for this slice |
 | owner says “next / move on” early | record any unasked gaps under Deliberately open, emit the **Slice TL;DR (`before -> after`)**, and advance |
 | later decision reopens a settled slice | re-enter that slice's interview loop until 100% confident again, emit an updated `before -> after` TL;DR; the rest stay settled |
@@ -274,7 +284,7 @@ presented in this shape, in this order:
 
 ```text
 TL;DR -> demo -> diagram (ascii) -> pseudocode (python)
-      -> tables -> acceptance test (goal block) -> prose -> tests
+      -> tables -> acceptance gates (goal block) -> prose -> tests
 prose = context, why, how we got here, edge cases
 code  = what we're gonna do
 ```
@@ -295,7 +305,7 @@ second claim of bp3link_7f3a… -> E_LINK_SPENT {first_claim: …}
 | ASCII diagram | the flow at a glance: inputs, outputs, where it can stop |
 | Python pseudocode | the mechanism in one readable pass |
 | Tables | intent, lane, output, acceptance that fails today, depends-on; cases and gates |
-| Acceptance test | one goal-shaped block: `objective`, `prove by`, `done when` (the exact observation) |
+| Acceptance gates | one goal-shaped block under `## Acceptance gates`: `objective`, `prove by`, `done when` (the exact observation) |
 | Prose | context, why the node exists, how we got here, edge cases |
 | Tests | the test split, both kinds proposed: **known cases** (named examples — boundaries, goldens, exact shapes; fast, legible when red) and **property-based** (law + generator; breadth). Either kind may be omitted only as a stated one-line decision; silence is not a decision |
 

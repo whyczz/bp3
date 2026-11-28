@@ -1,6 +1,6 @@
 ---
 name: induct
-description: Run one bp3 quest inside the current session — author each node here (or fan out disjoint ready nodes via native /swarm on agy), grade each commit with one fresh grader in the background from the brief bp3 renders, cast verdicts at the cast boundary, re-read.
+description: Run one bp3 quest inside the current session — author each node here, grade each commit with one fresh grader in the background from the brief bp3 renders, cast verdicts at the cast boundary, re-read.
 ---
 
 # Induct
@@ -9,8 +9,7 @@ Use when a human in a bp3-enabled repo invokes this skill by name
 (`/induct <quest>`) or asks to run, induct, or work a quest. One
 quest. One output: the `induct` report (`node_fin`, blocked, owed
 decisions), with every step done in this session except the grade
-judgment (and optional parallel `/swarm` coders on disjoint ready
-nodes).
+judgment.
 
 Use `induct-yolo` to run one quest this way with no human present,
 `warden` once the quest reaches `goal_fin` to run the diligence gate
@@ -108,10 +107,13 @@ it never words the grader's brief either.
   that brief as its whole prompt. It returns the verdict as data and
   makes no `bp3 q` calls (pure grade). One grader per grade; never
   reused across commits. On `agy`, tier `invoke_subagent` `Model` by
-  node `Lane`:
+  node `Lane` and cycle:
   - `micro` / docs / skill nodes -> `Model: "flash"`
   - `standard` nodes -> `Model: "flash"` or `"inherit"`
   - `high-blast-radius` nodes -> `Model: "pro"` or `"inherit"`
+  - `c2+` mechanical delta re-grades (following a `--mechanical`
+    `needs_fix`) -> `Model: "flash"` (keeps `"inherit"` / `"pro"`
+    strength on `c1` while cutting delta re-grade spend ~3x)
 - **Severity gate (read-only grader)**: the grader never edits
   code and casts `needs_fix` ONLY for `[critical]` or `[major]`
   findings (broken gate, proven bug, unjustified test deletion or
@@ -160,37 +162,6 @@ it never words the grader's brief either.
   `induct-yolo` parks it. A diff to `CONSTRAINTS.md` without a
   new dated **owner-words row** in its Sign-off log is
   `needs_fix`.
-
-## Parallel mode on agy (`/swarm`, auto-enabled on Gemini)
-
-Auto-enabled on `agy` **when running a Gemini model** and
-`bp3 q r <quest>` shows `>=2` independent `ready` nodes with
-disjoint file boundaries (`Output` / `Must not touch` do not
-overlap), unless the owner asks for serial / no-swarm execution.
-Do **not** auto-enable on non-Gemini models (e.g., Claude, GPT),
-on non-`agy` harnesses, or when `<2` nodes are `ready` (linear
-chains stay single-session inline with zero swarm overhead).
-
-When those conditions hold, **this skill explicitly instructs you
-to call the `swarm` tool** (`title`, then `add`, then `kill` once
-merged) without waiting for the user to invoke `/swarm`:
-
-- **Warm forked coders**: the coordinator reads the quest and
-  codebase once, then spawns `@coder-*` workers via `swarm` with
-  `fork: "coordinator"` and `workspace: "share"`. Each worker edits
-  its node's files, runs `make check`, commits cleanly on its share
-  branch, runs `./scripts/receipt`, and reports its commit SHA.
-- **Cold non-forked graders**: graders are strictly cold (NEVER
-  forked from the coordinator or coder), spawned via
-  `invoke_subagent` in detached grade desks from the verbatim
-  `bp3 q ... brief`.
-- **Coordinator is the sole `bp3 q` writer and serial merger**:
-  workers never call `bp3 q` (preventing `.git/` sandbox `EPERM`
-  and verdict races). The coordinator merges each worker's clean
-  commit serially into the quest branch, kills finished `@coder-*`
-  workers after their commit lands in the quest branch, casts
-  `handoff`, spawns the cold grader, and casts verdicts / lands at
-  the cast boundary.
 
 ## Rules
 

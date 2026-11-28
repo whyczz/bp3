@@ -441,8 +441,9 @@ BP3_GLOBAL_HOME="$agy_home" BP3_TARGET="$agy_host" BP3_COMPLETIONS_DIR="$work/co
 assert test ! -e "$agy_host/.agents"
 assert jq -e '.bp3.PreToolUse[0].hooks[0].command == "bp3 q hooks || true"' "$agy_home/.gemini/config/hooks.json"
 
-# fast-agy-induct skills.1: induct semantic invariants (receipt,
-# severity gate, agy invoke_subagent model tiering, /swarm coordinator rule)
+# fast-agy-induct skills.1 + predictor-tickets-bundle skills.1 (#9, #11a):
+# induct semantic invariants (receipt, severity gate, agy invoke_subagent
+# model tiering including c2+ mechanical delta -> flash, and retired /swarm absent)
 for dir in "${core_dirs[@]}"; do
   ic="$dir/induct/SKILL.md"
   assert grep -qF './scripts/receipt' "$ic"
@@ -452,13 +453,8 @@ for dir in "${core_dirs[@]}"; do
   assert grep -qF 'invoke_subagent' "$ic"
   assert grep -qF '"flash"' "$ic"
   assert grep -qF '"pro"' "$ic"
-  assert grep -qF '/swarm' "$ic"
-  assert grep -qF 'Gemini' "$ic"
-  assert grep -qF 'explicitly instructs you' "$ic"
-  assert grep -qF 'fork: "coordinator"' "$ic"
-  assert grep -qF 'workspace: "share"' "$ic"
-  assert grep -qF 'NEVER' "$ic"
-  assert grep -qF 'sole `bp3 q` writer' "$ic"
+  assert grep -qF 'mechanical delta re-grades' "$ic"
+  assert test -z "$(grep -n '/swarm' "$ic" || true)"
 done
 
 # warden-v0 skills.1: unified /warden replaces /trial across all harnesses
@@ -578,5 +574,18 @@ assert grep -qF 'E_PROTECTED_FILE' "$repo/AGENTS.md"
 assert grep -qF 'E_EXPLORE_BOUND' "$repo/AGENTS.md"
 assert grep -qF 'e iterate --note' "$repo/AGENTS.md"
 assert grep -qF 'e approve --reason' "$repo/AGENTS.md"
+
+# predictor-tickets-bundle skills.1 (#7, #8, #9, #10, #11a):
+# red-ink explicit owner LGTM gate, Internals: layout, Acceptance gates alignment,
+# no parallel-waves push, and zero /swarm in induct across all global renders.
+for dir in "${core_dirs[@]}"; do
+  ri="$dir/red-ink/SKILL.md"
+  assert grep -qF 'Explicit owner LGTM before advancing' "$ri"
+  assert grep -qF 'explicit owner confirmation' "$ri"
+  assert grep -qF '| Internals: layout |' "$ri"
+  assert grep -qF '| Acceptance gates |' "$ri"
+  assert test -z "$(grep -n '| Acceptance test |' "$ri" || true)"
+  assert test -z "$(grep -n 'parallel waves' "$ri" || true)"
+done
 
 printf 'skills tests: ok (%s assertions)\n' "$checks"
