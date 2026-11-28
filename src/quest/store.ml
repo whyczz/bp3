@@ -475,8 +475,10 @@ let legal_edges st = legal_edges_for Code st
 let default_protected_files =
   [ "GRADING.md"; "CONSTRAINTS.md"; "scripts/receipt"; "scripts/red-first" ]
 
+let quest_json_path quest = quest_dir quest ^ "/quest.json"
+
 let protected_files_for ~quest ~node =
-  default_protected_files @ [ node_dir quest node ^ "/NODE.md" ]
+  default_protected_files @ [ node_dir quest node ^ "/NODE.md"; quest_json_path quest ]
 
 let protected_violations ~quest ~node ~allow_protected changed_paths =
   if allow_protected then []

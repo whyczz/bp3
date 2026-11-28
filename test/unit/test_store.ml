@@ -570,8 +570,8 @@ let case_decider_of_string_maps_human_and_yolo_and_defaults_agent _ =
 
 let case_protected_violations_blocks_locked_paths_unless_allowed _ =
   let bad = Store.protected_violations ~quest:"q1" ~node:"n1" ~allow_protected:false
-    [ "src/quest/main.ml"; "GRADING.md"; "docs/quests/q1/nodes/n1/NODE.md"; "scripts/receipt" ] in
-  assert_equal [ "GRADING.md"; "docs/quests/q1/nodes/n1/NODE.md"; "scripts/receipt" ] bad;
+    [ "src/quest/main.ml"; "GRADING.md"; "docs/quests/q1/nodes/n1/NODE.md"; "docs/quests/q1/quest.json"; "scripts/receipt" ] in
+  assert_equal [ "GRADING.md"; "docs/quests/q1/nodes/n1/NODE.md"; "docs/quests/q1/quest.json"; "scripts/receipt" ] bad;
   let ok = Store.protected_violations ~quest:"q1" ~node:"n1" ~allow_protected:true
     [ "GRADING.md"; "CONSTRAINTS.md" ] in
   assert_equal [] ok;

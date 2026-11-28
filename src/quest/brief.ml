@@ -12,6 +12,7 @@ type inputs = {
   cycle : int;
   commit : string;                    (* full sha, the bound commit *)
   node_md : string option;            (* NODE.md at commit *)
+  quest_json : string option;         (* quest.json at commit, if declarative *)
   grading : string option;            (* GRADING.md at commit *)
   gate : string option;               (* [grade].gate from backpack.toml at commit *)
   docs : string list;                 (* CLAUDE.md, AGENTS.md, CONSTRAINTS.md present at commit *)
@@ -78,15 +79,33 @@ let desk_line desk commit = "Desk: " ^ desk ^ " (check that `git rev-parse HEAD`
 
 let render ?desk i =
   let c7 = short i.commit in
-  let gates = match i.node_md with
-    | None -> "(no NODE.md at " ^ c7 ^ ": that is a finding)"
-    | Some md -> (match extract_gates md with
-        | Some s -> s
-        | None -> "(NODE.md at " ^ c7 ^ " has no Acceptance gates section: that is a finding)") in
+  let json_gates =
+    match i.quest_json with
+    | Some raw ->
+        (match Quest_spec.parse_string raw with
+         | Ok spec ->
+             (match Quest_spec.find_node spec i.node with
+              | Some n -> Some (Quest_spec.render_acceptance n)
+              | None -> None)
+         | Error _ -> None)
+    | None -> None in
+  let gates_heading, gates = match json_gates with
+    | Some g -> ("Acceptance gates (quest.json at " ^ c7 ^ "):", g)
+    | None ->
+        let body = match i.node_md with
+          | None -> "(no NODE.md at " ^ c7 ^ ": that is a finding)"
+          | Some md -> (match extract_gates md with
+              | Some s -> s
+              | None -> "(NODE.md at " ^ c7 ^ " has no Acceptance gates section: that is a finding)") in
+        ("Acceptance gates (NODE.md at " ^ c7 ^ "):", body) in
+  let spec_line =
+    match i.quest_json, i.node_md with
+    | Some _, None -> "- " ^ Store.quest_json_path i.quest
+    | Some _, Some _ -> "- " ^ Store.quest_json_path i.quest ^ ", " ^ node_md_path i.quest i.node ^ " and " ^ quest_md_path i.quest
+    | None, _ -> "- " ^ node_md_path i.quest i.node ^ " and " ^ quest_md_path i.quest in
   let read_first =
     String.concat "\n"
-      ([ "Read first:";
-         "- " ^ node_md_path i.quest i.node ^ " and " ^ quest_md_path i.quest ]
+      ([ "Read first:"; spec_line ]
        @ (if i.docs = [] then [] else [ "- " ^ String.concat ", " i.docs ])
        @ [ "- `git show " ^ c7 ^ "`" ]) in
   let previous = match i.prev with
@@ -111,7 +130,7 @@ let render ?desk i =
        ^ ", cycle " ^ string_of_int i.cycle ^ ".";
        preamble; rules ]
      @ (match desk with Some d -> [ desk_line d i.commit ] | None -> [])
-     @ [ read_first; "Acceptance gates (NODE.md at " ^ c7 ^ "):\n\n" ^ gates ]
+     @ [ read_first; gates_heading ^ "\n\n" ^ gates ]
      @ previous
      @ gate_para
      @ [ grading; verdict_shape ])
@@ -212,6 +231,7 @@ let inputs ~quest ~node ~cycle ~commit ~upto =
     | None -> None in
   { quest; node; cycle; commit;
     node_md = show (node_md_path quest node);
+    quest_json = show (Store.quest_json_path quest);
     grading = show "GRADING.md";
     gate;
     docs = List.filter (fun d -> show d <> None) [ "CLAUDE.md"; "AGENTS.md"; "CONSTRAINTS.md" ];

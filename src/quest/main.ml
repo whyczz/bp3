@@ -327,10 +327,10 @@ let do_update quest node edge fl id =
       let touched = commit_touched_paths full in
       (match s.node_kind with
        | Research | Explore ->
+           let node_state_of other =
+             match fold_node quest other with Some (_, ds, _) -> Some ds.st | None -> None in
            (match doc_only_violations ~quest ~self_node:node
-              ~node_state_of:(fun other ->
-                match fold_node quest other with Some (_, ds, _) -> Some ds.st | None -> None)
-              ~allow_protected:fl.allow_protected touched with
+              ~node_state_of ~allow_protected:fl.allow_protected touched with
             | Ok () -> ()
             | Error (code, bad_paths) when code = Names.e_doc_only_node ->
                 err Names.e_doc_only_node
@@ -341,7 +341,18 @@ let do_update quest node edge fl id =
                 err Names.e_protected_file
                   (`Assoc [("commit", json_str full);
                            ("paths", `List (List.map json_str bad_paths))])
-                  "Commit edits own or non-todo NODE.md; pass --allow-protected if intentional." 1)
+                  "Commit edits own or non-todo NODE.md; pass --allow-protected if intentional." 1);
+           let qj_path = quest_json_path quest in
+           if (not fl.allow_protected) && List.mem qj_path touched then
+             (match Quest_spec.json_diff_violations ~quest ~self_node:node ~node_state_of
+                ~before_json:(git_show (full ^ "^") qj_path)
+                ~after_json:(git_show full qj_path) with
+              | Ok () -> ()
+              | Error bad_paths ->
+                  err Names.e_protected_file
+                    (`Assoc [("commit", json_str full);
+                             ("paths", `List (List.map json_str bad_paths))])
+                    "Research/Explore edits to quest.json may only modify non-self todo node entries; pass --allow-protected if intentional." 1)
        | Code | Direct | Human_gate ->
            let bad_prot = protected_violations ~quest ~node ~allow_protected:fl.allow_protected touched in
            if bad_prot <> [] then
