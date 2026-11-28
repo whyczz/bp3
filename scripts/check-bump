@@ -37,10 +37,27 @@ if [ -d "$quests_dir" ]; then
     if [ -n "$date" ] && [[ "$date" < "$cutoff" ]]; then
       continue
     fi
+    if [ -z "$bump" ] && [ -f "$(dirname "$f")/quest.json" ]; then
+      bump=$(jq -r '.bump // ""' "$(dirname "$f")/quest.json" 2>/dev/null || echo "")
+    fi
     case "$bump" in
       major|minor|patch|none) ;;
       "")
         echo "check-bump: FAIL $rel: status $status needs bump: major|minor|patch|none" >&2
+        fails=$((fails + 1)) ;;
+      *)
+        echo "check-bump: FAIL $rel: invalid bump: $bump (expected major|minor|patch|none)" >&2
+        fails=$((fails + 1)) ;;
+    esac
+  done
+  for jf in "$quests_dir"/*/quest.json; do
+    [ -f "$jf" ] || continue
+    rel="${jf#"$root"/}"
+    bump=$(jq -r '.bump // ""' "$jf" 2>/dev/null || echo "__invalid_json__")
+    case "$bump" in
+      major|minor|patch|none) ;;
+      "")
+        echo "check-bump: FAIL $rel: quest.json needs bump: major|minor|patch|none" >&2
         fails=$((fails + 1)) ;;
       *)
         echo "check-bump: FAIL $rel: invalid bump: $bump (expected major|minor|patch|none)" >&2

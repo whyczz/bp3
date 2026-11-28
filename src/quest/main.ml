@@ -68,6 +68,120 @@ let do_quest_create quest fl id =
     ~files:[(qpath, quest_md); (quest_ledger_path quest, ledger)] ~msg:("bp3: create quest " ^ quest) in
   with_warnings id true [("ok", `Bool true); ("quest", json_str quest); ("state", json_str "proposed")]
 
+let rec ensure_dir dir =
+  if dir = "" || dir = "." || dir = "/" || Sys.file_exists dir then ()
+  else begin
+    ensure_dir (Filename.dirname dir);
+    try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ()
+  end
+
+let do_quest_create_from_file quest_opt file_path fl id =
+  if not (Sys.file_exists file_path) then
+    err Names.e_not_found (`Assoc [("file", json_str file_path)])
+      ("Spec file not found: " ^ file_path) 1;
+  let raw = read_file_or file_path "" in
+  let spec = match Quest_spec.parse_string raw with
+    | Ok s -> s
+    | Error errs ->
+        err Names.e_invalid_spec
+          (`Assoc [("file", json_str file_path); ("errors", `List (List.map json_str errs))])
+          ("Invalid quest.json: " ^ String.concat "; " errs) 1 in
+  (match quest_opt with
+   | Some q when q <> spec.Quest_spec.quest ->
+       let msg = Printf.sprintf "CLI quest %s disagrees with quest.json quest %s" q spec.quest in
+       err Names.e_invalid_spec
+         (`Assoc [("file", json_str file_path); ("errors", `List [json_str msg])])
+         msg 1
+   | _ -> ());
+  let quest = spec.Quest_spec.quest in
+  check_creatable quest;
+  let qtype = match fl.typ with Some t -> t | None -> spec.goal_type in
+  ignore (quest_knobs qtype);
+  let extra_deps = match fl.depends_on with
+    | Some s when s <> "" -> String.split_on_char ',' s |> List.map String.trim
+    | _ -> [] in
+  let qdeps =
+    List.fold_right (fun d acc -> if d = "" || List.mem d acc then acc else d :: acc)
+      (spec.depends_on @ extra_deps) [] in
+  List.iter check_slug qdeps;
+  if ref_tip (quest_branch quest) <> None then
+    err Names.e_exists (`Assoc [("quest", json_str quest)]) "Quest already exists." 1;
+  List.iter (fun (n : Quest_spec.node_spec) ->
+    if ref_tip (node_branch quest n.id) <> None then
+      err Names.e_exists (`Assoc [("quest", json_str quest); ("node", json_str n.id)])
+        "Node already exists." 1) spec.nodes;
+  let ordered = match Quest_spec.topo_sort spec.nodes with
+    | Ok xs -> xs
+    | Error errs ->
+        err Names.e_invalid_spec
+          (`Assoc [("file", json_str file_path); ("errors", `List (List.map json_str errs))])
+          ("Invalid quest.json: " ^ String.concat "; " errs) 1 in
+  let head = head_sha () in
+  let qpath = quest_dir quest ^ "/" ^ Layout.quest_file in
+  let qjpath = quest_json_path quest in
+  let quest_md = match git_show head qpath with
+    | Some c -> c
+    | None -> Quest_spec.render_quest_md spec in
+  let qline = ledger_line ~edge:"create" ~from:"" ~to_:"proposed" ~cycle:1
+    ~commit:None ~verdict:None ~reason:"" ~id
+    ~extra:[("goal_type", json_str qtype);
+            ("spec_file", json_str file_path);
+            ("depends_on", `List (List.map json_str qdeps))] () in
+  let existing_ledger = git_show head (quest_ledger_path quest) in
+  let qledger = (match existing_ledger with Some t when String.trim t <> "" -> t ^ (if t.[String.length t-1] = '\n' then "" else "\n") | _ -> "") ^ qline ^ "\n" in
+  let qtip = create_branch_commit ~branch:(quest_branch quest) ~base_tip:head
+    ~files:[(qpath, quest_md); (qjpath, raw); (quest_ledger_path quest, qledger)]
+    ~msg:("bp3: create quest " ^ quest) in
+  let node_summaries = List.map (fun (n : Quest_spec.node_spec) ->
+    let st = { (fresh_state ()) with
+               node_kind = n.kind;
+               explore_target = n.target;
+               explore_max_iterations = n.max_iterations } in
+    let explore_extra =
+      if n.kind = Explore then
+        (match n.target with Some t -> [("target", json_str t)] | None -> []) @
+        (match n.max_iterations with Some m -> [("max_iterations", `Int m)] | None -> [])
+      else [] in
+    let nline = ledger_line ~edge:"create" ~from:"" ~to_:"todo" ~cycle:1
+      ~commit:None ~verdict:None ~reason:"" ~id
+      ~extra:([("node_type", json_str "default");
+               ("node_kind", json_str (node_kind_to_string n.kind));
+               ("depends_on", `List (List.map json_str n.depends_on))] @ explore_extra) () in
+    ignore (create_branch_commit ~branch:(node_branch quest n.id) ~base_tip:qtip
+      ~files:[(node_ledger_path quest n.id, nline ^ "\n");
+              (node_state_path quest n.id, state_yaml quest n.id st)]
+      ~msg:("bp3: create node " ^ n.id));
+    let base = [
+      ("node", json_str n.id);
+      ("kind", json_str (node_kind_to_string n.kind));
+      ("state", json_str "todo");
+      ("deps", `List (List.map json_str n.depends_on));
+      ("legal_edges", `List (List.map json_str (legal_edges_for n.kind "todo")));
+    ] in
+    let extra = if n.kind = Explore then [("explore", explore_json st)] else [] in
+    `Assoc (base @ extra)) ordered in
+  let scaffolded =
+    if not fl.scaffold then []
+    else
+      let wrote = ref [] in
+      let write_if_absent rel content =
+        let full = Filename.concat (current_root ()) rel in
+        if not (Sys.file_exists full) then begin
+          ensure_dir (Filename.dirname full);
+          let oc = open_out_bin full in
+          Fun.protect ~finally:(fun () -> close_out oc) (fun () -> output_string oc content);
+          wrote := rel :: !wrote
+        end in
+      write_if_absent qpath (Quest_spec.render_quest_md spec);
+      List.iter (fun (n : Quest_spec.node_spec) ->
+        write_if_absent (node_dir quest n.id ^ "/NODE.md") (Quest_spec.render_node_md spec n)) ordered;
+      List.rev !wrote in
+  with_warnings id true [
+    ("ok", `Bool true); ("quest", json_str quest); ("state", json_str "proposed");
+    ("spec", json_str file_path); ("nodes", `List node_summaries);
+    ("scaffolded", `List (List.map json_str scaffolded));
+  ]
+
 let do_quest_delete quest fl id =
   check_slug quest;
   let reason = require_reason fl in
@@ -327,10 +441,10 @@ let do_update quest node edge fl id =
       let touched = commit_touched_paths full in
       (match s.node_kind with
        | Research | Explore ->
+           let node_state_of other =
+             match fold_node quest other with Some (_, ds, _) -> Some ds.st | None -> None in
            (match doc_only_violations ~quest ~self_node:node
-              ~node_state_of:(fun other ->
-                match fold_node quest other with Some (_, ds, _) -> Some ds.st | None -> None)
-              ~allow_protected:fl.allow_protected touched with
+              ~node_state_of ~allow_protected:fl.allow_protected touched with
             | Ok () -> ()
             | Error (code, bad_paths) when code = Names.e_doc_only_node ->
                 err Names.e_doc_only_node
@@ -341,7 +455,18 @@ let do_update quest node edge fl id =
                 err Names.e_protected_file
                   (`Assoc [("commit", json_str full);
                            ("paths", `List (List.map json_str bad_paths))])
-                  "Commit edits own or non-todo NODE.md; pass --allow-protected if intentional." 1)
+                  "Commit edits own or non-todo NODE.md; pass --allow-protected if intentional." 1);
+           let qj_path = quest_json_path quest in
+           if (not fl.allow_protected) && List.mem qj_path touched then
+             (match Quest_spec.json_diff_violations ~quest ~self_node:node ~node_state_of
+                ~before_json:(git_show (full ^ "^") qj_path)
+                ~after_json:(git_show full qj_path) with
+              | Ok () -> ()
+              | Error bad_paths ->
+                  err Names.e_protected_file
+                    (`Assoc [("commit", json_str full);
+                             ("paths", `List (List.map json_str bad_paths))])
+                    "Research/Explore edits to quest.json may only modify non-self todo node entries; pass --allow-protected if intentional." 1)
        | Code | Direct | Human_gate ->
            let bad_prot = protected_violations ~quest ~node ~allow_protected:fl.allow_protected touched in
            if bad_prot <> [] then
@@ -591,7 +716,8 @@ let help_q = "bp3 q - quest/node state. Doors:\n\
 Run bp3 q <door> -h for that door's verbs, edges, and flags.\n"
 
 let help_quest_door = "bp3 q <quest door> - verbs:\n\
-  bp3 q c <quest> [--type <goal_type>] [--depends-on <a,b>]   create a quest\n\
+  bp3 q c <quest> [--type <goal_type>] [--depends-on <a,b>]    create a quest\n\
+  bp3 q c [<quest>] --file <quest.json> [--scaffold]           atomically initialize quest + nodes from quest.json\n\
   bp3 q r [<quest>] [--format json|table|tree]                 list quests, or read one\n\
   bp3 q d <quest> --reason <why>                               delete a quest\n\
 Long forms: create, read, delete. Example: bp3 q c my-quest --type default\n"
@@ -1006,17 +1132,25 @@ let rec run argv =
   | first :: rest when is_verb first ->
       let verb = normalize_verb first in
       (match verb, rest with
-       | "c", quest :: tail ->
+       | "c", tail ->
            let (pos, fl) = split_flags tail in
-           if pos <> [] then usage "stray positional in quest create";
-           let v = do_quest_create quest fl id in print_verdict ~fmt:fl.fmt v; 0
-       | "c", [] -> usage "quest create needs a quest name"
+           (match fl.file, pos with
+            | Some fpath, [] ->
+                let v = do_quest_create_from_file None fpath fl id in print_verdict ~fmt:fl.fmt v; 0
+            | Some fpath, [quest] ->
+                let v = do_quest_create_from_file (Some quest) fpath fl id in print_verdict ~fmt:fl.fmt v; 0
+            | Some _, _ -> usage "stray positional in quest create"
+            | None, [quest] ->
+                if fl.scaffold then usage "--scaffold requires --file <path>";
+                let v = do_quest_create quest fl id in print_verdict ~fmt:fl.fmt v; 0
+            | None, [] -> usage "quest create needs a quest name"
+            | None, _ -> usage "stray positional in quest create")
        | "r", [] ->
            let qs = List.map (fun q ->
              let (view, _, _, _) = quest_view q in view) (list_quests ()) in
            print_verdict ~fmt:"json" (`Assoc ([("ok", `Bool true); ("quests", `List qs)] @ repo_config_warnings ())); 0
        | "r", [quest] ->
-           let (pos, fl) = ( [quest], { reason=None; commit=None; verdict=None; target=None; typ=None; kind=None; depends_on=None; fmt="json"; verify_verdict=None; mechanical=false; allow_protected=false; max_iterations=None; outcome=None; note=None } ) in
+           let (pos, fl) = ( [quest], { reason=None; commit=None; verdict=None; target=None; typ=None; kind=None; depends_on=None; fmt="json"; verify_verdict=None; mechanical=false; allow_protected=false; max_iterations=None; outcome=None; note=None; file=None; scaffold=false } ) in
            ignore pos;
            (* re-parse: quest may be followed by --format in original rest; handled below *)
            ignore fl;

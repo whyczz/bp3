@@ -3,7 +3,7 @@
 # current one); completion fails silently on any error.
 # shellcheck shell=bash
 
-_bp3_flags='--format --reason --commit --verdict --verify-verdict --mechanical --target --type --kind --allow-protected --max-iterations --outcome --note --depends-on --mode'
+_bp3_flags='--format --reason --commit --verdict --verify-verdict --mechanical --target --type --kind --allow-protected --max-iterations --outcome --note --file --scaffold --depends-on --mode'
 _bp3_edges='handoff grade land approve iterate block resume'
 _bp3_quest_verbs='c r d create read delete'
 _bp3_node_verbs='c r u d create read update delete dep diagram n'
@@ -74,7 +74,7 @@ _bp3_candidates() {
     --verdict) _bp3_words "$_bp3_verdict_values" | _bp3_filter "$cur"; return 0 ;;
     --kind) _bp3_words "$_bp3_kind_values" | _bp3_filter "$cur"; return 0 ;;
     --outcome) _bp3_words "$_bp3_outcome_values" | _bp3_filter "$cur"; return 0 ;;
-    --reason|--commit|--target|--type|--depends-on|--max-iterations|--note) return 0 ;;
+    --reason|--commit|--target|--type|--depends-on|--max-iterations|--note|--file) return 0 ;;
   esac
 
   case "$cur" in

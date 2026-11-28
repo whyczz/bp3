@@ -641,7 +641,20 @@ let run argv id =
             | None -> head_sha () in
           let qpath = Layout.quest_dir q ^ "/" ^ Layout.quest_file in
           let qmd = match git_show src qpath with Some t -> t | None -> "" in
-          let meta = Release.parse_quest_md qmd in
+          let meta_md = Release.parse_quest_md qmd in
+          let qjson_path = Store.quest_json_path q in
+          let qjson_opt = git_show src qjson_path in
+          let meta =
+            match qjson_opt with
+            | Some raw ->
+                (match Quest_spec.parse_string raw with
+                 | Ok spec ->
+                     let bump = match meta_md.Release.bump with Some _ as b -> b | None -> Some spec.Quest_spec.bump in
+                     let title = if meta_md.Release.title <> "" then meta_md.Release.title else spec.Quest_spec.title in
+                     let tldr = if meta_md.Release.tldr <> "" then meta_md.Release.tldr else spec.Quest_spec.tldr in
+                     { meta_md with Release.title; tldr; bump }
+                 | Error _ -> meta_md)
+            | None -> meta_md in
           let summaries =
             List.filter_map (fun (n, s) ->
               if s.st = "deleted" then None
@@ -649,7 +662,8 @@ let run argv id =
                 let subj = match s.last_commit with Some c -> commit_subject c | None -> "" in
                 Some { Release.node_id = n; state = s.st; commit = s.last_commit; subject = subj })
               folded in
-          (src, qs.st, summaries, Some qpath, (if qmd = "" then None else Some qmd), Some meta)
+          let notes_qpath = if qmd = "" && qjson_opt <> None then qjson_path else qpath in
+          (src, qs.st, summaries, Some notes_qpath, (if qmd = "" then None else Some qmd), Some meta)
       | None, Some raw_sha ->
           let full = match resolve_commit raw_sha with
             | Some f -> f
@@ -748,7 +762,9 @@ let run argv id =
       let notes =
         match opts.quest, meta_opt with
         | Some q, Some meta ->
-            Release.render_what_changed ~quest:q
+            let quest_path =
+              Option.value quest_md_path_opt ~default:(Printf.sprintf "docs/quests/%s/QUEST.md" q) in
+            Release.render_what_changed_for ~quest_path ~quest:q
               ~tag:(Option.value tag_opt ~default:q) ~prev_tag ~meta
               ~nodes:node_summaries ~commit_subjects:commits
         | _ ->
@@ -802,15 +818,15 @@ let run argv id =
       end else begin
         (* Assemble files for plumbing release commit, reading from base_tree *)
         let files = ref [] in
-        (match quest_md_path_opt with
-         | Some p ->
+        (match quest_md_path_opt, quest_md_text_opt with
+         | Some p, Some _ ->
              let cur_txt = match git_show base_tree p with Some t -> Some t | None -> quest_md_text_opt in
              (match cur_txt with
               | Some txt ->
                   let updated = Release.set_quest_status_landed txt in
                   if updated <> txt then files := (p, updated) :: !files
               | None -> ())
-         | None -> ());
+         | _ -> ());
         (match next_ver with
          | Some nv ->
              if repo_mode () = "self" then begin

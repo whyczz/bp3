@@ -10,7 +10,8 @@ the brief's own.
 Run `./scripts/receipt` from the desk (which runs `make check-full`,
 `scripts/red-first`, and the `test/` line delta). Quote its exit code
 and all 4 receipt lines. A grade that ran only `make check` has not run
-the gate.
+the gate. Run `./scripts/receipt` alone in the grade desk; never run
+`bp3 skills install` or `dune` concurrently with it.
 
 ## Depth and severity
 

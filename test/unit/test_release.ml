@@ -145,6 +145,11 @@ let case_render_what_changed_quest_and_commit _ =
   assert_bool "has tldr" (contains_sub r.Release.body "Tie quest promotion to a semver tag");
   assert_bool "has node bullet" (contains_sub r.Release.body "- `node-core-1-release-engine`: feat(core.1): pure release engine (abcdef1)");
   assert_bool "has prev tag" (contains_sub r.Release.body "Previous tag: v0.2.0");
+  let r_json =
+    Release.render_what_changed_for ~quest_path:"docs/quests/json-only/quest.json"
+      ~quest:"json-only" ~tag:"v0.4.0" ~prev_tag:(Some "v0.3.0") ~meta ~nodes ~commit_subjects:[] in
+  assert_bool "json-only quest footer uses quest.json"
+    (contains_sub r_json.Release.body "Quest: `docs/quests/json-only/quest.json`");
 
   let rc =
     Release.render_commit_what_changed ~sha:"1234567890abcdef"

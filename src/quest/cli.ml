@@ -10,6 +10,7 @@ type flags = {
   depends_on : string option; fmt : string; verify_verdict : string option;
   mechanical : bool; allow_protected : bool;
   max_iterations : int option; outcome : string option; note : string option;
+  file : string option; scaffold : bool;
 }
 
 let parse_flags args =
@@ -27,16 +28,20 @@ let parse_flags args =
     | "--max-iterations" :: v :: rest -> add acc "max-iterations" v rest
     | "--outcome" :: v :: rest -> add acc "outcome" v rest
     | "--note" :: v :: rest -> add acc "note" v rest
+    | "--file" :: v :: rest -> add acc "file" v rest
     | "--mechanical" :: rest ->
         if acc.mechanical then usage "duplicate flag --mechanical"
         else loop { acc with mechanical = true } rest
     | "--allow-protected" :: rest ->
         if acc.allow_protected then usage "duplicate flag --allow-protected"
         else loop { acc with allow_protected = true } rest
+    | "--scaffold" :: rest ->
+        if acc.scaffold then usage "duplicate flag --scaffold"
+        else loop { acc with scaffold = true } rest
     | "--reason" :: [] | "--commit" :: [] | "--verdict" :: [] | "--target" :: []
     | "--type" :: [] | "--kind" :: [] | "--depends-on" :: [] | "--format" :: []
     | "--verify-verdict" :: [] | "--max-iterations" :: [] | "--outcome" :: []
-    | "--note" :: [] ->
+    | "--note" :: [] | "--file" :: [] ->
         usage "flag needs a value"
     | "--mode" :: _ -> usage mode_flag_usage
     | f :: _ when String.length f >= 7 && String.sub f 0 7 = "--mode=" ->
@@ -57,6 +62,7 @@ let parse_flags args =
     | "depends-on" -> if acc.depends_on <> None then usage "duplicate flag --depends-on" else loop { acc with depends_on = Some v } rest
     | "verify-verdict" -> if acc.verify_verdict <> None then usage "duplicate flag --verify-verdict" else loop { acc with verify_verdict = Some v } rest
     | "note" -> if acc.note <> None then usage "duplicate flag --note" else loop { acc with note = Some v } rest
+    | "file" -> if acc.file <> None then usage "duplicate flag --file" else loop { acc with file = Some v } rest
     | "max-iterations" ->
         if acc.max_iterations <> None then usage "duplicate flag --max-iterations"
         else
@@ -80,7 +86,8 @@ let parse_flags args =
   loop { reason = None; commit = None; verdict = None; target = None;
          typ = None; kind = None; depends_on = None; fmt = "json";
          verify_verdict = None; mechanical = false; allow_protected = false;
-         max_iterations = None; outcome = None; note = None } args
+         max_iterations = None; outcome = None; note = None;
+         file = None; scaffold = false } args
 
 let split_flags args =
   (* separate positionals (before first --flag) from flags; any positional

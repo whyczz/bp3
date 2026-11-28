@@ -7,6 +7,7 @@ let sha = "abc1234def5678abc1234def5678abc1234def56"
 let node_md = "---\nnode: x.1\n---\n\n# x.1\n\n## TL;DR\n\nsummary\n\n## Acceptance gates\n\n\ngate line one\n\n```text\n$ run it\n```\n\n\n## Diagram\n\nboxes\n"
 
 let base = { Brief.quest = "q1"; node = "nd"; cycle = 1; commit = sha; node_md = Some node_md;
+             quest_json = None;
              grading = Some "# Grading\n\nRun `make check-full`.\n"; gate = None;
              docs = [ "CLAUDE.md"; "CONSTRAINTS.md" ];
              prev = None; others = [] }
@@ -169,6 +170,21 @@ let law_acceptance_test_fallback_inlines_verbatim =
        && has b ("Acceptance gates (NODE.md at abc1234):\n\n" ^ gates ^ "\n\n")
        && not (has b "has no Acceptance gates section"))
 
+let case_quest_json_gates_take_precedence_and_pass_is_verbatim _ =
+  let qjson = {|{"version":1,"quest":"q1","title":"Q1","tldr":"t","bump":"minor","nodes":[{"id":"nd","node":"x.1","title":"Nd","intent":"build","output":"src/x.ml","acceptance":{"objective":"ship json gates","prove_by":["make check-full"],"done_when":"all green","trace":["$ bp3 q q1 r -> ok"]}}]}|} in
+  let i = { base with node_md = None; quest_json = Some qjson } in
+  let b = Brief.render ~desk:"/d/g" i in
+  assert_bool "reads quest.json first" (has b "- docs/quests/q1/quest.json");
+  assert_bool "quest.json heading" (has b "Acceptance gates (quest.json at abc1234):");
+  assert_bool "objective rendered" (has b "- **objective:** ship json gates");
+  assert_bool "trace rendered" (has b "$ bp3 q q1 r -> ok");
+  assert_bool "no missing NODE.md finding" (not (has b "no NODE.md"));
+  assert_bool "is_verbatim passes" (Brief.is_verbatim b i);
+  (* When both quest_json and node_md exist, quest.json takes precedence *)
+  let both = Brief.render ~desk:"/d/g" { base with quest_json = Some qjson } in
+  assert_bool "overrides NODE.md" (has both "Acceptance gates (quest.json at abc1234):" && has both "ship json gates");
+  assert_bool "markdown gate not used" (not (has both "gate line one"))
+
 let () =
   run_test_tt_main
     ("brief" >::: [
@@ -179,6 +195,7 @@ let () =
        "case_missing_files_are_named_not_hidden" >:: case_missing_files_are_named_not_hidden;
        "case_repo_gate_from_backpack_renders_and_passes_is_verbatim" >:: case_repo_gate_from_backpack_renders_and_passes_is_verbatim;
        "case_extract_gates_falls_back_to_acceptance_test_and_prefers_acceptance_gates" >:: case_extract_gates_falls_back_to_acceptance_test_and_prefers_acceptance_gates;
+       "case_quest_json_gates_take_precedence_and_pass_is_verbatim" >:: case_quest_json_gates_take_precedence_and_pass_is_verbatim;
        QCheck_ounit.to_ounit2_test law_acceptance_test_fallback_inlines_verbatim;
        QCheck_ounit.to_ounit2_test law_gates_verbatim_and_join_line;
        "case_is_verbatim_takes_the_render_and_nothing_else" >:: case_is_verbatim_takes_the_render_and_nothing_else;

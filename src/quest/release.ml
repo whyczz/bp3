@@ -300,7 +300,7 @@ let sync_bp3_version ~new_version text =
 let short_sha sha =
   if String.length sha >= 7 then String.sub sha 0 7 else sha
 
-let render_what_changed ~quest ~tag ~prev_tag ~(meta : quest_meta) ~nodes ~commit_subjects =
+let render_what_changed_for ~quest_path ~quest ~tag ~prev_tag ~(meta : quest_meta) ~nodes ~commit_subjects =
   let title =
     if meta.title <> "" then Printf.sprintf "%s — %s" tag meta.title else tag in
   let buf = Buffer.create 256 in
@@ -323,9 +323,13 @@ let render_what_changed ~quest ~tag ~prev_tag ~(meta : quest_meta) ~nodes ~commi
         | _ :: _ ->
             List.iter (fun s -> Printf.bprintf buf "- %s\n" (String.trim s)) commit_subjects
         | [] -> Printf.bprintf buf "- Promoted quest `%s`\n" quest));
-  Printf.bprintf buf "\nQuest: `docs/quests/%s/QUEST.md`\n" quest;
+  Printf.bprintf buf "\nQuest: `%s`\n" quest_path;
   Printf.bprintf buf "Previous tag: %s\n" (Option.value prev_tag ~default:"none");
   { tag; title; body = Buffer.contents buf }
+
+let render_what_changed ~quest ~tag ~prev_tag ~(meta : quest_meta) ~nodes ~commit_subjects =
+  render_what_changed_for ~quest_path:(Printf.sprintf "docs/quests/%s/QUEST.md" quest)
+    ~quest ~tag ~prev_tag ~meta ~nodes ~commit_subjects
 
 let render_commit_what_changed ~sha ~subject ~body ~tag ~prev_tag ~commit_subjects =
   let subj = String.trim subject in

@@ -358,5 +358,15 @@ hooks "$s_ind_b" >/dev/null
 # Survives SessionStart TTL GC
 hooks "$s_start" >/dev/null
 [ -f "$qs_dir/q-beta.jsonl" ] || fail "SessionStart deleted durable quest-sessions/q-beta.jsonl"
+# Q2-2: nonexistent scratch quest command does NOT leak a .jsonl file into real repo
+s_ghost=$(printf '{"hookEventName":"PostToolUse","conversationId":"conv-B","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"bp3 q c five-kinds"}}}' "$repo")
+hooks "$s_ghost" >/dev/null
+[ ! -e "$qs_dir/five-kinds.jsonl" ] || fail "nonexistent quest leaked into quest-sessions/five-kinds.jsonl"
+# Q2-2: after fin (warden), read-only bp3 q r does NOT downgrade phase back to induct
+s_fin_b=$(printf '{"hookEventName":"PostToolUse","conversationId":"conv-B","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"bp3 warden q-beta --format json"}}}' "$repo")
+hooks "$s_fin_b" >/dev/null
+[ "$(wc -l < "$qs_dir/q-beta.jsonl" | tr -d ' ')" = "3" ] || fail "warden fin did not append line"
+hooks "$s_ind_b" >/dev/null
+[ "$(wc -l < "$qs_dir/q-beta.jsonl" | tr -d ' ')" = "3" ] || fail "read-only bp3 q r downgraded fin back to induct"
 
 echo "hooks tests: ok"
