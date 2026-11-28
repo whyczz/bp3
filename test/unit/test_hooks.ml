@@ -239,6 +239,25 @@ let law_parse_edge_cycle_reads_the_cycle_from_any_generated_run_id =
     (fun (edge, rest, cycle, ts) ->
       Hooks.parse_edge_cycle (Printf.sprintf "%s-%s-%s-c%d" ts edge rest cycle) = (edge, cycle))
 
+let case_extract_quest_phase_tracks_init_red_ink_induct_and_fin _ =
+  let check (cmd, fp, want) =
+    let got = Hooks.extract_quest_phase ~command:cmd ~file_path:fp in
+    let pr = function None -> "None" | Some (q, p) -> Printf.sprintf "Some(%s,%s)" q p in
+    assert_equal ~msg:(cmd ^ "|" ^ fp) ~printer:pr want got in
+  List.iter check [
+    ("", "/repo/docs/quests/q1/QUEST.md", Some ("q1", "init"));
+    ("", "/repo/docs/quests/q1/nodes/n1/NODE.md", Some ("q1", "init"));
+    ("", "/repo/docs/quests/q1/QUEST.red-ink.md", Some ("q1", "red-ink"));
+    ("", "/repo/docs/quests/q1/QUEST.2b-reviewed.md", Some ("q1", "red-ink"));
+    ("", "/repo/docs/quests/q1/FEEDBACK.md", Some ("q1", "fin"));
+    ("./bin/bp3 q q1 n n1 e handoff --commit abc", "", Some ("q1", "induct"));
+    ("./bin/bp3 harness desk prepare --quest q1", "", Some ("q1", "induct"));
+    ("./bin/bp3 warden q1 --format json", "", Some ("q1", "fin"));
+    ("./bin/bp3 warden human-log q1", "", None);
+    ("./bin/bp3 release q1 --dry-run", "", Some ("q1", "fin"));
+    ("ls -la", "/repo/README.md", None);
+  ]
+
 let () =
   run_test_tt_main
     ("hooks" >::: [
@@ -256,6 +275,7 @@ let () =
        "case_legacy_skills_warning_shape_and_verdict_attachment" >:: case_legacy_skills_warning_shape_and_verdict_attachment;
        "case_extract_session_action_matches_explicit_quest_commands_and_red_ink_edits" >:: case_extract_session_action_matches_explicit_quest_commands_and_red_ink_edits;
        "case_file_path_of_reads_claude_and_agy_file_arguments" >:: case_file_path_of_reads_claude_and_agy_file_arguments;
+       "case_extract_quest_phase_tracks_init_red_ink_induct_and_fin" >:: case_extract_quest_phase_tracks_init_red_ink_induct_and_fin;
        QCheck_ounit.to_ounit2_test law_binding_json_round_trips;
        QCheck_ounit.to_ounit2_test law_parse_edge_cycle_reads_the_cycle_from_any_generated_run_id;
        QCheck_ounit.to_ounit2_test law_sanitize_session_id_prevents_path_traversal;

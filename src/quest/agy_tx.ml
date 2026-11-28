@@ -262,3 +262,139 @@ let window_times tx ~from ~upto =
   { t_wall = Float.max 0. (upto -. from);
     t_active = Tx.ms (Tx.measure present);
     t_tool = Tx.ms (Tx.measure (Tx.inter spans present)) }
+
+(* ---------- full-session human interactions & step query (warden-planned-gates session.1) ---------- *)
+
+let ask_question_summary args =
+  let raw_qs = member "questions" args in
+  let qs_json = match raw_qs with
+    | `List _ as l -> Some l
+    | `String s ->
+        let u = unquote_arg s in
+        (try Some (Yojson.Safe.from_string u) with _ -> None)
+    | _ -> None in
+  match qs_json with
+  | Some (`List items) ->
+      items
+      |> List.filter_map (fun it ->
+             let q = String.trim (str "question" it) in
+             if q <> "" then Some q else None)
+      |> String.concat " | "
+  | _ -> ""
+
+let planner_text j =
+  let direct =
+    List.find_opt (fun s -> String.trim s <> "")
+      [ str "content" j; str "response" j; str "text" j; str "output" j ] in
+  match direct with
+  | Some s -> s
+  | None ->
+      let tcs = match member "tool_calls" j with `List xs -> xs | _ -> [] in
+      let names = List.filter_map (fun tc ->
+          let nm = str "name" tc in
+          if nm = "" then None else Some nm) tcs in
+      if names <> [] then "tool_calls: " ^ String.concat ", " names
+      else str "thinking" j
+
+let resolve_agy_lines ?full_text text =
+  let lines = Array.of_list (String.split_on_char '\n' text) in
+  let full_lines = lazy (
+    match full_text with
+    | None -> [||]
+    | Some ft -> Array.of_list (String.split_on_char '\n' ft)) in
+  Array.mapi (fun idx raw_line ->
+      if String.trim raw_line = "" then None
+      else
+        let parsed = try Some (Yojson.Safe.from_string raw_line) with _ -> None in
+        match parsed with
+        | Some (`Assoc _ as j) when has_truncated j ->
+            let fl = Lazy.force full_lines in
+            if idx < Array.length fl && String.trim fl.(idx) <> "" then
+              (try Some (idx, Yojson.Safe.from_string fl.(idx)) with _ -> Some (idx, j))
+            else Some (idx, j)
+        | Some (`Assoc _ as j) -> Some (idx, j)
+        | _ -> None) lines
+
+let parse_interactions ?full_text text =
+  let resolved = resolve_agy_lines ?full_text text in
+  let turns = ref [] in
+  let last_agent = ref "" in
+  let recent_edges = ref [] in
+  let pending : (string * string) list ref = ref [] in
+  let add_edge e =
+    if not (List.mem e !recent_edges) then recent_edges := !recent_edges @ [ e ] in
+  Array.iter (function
+      | None -> ()
+      | Some (idx, j) ->
+          let ts = str "created_at" j in
+          let step = Option.value (int_of "step_index" j) ~default:idx in
+          (match str "type" j with
+           | "USER_INPUT" ->
+               let content = String.trim (str "content" j) in
+               if content <> "" && not (String.starts_with ~prefix:"/compact" content) then begin
+                 let at = Option.value (Tx.seconds ts) ~default:0. in
+                 turns := {
+                   Tx.ht_step = step; ht_ts = at; ht_iso = ts;
+                   ht_source = "user_input";
+                   ht_agent_asked = Tx.clip ~max_chars:300 !last_agent;
+                   ht_human_said = Tx.clip ~max_chars:1000 content;
+                   ht_nearby_edges = !recent_edges;
+                 } :: !turns;
+                 recent_edges := []
+               end
+           | "PLANNER_RESPONSE" ->
+               let txt = planner_text j in
+               if String.trim txt <> "" then last_agent := txt;
+               let tcs = match member "tool_calls" j with `List xs -> xs | _ -> [] in
+               pending := [];
+               List.iter (fun tc ->
+                   let name = str "name" tc in
+                   let args = member "args" tc in
+                   let cmd = unquote_arg (str "CommandLine" args) in
+                   (match Tx.extract_edge_tag cmd with Some e -> add_edge e | None -> ());
+                   let qs = if name = "ask_question" then ask_question_summary args else "" in
+                   pending := !pending @ [ (name, qs) ]) tcs
+           | "GENERIC" ->
+               (match !pending with
+                | (name, qs) :: rest ->
+                    pending := rest;
+                    if name = "ask_question" then begin
+                      let body = Tx.strip_agy_tool_headers (str "content" j) in
+                      if body <> "" then begin
+                        let at = Option.value (Tx.seconds ts) ~default:0. in
+                        let asked = if qs <> "" then qs else !last_agent in
+                        turns := {
+                          Tx.ht_step = step; ht_ts = at; ht_iso = ts;
+                          ht_source = "ask_question";
+                          ht_agent_asked = Tx.clip ~max_chars:300 asked;
+                          ht_human_said = Tx.clip ~max_chars:1000 body;
+                          ht_nearby_edges = !recent_edges;
+                        } :: !turns;
+                        recent_edges := []
+                      end
+                    end
+                | [] -> ())
+           | _ -> ())) resolved;
+  List.rev !turns
+
+let query_window ?full_text ~around ~window text =
+  let resolved = resolve_agy_lines ?full_text text in
+  let steps = ref [] in
+  Array.iter (function
+      | None -> ()
+      | Some (idx, j) ->
+          let ts = str "created_at" j in
+          let step = Option.value (int_of "step_index" j) ~default:idx in
+          let (role, raw_text) = match str "type" j with
+            | "USER_INPUT" -> ("user", str "content" j)
+            | "SYSTEM_MESSAGE" -> ("system", unwrap_system_prompt (str "content" j))
+            | "PLANNER_RESPONSE" ->
+                let tcs = match member "tool_calls" j with `List xs -> xs | _ -> [] in
+                let txt = planner_text j in
+                let role = if tcs <> [] && str "content" j = "" && str "response" j = "" && str "text" j = "" then "tool_call" else "assistant" in
+                (role, txt)
+            | "GENERIC" -> ("tool_result", str "content" j)
+            | other -> ("system", other ^ ": " ^ str "content" j) in
+          steps := { Tx.qs_step = step; qs_ts = ts; qs_role = role;
+                     qs_text = Tx.clip ~max_chars:2000 raw_text } :: !steps) resolved;
+  Tx.filter_window ~around ~window (List.rev !steps)
