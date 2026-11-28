@@ -73,7 +73,7 @@ because a gate that starts green certifies nothing.
 | 2 | Research the ground: MVP doc, home repo state, prior Quests in `docs/quests/`, and the root `CONSTRAINTS.md` (the owner-signed stack) and `CONTEXT.md` (how others build this, sourced and dated) | every claim traces to a file read this session |
 | 3 | Ask questions whose answers change the shape: home repo, success picture, lane, first node | the rest become assumptions or open questions in the file |
 | 4 | Names first, under a Concepts/Terms header, with `naming` | every term defined in one line before any node spends it |
-| 5 | Draft `docs/quests/<date>-<slug>.md` (`YYYY-MM-DD`, short kebab slug) with `bump: major \| minor \| patch \| none` per `RELEASING.md` (`scripts/check-bump` enforces it in `make lint`) | one Quest per file |
+| 5 | Draft `docs/quests/<date>-<slug>/quest.json` (`version: 1`, default single source of truth for quest metadata, `bump: major \| minor \| patch \| none` per `RELEASING.md`, `nodes[]`, kinds, deps, and structured `acceptance`) plus optional human-prose `QUEST.md` (or render views later with `--scaffold`); `scripts/check-bump` enforces `bump` in `make lint`. Leave git state branches uncreated (`proposed`) until `/induct` starts | one Quest folder per quest; `quest.json` validates cleanly with zero open questions |
 | 6 | Break into nodes with failing-today acceptance | a check that cannot fail gets rewritten |
 | 6.5 | Diligence gate per node: design settled (no open questions), acceptance fails today, acceptance gates defined up front | an node with open design questions is not ready for `induct`; settle it with `red-ink` first — Node 4 of the MVP quest shipped unsettled design and the landing review caught it late |
 | 6.6 | Skill changes ride as their own node | if the Quest's changes touch any skill (bp3 `skills/`, yap skills, installed copies), name a skill-change node with its own acceptance (skill tests, render/install assertions); never edit a skill inline during framing, and never fold a skill change into a code node — skills are how children behave, so they get the same gate as code |
@@ -191,15 +191,15 @@ Choose the node flavor (`--kind`) to match the work:
 | `explore` | `todo` -> `e iterate --note` (capped by `--max-iterations` -> `E_EXPLORE_BOUND`) -> `handoff --outcome hit\|missed\|inconclusive` (docs-only under `docs/quests/<q>/explores/<node>/`, may refine downstream `todo` specs) | Bounded hands-on prototypes or benchmarks aimed at `--target` |
 | `human-gate` | `todo -> landed` on `e approve --reason` (no commit; `BP3_DECIDER=human`, or `BP3_DECIDER=human-approved-llm-yolo` under `induct-yolo`) | Explicit decision checkpoints; convention: place a `human-gate` after `research` or `explore` nodes that refine downstream specs |
 
-### Declarative `quest.json` (schema `version: 1`)
+### Declarative `quest.json` (schema `version: 1`, default for new quests)
 
-Instead of initializing a quest and its nodes via `1 + N` imperative `bp3 q c` calls, you may encode the full quest graph (metadata, `bump`, `nodes[]`, `kind`, `depends_on`, `target`, `max_iterations`, and structured `acceptance: {objective, prove_by, done_when, trace}`) in `docs/quests/<quest>/quest.json` and initialize atomically in one command:
+**Default for new quests:** encode the full quest graph (metadata, `bump`, `nodes[]`, `kind`, `depends_on`, `target`, `max_iterations`, and structured `acceptance: {objective, prove_by, done_when, trace}`) in `docs/quests/<quest>/quest.json` during `/quest` (do not run `bp3 q c` yet — land the proposed spec on `master`, and let `/induct` step 1 populate the quest and all node branches atomically when building starts):
 
 ```sh
 bp3 q c [<quest>] --file docs/quests/<quest>/quest.json [--scaffold]
 ```
 
-`bp3 q c --file` validates the entire spec up front (`E_INVALID_SPEC`, zero partial refs on error), creates the quest and every node in topological order, and optionally scaffolds readable `QUEST.md` / `NODE.md` views with `--scaffold`. When `quest.json` is committed, `Brief.render` renders cold-grader acceptance directly from JSON (immune to markdown heading drift) and `handoff` protects `quest.json` under `E_PROTECTED_FILE` (`Research`/`Explore` may edit only non-self `todo` node entries).
+`bp3 q c --file` validates the entire spec up front (`E_INVALID_SPEC`, zero partial refs on error), creates the quest and every node in topological order, and optionally scaffolds readable `QUEST.md` / `NODE.md` views with `--scaffold`. When `quest.json` is committed, `Brief.render` renders cold-grader acceptance directly from JSON (immune to markdown heading drift) and `handoff` protects `quest.json` under `E_PROTECTED_FILE` (`Research`/`Explore` may edit only non-self `todo` node entries). Legacy markdown-only quests remain supported.
 
 ## File shape
 

@@ -612,13 +612,17 @@ for dir in "${dev_dirs[@]}"; do
   assert grep -qF 'bp3 warden query' "$ub"
 done
 
-# declarative-json-quest-init skills.1: quest.json schema v1, bp3 q c --file [--scaffold], and E_INVALID_SPEC
+# declarative-json-quest-init skills.1: quest.json schema v1 default, bp3 q c --file [--scaffold], induct auto-init, and E_INVALID_SPEC
 for dir in "${core_dirs[@]}"; do
   assert grep -qF 'quest.json' "$dir/quest/SKILL.md"
+  assert grep -qF 'Default for new quests:' "$dir/quest/SKILL.md"
   assert grep -qF -- '--file docs/quests/<quest>/quest.json [--scaffold]' "$dir/quest/SKILL.md"
   assert grep -qF 'E_INVALID_SPEC' "$dir/quest/SKILL.md"
   assert grep -qF 'quest.json' "$dir/red-ink/SKILL.md"
+  assert grep -qF 'by default' "$dir/red-ink/SKILL.md"
   assert grep -qF -- '--file <path> [--scaffold]' "$dir/red-ink/SKILL.md"
+  assert grep -qF 'E_NOT_FOUND' "$dir/induct/SKILL.md"
+  assert grep -qF -- '--file docs/quests/<quest>/quest.json' "$dir/induct/SKILL.md"
 done
 for dir in "${dev_dirs[@]}"; do
   ub="$dir/using-bp3/SKILL.md"

@@ -19,7 +19,12 @@ Scope: active in git repos with `backpack.toml` at root (or when explicitly invo
 
 ## Procedure
 
-1. `bp3 q r <quest>` must answer JSON, or stop. Prepare the quest desk
+1. Run `bp3 q r <quest>`. If it returns `E_NOT_FOUND` and
+   `docs/quests/<quest>/quest.json` exists, populate the quest and all
+   declared node branches atomically right now with
+   `bp3 q c [<quest>] --file docs/quests/<quest>/quest.json`, then
+   re-read `bp3 q r <quest>`; otherwise `bp3 q r <quest>` must answer
+   JSON, or stop. Prepare the quest desk
    (`bp3 harness desk prepare --quest <quest>`) and author only there
    (desks live centrally under `~/.bp3/desks/` in self and host modes).
    One session per quest: this session runs this quest and no other, and
@@ -31,7 +36,8 @@ Scope: active in git repos with `backpack.toml` at root (or when explicitly invo
      in the background (Grade, below);
    - when nothing is being authored, take the first `todo` node in
      `ready` order and follow its `kind`:
-     - `code` (default): read its NODE.md acceptance gates, make the
+     - `code` (default): read its acceptance gates from `quest.json`
+       (or `NODE.md` on legacy quests), make the
        change, run the node's `prove by` checks (`make check-full`
        before handoff), commit clean, run `./scripts/receipt` on the
        clean commit (when present in the repo), and cast
@@ -45,16 +51,19 @@ Scope: active in git repos with `backpack.toml` at root (or when explicitly invo
        (auto-lands directly without a cold grader; `E_PROTECTED_FILE`
        still applies);
      - `research`: write the sourced report under `docs/` and sharpen
-       downstream `todo` `NODE.md` / `QUEST.md` specs as needed
-       (never touch non-`docs/` paths -> `E_DOC_ONLY_NODE`, nor own or
-       non-`todo` `NODE.md` -> `E_PROTECTED_FILE`), commit clean, and
+       downstream `todo` entries in `quest.json` (or `NODE.md` /
+       `QUEST.md`) as needed
+       (never touch non-`docs/` paths -> `E_DOC_ONLY_NODE`, nor quest
+       metadata / own or non-`todo` entries -> `E_PROTECTED_FILE`),
+       commit clean, and
        cast `e handoff` (auto-lands; convention: follow with a
        `human-gate` node);
      - `explore`: run bounded experiments under
        `docs/quests/<q>/explores/<node>/` toward `--target`, logging
        attempts with `e iterate --note "..."` (stops at
        `--max-iterations` with `E_EXPLORE_BOUND`), optionally sharpen
-       downstream `todo` specs, commit clean (`docs/` only ->
+       downstream `todo` entries in `quest.json` (or `NODE.md`),
+       commit clean (`docs/` only ->
        `E_DOC_ONLY_NODE`), and close with
        `e handoff --commit <sha> --outcome hit|missed|inconclusive --reason "..."`
        (auto-lands; convention: follow with a `human-gate` node);

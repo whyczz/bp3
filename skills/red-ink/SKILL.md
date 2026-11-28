@@ -242,7 +242,7 @@ with a crisp delta so the owner sees what actually moved:
 | 4 | Deliberately open | deferred questions, each with an owner or an icebox path; plus icebox entries consulted at walk start |
 | 5 | Final IIUC | the settled design in one read |
 | 6 | Red chair of the settled design | the closing adversarial pass (below): findings with severity and evidence, including what the design survived |
-| 7 | Proposed nodes | only when implementation follows; each node written per Nodes below — including the concern nodes the closing red chair owes (below); settled quests may also emit `docs/quests/<quest>/quest.json` (`version: 1`) for atomic `bp3 q c [<quest>] --file <path> [--scaffold]` init and JSON-backed cold briefs |
+| 7 | Proposed nodes | only when implementation follows; each node written per Nodes below — including the concern nodes the closing red chair owes (below); settled quests emit `docs/quests/<quest>/quest.json` (`version: 1`) by default so `/induct` populates all branches atomically via `bp3 q c [<quest>] --file <path> [--scaffold]` and renders JSON-backed cold briefs |
 
 ## Red chair at the ends
 
