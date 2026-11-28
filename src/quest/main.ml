@@ -688,68 +688,212 @@ let help_worktree = "bp3 worktree - documented alias of bp3 harness desk, machin
   bp3 harness desk list [--quest <quest>]\n\
 Example: bp3 harness desk prepare my-quest node-1 --run R1\n"
 
-let help_warden = "bp3 warden - two-layer deterministic plug audit (git + session traces, read-only):\n\
-  bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table]\n\
+let help_warden = "bp3 warden - two-layer deterministic plug audit & full-session human log (read-only):\n\
+  bp3 warden [<quest> | --session <id|latest>] [--last N|--all] [--no-sessions] [--format json|table]\n\
     [--dir <claude-dir>] [--pi-dir <pi-dir>] [--agy-dir <agy-dir>]\n\
-  With <quest>, audits that quest (always, even if FEEDBACK.md exists).\n\
-  With no <quest>, runs repo checks (>1 active quest, leaked desks) plus the last N (default 5)\n\
-  unreviewed real quests (with docs/quests/<q>/QUEST.md and no FEEDBACK.md); --all sweeps all real quests.\n\
-  Layer 2 (session traces) auto-enables when local Claude/Pi/agy transcripts match; --no-sessions runs Layer 1 only.\n\
-  Always read-only; exit 0 on clean read (findings are evidence, never a gate), exit 2 on usage/not-found.\n\
-Example: bp3 warden 2026-11-22-induct-inline-as-default-measure-author --format table\n"
+  bp3 warden human-log (<quest> | --session <id|latest>) [--phase init|red-ink|induct|fin|standalone]\n\
+    [--limit N] [--format json|table] [--dir <claude-dir>] [--pi-dir <pi-dir>] [--agy-dir <agy-dir>]\n\
+  bp3 warden query <session-id|latest> --around <step> [--window N] [--format json|table]\n\
+    [--dir <claude-dir>] [--pi-dir <pi-dir>] [--agy-dir <agy-dir>]\n\
+  With <quest>, audits that quest (including proposed quests with docs/quests/<q>/QUEST.md).\n\
+  With --session <id|latest>, audits one standalone session (tool_retry_loop + context_bloat only).\n\
+  With no <quest>, runs repo checks plus the last N (default 5) unreviewed real quests; --all sweeps all.\n\
+  Always read-only; exit 0 on clean read, exit 2 on usage/not-found.\n\
+Example: bp3 warden human-log --session latest --format table\n"
 
-let do_warden rest =
+let valid_phases = [ "init"; "red-ink"; "induct"; "fin"; "standalone" ]
+
+let do_warden_human_log rest =
   if List.exists is_help rest then (print_string help_warden; 0)
   else
-    let rec parse pos last_n all_flag no_sessions fmt dirs pi_dirs agy_dirs = function
-      | [] -> (List.rev pos, last_n, all_flag, no_sessions, fmt, List.rev dirs, List.rev pi_dirs, List.rev agy_dirs)
-      | "--all" :: tl -> parse pos last_n true no_sessions fmt dirs pi_dirs agy_dirs tl
-      | "--no-sessions" :: tl -> parse pos last_n all_flag true fmt dirs pi_dirs agy_dirs tl
-      | "--last" :: n :: tl ->
+    let rec parse pos sid_opt phase_opt limit fmt dirs pi_dirs agy_dirs = function
+      | [] -> (List.rev pos, sid_opt, phase_opt, limit, fmt, List.rev dirs, List.rev pi_dirs, List.rev agy_dirs)
+      | "--session" :: s :: tl ->
+          if sid_opt <> None then usage "duplicate flag --session";
+          parse pos (Some s) phase_opt limit fmt dirs pi_dirs agy_dirs tl
+      | [ "--session" ] -> usage "--session needs a value"
+      | "--phase" :: p :: tl ->
+          if phase_opt <> None then usage "duplicate flag --phase";
+          if not (List.mem p valid_phases) then
+            usage ("--phase must be one of init, red-ink, induct, fin, standalone: " ^ p);
+          parse pos sid_opt (Some p) limit fmt dirs pi_dirs agy_dirs tl
+      | [ "--phase" ] -> usage "--phase needs a value"
+      | "--limit" :: n :: tl ->
           (match int_of_string_opt n with
-           | Some k when k >= 1 -> parse pos (Some k) all_flag no_sessions fmt dirs pi_dirs agy_dirs tl
-           | _ -> usage ("--last must be a positive integer: " ^ n))
-      | [ "--last" ] -> usage "--last needs a value"
+           | Some k when k >= 1 -> parse pos sid_opt phase_opt k fmt dirs pi_dirs agy_dirs tl
+           | _ -> usage ("--limit must be a positive integer: " ^ n))
+      | [ "--limit" ] -> usage "--limit needs a value"
       | "--format" :: f :: tl ->
           if f <> "json" && f <> "table" then usage ("--format must be json or table: " ^ f);
-          parse pos last_n all_flag no_sessions f dirs pi_dirs agy_dirs tl
+          parse pos sid_opt phase_opt limit f dirs pi_dirs agy_dirs tl
       | [ "--format" ] -> usage "--format needs a value"
       | s :: tl when String.starts_with ~prefix:"--format=" s ->
           let f = String.sub s 9 (String.length s - 9) in
           if f <> "json" && f <> "table" then usage ("--format must be json or table: " ^ f);
-          parse pos last_n all_flag no_sessions f dirs pi_dirs agy_dirs tl
+          parse pos sid_opt phase_opt limit f dirs pi_dirs agy_dirs tl
       | ("--dir" | "--claude-dir") :: d :: tl ->
-          parse pos last_n all_flag no_sessions fmt (d :: dirs) pi_dirs agy_dirs tl
+          parse pos sid_opt phase_opt limit fmt (d :: dirs) pi_dirs agy_dirs tl
       | "--pi-dir" :: d :: tl ->
-          parse pos last_n all_flag no_sessions fmt dirs (d :: pi_dirs) agy_dirs tl
+          parse pos sid_opt phase_opt limit fmt dirs (d :: pi_dirs) agy_dirs tl
       | "--agy-dir" :: d :: tl ->
-          parse pos last_n all_flag no_sessions fmt dirs pi_dirs (d :: agy_dirs) tl
+          parse pos sid_opt phase_opt limit fmt dirs pi_dirs (d :: agy_dirs) tl
+      | [ ("--dir" | "--claude-dir" | "--pi-dir" | "--agy-dir") as f ] -> usage (f ^ " needs a value")
+      | f :: _ when String.length f > 0 && f.[0] = '-' -> usage ("unknown warden human-log flag: " ^ f)
+      | p :: tl -> parse (p :: pos) sid_opt phase_opt limit fmt dirs pi_dirs agy_dirs tl in
+    let (pos, sid_opt, phase_opt, limit, fmt, dirs, pi_dirs, agy_dirs) =
+      parse [] None None 200 "json" [] [] [] rest in
+    let quest_opt = match pos with
+      | [] -> None
+      | [ q ] -> Some q
+      | _ -> usage "bp3 warden human-log takes at most one <quest>" in
+    match quest_opt, sid_opt with
+    | Some _, Some _ -> usage "pass either <quest> or --session <id|latest>, not both"
+    | None, None -> usage "bp3 warden human-log requires <quest> or --session <id|latest>"
+    | Some q, None ->
+        check_slug q;
+        if fold_quest q = None && not (Warden_io.has_quest_md q) then not_found "quest" q;
+        let (sessions, interactions, truncated) =
+          Warden_io.load_human_log_quest q ~phase:phase_opt ~limit ~dirs ~pi_dirs ~agy_dirs in
+        if fmt = "table" then
+          print_string (Warden.human_log_to_table ~scope:"quest" ~target:q ~interactions ~truncated)
+        else
+          print_endline (Yojson.Safe.to_string
+            (Warden.human_log_to_json ~scope:"quest" ~target:q ~sessions ~interactions ~truncated));
+        0
+    | None, Some sid ->
+        (match Warden_io.load_human_log_session sid ~phase:phase_opt ~limit ~dirs ~pi_dirs ~agy_dirs with
+         | None -> not_found "session" sid
+         | Some (resolved_sid, sessions, interactions, truncated) ->
+             if fmt = "table" then
+               print_string (Warden.human_log_to_table ~scope:"session" ~target:resolved_sid ~interactions ~truncated)
+             else
+               print_endline (Yojson.Safe.to_string
+                 (Warden.human_log_to_json ~scope:"session" ~target:resolved_sid ~sessions ~interactions ~truncated));
+             0)
+
+let do_warden_query rest =
+  if List.exists is_help rest then (print_string help_warden; 0)
+  else
+    let rec parse pos around_opt window fmt dirs pi_dirs agy_dirs = function
+      | [] -> (List.rev pos, around_opt, window, fmt, List.rev dirs, List.rev pi_dirs, List.rev agy_dirs)
+      | "--around" :: n :: tl ->
+          (match int_of_string_opt n with
+           | Some k when k >= 0 -> parse pos (Some k) window fmt dirs pi_dirs agy_dirs tl
+           | _ -> usage ("--around must be a non-negative integer: " ^ n))
+      | [ "--around" ] -> usage "--around needs a value"
+      | "--window" :: n :: tl ->
+          (match int_of_string_opt n with
+           | Some k when k >= 0 -> parse pos around_opt k fmt dirs pi_dirs agy_dirs tl
+           | _ -> usage ("--window must be a non-negative integer: " ^ n))
+      | [ "--window" ] -> usage "--window needs a value"
+      | "--format" :: f :: tl ->
+          if f <> "json" && f <> "table" then usage ("--format must be json or table: " ^ f);
+          parse pos around_opt window f dirs pi_dirs agy_dirs tl
+      | [ "--format" ] -> usage "--format needs a value"
+      | s :: tl when String.starts_with ~prefix:"--format=" s ->
+          let f = String.sub s 9 (String.length s - 9) in
+          if f <> "json" && f <> "table" then usage ("--format must be json or table: " ^ f);
+          parse pos around_opt window f dirs pi_dirs agy_dirs tl
+      | ("--dir" | "--claude-dir") :: d :: tl ->
+          parse pos around_opt window fmt (d :: dirs) pi_dirs agy_dirs tl
+      | "--pi-dir" :: d :: tl ->
+          parse pos around_opt window fmt dirs (d :: pi_dirs) agy_dirs tl
+      | "--agy-dir" :: d :: tl ->
+          parse pos around_opt window fmt dirs pi_dirs (d :: agy_dirs) tl
+      | [ ("--dir" | "--claude-dir" | "--pi-dir" | "--agy-dir") as f ] -> usage (f ^ " needs a value")
+      | f :: _ when String.length f > 0 && f.[0] = '-' -> usage ("unknown warden query flag: " ^ f)
+      | p :: tl -> parse (p :: pos) around_opt window fmt dirs pi_dirs agy_dirs tl in
+    let (pos, around_opt, window, fmt, dirs, pi_dirs, agy_dirs) =
+      parse [] None 5 "json" [] [] [] rest in
+    let sid = match pos with
+      | [ s ] -> s
+      | [] -> usage "bp3 warden query requires <session-id|latest>"
+      | _ -> usage "bp3 warden query takes exactly one <session-id|latest>" in
+    let around = match around_opt with
+      | Some a -> a
+      | None -> usage "bp3 warden query requires --around <step>" in
+    match Warden_io.load_query_session sid ~around ~window ~dirs ~pi_dirs ~agy_dirs with
+    | None -> not_found "session" sid
+    | Some (resolved_sid, harness, steps) ->
+        if fmt = "table" then
+          print_string (Warden.query_to_table ~session_id:resolved_sid ~harness ~around ~window ~steps)
+        else
+          print_endline (Yojson.Safe.to_string
+            (Warden.query_to_json ~session_id:resolved_sid ~harness ~around ~window ~steps));
+        0
+
+let do_warden rest =
+  match rest with
+  | sub :: tl when sub = Names.verb_human_log -> do_warden_human_log tl
+  | sub :: tl when sub = Names.verb_query -> do_warden_query tl
+  | _ ->
+  if List.exists is_help rest then (print_string help_warden; 0)
+  else
+    let rec parse pos sid_opt last_n all_flag no_sessions fmt dirs pi_dirs agy_dirs = function
+      | [] -> (List.rev pos, sid_opt, last_n, all_flag, no_sessions, fmt, List.rev dirs, List.rev pi_dirs, List.rev agy_dirs)
+      | "--session" :: s :: tl ->
+          if sid_opt <> None then usage "duplicate flag --session";
+          parse pos (Some s) last_n all_flag no_sessions fmt dirs pi_dirs agy_dirs tl
+      | [ "--session" ] -> usage "--session needs a value"
+      | "--all" :: tl -> parse pos sid_opt last_n true no_sessions fmt dirs pi_dirs agy_dirs tl
+      | "--no-sessions" :: tl -> parse pos sid_opt last_n all_flag true fmt dirs pi_dirs agy_dirs tl
+      | "--last" :: n :: tl ->
+          (match int_of_string_opt n with
+           | Some k when k >= 1 -> parse pos sid_opt (Some k) all_flag no_sessions fmt dirs pi_dirs agy_dirs tl
+           | _ -> usage ("--last must be a positive integer: " ^ n))
+      | [ "--last" ] -> usage "--last needs a value"
+      | "--format" :: f :: tl ->
+          if f <> "json" && f <> "table" then usage ("--format must be json or table: " ^ f);
+          parse pos sid_opt last_n all_flag no_sessions f dirs pi_dirs agy_dirs tl
+      | [ "--format" ] -> usage "--format needs a value"
+      | s :: tl when String.starts_with ~prefix:"--format=" s ->
+          let f = String.sub s 9 (String.length s - 9) in
+          if f <> "json" && f <> "table" then usage ("--format must be json or table: " ^ f);
+          parse pos sid_opt last_n all_flag no_sessions f dirs pi_dirs agy_dirs tl
+      | ("--dir" | "--claude-dir") :: d :: tl ->
+          parse pos sid_opt last_n all_flag no_sessions fmt (d :: dirs) pi_dirs agy_dirs tl
+      | "--pi-dir" :: d :: tl ->
+          parse pos sid_opt last_n all_flag no_sessions fmt dirs (d :: pi_dirs) agy_dirs tl
+      | "--agy-dir" :: d :: tl ->
+          parse pos sid_opt last_n all_flag no_sessions fmt dirs pi_dirs (d :: agy_dirs) tl
       | [ ("--dir" | "--claude-dir" | "--pi-dir" | "--agy-dir") as f ] -> usage (f ^ " needs a value")
       | f :: _ when String.length f > 0 && f.[0] = '-' -> usage ("unknown warden flag: " ^ f)
-      | p :: tl -> parse (p :: pos) last_n all_flag no_sessions fmt dirs pi_dirs agy_dirs tl in
-    let (pos, last_n, all_flag, no_sessions, fmt, dirs, pi_dirs, agy_dirs) =
-      parse [] None false false "json" [] [] [] rest in
+      | p :: tl -> parse (p :: pos) sid_opt last_n all_flag no_sessions fmt dirs pi_dirs agy_dirs tl in
+    let (pos, sid_opt, last_n, all_flag, no_sessions, fmt, dirs, pi_dirs, agy_dirs) =
+      parse [] None None false false "json" [] [] [] rest in
     let quest_opt = match pos with
       | [] -> None
       | [ q ] -> Some q
       | _ -> usage "bp3 warden takes at most one <quest>" in
+    if sid_opt <> None && (quest_opt <> None || all_flag || last_n <> None || no_sessions) then
+      usage "--session cannot be combined with <quest>, --last, --all, or --no-sessions";
     if quest_opt <> None && (all_flag || last_n <> None) then
       usage "pass either <quest> or --last/--all, not both";
     if all_flag && last_n <> None then
       usage "pass either --last or --all, not both";
-    let (scope, quests) = match quest_opt with
-      | Some q ->
-          check_slug q;
-          if fold_quest q = None && not (Warden_io.has_quest_md q) then not_found "quest" q;
-          ("quest", [ q ])
-      | None ->
-          let last = Option.value last_n ~default:5 in
-          ("repo", Warden_io.select_real_quests ~last ~all:all_flag) in
-    let ev = Warden_io.load ~scope ~quests ~no_sessions ~dirs ~pi_dirs ~agy_dirs in
-    let findings = Warden.run ev in
-    if fmt = "table" then print_string (Warden.to_table ev findings)
-    else print_endline (Yojson.Safe.to_string (Warden.to_json ev findings));
-    0
+    match sid_opt with
+    | Some sid ->
+        (match Warden_io.load_session_evidence sid ~dirs ~pi_dirs ~agy_dirs with
+         | None -> not_found "session" sid
+         | Some (_resolved_sid, ev) ->
+             let findings = Warden.run ev in
+             if fmt = "table" then print_string (Warden.to_table ev findings)
+             else print_endline (Yojson.Safe.to_string (Warden.to_json ev findings));
+             0)
+    | None ->
+        let (scope, quests) = match quest_opt with
+          | Some q ->
+              check_slug q;
+              if fold_quest q = None && not (Warden_io.has_quest_md q) then not_found "quest" q;
+              ("quest", [ q ])
+          | None ->
+              let last = Option.value last_n ~default:5 in
+              ("repo", Warden_io.select_real_quests ~last ~all:all_flag) in
+        let ev = Warden_io.load ~scope ~quests ~no_sessions ~dirs ~pi_dirs ~agy_dirs in
+        let findings = Warden.run ev in
+        if fmt = "table" then print_string (Warden.to_table ev findings)
+        else print_endline (Yojson.Safe.to_string (Warden.to_json ev findings));
+        0
 
 let help_config = "bp3 config - read-only view of machine-local bp3 config (<git-common-dir>/bp3/, never committed):\n\
   bp3 config [--source] [--format json|table]   mode, thresholds, and desks (read-only; never writes .git/bp3/)\n\

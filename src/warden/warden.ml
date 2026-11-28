@@ -78,6 +78,7 @@ type evidence = {
   ev_quests : quest_evidence list;
   ev_has_repo_config : bool;
   ev_grade_wall_s : float;
+  ev_human_turns_count : int;
 }
 
 (* ---------- ledger entry parsing ---------- *)
@@ -581,11 +582,21 @@ let compare_finding a b =
 
 let sort_findings fs = List.sort compare_finding fs
 
+let standalone_session_plugs = [
+  plug_tool_retry_loop;
+  plug_context_bloat;
+]
+
 let run ev =
-  let l1 = List.concat_map (fun p -> p ev) layer1_plugs in
-  let has_traces = List.exists (fun q -> q.qe_traces <> []) ev.ev_quests in
-  let l2 = if has_traces then List.concat_map (fun p -> p ev) layer2_plugs else [] in
-  sort_findings (l1 @ l2)
+  if ev.ev_scope = "session" then
+    let has_traces = List.exists (fun q -> q.qe_traces <> []) ev.ev_quests in
+    let l2 = if has_traces then List.concat_map (fun p -> p ev) standalone_session_plugs else [] in
+    sort_findings l2
+  else
+    let l1 = List.concat_map (fun p -> p ev) layer1_plugs in
+    let has_traces = List.exists (fun q -> q.qe_traces <> []) ev.ev_quests in
+    let l2 = if has_traces then List.concat_map (fun p -> p ev) layer2_plugs else [] in
+    sort_findings (l1 @ l2)
 
 (* ---------- serialization (JSON + table) ---------- *)
 
@@ -643,12 +654,16 @@ let to_json ev findings =
     if ev.ev_has_repo_config then []
     else [ ("warnings", `List [ Backpack.warning_no_repo_config () ]) ] in
   let gates = planned_gates_of ev in
+  let quest_names =
+    if ev.ev_scope = "session" then []
+    else List.map (fun q -> `String q.qe_quest) ev.ev_quests in
   `Assoc ([
     ("ok", `Bool true);
     ("scope", `String ev.ev_scope);
-    ("quests", `List (List.map (fun q -> `String q.qe_quest) ev.ev_quests));
+    ("quests", `List quest_names);
     ("sessions_scanned", `Int (sessions_scanned ev));
     ("planned_gates", `List (List.map planned_gate_to_json gates));
+    ("human_turns_count", `Int ev.ev_human_turns_count);
     ("findings", `List (List.map finding_to_json findings));
     ("counts", counts_json findings);
   ] @ warnings_field)
@@ -681,3 +696,151 @@ let to_table ev findings =
         (pad widths.(0) r.(0)) (pad widths.(1) r.(1)) (pad widths.(2) r.(2))
         (pad widths.(3) r.(3)) (pad widths.(4) r.(4)) (pad widths.(5) r.(5)) r.(6) in
     String.concat "\n" (fmt_row hdr :: List.map fmt_row rows) ^ "\n"
+
+(* ---------- human-log & query (warden-planned-gates session.2) ---------- *)
+
+type quest_session_event = {
+  qse_sid : string;
+  qse_harness : string;
+  qse_phase : string;
+  qse_ts : int;
+}
+
+type interaction = {
+  i_phase : string;
+  i_session_id : string;
+  i_harness : string;
+  i_step : int;
+  i_ts : float;
+  i_iso : string;
+  i_source : string;
+  i_agent_asked : string;
+  i_human_said : string;
+  i_nearby_edges : string list;
+}
+
+let parse_quest_session_events text =
+  String.split_on_char '\n' text
+  |> List.filter_map (fun ln ->
+         let ln = String.trim ln in
+         if ln = "" then None
+         else
+           try
+             let j = Yojson.Safe.from_string ln in
+             let sid = str_field "sid" j in
+             let phase = str_field "phase" j in
+             if sid = "" || phase = "" then None
+             else
+               let harness = let h = str_field "harness" j in if h = "" then "agy" else h in
+               let ts = int_field "ts" 0 j in
+               Some { qse_sid = sid; qse_harness = harness; qse_phase = phase; qse_ts = ts }
+           with _ -> None)
+  |> List.stable_sort (fun a b -> compare a.qse_ts b.qse_ts)
+
+let assign_phase ~turn_ts ~events ~fallback =
+  let sorted = List.stable_sort (fun a b -> compare a.qse_ts b.qse_ts) events in
+  match sorted with
+  | [] -> fallback
+  | first :: _ ->
+      if turn_ts <= 0. then first.qse_phase
+      else
+        let rec go best = function
+          | [] -> best
+          | e :: rest ->
+              if float_of_int e.qse_ts <= turn_ts then go e.qse_phase rest
+              else best in
+        go first.qse_phase sorted
+
+let build_human_log ?phase ?(limit = 200) raw =
+  let cap = max 1 limit in
+  let sorted =
+    List.stable_sort (fun a b ->
+        let c = Float.compare a.i_ts b.i_ts in
+        if c <> 0 then c else
+        let c = String.compare a.i_session_id b.i_session_id in
+        if c <> 0 then c else
+        let c = compare a.i_step b.i_step in
+        if c <> 0 then c else String.compare a.i_source b.i_source) raw in
+  let seen = Hashtbl.create 32 in
+  let deduped = List.filter (fun it ->
+      let k = (it.i_session_id, it.i_step, it.i_source) in
+      if Hashtbl.mem seen k then false
+      else (Hashtbl.replace seen k (); true)) sorted in
+  let filtered = match phase with
+    | None -> deduped
+    | Some p -> List.filter (fun it -> it.i_phase = p) deduped in
+  let rec take n acc = function
+    | [] -> (List.rev acc, false)
+    | _ when n <= 0 -> (List.rev acc, true)
+    | x :: xs -> take (n - 1) (x :: acc) xs in
+  take cap [] filtered
+
+let interaction_to_json it =
+  `Assoc [
+    ("phase", `String it.i_phase);
+    ("session_id", `String it.i_session_id);
+    ("harness", `String it.i_harness);
+    ("step", `Int it.i_step);
+    ("ts", `String it.i_iso);
+    ("source", `String it.i_source);
+    ("agent_asked", `String it.i_agent_asked);
+    ("human_said", `String it.i_human_said);
+    ("nearby_edges", `List (List.map (fun e -> `String e) it.i_nearby_edges));
+  ]
+
+let human_log_to_json ~scope ~target ~sessions ~interactions ~truncated =
+  let id_field =
+    if scope = "session" then ("session_id", `String target)
+    else ("quest", `String target) in
+  `Assoc [
+    ("ok", `Bool true);
+    ("scope", `String scope);
+    id_field;
+    ("sessions", `List (List.map (fun s -> `String s) sessions));
+    ("interactions", `List (List.map interaction_to_json interactions));
+    ("truncated", `Bool truncated);
+  ]
+
+let short_sid s = if String.length s > 8 then String.sub s 0 8 else s
+
+let human_log_to_table ~scope ~target ~interactions ~truncated =
+  if interactions = [] then
+    Printf.sprintf "human-log (%s %s): 0 interactions\n" scope target
+  else
+    let rows = List.map (fun it ->
+        [| it.i_phase; short_sid it.i_session_id; string_of_int it.i_step;
+           it.i_source; Tx.clip ~max_chars:100 it.i_human_said |]) interactions in
+    let hdr = [| "PHASE"; "SESSION"; "STEP"; "SOURCE"; "HUMAN SAID" |] in
+    let widths = Array.init 5 (fun i ->
+        List.fold_left (fun acc r -> max acc (String.length r.(i))) (String.length hdr.(i)) rows) in
+    let fmt_row r =
+      Printf.sprintf "%s  %s  %s  %s  %s"
+        (pad widths.(0) r.(0)) (pad widths.(1) r.(1)) (pad widths.(2) r.(2))
+        (pad widths.(3) r.(3)) r.(4) in
+    let body = String.concat "\n" (fmt_row hdr :: List.map fmt_row rows) ^ "\n" in
+    if truncated then body ^ "(truncated; pass --limit N for more)\n" else body
+
+let query_step_to_json (qs : Tx.query_step) =
+  `Assoc [
+    ("step", `Int qs.qs_step);
+    ("ts", `String qs.qs_ts);
+    ("role", `String qs.qs_role);
+    ("text", `String qs.qs_text);
+  ]
+
+let query_to_json ~session_id ~harness ~around ~window ~steps =
+  `Assoc [
+    ("ok", `Bool true);
+    ("session_id", `String session_id);
+    ("harness", `String harness);
+    ("around", `Int around);
+    ("window", `Int window);
+    ("steps", `List (List.map query_step_to_json steps));
+  ]
+
+let query_to_table ~session_id ~harness ~around ~window ~steps =
+  let header = Printf.sprintf "query %s (%s) around #%d (+/-%d): %d step(s)\n"
+      session_id harness around window (List.length steps) in
+  let lines = List.map (fun (qs : Tx.query_step) ->
+      Printf.sprintf "#%d [%s] %s" qs.qs_step qs.qs_role (Tx.clip ~max_chars:200 qs.qs_text)) steps in
+  if lines = [] then header else header ^ String.concat "\n" lines ^ "\n"
