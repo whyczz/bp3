@@ -46,5 +46,5 @@ Commands:
 
 | # | Decision | Ref |
 |---|---|---|
-| 1 | pending owner disposal | — |
-| 2 | pending owner disposal | — |
+| 1 | `applied` | `73fc6066` |
+| 2 | `applied` | `73fc6066` |
