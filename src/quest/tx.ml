@@ -28,7 +28,7 @@ type tool_event = {
 type joined_trace = {
   jt_node : string;
   jt_cycle : int;
-  jt_role : string;   (* "grade" | "author" *)
+  jt_role : string;   (* "grade" | "author" | "session" *)
   jt_path : string;
   jt_run : string;
   jt_context_end : int;
@@ -37,6 +37,78 @@ type joined_trace = {
   jt_events : tool_event list;
   jt_user_steps : (int * float) list;  (* (step_or_line, epoch_s) of mid-window human inputs *)
 }
+
+(* Compact full-session human interaction turn & drill-down step records
+   (warden-planned-gates session.1). *)
+type human_turn = {
+  ht_step : int;
+  ht_ts : float;
+  ht_iso : string;
+  ht_source : string;      (* "user_input" | "ask_question" *)
+  ht_agent_asked : string; (* bounded <= 300 chars *)
+  ht_human_said : string;  (* bounded <= 1000 chars *)
+  ht_nearby_edges : string list;
+}
+
+type query_step = {
+  qs_step : int;
+  qs_ts : string;
+  qs_role : string;        (* "user" | "assistant" | "tool_call" | "tool_result" | "system" *)
+  qs_text : string;        (* bounded <= 2000 chars *)
+}
+
+let collapse_ws s =
+  let n = String.length s in
+  let buf = Buffer.create (min n 256) in
+  let in_ws = ref true in
+  for i = 0 to n - 1 do
+    match s.[i] with
+    | ' ' | '\t' | '\r' | '\n' ->
+        if not !in_ws then begin
+          Buffer.add_char buf ' ';
+          in_ws := true
+        end
+    | c ->
+        Buffer.add_char buf c;
+        in_ws := false
+  done;
+  let out = Buffer.contents buf in
+  let m = String.length out in
+  if m > 0 && out.[m - 1] = ' ' then String.sub out 0 (m - 1) else out
+
+let clip ~max_chars s =
+  let max_chars = max 0 max_chars in
+  let clean = collapse_ws s in
+  let n = String.length clean in
+  if n <= max_chars then clean
+  else if max_chars <= 3 then String.sub clean 0 max_chars
+  else String.sub clean 0 (max_chars - 3) ^ "..."
+
+let strip_agy_tool_headers s =
+  String.split_on_char '\n' s
+  |> List.filter (fun ln ->
+         let t = String.trim ln in
+         not (String.starts_with ~prefix:"Created At:" t
+              || String.starts_with ~prefix:"Completed At:" t))
+  |> String.concat "\n"
+  |> String.trim
+
+let extract_edge_tag cmd =
+  let toks =
+    String.split_on_char ' ' (collapse_ws cmd)
+    |> List.filter (fun t -> t <> "") in
+  let rec go = function
+    | "e" :: edge :: _ when List.mem edge Names.all_edges -> Some edge
+    | ("u" | "update") :: _node :: edge :: _ when List.mem edge Names.all_edges -> Some edge
+    | _ :: rest -> go rest
+    | [] -> None in
+  if Util.contains_sub cmd "bp3" && (Util.contains_sub cmd " q " || Util.contains_sub cmd "\tq ") then go toks
+  else None
+
+let filter_window ~around ~window steps =
+  let w = max 0 window in
+  let lo = around - w and hi = around + w in
+  List.filter (fun (qs : query_step) -> qs.qs_step >= lo && qs.qs_step <= hi) steps
 
 (* Milliseconds matter: a grade's wall is the span of its lines. *)
 let seconds ts =

@@ -602,7 +602,7 @@ skills_check() {
   printf '{"ok":true,"fresh":[],"skills_checked":%d}\n' "$skills_checked"
 }
 
-usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|agy|all>] | bp3 init-repo | bp3 skills install [--global] [--harness=...] | bp3 skills check | bp3 skills prune-local | bp3 q ... | bp3 warden [<quest>] [--last N|--all] [--no-sessions] [--format json|table] | bp3 release (<quest> | --commit <sha>) [...] | bp3 db info [--format json|table] | bp3 repo add|list|remove [...] | bp3 ticket add|list|read|claim|unclaim|done|dismiss [...] | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list|prune ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
+usage_text='usage: bp3 init [--harness=<pi|claude|codex|muse|agy|all>] | bp3 init-repo | bp3 skills install [--global] [--harness=...] | bp3 skills check | bp3 skills prune-local | bp3 q ... | bp3 warden [human-log|query|<quest>|--session <id|latest>] [--last N|--all] [--no-sessions] [--format json|table] | bp3 release (<quest> | --commit <sha>) [...] | bp3 db info [--format json|table] | bp3 repo add|list|remove [...] | bp3 ticket add|list|read|claim|unclaim|done|dismiss [...] | bp3 harness desk derive|create|inspect|remove|prepare|check|exit|release|list|prune ... | bp3 worktree ... (alias of harness desk) | bp3 config [--source] [--format json|table]'
 q_bin() { echo "${BP3_Q_BIN:-$root/_build/default/$ENGINE_SRC/main.exe}"; }
 run_q() {
   local door="$1"; shift

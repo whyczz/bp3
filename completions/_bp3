@@ -106,7 +106,11 @@ _bp3_candidates() {
     if [ "${#a[@]}" -eq 0 ]; then
       printf '%s\n' q warden release db repo ticket init skills harness worktree config | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'warden' ]; then
-      { _bp3_quests; printf '%s\n' --last --all --no-sessions --format -h --help; } | _bp3_filter "$cur"
+      { printf '%s\n' human-log query; _bp3_quests; printf '%s\n' --session --last --all --no-sessions --format -h --help; } | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -ge 2 ] && [ "${a[1]}" = 'warden' ] && [ "${a[2]}" = 'human-log' ]; then
+      { _bp3_quests; printf '%s\n' --session --phase --limit --format -h --help; } | _bp3_filter "$cur"
+    elif [ "${#a[@]}" -ge 2 ] && [ "${a[1]}" = 'warden' ] && [ "${a[2]}" = 'query' ]; then
+      printf '%s\n' latest --around --window --format -h --help | _bp3_filter "$cur"
     elif [ "${#a[@]}" -eq 1 ] && [ "${a[1]}" = 'release' ]; then
       { _bp3_quests; printf '%s\n' --commit --bump --target --remote --reason --tag --ff-only --no-gh --no-install --dry-run --publish-only --format -h --help; } | _bp3_filter "$cur"
     # SQLite control-plane doors: bp3 db, bp3 repo, bp3 ticket

@@ -140,3 +140,80 @@ let cost tx =
     tool_s = Tx.ms (Tx.measure tx.tool_spans);
     tool_errors = tx.tool_errors;
     turns }
+
+(* ---------- full-session human interactions & step query (warden-planned-gates session.1) ---------- *)
+
+let parse_interactions text =
+  let turns = ref [] in
+  let last_agent = ref "" in
+  let recent_edges = ref [] in
+  let add_edge e =
+    if not (List.mem e !recent_edges) then recent_edges := !recent_edges @ [ e ] in
+  List.iteri (fun line_idx line ->
+      if String.trim line <> "" then
+        match (try Some (Yojson.Safe.from_string line) with _ -> None) with
+        | Some (`Assoc _ as j) when str "type" j = "message" ->
+            let ts = str "timestamp" j in
+            let step = line_idx + 1 in
+            let m = member "message" j in
+            (match str "role" m with
+             | "user" ->
+                 let txt = String.trim (text_of (member "content" m)) in
+                 if txt <> "" then begin
+                   let at = Option.value (Tx.seconds ts) ~default:0. in
+                   turns := {
+                     Tx.ht_step = step; ht_ts = at; ht_iso = ts;
+                     ht_source = "user_input";
+                     ht_agent_asked = Tx.clip ~max_chars:300 !last_agent;
+                     ht_human_said = Tx.clip ~max_chars:1000 txt;
+                     ht_nearby_edges = !recent_edges;
+                   } :: !turns;
+                   recent_edges := []
+                 end
+             | "assistant" ->
+                 let content = member "content" m in
+                 let txt = String.trim (text_of content) in
+                 if txt <> "" then last_agent := txt;
+                 (match content with
+                  | `List blocks ->
+                      List.iter (fun b ->
+                          if str "type" b = "toolCall" then
+                            let cmd = str "command" (member "arguments" b) in
+                            match Tx.extract_edge_tag cmd with Some e -> add_edge e | None -> ()) blocks
+                  | _ -> ())
+             | _ -> ())
+        | _ -> ())
+    (String.split_on_char '\n' text);
+  List.rev !turns
+
+let query_window ~around ~window text =
+  let steps = ref [] in
+  List.iteri (fun line_idx line ->
+      if String.trim line <> "" then
+        match (try Some (Yojson.Safe.from_string line) with _ -> None) with
+        | Some (`Assoc _ as j) when str "type" j = "message" ->
+            let ts = str "timestamp" j in
+            let step = line_idx + 1 in
+            let m = member "message" j in
+            let content = member "content" m in
+            let (role, raw_text) = match str "role" m with
+              | "user" -> ("user", text_of content)
+              | "assistant" ->
+                  let txt = text_of content in
+                  if String.trim txt <> "" then ("assistant", txt)
+                  else
+                    let calls = match content with
+                      | `List blocks ->
+                          blocks
+                          |> List.filter_map (fun b ->
+                                 if str "type" b = "toolCall" then Some (str "name" b) else None)
+                          |> String.concat ", "
+                      | _ -> "" in
+                    ("tool_call", calls)
+              | "toolResult" -> ("tool_result", text_of content)
+              | _ -> ("system", text_of content) in
+            steps := { Tx.qs_step = step; qs_ts = ts; qs_role = role;
+                       qs_text = Tx.clip ~max_chars:2000 raw_text } :: !steps
+        | _ -> ())
+    (String.split_on_char '\n' text);
+  Tx.filter_window ~around ~window (List.rev !steps)

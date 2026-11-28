@@ -344,4 +344,19 @@ hooks "$h_start" >/dev/null
 [ -f "$host_sess/host-B.json" ] || fail "host SessionStart pruned fresh host-B.json"
 [ -z "$(git -C "$host" status --porcelain)" ] || fail "host repo dirtied by session binding"
 
+# 6. warden-planned-gates session.1: durable quest-sessions/<q>.jsonl survives SessionStart TTL & dedupes consecutive (sid, phase)
+qs_dir="$(cd "$(git rev-parse --git-common-dir)" && pwd -P)/bp3/quest-sessions"
+[ -f "$qs_dir/q-beta.jsonl" ] || fail "PostToolUse red-ink did not append quest-sessions/q-beta.jsonl"
+jq -e '.sid == "conv-B" and .harness == "agy" and .phase == "red-ink" and (.ts | type == "number")' "$qs_dir/q-beta.jsonl" >/dev/null || fail "q-beta.jsonl content: $(cat "$qs_dir/q-beta.jsonl")"
+# Repeat same (sid, phase) -> deduped (still 1 line)
+hooks "$s_post_b" >/dev/null
+[ "$(wc -l < "$qs_dir/q-beta.jsonl" | tr -d ' ')" = "1" ] || fail "duplicate consecutive (sid, phase) was not deduped"
+# Transition to induct -> appends second line
+s_ind_b=$(printf '{"hookEventName":"PostToolUse","conversationId":"conv-B","cwd":"%s","toolCall":{"name":"run_command","args":{"CommandLine":"bp3 q q-beta r"}}}' "$repo")
+hooks "$s_ind_b" >/dev/null
+[ "$(wc -l < "$qs_dir/q-beta.jsonl" | tr -d ' ')" = "2" ] || fail "phase transition to induct did not append line"
+# Survives SessionStart TTL GC
+hooks "$s_start" >/dev/null
+[ -f "$qs_dir/q-beta.jsonl" ] || fail "SessionStart deleted durable quest-sessions/q-beta.jsonl"
+
 echo "hooks tests: ok"
