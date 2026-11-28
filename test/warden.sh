@@ -230,10 +230,30 @@ printf 'version = 1\nrepo = "warden-fx"\n\n[warden]\ngrade_wall_s = 400\n' > bac
 out_400=$(bp warden 2026-11-23-q3 --no-sessions)
 assert jq -e 'any(.findings[]; .rule == "cycle_outlier" and .node == "nslow" and .threshold == "> 400s grade wall")' <<< "$out_400" >/dev/null
 
-# 9. dag-contracts kinds.1: human-gate approval does NOT trip Warden human_steer
+# 9. dag-contracts kinds.1 + warden-planned-gates gate.1: human-gate approval does NOT trip human_steer and surfaces in planned_gates[]
 bp q 2026-11-23-q3 c ngate --kind human-gate >/dev/null
 BP3_DECIDER=human bp q 2026-11-23-q3 n ngate e approve --reason "go with option B" >/dev/null
 out_gate=$(bp warden 2026-11-23-q3 --no-sessions)
 assert jq -e 'all(.findings[]; .rule != "human_steer")' <<< "$out_gate" >/dev/null
+assert jq -e 'any(.planned_gates[]; .quest == "2026-11-23-q3" and .node == "ngate" and .kind == "human-gate" and .cycle == 1 and .reason == "go with option B")' <<< "$out_gate" >/dev/null
+
+# Clean quest with only an approved human-gate -> 0 findings and table shows "(1 planned gate)"
+mkdir -p docs/quests/2026-11-26-qgate
+printf -- '---\nstatus: proposed\n---\n# qgate\n' > docs/quests/2026-11-26-qgate/QUEST.md
+bp q c 2026-11-26-qgate --type default >/dev/null
+bp q 2026-11-26-qgate c av-gate --kind human-gate >/dev/null
+BP3_DECIDER=human bp q 2026-11-26-qgate n av-gate e approve --reason "AV approved" >/dev/null
+printf -- '---\nstatus: landed\n---\n# q1\n' > docs/quests/2026-11-23-q1/QUEST.md
+printf -- '---\nstatus: landed\n---\n# q2\n' > docs/quests/2026-11-23-q2/QUEST.md
+out_qgate=$(bp warden 2026-11-26-qgate --no-sessions)
+assert jq -e '.ok == true and (.findings | length) == 0 and (.planned_gates | length) == 1 and .planned_gates[0].node == "av-gate" and .planned_gates[0].reason == "AV approved"' <<< "$out_qgate" >/dev/null
+tbl_qgate=$(bp warden 2026-11-26-qgate --no-sessions --format table)
+assert grep -qF "(1 planned gate)" <<< "$tbl_qgate"
+
+# 10. gate.1: proposed quest with QUEST.md only (no bp3 q c yet) succeeds cleanly
+mkdir -p docs/quests/2026-11-26-qproposed
+printf -- '---\nstatus: proposed\n---\n# qproposed\n' > docs/quests/2026-11-26-qproposed/QUEST.md
+out_prop=$(bp warden 2026-11-26-qproposed --no-sessions)
+assert jq -e '.ok == true and .scope == "quest" and .quests == ["2026-11-26-qproposed"] and (.findings | length) == 0 and (.planned_gates | length) == 0' <<< "$out_prop" >/dev/null
 
 printf 'warden tests: ok (%s assertions)\n' "$checks"

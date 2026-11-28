@@ -740,7 +740,7 @@ let do_warden rest =
     let (scope, quests) = match quest_opt with
       | Some q ->
           check_slug q;
-          if fold_quest q = None then not_found "quest" q;
+          if fold_quest q = None && not (Warden_io.has_quest_md q) then not_found "quest" q;
           ("quest", [ q ])
       | None ->
           let last = Option.value last_n ~default:5 in

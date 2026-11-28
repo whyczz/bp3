@@ -35,8 +35,17 @@ type ledger_entry = {
   le_error_code : string;
 }
 
+type planned_gate = {
+  pg_quest : string;
+  pg_node : string;
+  pg_kind : string;
+  pg_cycle : int;
+  pg_reason : string;
+}
+
 type node_evidence = {
   ne_node : string;
+  ne_kind : string;
   ne_state : string;
   ne_entries : ledger_entry list;
   ne_samples : Metrics.sample list;
@@ -372,20 +381,37 @@ let plug_post_land_bugfix ev =
                  summary = Printf.sprintf "%d non-status fix commit(s) after final node_fin (e.g. %s: %s)"
                              n sha first.plc_subject }) ev.ev_quests
 
-(* Layer-1 side of human_steer: explicit block edges / blocked escalations *)
+(* Intentional owner gates: approved --kind human-gate nodes surfaced cleanly
+   without inflating human_steer defects (warden-planned-gates gate.1). *)
+let planned_gates_of ev =
+  List.concat_map (fun qe ->
+      List.concat_map (fun ne ->
+          if ne.ne_kind <> "human-gate" then []
+          else
+            List.filter_map (fun e ->
+                if not e.le_refused && e.le_edge = "approve" && e.le_to = "landed" then
+                  Some { pg_quest = qe.qe_quest; pg_node = ne.ne_node;
+                         pg_kind = "human-gate"; pg_cycle = e.le_cycle;
+                         pg_reason = e.le_reason }
+                else None) ne.ne_entries) qe.qe_nodes) ev.ev_quests
+
+(* Layer-1 side of human_steer: explicit block edges / blocked escalations
+   on non-human-gate nodes. *)
 let plug_human_steer_block ev =
   List.concat_map (fun qe ->
       List.concat_map (fun ne ->
-          List.filter_map (fun e ->
-              if not e.le_refused && (e.le_edge = "block" || e.le_to = "blocked") then
-                Some { rule = "human_steer"; layer = Git; severity = Major;
-                       quest = qe.qe_quest; node = ne.ne_node; cycle = e.le_cycle;
-                       observed = (if e.le_edge = "block" then "block edge" else "escalated to blocked");
-                       threshold = "0 human escalations";
-                       evidence_ref = Printf.sprintf "ledger:%s:c%d" ne.ne_node e.le_cycle;
-                       summary = Printf.sprintf "node blocked on cycle %d (%s)" e.le_cycle
-                                   (if e.le_reason = "" then "human decision owed" else e.le_reason) }
-              else None) ne.ne_entries) qe.qe_nodes) ev.ev_quests
+          if ne.ne_kind = "human-gate" then []
+          else
+            List.filter_map (fun e ->
+                if not e.le_refused && (e.le_edge = "block" || e.le_to = "blocked") then
+                  Some { rule = "human_steer"; layer = Git; severity = Major;
+                         quest = qe.qe_quest; node = ne.ne_node; cycle = e.le_cycle;
+                         observed = (if e.le_edge = "block" then "block edge" else "escalated to blocked");
+                         threshold = "0 human escalations";
+                         evidence_ref = Printf.sprintf "ledger:%s:c%d" ne.ne_node e.le_cycle;
+                         summary = Printf.sprintf "node blocked on cycle %d (%s)" e.le_cycle
+                                     (if e.le_reason = "" then "human decision owed" else e.le_reason) }
+                else None) ne.ne_entries) qe.qe_nodes) ev.ev_quests
 
 (* ---------- Layer 2 plugs (session-trace) ---------- *)
 
@@ -493,11 +519,14 @@ let plug_context_bloat ev =
                | _ -> Hashtbl.replace best_by_run key (score, finding))) qe.qe_traces;
       Hashtbl.fold (fun _ (_, f) acc -> f :: acc) best_by_run []) ev.ev_quests
 
-(* 12. human_steer (Layer 2 session side): > 0 mid-node USER_INPUT inside author window *)
+(* 12. human_steer (Layer 2 session side): > 0 mid-node USER_INPUT inside
+   author window on non-human-gate nodes. *)
 let plug_human_steer_session ev =
   List.concat_map (fun qe ->
+      let is_human_gate node =
+        List.exists (fun ne -> ne.ne_node = node && ne.ne_kind = "human-gate") qe.qe_nodes in
       List.filter_map (fun (tr : Tx.joined_trace) ->
-          if tr.jt_role <> "author" then None
+          if tr.jt_role <> "author" || is_human_gate tr.jt_node then None
           else match tr.jt_user_steps with
             | [] -> None
             | (first_step, _) :: _ as steps ->
@@ -600,15 +629,26 @@ let counts_json findings =
     ("total", `Int (List.length findings));
   ]
 
+let planned_gate_to_json pg =
+  `Assoc [
+    ("quest", `String pg.pg_quest);
+    ("node", `String pg.pg_node);
+    ("kind", `String pg.pg_kind);
+    ("cycle", `Int pg.pg_cycle);
+    ("reason", `String pg.pg_reason);
+  ]
+
 let to_json ev findings =
   let warnings_field =
     if ev.ev_has_repo_config then []
     else [ ("warnings", `List [ Backpack.warning_no_repo_config () ]) ] in
+  let gates = planned_gates_of ev in
   `Assoc ([
     ("ok", `Bool true);
     ("scope", `String ev.ev_scope);
     ("quests", `List (List.map (fun q -> `String q.qe_quest) ev.ev_quests));
     ("sessions_scanned", `Int (sessions_scanned ev));
+    ("planned_gates", `List (List.map planned_gate_to_json gates));
     ("findings", `List (List.map finding_to_json findings));
     ("counts", counts_json findings);
   ] @ warnings_field)
@@ -620,8 +660,13 @@ let pad w s =
 let to_table ev findings =
   let nq = List.length ev.ev_quests in
   let ns = sessions_scanned ev in
+  let np = List.length (planned_gates_of ev) in
+  let gate_suffix =
+    if np > 0 then Printf.sprintf " (%d planned gate%s)" np (if np = 1 then "" else "s")
+    else "" in
   if findings = [] then
-    Printf.sprintf "warden (%s): 0 findings across %d quest(s), %d session(s) scanned\n" ev.ev_scope nq ns
+    Printf.sprintf "warden (%s): 0 findings across %d quest(s), %d session(s) scanned%s\n"
+      ev.ev_scope nq ns gate_suffix
   else
     let rows = List.map (fun f ->
         [| f.rule; layer_str f.layer; severity_str f.severity;

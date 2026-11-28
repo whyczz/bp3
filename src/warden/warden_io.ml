@@ -44,6 +44,7 @@ let active_quests () =
          frontmatter_status (read_file_or (quest_md_path q) "") = "active")
 
 let has_feedback q = Sys.file_exists (feedback_md_path q)
+let has_quest_md q = Sys.file_exists (quest_md_path q)
 
 (* Select real quests (those with docs/quests/<q>/QUEST.md AND bp3 state):
    newest first by quest slug, skipping quests with FEEDBACK.md unless ~all. *)
@@ -185,20 +186,24 @@ let post_land_commits_for q nodes =
 (* ---------- load quest & repo evidence ---------- *)
 
 let load_quest q ~no_sessions ~dirs ~pi_dirs ~agy_dirs =
+  let has_ledger = Store.fold_quest q <> None in
   let nodes =
-    Store.list_nodes q
-    |> List.map (fun node ->
-           let text = Metrics_io.node_text q node in
-           let entries = Warden.entries_of_text text in
-           let state = match Store.fold_node q node with
-             | Some (_, s, _) -> s.st
-             | None -> "todo" in
-           let samples = Metrics_io.read_samples q node in
-           { Warden.ne_node = node; ne_state = state; ne_entries = entries; ne_samples = samples }) in
+    if not has_ledger then []
+    else
+      Store.list_nodes q
+      |> List.map (fun node ->
+             let text = Metrics_io.node_text q node in
+             let entries = Warden.entries_of_text text in
+             let (state, kind) = match Store.fold_node q node with
+               | Some (_, s, _) -> (s.st, Store.node_kind_to_string s.node_kind)
+               | None -> ("todo", "code") in
+             let samples = Metrics_io.read_samples q node in
+             { Warden.ne_node = node; ne_kind = kind; ne_state = state;
+               ne_entries = entries; ne_samples = samples }) in
   let open_desks = open_desks_for q in
-  let post_land = post_land_commits_for q nodes in
+  let post_land = if has_ledger then post_land_commits_for q nodes else [] in
   let traces =
-    if no_sessions then []
+    if no_sessions || not has_ledger then []
     else
       let ds = if dirs = [] then Metrics_io.default_dirs () else dirs in
       let pds = if pi_dirs = [] then Metrics_io.default_pi_dirs () else pi_dirs in
