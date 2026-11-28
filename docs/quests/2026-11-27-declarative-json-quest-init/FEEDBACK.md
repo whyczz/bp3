@@ -47,6 +47,6 @@ Commands:
 
 | # | Decision | Ref |
 |---|---|---|
-| 1 | pending owner disposal | — |
-| 2 | pending owner disposal | — |
-| 3 | pending owner disposal | — |
+| 1 | `applied` | `11bf05c2` |
+| 2 | `applied` | `11bf05c2` |
+| 3 | `applied` | `11bf05c2` |
