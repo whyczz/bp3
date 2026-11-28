@@ -75,6 +75,25 @@ let unwrap_system_prompt s =
     if n >= m && String.sub x (n - m) m = suf then String.sub x 0 (n - m) else x in
   body |> strip_suffix "\n</SYSTEM_MESSAGE>" |> strip_suffix "</SYSTEM_MESSAGE>"
 
+(* agy wraps USER_INPUT in "<USER_REQUEST>\n...\n</USER_REQUEST>\n<ADDITIONAL_METADATA>...".
+   Extract the inner request body and drop trailing metadata so /compact checks
+   and human-log excerpts see the actual user text. *)
+let unwrap_user_request s =
+  let trimmed = String.trim s in
+  let body =
+    match Tx.find_from trimmed 0 "<USER_REQUEST>" with
+    | Some i ->
+        let start = i + String.length "<USER_REQUEST>" in
+        let tail = String.sub trimmed start (String.length trimmed - start) in
+        (match Tx.find_from tail 0 "</USER_REQUEST>" with
+         | Some j -> String.sub tail 0 j
+         | None -> tail)
+    | None ->
+        (match Tx.find_from trimmed 0 "<ADDITIONAL_METADATA>" with
+         | Some i -> String.sub trimmed 0 i
+         | None -> trimmed) in
+  String.trim body
+
 (* Parse an agy transcript.jsonl; when ~full_text is provided and a line
    carries truncated_fields, replace it with the matching line from
    transcript_full.jsonl (by index). *)
@@ -112,7 +131,7 @@ let parse ?(conv_id = "") ?full_text text =
              | "USER_INPUT" ->
                  let content = str "content" j in
                  if !first_prompt = "" then first_prompt := content;
-                 let trimmed = String.trim content in
+                 let trimmed = unwrap_user_request content in
                  (match Tx.seconds ts with
                   | Some at when trimmed <> "" && not (String.starts_with ~prefix:"/compact" trimmed) ->
                       user_steps := (step, at) :: !user_steps
@@ -330,7 +349,7 @@ let parse_interactions ?full_text text =
           let step = Option.value (int_of "step_index" j) ~default:idx in
           (match str "type" j with
            | "USER_INPUT" ->
-               let content = String.trim (str "content" j) in
+               let content = unwrap_user_request (str "content" j) in
                if content <> "" && not (String.starts_with ~prefix:"/compact" content) then begin
                  let at = Option.value (Tx.seconds ts) ~default:0. in
                  turns := {
@@ -386,12 +405,15 @@ let query_window ?full_text ~around ~window text =
           let ts = str "created_at" j in
           let step = Option.value (int_of "step_index" j) ~default:idx in
           let (role, raw_text) = match str "type" j with
-            | "USER_INPUT" -> ("user", str "content" j)
+            | "USER_INPUT" -> ("user", unwrap_user_request (str "content" j))
             | "SYSTEM_MESSAGE" -> ("system", unwrap_system_prompt (str "content" j))
             | "PLANNER_RESPONSE" ->
                 let tcs = match member "tool_calls" j with `List xs -> xs | _ -> [] in
                 let txt = planner_text j in
-                let role = if tcs <> [] && str "content" j = "" && str "response" j = "" && str "text" j = "" then "tool_call" else "assistant" in
+                let role =
+                  if tcs <> [] && str "content" j = "" && str "response" j = ""
+                     && str "text" j = "" && str "output" j = ""
+                  then "tool_call" else "assistant" in
                 (role, txt)
             | "GENERIC" -> ("tool_result", str "content" j)
             | other -> ("system", other ^ ": " ^ str "content" j) in

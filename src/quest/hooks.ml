@@ -301,10 +301,13 @@ let extract_quest_phase_from_segment seg =
              | q :: _ -> if valid_slug q then Some (q, "fin") else None in
            go args
        | "warden" :: args ->
-           (match args with
-            | ("human-log" | "query") :: _ -> None
-            | q :: _ when valid_slug q && not (starts_with q "-") -> Some (q, "fin")
-            | _ -> None)
+           let rec go = function
+             | [] -> None
+             | ("human-log" | "query") :: _ -> None
+             | ("--session" | "--format" | "--last" | "--dir" | "--claude-dir" | "--pi-dir" | "--agy-dir") :: _ :: tl -> go tl
+             | tok :: tl when starts_with tok "-" -> go tl
+             | q :: _ -> if valid_slug q then Some (q, "fin") else None in
+           go args
        | "harness" :: "desk" :: "prepare" :: args
        | "worktree" :: "prepare" :: args ->
            (match find_quest_flag args with

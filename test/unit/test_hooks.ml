@@ -253,6 +253,9 @@ let case_extract_quest_phase_tracks_init_red_ink_induct_and_fin _ =
     ("./bin/bp3 q q1 n n1 e handoff --commit abc", "", Some ("q1", "induct"));
     ("./bin/bp3 harness desk prepare --quest q1", "", Some ("q1", "induct"));
     ("./bin/bp3 warden q1 --format json", "", Some ("q1", "fin"));
+    ("./bin/bp3 warden --format json q1", "", Some ("q1", "fin"));
+    ("./bin/bp3 warden --no-sessions --format=table q1", "", Some ("q1", "fin"));
+    ("./bin/bp3 warden --session latest --format json", "", None);
     ("./bin/bp3 warden human-log q1", "", None);
     ("./bin/bp3 release q1 --dry-run", "", Some ("q1", "fin"));
     ("ls -la", "/repo/README.md", None);

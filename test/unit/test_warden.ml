@@ -526,22 +526,40 @@ let case_standalone_session_scope_and_human_log_query _ =
 
 let law_phase_assignment_and_human_log_dedupe_idempotent =
   let open QCheck2.Gen in
-  let gen_item =
-    map (fun (step, ts_i, ph_i) ->
-        let phase = match ph_i mod 3 with 0 -> "init" | 1 -> "red-ink" | _ -> "induct" in
-        { Warden.i_phase = phase; i_session_id = "s1"; i_harness = "agy"; i_step = step;
-          i_ts = float_of_int ts_i; i_iso = "2026-11-27T00:00:00Z"; i_source = "user_input";
-          i_agent_asked = ""; i_human_said = "msg"; i_nearby_edges = [] })
-      (triple (int_range 1 15) (int_range 100 500) (int_range 0 5)) in
+  let phase_of n = match n mod 4 with 0 -> "init" | 1 -> "red-ink" | 2 -> "induct" | _ -> "fin" in
+  let gen_ev =
+    map (fun (ts_i, ph_i) ->
+        { Warden.qse_sid = "s1"; qse_harness = "agy"; qse_phase = phase_of ph_i;
+          qse_ts = ts_i })
+      (pair (int_range 100 450) (int_range 0 7)) in
+  let gen_turn = pair (int_range 1 15) (int_range 50 500) in
   QCheck2.Test.make ~count:200 ~name:"law_phase_assignment_and_human_log_dedupe_idempotent"
-    (list_size (int_range 0 20) gen_item)
-    (fun items ->
+    (pair (list_size (int_range 0 8) gen_ev) (list_size (int_range 0 20) gen_turn))
+    (fun (evs, turns) ->
+      let items = List.map (fun (step, ts_i) ->
+          let ts = float_of_int ts_i in
+          let ph = Warden.assign_phase ~turn_ts:ts ~events:evs ~fallback:"init" in
+          { Warden.i_phase = ph; i_session_id = "s1"; i_harness = "agy"; i_step = step;
+            i_ts = ts; i_iso = "2026-11-27T00:00:00Z"; i_source = "user_input";
+            i_agent_asked = ""; i_human_said = "msg"; i_nearby_edges = [] }) turns in
+      let phases_ok =
+        let sorted_evs = List.stable_sort (fun a b -> Int.compare a.Warden.qse_ts b.Warden.qse_ts) evs in
+        List.for_all (fun (it : Warden.interaction) ->
+            match sorted_evs with
+            | [] -> it.i_phase = "init"
+            | first :: _ ->
+                if it.i_ts < float_of_int first.qse_ts then it.i_phase = first.qse_phase
+                else
+                  List.exists (fun (e : Warden.quest_session_event) ->
+                      float_of_int e.qse_ts <= it.i_ts && e.qse_phase = it.i_phase
+                      && List.for_all (fun (o : Warden.quest_session_event) ->
+                             float_of_int o.qse_ts > it.i_ts || o.qse_ts <= e.qse_ts) sorted_evs) sorted_evs) items in
       let (once, _) = Warden.build_human_log ~limit:100 (items @ items) in
       let (twice, _) = Warden.build_human_log ~limit:100 (List.rev once @ once) in
       let rec sorted_ts = function
         | a :: (b :: _ as rest) -> a.Warden.i_ts <= b.Warden.i_ts && sorted_ts rest
         | _ -> true in
-      once = twice && sorted_ts once)
+      phases_ok && once = twice && sorted_ts once)
 
 let suite =
   "warden" >::: [

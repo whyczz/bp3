@@ -339,4 +339,15 @@ err_q_nf=$(bp warden query no-such-session --around 1 --dir "$work/empty" --pi-d
 expect_eq "query unknown session rc" "2" "$rc"
 assert jq -e '.ok == false and .error.code == "E_NOT_FOUND"' <<< "$err_q_nf" >/dev/null
 
+# 12. Multi-quest session bounding: pre-quest chatter hours earlier is excluded from quest human-log
+mq_agy="$work/mq-agy"
+mkdir -p "$mq_agy/conv-multi/.system_generated/logs"
+cat > "$mq_agy/conv-multi/.system_generated/logs/transcript.jsonl" <<'EOF'
+{"step_index":1,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-27T08:00:00Z","content":"<USER_REQUEST>\nearlier unrelated quest\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\ntime\n</ADDITIONAL_METADATA>"}
+{"step_index":2,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-27T11:00:00Z","content":"<USER_REQUEST>\n/compact\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\ntime\n</ADDITIONAL_METADATA>"}
+{"step_index":3,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-27T11:01:00Z","content":"<USER_REQUEST>\ninspect docs/quests/2026-11-26-qproposed/QUEST.md\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\ntime\n</ADDITIONAL_METADATA>"}
+EOF
+out_mq=$(bp warden human-log 2026-11-26-qproposed --dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$mq_agy")
+assert jq -e '(.interactions | length) == 1 and .interactions[0].human_said == "inspect docs/quests/2026-11-26-qproposed/QUEST.md"' <<< "$out_mq" >/dev/null
+
 printf 'warden tests: ok (%s assertions)\n' "$checks"

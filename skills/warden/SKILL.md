@@ -65,11 +65,10 @@ copy, owner as gate) and settle it first.
      strictly for unplanned `e block`, cycle-cap escalations, and mid-code
      interruptions.
    - Run `bp3 warden human-log <quest>` (or `--session latest` /
-     `--phase red-ink`) to inspect human turns across `init -> red-ink ->
-     induct -> fin`, and drill into interesting steps with
-     `bp3 warden query <session-id|latest> --around <step> [--window 5]`.
-     Mine recurring human friction, jargon gaps, or preferences into the
-     `<= 3` proposals below without inflating deterministic `findings[]`.
+     `--phase red-ink`) across `init -> red-ink -> induct -> fin`,
+     drilling in with `bp3 warden query <session-id|latest> --around
+     <step> [--window 5]`, and fold recurring friction into `<= 3`
+     proposals.
    - `bp3 warden` reads `backpack.toml` (`[warden].grade_wall_s`,
      default `300`) and emits `missing_repo_config` (`minor`) when
      `backpack.toml` is absent at the repo root — bootstrap it with
@@ -90,6 +89,8 @@ copy, owner as gate) and settle it first.
      - **Warden deterministic summary**: exact `bp3 warden <quest>`
        counts (`by_layer`, `by_rule`, `sessions_scanned`) and audited
        findings table (TP / FP classification when backtesting).
+     - **Human-involvement patterns**: short digest from `bp3 warden
+       human-log` / `query` (recurring friction, jargon gaps, preferences).
      - **Proposals (`<= 3`)**: ranked by ROI, citing exact finding
        refs and target files.
      - **Owner disposition**: recorded decision per proposal

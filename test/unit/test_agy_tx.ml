@@ -194,6 +194,29 @@ let case_agy_parse_interactions_and_ask_question_and_query_window _ =
   assert_bool "full_text resolved in query_window"
     (List.exists (fun (q : Tx.query_step) -> Tx.contains q.qs_text "Yes add latest") win)
 
+let case_agy_unwraps_user_request_skips_wrapped_compact_and_classifies_output_assistant _ =
+  let lines = [
+    user_line ~step:1 ~ts:"2026-11-27T12:00:00Z"
+      "<USER_REQUEST>\nlet's red-ink warden\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe current local time is: 2026-11-27T12:00:00Z.\n</ADDITIONAL_METADATA>";
+    user_line ~step:2 ~ts:"2026-11-27T12:00:10Z"
+      "<USER_REQUEST>\n/compact\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe current local time is: 2026-11-27T12:00:10Z.\n</ADDITIONAL_METADATA>";
+    jline [ ("step_index", `Int 3); ("type", s "PLANNER_RESPONSE"); ("created_at", s "2026-11-27T12:00:20Z");
+            ("output", s "summarized answer");
+            ("tool_calls", `List [ `Assoc [ ("name", s "run_command"); ("args", `Assoc []) ] ]) ];
+  ] in
+  let text = Gen.text lines in
+  let tx = Agy_tx.parse text in
+  assert_equal ~printer:string_of_int 1 (List.length tx.s_user_steps);
+  let turns = Agy_tx.parse_interactions text in
+  assert_equal ~printer:string_of_int 1 (List.length turns);
+  assert_equal ~printer:Fun.id "let's red-ink warden" (List.hd turns).ht_human_said;
+  let win = Agy_tx.query_window ~around:2 ~window:1 text in
+  let s1 = List.find (fun (q : Tx.query_step) -> q.qs_step = 1) win in
+  let s3 = List.find (fun (q : Tx.query_step) -> q.qs_step = 3) win in
+  assert_equal ~printer:Fun.id "let's red-ink warden" s1.qs_text;
+  assert_equal ~printer:Fun.id "assistant" s3.qs_role;
+  assert_equal ~printer:Fun.id "summarized answer" s3.qs_text
+
 let case_claude_and_pi_parse_interactions_and_query_window _ =
   let claude_lines = [
     jline [ ("type", s "assistant"); ("timestamp", s "2026-11-27T12:00:01Z");
@@ -251,6 +274,7 @@ let suite =
     "case_subagent_system_message_prompt_unwraps_and_joins" >:: case_subagent_system_message_prompt_unwraps_and_joins;
     "case_agy_user_steps_skips_kickoff_and_captures_mid_node_steers" >:: case_agy_user_steps_skips_kickoff_and_captures_mid_node_steers;
     "case_agy_parse_interactions_and_ask_question_and_query_window" >:: case_agy_parse_interactions_and_ask_question_and_query_window;
+    "case_agy_unwraps_user_request_skips_wrapped_compact_and_classifies_output_assistant" >:: case_agy_unwraps_user_request_skips_wrapped_compact_and_classifies_output_assistant;
     "case_claude_and_pi_parse_interactions_and_query_window" >:: case_claude_and_pi_parse_interactions_and_query_window;
     QCheck_ounit.to_ounit2_test law_clip_and_query_window_respect_bounds;
   ]

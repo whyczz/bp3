@@ -306,6 +306,28 @@ let infer_retro_phase text =
   else if Tx.contains text "FEEDBACK.md" || Tx.contains text "bp3 release" then "fin"
   else "init"
 
+let first_mention_ts q text =
+  let lines = String.split_on_char '\n' text in
+  let ts_of_line line =
+    try
+      let j = Yojson.Safe.from_string line in
+      let raw =
+        match Yojson.Safe.Util.member "created_at" j with
+        | `String s when s <> "" -> s
+        | _ ->
+            (match Yojson.Safe.Util.member "timestamp" j with
+             | `String s -> s
+             | _ -> "") in
+      Tx.seconds raw
+    with _ -> None in
+  let rec scan = function
+    | [] -> None
+    | line :: rest ->
+        if file_mentions_quest q line then
+          (match ts_of_line line with Some _ as hit -> hit | None -> scan rest)
+        else scan rest in
+  scan lines
+
 let discover_quest_sessions ~allow_retro_scan q ~dirs ~pi_dirs ~agy_dirs =
   let events = read_quest_session_events q in
   let by_sid = group_events_by_sid events in
@@ -316,7 +338,13 @@ let discover_quest_sessions ~allow_retro_scan q ~dirs ~pi_dirs ~agy_dirs =
       match Hashtbl.find_opt by_sid sf.sf_sid with
       | Some evs ->
           Hashtbl.replace seen sf.sf_sid ();
-          matched := (sf, evs, "init") :: !matched
+          let min_ts = match evs with
+            | [] -> None
+            | hd :: tl ->
+                let earliest = List.fold_left (fun acc (e : Warden.quest_session_event) ->
+                    Int.min acc e.qse_ts) hd.qse_ts tl in
+                Some (float_of_int earliest -. 120.) in
+          matched := (sf, evs, "init", min_ts) :: !matched
       | None -> ()) all_files;
   if allow_retro_scan then
     List.iter (fun sf ->
@@ -324,7 +352,8 @@ let discover_quest_sessions ~allow_retro_scan q ~dirs ~pi_dirs ~agy_dirs =
           match Metrics_io.read_file_opt sf.sf_path with
           | Some text when file_mentions_quest q text ->
               Hashtbl.replace seen sf.sf_sid ();
-              matched := (sf, [], infer_retro_phase text) :: !matched
+              let min_ts = Option.map (fun t -> t -. 120.) (first_mention_ts q text) in
+              matched := (sf, [], infer_retro_phase text, min_ts) :: !matched
           | _ -> ()) all_files;
   List.rev !matched
 
@@ -365,10 +394,14 @@ let count_quest_human_turns_fast ~quests ~q_evs ~dirs ~pi_dirs ~agy_dirs =
 
 let load_human_log_quest q ~phase ~limit ~dirs ~pi_dirs ~agy_dirs =
   let discovered = discover_quest_sessions ~allow_retro_scan:true q ~dirs ~pi_dirs ~agy_dirs in
-  let sessions = List.map (fun (sf, _, _) -> sf.sf_sid) discovered in
+  let sessions = List.map (fun (sf, _, _, _) -> sf.sf_sid) discovered in
   let raw =
-    List.concat_map (fun (sf, evs, fallback) ->
+    List.concat_map (fun (sf, evs, fallback, min_ts) ->
         read_interactions_of_file sf
+        |> List.filter (fun (ht : Tx.human_turn) ->
+               match min_ts with
+               | None -> true
+               | Some cutoff -> ht.ht_ts = 0. || ht.ht_ts >= cutoff)
         |> List.map (fun (ht : Tx.human_turn) ->
                { Warden.i_phase = Warden.assign_phase ~turn_ts:ht.ht_ts ~events:evs ~fallback;
                  i_session_id = sf.sf_sid; i_harness = sf.sf_harness;
