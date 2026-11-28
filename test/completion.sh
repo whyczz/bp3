@@ -116,6 +116,12 @@ out=$(_bp3_candidates harness d "")
 has "$out" prepare; has "$out" release; has "$out" land; has "$out" prune
 out=$(_bp3_candidates worktree "")
 has "$out" land; has "$out" prune
+out=$(_bp3_candidates warden "")
+has "$out" human-log; has "$out" query; has "$out" --session
+out=$(_bp3_candidates warden human-log "")
+has "$out" --phase; has "$out" --limit; has "$out" --session
+out=$(_bp3_candidates warden query "")
+has "$out" latest; has "$out" --around; has "$out" --window
 
 # --- zsh traces (same candidate logic) ---
 if command -v zsh >/dev/null 2>&1; then
@@ -145,6 +151,12 @@ if command -v zsh >/dev/null 2>&1; then
   has "$out" land
   out=$(zcand release "")
   has "$out" --ff-only
+  out=$(zcand warden "")
+  has "$out" human-log; has "$out" query; has "$out" --session
+  out=$(zcand warden human-log "")
+  has "$out" --phase; has "$out" --limit
+  out=$(zcand warden query "")
+  has "$out" latest; has "$out" --around; has "$out" --window
 fi
 
 # --- silent failure: unbuilt binary / non-bp3 cwd says nothing ---

@@ -28,9 +28,10 @@ let clean_samples ?(node = "n1") () = [
   sample ~node "author.tokens_out" 1200.;
 ]
 
-let clean_node ?(node = "n1") ?(state = "landed") ?(entries = clean_entries ())
+let clean_node ?(node = "n1") ?(kind = "code") ?(state = "landed") ?(entries = clean_entries ())
     ?(samples = clean_samples ~node ()) () =
-  { Warden.ne_node = node; ne_state = state; ne_entries = entries; ne_samples = samples }
+  { Warden.ne_node = node; ne_kind = kind; ne_state = state;
+    ne_entries = entries; ne_samples = samples }
 
 let mk_quest ?(quest = "q1") ?(nodes = [ clean_node () ]) ?(desks = [])
     ?(post_land = []) ?(traces = []) () =
@@ -38,9 +39,10 @@ let mk_quest ?(quest = "q1") ?(nodes = [ clean_node () ]) ?(desks = [])
     qe_post_land_commits = post_land; qe_traces = traces }
 
 let mk_ev ?(scope = "quest") ?(active = [ "q1" ]) ?(has_repo_config = true)
-    ?(grade_wall_s = 300.) quests =
+    ?(grade_wall_s = 300.) ?(human_turns_count = 0) quests =
   { Warden.ev_scope = scope; ev_active_quests = active; ev_quests = quests;
-    ev_has_repo_config = has_repo_config; ev_grade_wall_s = grade_wall_s }
+    ev_has_repo_config = has_repo_config; ev_grade_wall_s = grade_wall_s;
+    ev_human_turns_count = human_turns_count }
 
 let ev_tool ?(name = "run_command") ?(cmd = "make check") ?(err = false) ?(step = 1) () =
   { Tx.te_name = name; te_cmd_head = cmd; te_error = err;
@@ -312,7 +314,47 @@ let case_plug_12_human_steer _ =
     ] () in
   let fs_b = Warden.run (mk_ev [ mk_quest ~nodes:[ blocked_n ] ~traces:[] () ]) in
   assert_bool "block edge fires" (has_rule "human_steer" fs_b);
-  assert_equal Warden.Git (find_rule "human_steer" fs_b).layer
+  assert_equal Warden.Git (find_rule "human_steer" fs_b).layer;
+  (* cycle-cap escalation (grade -> blocked) fires Layer-1 human_steer *)
+  let cap_n = clean_node ~entries:[
+      entry ~to_:"todo" "create";
+      entry ~cycle:1 ~to_:"handed_off" ~commit:"aaaaaaa" "handoff";
+      entry ~cycle:2 ~to_:"blocked" ~verdict:"needs_fix" ~reason:"cycle cap" "grade";
+    ] () in
+  let fs_cap = Warden.run (mk_ev [ mk_quest ~nodes:[ cap_n ] ~traces:[] () ]) in
+  assert_bool "cycle-cap escalation fires" (has_rule "human_steer" fs_cap);
+  assert_equal Warden.Git (find_rule "human_steer" fs_cap).layer
+
+let case_human_gate_clean_and_planned_gates _ =
+  let gate_n = clean_node ~node:"av-gate" ~kind:"human-gate" ~samples:[] ~entries:[
+      entry ~to_:"todo" "create";
+      entry ~cycle:1 ~to_:"blocked" ~reason:"waiting" "block";
+      entry ~cycle:1 ~to_:"landed" ~reason:"AV signed off" "approve";
+    ] () in
+  let gate_tr = mk_trace ~node:"av-gate" ~role:"author" ~user_steps:[ (5, 1795400000.) ] () in
+  let ev = mk_ev [ mk_quest ~nodes:[ gate_n ] ~traces:[ gate_tr ] () ] in
+  let fs = Warden.run ev in
+  assert_bool "human-gate suppresses L1 and L2 human_steer" (not (has_rule "human_steer" fs));
+  let pgs = Warden.planned_gates_of ev in
+  assert_equal ~printer:string_of_int 1 (List.length pgs);
+  let pg = List.hd pgs in
+  assert_equal ~printer:Fun.id "av-gate" pg.pg_node;
+  assert_equal ~printer:Fun.id "human-gate" pg.pg_kind;
+  assert_equal ~printer:Fun.id "AV signed off" pg.pg_reason;
+  let j = Warden.to_json ev fs in
+  let open Yojson.Safe.Util in
+  let j_pgs = member "planned_gates" j |> to_list in
+  assert_equal ~printer:string_of_int 1 (List.length j_pgs);
+  assert_equal ~printer:Fun.id "AV signed off" (List.hd j_pgs |> member "reason" |> to_string);
+  let tbl1 = Warden.to_table ev fs in
+  assert_bool "singular planned gate suffix" (Tx.contains tbl1 "(1 planned gate)");
+  let gate_n2 = clean_node ~node:"smoke-gate" ~kind:"human-gate" ~samples:[] ~entries:[
+      entry ~to_:"todo" "create";
+      entry ~cycle:1 ~to_:"landed" ~reason:"12h smoke green" "approve";
+    ] () in
+  let ev2 = mk_ev [ mk_quest ~nodes:[ gate_n; gate_n2 ] () ] in
+  let tbl2 = Warden.to_table ev2 (Warden.run ev2) in
+  assert_bool "plural planned gates suffix" (Tx.contains tbl2 "(2 planned gates)")
 
 (* ---------- ledger entry parsing + JSON + table ---------- *)
 
@@ -380,9 +422,171 @@ let law_counts_total_matches_findings_and_layers =
         | _ -> -1 in
       total = List.length fs && g + s = total && br_sum = total)
 
+let law_human_gate_never_steers_and_planned_gates_exact =
+  let open QCheck2.Gen in
+  let gen_spec =
+    map (fun ((is_gate, has_block), (has_approve, has_steer)) ->
+        (is_gate, has_block, has_approve, has_steer))
+      (pair (pair bool bool) (pair bool bool)) in
+  QCheck2.Test.make ~count:200 ~name:"law_human_gate_never_steers_and_planned_gates_exact"
+    (list_size (int_range 1 10) gen_spec)
+    (fun specs ->
+      let nodes = List.mapi (fun i (is_gate, has_block, has_approve, _) ->
+          let nm = "n" ^ string_of_int i in
+          let kind = if is_gate then "human-gate" else "code" in
+          let es =
+            [ entry ~to_:"todo" "create" ]
+            @ (if has_block then [ entry ~cycle:1 ~to_:"blocked" ~reason:"blk" "block" ] else [])
+            @ (if is_gate && has_approve then [ entry ~cycle:1 ~to_:"landed" ~reason:"ok" "approve" ]
+               else if not is_gate then [ entry ~cycle:1 ~to_:"handed_off" ~commit:"aaaaaaa" "handoff";
+                                          entry ~cycle:1 ~to_:"approved" ~verdict:"ship" "grade";
+                                          entry ~cycle:1 ~to_:"landed" "land" ]
+               else []) in
+          clean_node ~node:nm ~kind ~entries:es ~samples:(if is_gate then [] else clean_samples ~node:nm ()) ())
+        specs in
+      let traces = List.mapi (fun i (_, _, _, has_steer) ->
+          let nm = "n" ^ string_of_int i in
+          mk_trace ~node:nm ~role:"author"
+            ~user_steps:(if has_steer then [ (3, 1795400000.) ] else []) ())
+        specs in
+      let ev = mk_ev [ mk_quest ~nodes ~traces () ] in
+      let fs = Warden.run ev in
+      let steer_fs = List.filter (fun (f : Warden.finding) -> f.rule = "human_steer") fs in
+      let gate_names = List.filter_map (fun (ne : Warden.node_evidence) ->
+          if ne.ne_kind = "human-gate" then Some ne.ne_node else None) nodes in
+      let no_gate_steered = List.for_all (fun (f : Warden.finding) ->
+          not (List.mem f.node gate_names)) steer_fs in
+      let expected_gates = List.length (List.filter (fun (is_gate, _, has_approve, _) ->
+          is_gate && has_approve) specs) in
+      let expected_code_steers = List.fold_left (fun acc (is_gate, has_block, _, has_steer) ->
+          if is_gate then acc
+          else acc + (if has_block then 1 else 0) + (if has_steer then 1 else 0)) 0 specs in
+      no_gate_steered
+      && List.length (Warden.planned_gates_of ev) = expected_gates
+      && List.length steer_fs = expected_code_steers)
+
+let case_standalone_session_scope_and_human_log_query _ =
+  (* Standalone session scope skips Layer-1 + human_steer/full_gate_in_author, keeps retry + bloat *)
+  let tr = mk_trace ~node:"(session)" ~cycle:0 ~role:"session" ~ctx:500_000 ~run:"agy:s-solo"
+      ~events:[
+        ev_tool ~cmd:"make check" ~err:true ~step:1 ();
+        ev_tool ~cmd:"make check" ~err:true ~step:2 ();
+        ev_tool ~cmd:"make check" ~err:true ~step:3 ();
+        ev_tool ~cmd:"make check-full" ~err:false ~step:4 ();
+        ev_tool ~cmd:"make check-full" ~err:false ~step:5 ();
+      ]
+      ~user_steps:[ (6, 1795400000.) ] () in
+  let ev = mk_ev ~scope:"session" ~active:[ "q1"; "q2" ] ~has_repo_config:false
+      ~human_turns_count:7 [ mk_quest ~quest:"" ~nodes:[] ~traces:[ tr ] () ] in
+  let fs = Warden.run ev in
+  assert_bool "tool_retry_loop fires in session scope" (has_rule "tool_retry_loop" fs);
+  assert_bool "context_bloat fires in session scope" (has_rule "context_bloat" fs);
+  assert_bool "human_steer skipped in session scope" (not (has_rule "human_steer" fs));
+  assert_bool "full_gate_in_author skipped in session scope" (not (has_rule "full_gate_in_author" fs));
+  assert_bool "multi_active_quest skipped in session scope" (not (has_rule "multi_active_quest" fs));
+  let j = Warden.to_json ev fs in
+  let open Yojson.Safe.Util in
+  assert_equal ~printer:Fun.id "session" (to_string (member "scope" j));
+  assert_equal ~printer:string_of_int 0 (List.length (to_list (member "quests" j)));
+  assert_equal ~printer:string_of_int 7 (to_int (member "human_turns_count" j));
+  (* parse_quest_session_events + assign_phase + build_human_log + formatters *)
+  let ev_text = String.concat "\n" [
+      {|{"sid":"s1","harness":"agy","phase":"induct","ts":200}|};
+      {|{"sid":"s1","harness":"agy","phase":"red-ink","ts":100}|};
+      "bad json";
+    ] in
+  let evs = Warden.parse_quest_session_events ev_text in
+  assert_equal ~printer:string_of_int 2 (List.length evs);
+  assert_equal ~printer:Fun.id "red-ink" (Warden.assign_phase ~turn_ts:150. ~events:evs ~fallback:"init");
+  assert_equal ~printer:Fun.id "induct" (Warden.assign_phase ~turn_ts:250. ~events:evs ~fallback:"init");
+  assert_equal ~printer:Fun.id "init" (Warden.assign_phase ~turn_ts:150. ~events:[] ~fallback:"init");
+  let mk_i phase step ts said = {
+    Warden.i_phase = phase; i_session_id = "s1"; i_harness = "agy"; i_step = step;
+    i_ts = ts; i_iso = "2026-11-27T00:00:00Z"; i_source = "user_input";
+    i_agent_asked = "Q?"; i_human_said = said; i_nearby_edges = [];
+  } in
+  let raw = [ mk_i "induct" 20 250. "second"; mk_i "red-ink" 10 150. "first"; mk_i "red-ink" 10 150. "first" ] in
+  let (kept, trunc) = Warden.build_human_log ~limit:1 raw in
+  assert_equal ~printer:string_of_int 1 (List.length kept);
+  assert_bool "limit=1 truncates" trunc;
+  assert_equal ~printer:Fun.id "first" (List.hd kept).i_human_said;
+  let (red_only, trunc2) = Warden.build_human_log ~phase:"red-ink" ~limit:10 raw in
+  assert_equal ~printer:string_of_int 1 (List.length red_only);
+  assert_bool "no truncation when under limit" (not trunc2);
+  let hj = Warden.human_log_to_json ~scope:"quest" ~target:"q1" ~sessions:[ "s1" ] ~interactions:red_only ~truncated:false in
+  assert_equal ~printer:Fun.id "q1" (to_string (member "quest" hj));
+  let htbl = Warden.human_log_to_table ~scope:"quest" ~target:"q1" ~interactions:kept ~truncated:true in
+  assert_bool "table has header and truncated note" (Tx.contains htbl "HUMAN SAID" && Tx.contains htbl "truncated");
+  let qj = Warden.query_to_json ~session_id:"s1" ~harness:"agy" ~around:10 ~window:2
+      ~steps:[ { Tx.qs_step = 10; qs_ts = "2026-11-27T00:00:00Z"; qs_role = "user"; qs_text = "hi" } ] in
+  assert_equal ~printer:Fun.id "s1" (to_string (member "session_id" qj));
+  let qtbl = Warden.query_to_table ~session_id:"s1" ~harness:"agy" ~around:10 ~window:2
+      ~steps:[ { Tx.qs_step = 10; qs_ts = "2026-11-27T00:00:00Z"; qs_role = "user"; qs_text = "hi" } ] in
+  assert_bool "query table shows step" (Tx.contains qtbl "#10 [user] hi")
+
+let law_phase_assignment_and_human_log_dedupe_idempotent =
+  let open QCheck2.Gen in
+  let phase_of n = match n mod 4 with 0 -> "init" | 1 -> "red-ink" | 2 -> "induct" | _ -> "fin" in
+  let gen_ev =
+    map (fun (ts_i, ph_i) ->
+        { Warden.qse_sid = "s1"; qse_harness = "agy"; qse_phase = phase_of ph_i;
+          qse_ts = ts_i })
+      (pair (int_range 100 450) (int_range 0 7)) in
+  let gen_turn = pair (int_range 1 15) (int_range 50 500) in
+  QCheck2.Test.make ~count:200 ~name:"law_phase_assignment_and_human_log_dedupe_idempotent"
+    (pair (list_size (int_range 0 8) gen_ev) (list_size (int_range 0 20) gen_turn))
+    (fun (evs, turns) ->
+      let items = List.map (fun (step, ts_i) ->
+          let ts = float_of_int ts_i in
+          let ph = Warden.assign_phase ~turn_ts:ts ~events:evs ~fallback:"init" in
+          { Warden.i_phase = ph; i_session_id = "s1"; i_harness = "agy"; i_step = step;
+            i_ts = ts; i_iso = "2026-11-27T00:00:00Z"; i_source = "user_input";
+            i_agent_asked = ""; i_human_said = "msg"; i_nearby_edges = [] }) turns in
+      let phases_ok =
+        let sorted_evs = List.stable_sort (fun a b -> Int.compare a.Warden.qse_ts b.Warden.qse_ts) evs in
+        List.for_all (fun (it : Warden.interaction) ->
+            match sorted_evs with
+            | [] -> it.i_phase = "init"
+            | first :: _ ->
+                if it.i_ts < float_of_int first.qse_ts then it.i_phase = first.qse_phase
+                else
+                  List.exists (fun (e : Warden.quest_session_event) ->
+                      float_of_int e.qse_ts <= it.i_ts && e.qse_phase = it.i_phase
+                      && List.for_all (fun (o : Warden.quest_session_event) ->
+                             float_of_int o.qse_ts > it.i_ts || o.qse_ts <= e.qse_ts) sorted_evs) sorted_evs) items in
+      let (once, _) = Warden.build_human_log ~limit:100 (items @ items) in
+      let (twice, _) = Warden.build_human_log ~limit:100 (List.rev once @ once) in
+      let rec sorted_ts = function
+        | a :: (b :: _ as rest) -> a.Warden.i_ts <= b.Warden.i_ts && sorted_ts rest
+        | _ -> true in
+      phases_ok && once = twice && sorted_ts once)
+
+let case_session_turn_floor_and_filter_keep_earlier_mentions _ =
+  let fopt = function None -> "None" | Some f -> Printf.sprintf "Some(%.1f)" f in
+  assert_equal ~printer:fopt None
+    (Warden.session_turn_floor ~event_min_ts:None ~mention_min_ts:None ());
+  assert_equal ~printer:fopt (Some 880.)
+    (Warden.session_turn_floor ~event_min_ts:(Some 1000.) ~mention_min_ts:None ());
+  assert_equal ~printer:fopt (Some 480.)
+    (Warden.session_turn_floor ~event_min_ts:(Some 1000.) ~mention_min_ts:(Some 600.) ());
+  assert_equal ~printer:fopt (Some 880.)
+    (Warden.session_turn_floor ~event_min_ts:(Some 1000.) ~mention_min_ts:(Some 1200.) ());
+  let mk step ts = {
+    Tx.ht_step = step; ht_ts = ts; ht_iso = ""; ht_source = "user_input";
+    ht_agent_asked = ""; ht_human_said = "hi"; ht_nearby_edges = [];
+  } in
+  let turns = [ mk 1 200.; mk 2 480.; mk 3 700.; mk 4 0. ] in
+  let min_ts = Warden.session_turn_floor ~event_min_ts:(Some 1000.) ~mention_min_ts:(Some 600.) () in
+  let kept = Warden.filter_turns_from_floor ~min_ts turns in
+  assert_equal ~printer:(fun xs -> String.concat "," (List.map string_of_int xs))
+    [ 2; 3; 4 ] (List.map (fun (h : Tx.human_turn) -> h.ht_step) kept);
+  assert_equal ~printer:string_of_int 4
+    (List.length (Warden.filter_turns_from_floor ~min_ts:None turns))
+
 let suite =
   "warden" >::: [
     "case_clean_quest_produces_no_findings_and_layout_has_feedback" >:: case_clean_quest_produces_no_findings_and_layout_has_feedback;
+    "case_session_turn_floor_and_filter_keep_earlier_mentions" >:: case_session_turn_floor_and_filter_keep_earlier_mentions;
     "case_plug_1_multi_active_quest" >:: case_plug_1_multi_active_quest;
     "case_plug_missing_repo_config" >:: case_plug_missing_repo_config;
     "case_plug_2_cycle_outlier" >:: case_plug_2_cycle_outlier;
@@ -396,9 +600,13 @@ let suite =
     "case_plug_10_full_gate_in_author" >:: case_plug_10_full_gate_in_author;
     "case_plug_11_context_bloat_harness_aware" >:: case_plug_11_context_bloat_harness_aware;
     "case_plug_12_human_steer" >:: case_plug_12_human_steer;
+    "case_human_gate_clean_and_planned_gates" >:: case_human_gate_clean_and_planned_gates;
+    "case_standalone_session_scope_and_human_log_query" >:: case_standalone_session_scope_and_human_log_query;
     "case_entries_of_text_and_json_table_formatting" >:: case_entries_of_text_and_json_table_formatting;
     QCheck_ounit.to_ounit2_test law_sort_findings_is_ordered_and_idempotent;
     QCheck_ounit.to_ounit2_test law_counts_total_matches_findings_and_layers;
+    QCheck_ounit.to_ounit2_test law_human_gate_never_steers_and_planned_gates_exact;
+    QCheck_ounit.to_ounit2_test law_phase_assignment_and_human_log_dedupe_idempotent;
   ]
 
 let () = run_test_tt_main suite

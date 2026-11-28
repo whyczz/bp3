@@ -454,6 +454,7 @@ for dir in "${core_dirs[@]}"; do
   assert grep -qF '"flash"' "$ic"
   assert grep -qF '"pro"' "$ic"
   assert grep -qF 'mechanical delta re-grades' "$ic"
+  assert grep -A 2 -F 'mechanical delta re-grades' "$ic" | grep -qF 'Model: "flash"'
   assert test -z "$(grep -n '/swarm' "$ic" || true)"
 done
 
@@ -583,9 +584,32 @@ for dir in "${core_dirs[@]}"; do
   assert grep -qF 'Explicit owner LGTM before advancing' "$ri"
   assert grep -qF 'explicit owner confirmation' "$ri"
   assert grep -qF '| Internals: layout |' "$ri"
+  assert grep -qF '[wait: owner LGTM]' "$ri"
+  layout_ln=$(grep -nF '| Internals: layout |' "$ri" | head -n1 | cut -d: -f1)
+  names_ln=$(grep -nF '| Internals: names |' "$ri" | head -n1 | cut -d: -f1)
+  assert test -n "$layout_ln"
+  assert test -n "$names_ln"
+  assert test "$layout_ln" -lt "$names_ln"
   assert grep -qF '| Acceptance gates |' "$ri"
   assert test -z "$(grep -n '| Acceptance test |' "$ri" || true)"
   assert test -z "$(grep -n 'parallel waves' "$ri" || true)"
+done
+
+# warden-planned-gates skills.1: human-gate hygiene (planned_gates) + full-session warden human-log/query
+for dir in "${core_dirs[@]}"; do
+  wd="$dir/warden/SKILL.md" ic="$dir/induct/SKILL.md" iy="$dir/induct-yolo/SKILL.md"
+  assert grep -qF 'planned_gates' "$wd"
+  assert grep -qF 'bp3 warden human-log' "$wd"
+  assert grep -qF 'bp3 warden query' "$wd"
+  assert grep -qF -- '--session latest' "$wd"
+  assert grep -qF 'planned_gates' "$ic"
+  assert grep -qF 'planned_gates' "$iy"
+done
+for dir in "${dev_dirs[@]}"; do
+  ub="$dir/using-bp3/SKILL.md"
+  assert grep -qF 'planned_gates' "$ub"
+  assert grep -qF 'bp3 warden human-log' "$ub"
+  assert grep -qF 'bp3 warden query' "$ub"
 done
 
 # declarative-json-quest-init skills.1: quest.json schema v1, bp3 q c --file [--scaffold], and E_INVALID_SPEC

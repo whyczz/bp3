@@ -140,6 +140,131 @@ let case_agy_user_steps_skips_kickoff_and_captures_mid_node_steers _ =
   assert_equal ~printer:(fun xs -> String.concat "," (List.map string_of_int xs))
     [ 4 ] (List.map fst (List.hd ws).w_user_steps)
 
+let case_agy_parse_interactions_and_ask_question_and_query_window _ =
+  let ask_args = `Assoc [ ("questions", s "[{\"question\":\"Keep e resume unchanged?\"},{\"question\":\"Add latest?\"}]") ] in
+  let ask_planner = jline [
+      ("step_index", `Int 10); ("source", s "MODEL"); ("type", s "PLANNER_RESPONSE");
+      ("status", s "DONE"); ("created_at", s "2026-11-27T12:00:10Z");
+      ("tool_calls", `List [ `Assoc [ ("name", s "ask_question"); ("args", ask_args) ] ]);
+    ] in
+  let ask_reply_compact = jline [
+      ("step_index", `Int 11); ("source", s "MODEL"); ("type", s "GENERIC");
+      ("status", s "DONE"); ("created_at", s "2026-11-27T12:00:20Z");
+      ("content", s "Created At: 2026-11-27\nCompleted At: 2026-11-27\nA1: trunc");
+      ("truncated_fields", `List [ s "content" ]);
+    ] in
+  let ask_reply_full = jline [
+      ("step_index", `Int 11); ("source", s "MODEL"); ("type", s "GENERIC");
+      ("status", s "DONE"); ("created_at", s "2026-11-27T12:00:20Z");
+      ("content", s "Created At: 2026-11-27\nCompleted At: 2026-11-27\nA1: Keep unchanged\nA2: Yes add latest");
+    ] in
+  let compact = [
+    user_line ~step:8 ~ts:"2026-11-27T12:00:00Z" "let's red-ink warden";
+    planner_line ~step:9 ~ts:"2026-11-27T12:00:05Z" ~calls:[ ("run_command", "./bin/bp3 q q1 n n1 e approve --reason ok") ] (100, 10, 0);
+    generic_line ~step:9 ~ts:"2026-11-27T12:00:06Z" "ok";
+    ask_planner;
+    ask_reply_compact;
+    user_line ~step:12 ~ts:"2026-11-27T12:00:30Z" "/compact";
+    user_line ~step:15 ~ts:"2026-11-27T12:00:40Z" "lgtm ship it";
+  ] in
+  let full = [
+    user_line ~step:8 ~ts:"2026-11-27T12:00:00Z" "let's red-ink warden";
+    planner_line ~step:9 ~ts:"2026-11-27T12:00:05Z" ~calls:[ ("run_command", "./bin/bp3 q q1 n n1 e approve --reason ok") ] (100, 10, 0);
+    generic_line ~step:9 ~ts:"2026-11-27T12:00:06Z" "ok";
+    ask_planner;
+    ask_reply_full;
+    user_line ~step:12 ~ts:"2026-11-27T12:00:30Z" "/compact";
+    user_line ~step:15 ~ts:"2026-11-27T12:00:40Z" "lgtm ship it";
+  ] in
+  let turns = Agy_tx.parse_interactions ~full_text:(Gen.text full) (Gen.text compact) in
+  assert_equal ~printer:string_of_int 3 (List.length turns);
+  let t0 = List.nth turns 0 and t1 = List.nth turns 1 and t2 = List.nth turns 2 in
+  assert_equal ~printer:Fun.id "user_input" t0.ht_source;
+  assert_equal ~printer:Fun.id "let's red-ink warden" t0.ht_human_said;
+  assert_equal ~printer:Fun.id "ask_question" t1.ht_source;
+  assert_equal ~printer:Fun.id "Keep e resume unchanged? | Add latest?" t1.ht_agent_asked;
+  assert_equal ~printer:Fun.id "A1: Keep unchanged A2: Yes add latest" t1.ht_human_said;
+  assert_equal ~printer:(String.concat ",") [ "approve" ] t1.ht_nearby_edges;
+  assert_equal ~printer:Fun.id "user_input" t2.ht_source;
+  assert_equal ~printer:Fun.id "lgtm ship it" t2.ht_human_said;
+  (* query_window returns bounded steps strictly inside [around-w .. around+w] *)
+  let win = Agy_tx.query_window ~full_text:(Gen.text full) ~around:11 ~window:1 (Gen.text compact) in
+  assert_bool "window non-empty" (win <> []);
+  assert_bool "all steps in [10..12]" (List.for_all (fun (q : Tx.query_step) -> q.qs_step >= 10 && q.qs_step <= 12) win);
+  assert_bool "full_text resolved in query_window"
+    (List.exists (fun (q : Tx.query_step) -> Tx.contains q.qs_text "Yes add latest") win)
+
+let case_agy_unwraps_user_request_skips_wrapped_compact_and_classifies_output_assistant _ =
+  let lines = [
+    user_line ~step:1 ~ts:"2026-11-27T12:00:00Z"
+      "<USER_REQUEST>\nlet's red-ink warden\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe current local time is: 2026-11-27T12:00:00Z.\n</ADDITIONAL_METADATA>";
+    user_line ~step:2 ~ts:"2026-11-27T12:00:10Z"
+      "<USER_REQUEST>\n/compact\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe current local time is: 2026-11-27T12:00:10Z.\n</ADDITIONAL_METADATA>";
+    jline [ ("step_index", `Int 3); ("type", s "PLANNER_RESPONSE"); ("created_at", s "2026-11-27T12:00:20Z");
+            ("output", s "summarized answer");
+            ("tool_calls", `List [ `Assoc [ ("name", s "run_command"); ("args", `Assoc []) ] ]) ];
+  ] in
+  let text = Gen.text lines in
+  let tx = Agy_tx.parse text in
+  assert_equal ~printer:string_of_int 1 (List.length tx.s_user_steps);
+  let turns = Agy_tx.parse_interactions text in
+  assert_equal ~printer:string_of_int 1 (List.length turns);
+  assert_equal ~printer:Fun.id "let's red-ink warden" (List.hd turns).ht_human_said;
+  let win = Agy_tx.query_window ~around:2 ~window:1 text in
+  let s1 = List.find (fun (q : Tx.query_step) -> q.qs_step = 1) win in
+  let s3 = List.find (fun (q : Tx.query_step) -> q.qs_step = 3) win in
+  assert_equal ~printer:Fun.id "let's red-ink warden" s1.qs_text;
+  assert_equal ~printer:Fun.id "assistant" s3.qs_role;
+  assert_equal ~printer:Fun.id "summarized answer" s3.qs_text
+
+let case_claude_and_pi_parse_interactions_and_query_window _ =
+  let claude_lines = [
+    jline [ ("type", s "assistant"); ("timestamp", s "2026-11-27T12:00:01Z");
+            ("message", `Assoc [ ("content", `List [
+                `Assoc [ ("type", s "text"); ("text", s "Pick option A or B?") ];
+                `Assoc [ ("type", s "tool_use"); ("id", s "tu1"); ("name", s "AskUserQuestion");
+                         ("input", `Assoc [ ("questions", `List [ `Assoc [ ("question", s "Ship now?") ] ]) ]) ] ]) ]) ];
+    jline [ ("type", s "user"); ("timestamp", s "2026-11-27T12:00:05Z");
+            ("message", `Assoc [ ("content", `List [
+                `Assoc [ ("type", s "tool_result"); ("tool_use_id", s "tu1"); ("content", s "Yes ship now") ] ]) ]) ];
+    jline [ ("type", s "user"); ("timestamp", s "2026-11-27T12:00:10Z");
+            ("message", `Assoc [ ("content", s "define jargon inline") ]) ];
+  ] in
+  let c_turns = Claude_tx.parse_interactions (Gen.text claude_lines) in
+  assert_equal ~printer:string_of_int 2 (List.length c_turns);
+  assert_equal ~printer:Fun.id "ask_question" (List.nth c_turns 0).ht_source;
+  assert_equal ~printer:Fun.id "Ship now?" (List.nth c_turns 0).ht_agent_asked;
+  assert_equal ~printer:Fun.id "Yes ship now" (List.nth c_turns 0).ht_human_said;
+  assert_equal ~printer:Fun.id "define jargon inline" (List.nth c_turns 1).ht_human_said;
+  let c_win = Claude_tx.query_window ~around:2 ~window:1 (Gen.text claude_lines) in
+  assert_equal ~printer:string_of_int 3 (List.length c_win);
+  let pi_lines = [
+    jline [ ("type", s "message"); ("timestamp", s "2026-11-27T12:00:01Z");
+            ("message", `Assoc [ ("role", s "assistant"); ("content", s "Ready to go?") ]) ];
+    jline [ ("type", s "message"); ("timestamp", s "2026-11-27T12:00:05Z");
+            ("message", `Assoc [ ("role", s "user"); ("content", s "go ahead") ]) ];
+  ] in
+  let p_turns = Pi_tx.parse_interactions (Gen.text pi_lines) in
+  assert_equal ~printer:string_of_int 1 (List.length p_turns);
+  assert_equal ~printer:Fun.id "Ready to go?" (List.hd p_turns).ht_agent_asked;
+  assert_equal ~printer:Fun.id "go ahead" (List.hd p_turns).ht_human_said;
+  let p_win = Pi_tx.query_window ~around:2 ~window:0 (Gen.text pi_lines) in
+  assert_equal ~printer:string_of_int 1 (List.length p_win)
+
+let law_clip_and_query_window_respect_bounds =
+  let open QCheck2.Gen in
+  QCheck2.Test.make ~count:200 ~name:"law_clip_and_query_window_respect_bounds"
+    (triple (string_size ~gen:printable (int_range 0 2500)) (int_range 0 200) (int_range 0 10))
+    (fun (raw, cap, win) ->
+      let clipped = Tx.clip ~max_chars:cap raw in
+      let steps = List.init 20 (fun i ->
+          { Tx.qs_step = i; qs_ts = "2026-11-27T00:00:00Z"; qs_role = "user";
+            qs_text = Tx.clip ~max_chars:2000 raw }) in
+      let sub = Tx.filter_window ~around:10 ~window:win steps in
+      String.length clipped <= cap
+      && List.for_all (fun (q : Tx.query_step) ->
+             q.qs_step >= 10 - win && q.qs_step <= 10 + win && String.length q.qs_text <= 2000) sub)
+
 let suite =
   "agy_tx" >::: [
     "case_agy_grader_reads_cost_and_tool_events" >:: case_agy_grader_reads_cost_and_tool_events;
@@ -148,6 +273,10 @@ let suite =
     "case_agy_author_window_casts_handoff_and_active_time" >:: case_agy_author_window_casts_handoff_and_active_time;
     "case_subagent_system_message_prompt_unwraps_and_joins" >:: case_subagent_system_message_prompt_unwraps_and_joins;
     "case_agy_user_steps_skips_kickoff_and_captures_mid_node_steers" >:: case_agy_user_steps_skips_kickoff_and_captures_mid_node_steers;
+    "case_agy_parse_interactions_and_ask_question_and_query_window" >:: case_agy_parse_interactions_and_ask_question_and_query_window;
+    "case_agy_unwraps_user_request_skips_wrapped_compact_and_classifies_output_assistant" >:: case_agy_unwraps_user_request_skips_wrapped_compact_and_classifies_output_assistant;
+    "case_claude_and_pi_parse_interactions_and_query_window" >:: case_claude_and_pi_parse_interactions_and_query_window;
+    QCheck_ounit.to_ounit2_test law_clip_and_query_window_respect_bounds;
   ]
 
 let () = run_test_tt_main suite

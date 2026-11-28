@@ -45,12 +45,15 @@ let verb_exit = "exit"
 let verb_list = "list"
 let verb_land = "land"
 let verb_prune = "prune"
+let verb_human_log = "human-log"
+let verb_query = "query"
 
 let all_verbs =
   [ verb_c; verb_create; verb_r; verb_read; verb_u; verb_update;
     verb_d; verb_delete; verb_dep; verb_diagram; verb_metrics;
     verb_brief; verb_desk; verb_derive; verb_inspect; verb_remove;
-    verb_prepare; verb_check; verb_exit; verb_list; verb_land; verb_prune ]
+    verb_prepare; verb_check; verb_exit; verb_list; verb_land; verb_prune;
+    verb_human_log; verb_query ]
 
 (* ---------- edges ---------- *)
 let edge_handoff = "handoff"

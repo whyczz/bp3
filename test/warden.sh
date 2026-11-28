@@ -230,10 +230,124 @@ printf 'version = 1\nrepo = "warden-fx"\n\n[warden]\ngrade_wall_s = 400\n' > bac
 out_400=$(bp warden 2026-11-23-q3 --no-sessions)
 assert jq -e 'any(.findings[]; .rule == "cycle_outlier" and .node == "nslow" and .threshold == "> 400s grade wall")' <<< "$out_400" >/dev/null
 
-# 9. dag-contracts kinds.1: human-gate approval does NOT trip Warden human_steer
+# 9. dag-contracts kinds.1 + warden-planned-gates gate.1: human-gate approval does NOT trip human_steer and surfaces in planned_gates[]
 bp q 2026-11-23-q3 c ngate --kind human-gate >/dev/null
 BP3_DECIDER=human bp q 2026-11-23-q3 n ngate e approve --reason "go with option B" >/dev/null
 out_gate=$(bp warden 2026-11-23-q3 --no-sessions)
 assert jq -e 'all(.findings[]; .rule != "human_steer")' <<< "$out_gate" >/dev/null
+assert jq -e 'any(.planned_gates[]; .quest == "2026-11-23-q3" and .node == "ngate" and .kind == "human-gate" and .cycle == 1 and .reason == "go with option B")' <<< "$out_gate" >/dev/null
+
+# Clean quest with only an approved human-gate -> 0 findings and table shows "(1 planned gate)"
+mkdir -p docs/quests/2026-11-26-qgate
+printf -- '---\nstatus: proposed\n---\n# qgate\n' > docs/quests/2026-11-26-qgate/QUEST.md
+bp q c 2026-11-26-qgate --type default >/dev/null
+bp q 2026-11-26-qgate c av-gate --kind human-gate >/dev/null
+BP3_DECIDER=human bp q 2026-11-26-qgate n av-gate e approve --reason "AV approved" >/dev/null
+printf -- '---\nstatus: landed\n---\n# q1\n' > docs/quests/2026-11-23-q1/QUEST.md
+printf -- '---\nstatus: landed\n---\n# q2\n' > docs/quests/2026-11-23-q2/QUEST.md
+out_qgate=$(bp warden 2026-11-26-qgate --no-sessions)
+assert jq -e '.ok == true and (.findings | length) == 0 and (.planned_gates | length) == 1 and .planned_gates[0].node == "av-gate" and .planned_gates[0].reason == "AV approved"' <<< "$out_qgate" >/dev/null
+tbl_qgate=$(bp warden 2026-11-26-qgate --no-sessions --format table)
+assert grep -qF "(1 planned gate)" <<< "$tbl_qgate"
+
+# 10. gate.1: proposed quest with QUEST.md only (no bp3 q c yet) succeeds cleanly
+mkdir -p docs/quests/2026-11-26-qproposed
+printf -- '---\nstatus: proposed\n---\n# qproposed\n' > docs/quests/2026-11-26-qproposed/QUEST.md
+out_prop=$(bp warden 2026-11-26-qproposed --no-sessions)
+assert jq -e '.ok == true and .scope == "quest" and .quests == ["2026-11-26-qproposed"] and (.findings | length) == 0 and (.planned_gates | length) == 0 and .human_turns_count == 0' <<< "$out_prop" >/dev/null
+
+# 11. session.2: bp3 warden human-log (<quest> via durable log & retroactive scan, --session latest, --phase, --limit) + query + --session audit
+hl_agy="$work/hl-agy"
+mkdir -p "$hl_agy/conv-redink/.system_generated/logs" "$hl_agy/conv-retro/.system_generated/logs"
+cat > "$hl_agy/conv-redink/.system_generated/logs/transcript.jsonl" <<'EOF'
+{"step_index":1,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-27T10:00:05Z","content":"let's red-ink qproposed"}
+{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-27T10:00:10Z","model":"gemini-3-pro","tool_calls":[{"name":"ask_question","args":{"questions":"[{\"question\":\"Kill --planned?\"}]"}}],"input_tokens":500,"output_tokens":50,"cache_read_tokens":100}
+{"step_index":3,"source":"MODEL","type":"GENERIC","status":"DONE","created_at":"2026-11-27T10:00:20Z","content":"Created At: 2026-11-27\nCompleted At: 2026-11-27\nA1: Yes kill --planned"}
+{"step_index":4,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-27T10:05:00Z","content":"now start inducting"}
+EOF
+# Retroactive session (not in quest-sessions log, mentions docs/quests/2026-11-26-qproposed/)
+sleep 1
+cat > "$hl_agy/conv-retro/.system_generated/logs/transcript.jsonl" <<'EOF'
+{"step_index":1,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-27T11:00:00Z","content":"please inspect docs/quests/2026-11-26-qproposed/QUEST.md"}
+{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-27T11:00:05Z","model":"gemini-3-pro","tool_calls":[{"name":"run_command","args":{"CommandLine":"\"dune build\""}}],"input_tokens":500,"output_tokens":20,"cache_read_tokens":0}
+{"step_index":3,"source":"TOOL","type":"GENERIC","status":"ERROR","created_at":"2026-11-27T11:00:06Z","content":"err1"}
+{"step_index":4,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-27T11:00:07Z","model":"gemini-3-pro","tool_calls":[{"name":"run_command","args":{"CommandLine":"\"dune build\""}}],"input_tokens":500,"output_tokens":20,"cache_read_tokens":0}
+{"step_index":5,"source":"TOOL","type":"GENERIC","status":"ERROR","created_at":"2026-11-27T11:00:08Z","content":"err2"}
+{"step_index":6,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-27T11:00:09Z","model":"gemini-3-pro","tool_calls":[{"name":"run_command","args":{"CommandLine":"\"dune build\""}}],"input_tokens":500,"output_tokens":20,"cache_read_tokens":0}
+{"step_index":7,"source":"TOOL","type":"GENERIC","status":"ERROR","created_at":"2026-11-27T11:00:10Z","content":"err3"}
+EOF
+
+# Seed durable quest-sessions log ONLY for conv-redink (red-ink at 10:00:00Z, induct at 10:04:00Z)
+qs_dir="$(cd "$(git rev-parse --git-common-dir)" && pwd -P)/bp3/quest-sessions"
+mkdir -p "$qs_dir"
+t_ri=$(date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "2026-11-27T10:00:00Z" "+%s" 2>/dev/null || date -u -d "2026-11-27T10:00:00Z" "+%s")
+t_in=$(date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "2026-11-27T10:04:00Z" "+%s" 2>/dev/null || date -u -d "2026-11-27T10:04:00Z" "+%s")
+printf '{"sid":"conv-redink","harness":"agy","phase":"red-ink","ts":%s}\n{"sid":"conv-redink","harness":"agy","phase":"induct","ts":%s}\n' "$t_ri" "$t_in" > "$qs_dir/2026-11-26-qproposed.jsonl"
+
+# Default bp3 warden counts human_turns_count from O(1) durable log ONLY (3 turns in conv-redink, not retro)
+out_w_fast=$(bp warden 2026-11-26-qproposed --dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$hl_agy")
+assert jq -e '.ok == true and .human_turns_count == 3' <<< "$out_w_fast" >/dev/null
+
+# human-log <quest> unions durable log + retroactive scan (4 turns across 2 sessions)
+out_hl=$(bp warden human-log 2026-11-26-qproposed --dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$hl_agy")
+assert jq -e '.ok == true and .scope == "quest" and .quest == "2026-11-26-qproposed" and (.sessions | length) == 2 and (.interactions | length) == 4 and .truncated == false' <<< "$out_hl" >/dev/null
+assert jq -e 'any(.interactions[]; .source == "ask_question" and .phase == "red-ink" and (.human_said | contains("Yes kill --planned")))' <<< "$out_hl" >/dev/null
+assert jq -e 'any(.interactions[]; .phase == "induct" and .human_said == "now start inducting")' <<< "$out_hl" >/dev/null
+
+# --phase red-ink filters strictly to red-ink turns (2 turns)
+out_hl_ri=$(bp warden human-log 2026-11-26-qproposed --phase red-ink --dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$hl_agy")
+assert jq -e '(.interactions | length) == 2 and all(.interactions[]; .phase == "red-ink")' <<< "$out_hl_ri" >/dev/null
+
+# --limit 1 sets truncated = true + --format table renders cleanly
+out_hl_lim=$(bp warden human-log 2026-11-26-qproposed --limit 1 --dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$hl_agy")
+assert jq -e '(.interactions | length) == 1 and .truncated == true' <<< "$out_hl_lim" >/dev/null
+tbl_hl=$(bp warden human-log 2026-11-26-qproposed --limit 1 --format table --dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$hl_agy")
+assert grep -qF "HUMAN SAID" <<< "$tbl_hl"
+assert grep -qF "truncated" <<< "$tbl_hl"
+
+# Standalone --session latest picks conv-retro (newer mtime) for human-log, query, and bp3 warden --session
+out_hl_lat=$(bp warden human-log --session latest --dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$hl_agy")
+assert jq -e '.ok == true and .scope == "session" and .session_id == "conv-retro" and (.interactions | length) == 1' <<< "$out_hl_lat" >/dev/null
+
+out_ws=$(bp warden --session latest --dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$hl_agy")
+assert jq -e '.ok == true and .scope == "session" and (.quests | length) == 0 and .human_turns_count == 1 and any(.findings[]; .rule == "tool_retry_loop") and all(.findings[]; .rule != "human_steer")' <<< "$out_ws" >/dev/null
+
+out_q=$(bp warden query conv-redink --around 3 --window 1 --dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$hl_agy")
+assert jq -e '.ok == true and .session_id == "conv-redink" and .around == 3 and .window == 1 and (.steps | length) == 3 and any(.steps[]; .step == 3 and (.text | contains("Yes kill --planned")))' <<< "$out_q" >/dev/null
+tbl_q=$(bp warden query latest --around 1 --window 1 --format table --dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$hl_agy")
+assert grep -qF "conv-retro" <<< "$tbl_q"
+assert grep -qF "#1 [user]" <<< "$tbl_q"
+
+# Refusal paths for human-log and query
+rc=0
+err_q_no_ar=$(bp warden query latest 2>&1) || rc=$?
+expect_eq "query missing --around rc" "2" "$rc"
+assert jq -e '.ok == false and .error.code == "E_USAGE"' <<< "$err_q_no_ar" >/dev/null
+
+rc=0
+err_hl_both=$(bp warden human-log 2026-11-26-qproposed --session latest 2>&1) || rc=$?
+expect_eq "human-log quest+--session rc" "2" "$rc"
+assert jq -e '.ok == false and .error.code == "E_USAGE"' <<< "$err_hl_both" >/dev/null
+
+rc=0
+err_hl_ph=$(bp warden human-log 2026-11-26-qproposed --phase bogus 2>&1) || rc=$?
+expect_eq "human-log bad phase rc" "2" "$rc"
+assert jq -e '.ok == false and .error.code == "E_USAGE"' <<< "$err_hl_ph" >/dev/null
+
+rc=0
+err_q_nf=$(bp warden query no-such-session --around 1 --dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$hl_agy" 2>&1) || rc=$?
+expect_eq "query unknown session rc" "2" "$rc"
+assert jq -e '.ok == false and .error.code == "E_NOT_FOUND"' <<< "$err_q_nf" >/dev/null
+
+# 12. Multi-quest session bounding: pre-quest chatter hours earlier is excluded from quest human-log
+mq_agy="$work/mq-agy"
+mkdir -p "$mq_agy/conv-multi/.system_generated/logs"
+cat > "$mq_agy/conv-multi/.system_generated/logs/transcript.jsonl" <<'EOF'
+{"step_index":1,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-27T08:00:00Z","content":"<USER_REQUEST>\nearlier unrelated quest\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\ntime\n</ADDITIONAL_METADATA>"}
+{"step_index":2,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-27T11:00:00Z","content":"<USER_REQUEST>\n/compact\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\ntime\n</ADDITIONAL_METADATA>"}
+{"step_index":3,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-27T11:01:00Z","content":"<USER_REQUEST>\ninspect docs/quests/2026-11-26-qproposed/QUEST.md\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\ntime\n</ADDITIONAL_METADATA>"}
+EOF
+out_mq=$(bp warden human-log 2026-11-26-qproposed --dir "$work/empty" --pi-dir "$work/empty" --agy-dir "$mq_agy")
+assert jq -e '(.interactions | length) == 1 and .interactions[0].human_said == "inspect docs/quests/2026-11-26-qproposed/QUEST.md"' <<< "$out_mq" >/dev/null
 
 printf 'warden tests: ok (%s assertions)\n' "$checks"

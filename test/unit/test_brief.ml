@@ -152,7 +152,11 @@ let case_extract_gates_falls_back_to_acceptance_test_and_prefers_acceptance_gate
   let empty_primary = "## Acceptance gates\n\n   \n\n## Acceptance test\n\nreal fallback\n" in
   assert_equal ~printer:(Option.value ~default:"<none>") (Some "real fallback") (Brief.extract_gates empty_primary);
   let neither = "## TL;DR\n\njust prose\n" in
-  assert_equal None (Brief.extract_gates neither)
+  assert_equal None (Brief.extract_gates neither);
+  let blank_fallback = "## TL;DR\n\nhi\n\n## Acceptance test\n\n   \t\n\n## Prose\n\np\n" in
+  assert_equal None (Brief.extract_gates blank_fallback);
+  let b_blank = Brief.render { base with node_md = Some blank_fallback } in
+  assert_bool "blank fallback emits finding" (has b_blank "(NODE.md at abc1234 has no Acceptance gates section: that is a finding)")
 
 let law_acceptance_test_fallback_inlines_verbatim =
   let open QCheck2.Gen in

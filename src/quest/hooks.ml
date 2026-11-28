@@ -267,6 +267,73 @@ let extract_red_ink_from_path file_path =
            })
        | _ -> None)
 
+let extract_quest_phase_from_path file_path =
+  let norm = String.map (fun c -> if c = '\\' then '/' else c) (String.trim file_path) in
+  let marker = "docs/quests/" in
+  let mlen = String.length marker in
+  let n = String.length norm in
+  let rec find_marker i =
+    if i + mlen > n then None
+    else if String.sub norm i mlen = marker && (i = 0 || norm.[i - 1] = '/') then
+      Some (String.sub norm (i + mlen) (n - i - mlen))
+    else find_marker (i + 1) in
+  match find_marker 0 with
+  | None -> None
+  | Some tail ->
+      (match String.split_on_char '/' tail with
+       | q :: fname :: _ when valid_slug q ->
+           if fname = "QUEST.red-ink.md" || fname = "QUEST.2b-reviewed.md" then Some (q, "red-ink")
+           else if fname = "FEEDBACK.md" || fname = "demo" then Some (q, "fin")
+           else if fname = "QUEST.md" || fname = "LOG.md" || fname = "nodes" then Some (q, "init")
+           else None
+       | _ -> None)
+
+let extract_quest_phase_from_segment seg =
+  match drop_env_prefix (tokenize_segment seg) with
+  | cmd :: rest when is_bp3_bin cmd ->
+      (match rest with
+       | "release" :: args ->
+           let rec go = function
+             | [] -> None
+             | "--bump" :: _ :: tl -> go tl
+             | ("--commit" | "--target" | "--remote" | "--reason" | "--tag") :: _ :: tl -> go tl
+             | tok :: tl when starts_with tok "-" -> go tl
+             | q :: _ -> if valid_slug q then Some (q, "fin") else None in
+           go args
+       | "warden" :: args ->
+           let rec go = function
+             | [] -> None
+             | ("human-log" | "query") :: _ -> None
+             | ("--session" | "--format" | "--last" | "--dir" | "--claude-dir" | "--pi-dir" | "--agy-dir") :: _ :: tl -> go tl
+             | tok :: tl when starts_with tok "-" -> go tl
+             | q :: _ -> if valid_slug q then Some (q, "fin") else None in
+           go args
+       | "harness" :: "desk" :: "prepare" :: args
+       | "worktree" :: "prepare" :: args ->
+           (match find_quest_flag args with
+            | Some q when valid_slug q -> Some (q, "induct")
+            | _ -> None)
+       | "q" :: q_args ->
+           (match q_args with
+            | ("c" | "create" | "r" | "read") :: q :: _ when valid_slug q && not (List.mem q reserved_q_verbs) ->
+                Some (q, "induct")
+            | q :: _sub :: _ when valid_slug q && not (List.mem q reserved_q_verbs) ->
+                Some (q, "induct")
+            | _ -> None)
+       | _ -> None)
+  | _ -> None
+
+let extract_quest_phase ~command ~file_path =
+  match extract_quest_phase_from_path file_path with
+  | Some _ as hit -> hit
+  | None ->
+      if String.trim command = "" then None
+      else
+        List.fold_left (fun acc seg ->
+          match extract_quest_phase_from_segment seg with
+          | Some _ as hit -> hit
+          | None -> acc) None (split_shell_segments command)
+
 let extract_session_action ~command ~file_path =
   match extract_red_ink_from_path file_path with
   | Some _ as act -> act
@@ -280,13 +347,59 @@ let extract_session_action ~command ~file_path =
 
 let canon_path p = try Unix.realpath p with _ -> p
 
-let session_dir_of gate_root =
+let bp3_common_dir_of gate_root =
   match run_capture [ "git"; "-C"; gate_root; "rev-parse"; "--git-common-dir" ] with
   | (raw, 0) when raw <> "" ->
       let abs =
         if Filename.is_relative raw then Filename.concat gate_root raw else raw in
-      Some (Filename.concat (Filename.concat (canon_path abs) "bp3") "sessions")
+      Some (Filename.concat (canon_path abs) "bp3")
   | _ -> None
+
+let session_dir_of gate_root =
+  Option.map (fun d -> Filename.concat d "sessions") (bp3_common_dir_of gate_root)
+
+let quest_sessions_dir_of gate_root =
+  Option.map (fun d -> Filename.concat d "quest-sessions") (bp3_common_dir_of gate_root)
+
+let harness_of_payload payload =
+  if member_str payload "conversationId" <> "" then "agy"
+  else if member_str payload "hook_event_name" <> "" then "claude"
+  else "pi"
+
+let last_nonempty_line text =
+  String.split_on_char '\n' text
+  |> List.rev
+  |> List.find_opt (fun ln -> String.trim ln <> "")
+
+let append_quest_session ~qdir ~quest ~sid ~harness ~phase ~ts =
+  match sanitize_session_id sid with
+  | None -> ()
+  | Some clean_sid ->
+      if not (valid_slug quest) then ()
+      else
+        let path = Filename.concat qdir (quest ^ ".jsonl") in
+        let existing = if Sys.file_exists path then read_file_or path "" else "" in
+        let same_as_last =
+          match last_nonempty_line existing with
+          | None -> false
+          | Some ln ->
+              (try
+                 match Yojson.Safe.from_string ln with
+                 | `Assoc _ as j ->
+                     member_str j "sid" = clean_sid && member_str j "phase" = phase
+                 | _ -> false
+               with _ -> false) in
+        if not same_as_last then begin
+          Util.mkdir_p qdir;
+          let line = Yojson.Safe.to_string (`Assoc [
+            ("sid", json_str clean_sid);
+            ("harness", json_str harness);
+            ("phase", json_str phase);
+            ("ts", `Int ts);
+          ]) ^ "\n" in
+          let oc = open_out_gen [ Open_creat; Open_append; Open_wronly ] 0o644 path in
+          Fun.protect ~finally:(fun () -> close_out_noerr oc) (fun () -> output_string oc line)
+        end
 
 let has_quests_dir gate_root =
   List.exists (fun r ->
@@ -327,7 +440,7 @@ let unlink_session_if_quest path quest =
       | _ -> ()
     with _ -> ()
 
-let update_session_binding ~gate_root ~sid ~event ~command ~file_path ~is_failure ~has_refusal =
+let update_session_binding ~harness ~gate_root ~sid ~event ~command ~file_path ~is_failure ~has_refusal =
   try
     match sanitize_session_id sid with
     | None -> ()
@@ -360,7 +473,12 @@ let update_session_binding ~gate_root ~sid ~event ~command ~file_path ~is_failur
                             ("updated_ts", `Int now);
                           ] in
                           Util.write_file_atomic spath (Yojson.Safe.to_string j ^ "\n")
-                        end)
+                        end);
+                   if event = "PostToolUse" && not is_failure then
+                     (match extract_quest_phase ~command ~file_path, quest_sessions_dir_of gate_root with
+                      | Some (q, phase), Some qdir ->
+                          append_quest_session ~qdir ~quest:q ~sid:clean_sid ~harness ~phase ~ts:now
+                      | _ -> ())
                | _ -> ())
   with _ -> ()
 
@@ -627,7 +745,8 @@ let handle () =
         if not is_reentrant then begin
           let is_failure = event = "PostToolUseFailure" || member_str payload "error" <> "" in
           let has_refusal = refusal_code payload <> None in
-          update_session_binding ~gate_root ~sid:session ~event ~command ~file_path ~is_failure ~has_refusal
+          let harness = harness_of_payload payload in
+          update_session_binding ~harness ~gate_root ~sid:session ~event ~command ~file_path ~is_failure ~has_refusal
         end;
         if not (is_bp3_repo gate_root) then begin
           if event = "SessionStart" then
