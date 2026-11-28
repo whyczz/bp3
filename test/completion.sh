@@ -83,6 +83,8 @@ for edge in handoff grade land approve iterate block resume; do has "$out" "$edg
 lacks "$out" verify
 out=$(_bp3_candidates q toy-drive c new-node "--")
 for fl in --kind --allow-protected --target --max-iterations --outcome --note --file --scaffold; do has "$out" "$fl"; done
+out=$(_bp3_candidates q c demo "--")
+for fl in --file --scaffold; do has "$out" "$fl"; done
 out=$(_bp3_candidates q toy-drive c new-node --kind "")
 for k in code direct research explore human-gate; do has "$out" "$k"; done
 out=$(_bp3_candidates q toy-drive u parser-fix handoff --outcome "")
@@ -135,6 +137,8 @@ if command -v zsh >/dev/null 2>&1; then
   lacks "$out" verify
   out=$(zcand q toy-drive c new-node "--")
   for fl in --kind --allow-protected --target --max-iterations --outcome --note --file --scaffold; do has "$out" "$fl"; done
+  out=$(zcand q c demo "--")
+  for fl in --file --scaffold; do has "$out" "$fl"; done
   out=$(zcand q toy-drive c new-node --kind "")
   for k in code direct research explore human-gate; do has "$out" "$k"; done
   out=$(zcand q toy-drive u parser-fix handoff --outcome "")

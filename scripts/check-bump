@@ -37,6 +37,9 @@ if [ -d "$quests_dir" ]; then
     if [ -n "$date" ] && [[ "$date" < "$cutoff" ]]; then
       continue
     fi
+    if [ -z "$bump" ] && [ -f "$(dirname "$f")/quest.json" ]; then
+      bump=$(jq -r '.bump // ""' "$(dirname "$f")/quest.json" 2>/dev/null || echo "")
+    fi
     case "$bump" in
       major|minor|patch|none) ;;
       "")

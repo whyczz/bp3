@@ -284,11 +284,11 @@ let extract_quest_phase_from_path file_path =
        | q :: fname :: _ when valid_slug q ->
            if fname = "QUEST.red-ink.md" || fname = "QUEST.2b-reviewed.md" then Some (q, "red-ink")
            else if fname = "FEEDBACK.md" || fname = "demo" then Some (q, "fin")
-           else if fname = "QUEST.md" || fname = "LOG.md" || fname = "nodes" then Some (q, "init")
+           else if fname = "QUEST.md" || fname = "quest.json" || fname = "LOG.md" || fname = "nodes" then Some (q, "init")
            else None
        | _ -> None)
 
-let extract_quest_phase_from_segment seg =
+let extract_quest_phase_from_segment_detail seg =
   match drop_env_prefix (tokenize_segment seg) with
   | cmd :: rest when is_bp3_bin cmd ->
       (match rest with
@@ -298,7 +298,7 @@ let extract_quest_phase_from_segment seg =
              | "--bump" :: _ :: tl -> go tl
              | ("--commit" | "--target" | "--remote" | "--reason" | "--tag") :: _ :: tl -> go tl
              | tok :: tl when starts_with tok "-" -> go tl
-             | q :: _ -> if valid_slug q then Some (q, "fin") else None in
+             | q :: _ -> if valid_slug q then Some (q, "fin", false) else None in
            go args
        | "warden" :: args ->
            let rec go = function
@@ -306,33 +306,49 @@ let extract_quest_phase_from_segment seg =
              | ("human-log" | "query") :: _ -> None
              | ("--session" | "--format" | "--last" | "--dir" | "--claude-dir" | "--pi-dir" | "--agy-dir") :: _ :: tl -> go tl
              | tok :: tl when starts_with tok "-" -> go tl
-             | q :: _ -> if valid_slug q then Some (q, "fin") else None in
+             | q :: _ -> if valid_slug q then Some (q, "fin", false) else None in
            go args
        | "harness" :: "desk" :: "prepare" :: args
        | "worktree" :: "prepare" :: args ->
            (match find_quest_flag args with
-            | Some q when valid_slug q -> Some (q, "induct")
+            | Some q when valid_slug q -> Some (q, "induct", false)
             | _ -> None)
        | "q" :: q_args ->
            (match q_args with
-            | ("c" | "create" | "r" | "read") :: q :: _ when valid_slug q && not (List.mem q reserved_q_verbs) ->
-                Some (q, "induct")
+            | ("r" | "read") :: q :: _ when valid_slug q && not (List.mem q reserved_q_verbs) ->
+                Some (q, "induct", true)
+            | ("c" | "create") :: q :: _ when valid_slug q && not (List.mem q reserved_q_verbs) ->
+                Some (q, "induct", false)
+            | q :: ("r" | "read") :: _ when valid_slug q && not (List.mem q reserved_q_verbs) ->
+                Some (q, "induct", true)
+            | q :: ("n" | "node") :: _ :: ("r" | "read" | "brief") :: _
+              when valid_slug q && not (List.mem q reserved_q_verbs) ->
+                Some (q, "induct", true)
+            | q :: "metrics" :: ("r" | "read") :: _
+              when valid_slug q && not (List.mem q reserved_q_verbs) ->
+                Some (q, "induct", true)
             | q :: _sub :: _ when valid_slug q && not (List.mem q reserved_q_verbs) ->
-                Some (q, "induct")
+                Some (q, "induct", false)
             | _ -> None)
        | _ -> None)
   | _ -> None
 
-let extract_quest_phase ~command ~file_path =
+let extract_quest_phase_from_segment seg =
+  Option.map (fun (q, p, _) -> (q, p)) (extract_quest_phase_from_segment_detail seg)
+
+let extract_quest_phase_detail ~command ~file_path =
   match extract_quest_phase_from_path file_path with
-  | Some _ as hit -> hit
+  | Some (q, p) -> Some (q, p, true, false)
   | None ->
       if String.trim command = "" then None
       else
         List.fold_left (fun acc seg ->
-          match extract_quest_phase_from_segment seg with
-          | Some _ as hit -> hit
+          match extract_quest_phase_from_segment_detail seg with
+          | Some (q, p, readonly) -> Some (q, p, false, readonly)
           | None -> acc) None (split_shell_segments command)
+
+let extract_quest_phase ~command ~file_path =
+  Option.map (fun (q, p, _, _) -> (q, p)) (extract_quest_phase_detail ~command ~file_path)
 
 let extract_session_action ~command ~file_path =
   match extract_red_ink_from_path file_path with
@@ -371,7 +387,35 @@ let last_nonempty_line text =
   |> List.rev
   |> List.find_opt (fun ln -> String.trim ln <> "")
 
-let append_quest_session ~qdir ~quest ~sid ~harness ~phase ~ts =
+let should_skip_quest_phase ~last_sid ~last_phase ~sid ~phase ~readonly =
+  last_sid = sid
+  && (last_phase = phase || (last_phase = "fin" && phase = "induct" && readonly))
+
+let rec canon_path_deep p =
+  if Sys.file_exists p then canon_path p
+  else
+    let dir = Filename.dirname p in
+    if dir = p then p
+    else Filename.concat (canon_path_deep dir) (Filename.basename p)
+
+let path_within_root ~gate_root file_path =
+  let norm = String.map (fun c -> if c = '\\' then '/' else c) (String.trim file_path) in
+  if norm = "" || norm.[0] <> '/' then true
+  else
+    let canon_root = canon_path_deep gate_root in
+    let canon_fp = canon_path_deep norm in
+    starts_with norm (gate_root ^ "/")
+    || starts_with canon_fp (canon_root ^ "/")
+
+let quest_known_in_repo ~gate_root ~qdir quest =
+  Sys.file_exists (Filename.concat qdir (quest ^ ".jsonl"))
+  || List.exists (fun r ->
+         Sys.file_exists (Filename.concat gate_root (Filename.concat r quest)))
+       (Layout.quests_root :: Layout.legacy_quests_roots)
+  || snd (run_capture [ "git"; "-C"; gate_root; "show-ref"; "--verify"; "--quiet";
+                        Layout.quest_ref_of Layout.quest_ref_kind quest ]) = 0
+
+let append_quest_session ~qdir ~quest ~sid ~harness ~phase ?(readonly = false) ~ts () =
   match sanitize_session_id sid with
   | None -> ()
   | Some clean_sid ->
@@ -379,17 +423,20 @@ let append_quest_session ~qdir ~quest ~sid ~harness ~phase ~ts =
       else
         let path = Filename.concat qdir (quest ^ ".jsonl") in
         let existing = if Sys.file_exists path then read_file_or path "" else "" in
-        let same_as_last =
+        let skip =
           match last_nonempty_line existing with
           | None -> false
           | Some ln ->
               (try
                  match Yojson.Safe.from_string ln with
                  | `Assoc _ as j ->
-                     member_str j "sid" = clean_sid && member_str j "phase" = phase
+                     should_skip_quest_phase
+                       ~last_sid:(member_str j "sid")
+                       ~last_phase:(member_str j "phase")
+                       ~sid:clean_sid ~phase ~readonly
                  | _ -> false
                with _ -> false) in
-        if not same_as_last then begin
+        if not skip then begin
           Util.mkdir_p qdir;
           let line = Yojson.Safe.to_string (`Assoc [
             ("sid", json_str clean_sid);
@@ -475,9 +522,13 @@ let update_session_binding ~harness ~gate_root ~sid ~event ~command ~file_path ~
                           Util.write_file_atomic spath (Yojson.Safe.to_string j ^ "\n")
                         end);
                    if event = "PostToolUse" && not is_failure then
-                     (match extract_quest_phase ~command ~file_path, quest_sessions_dir_of gate_root with
-                      | Some (q, phase), Some qdir ->
-                          append_quest_session ~qdir ~quest:q ~sid:clean_sid ~harness ~phase ~ts:now
+                     (match extract_quest_phase_detail ~command ~file_path, quest_sessions_dir_of gate_root with
+                      | Some (q, phase, from_path, readonly), Some qdir ->
+                          let allowed =
+                            if from_path then path_within_root ~gate_root file_path
+                            else quest_known_in_repo ~gate_root ~qdir q in
+                          if allowed then
+                            append_quest_session ~qdir ~quest:q ~sid:clean_sid ~harness ~phase ~readonly ~ts:now ()
                       | _ -> ())
                | _ -> ())
   with _ -> ()

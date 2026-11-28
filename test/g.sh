@@ -900,6 +900,10 @@ out=$(q c --file "$work/scaf.json" --scaffold)
 echo "$out" | jq -e '.ok == true and .quest == "scaf-demo" and (.scaffolded | length) == 2' >/dev/null || fail "scaffold create: $out"
 grep -qF "## Acceptance gates" docs/quests/scaf-demo/nodes/node-s-1/NODE.md || fail "scaffold NODE.md missing Acceptance gates"
 "$root/scripts/check-bump" --root "$work/repo" >/dev/null || fail "check-bump rejected valid quest.json"
+# Q2-3: authored QUEST.md omitting bump: falls back to sibling quest.json
+printf '%s\n' '---' 'status: active' 'date: 2026-11-27' '---' '# json-demo' > docs/quests/json-demo/QUEST.md
+"$root/scripts/check-bump" --root "$work/repo" >/dev/null || fail "check-bump did not fall back to sibling quest.json"
+rm -f docs/quests/json-demo/QUEST.md
 rm -rf docs/quests/scaf-demo && git checkout -q -- .
 
 # --- version guard: minor-ahead warns and writes; major-ahead refuses writes ---

@@ -36,6 +36,19 @@ if [ -z "$root" ]; then
   exit 2
 fi
 
+git_dir="$(git -C "$root" rev-parse --git-dir)"
+case "$git_dir" in
+  /*) ;;
+  *) git_dir="$root/$git_dir" ;;
+esac
+lock_dir="$git_dir/bp3-receipt.lock"
+gate_log=""
+if ! mkdir "$lock_dir" 2>/dev/null; then
+  echo "receipt: another ./scripts/receipt is already running in this desk ($lock_dir); run ./scripts/receipt alone" >&2
+  exit 2
+fi
+trap 'rm -f -- "${gate_log:-}"; rmdir -- "$lock_dir" 2>/dev/null || true' EXIT
+
 if [ -n "$(git -C "$root" status --porcelain)" ]; then
   echo "receipt: dirty worktree; commit or clean first" >&2
   exit 2
@@ -115,7 +128,6 @@ else
   gate_cmd="${manifest_cmd:-make check-full}"
 fi
 gate_log="$(mktemp "${TMPDIR:-/tmp}/bp3-receipt-gate.XXXXXX")"
-trap 'rm -f -- "$gate_log"' EXIT
 
 gate_rc=0
 (cd "$root" && bash -c "$gate_cmd") >"$gate_log" 2>&1 || gate_rc=$?

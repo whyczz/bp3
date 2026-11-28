@@ -246,6 +246,7 @@ let case_extract_quest_phase_tracks_init_red_ink_induct_and_fin _ =
     assert_equal ~msg:(cmd ^ "|" ^ fp) ~printer:pr want got in
   List.iter check [
     ("", "/repo/docs/quests/q1/QUEST.md", Some ("q1", "init"));
+    ("", "/repo/docs/quests/q1/quest.json", Some ("q1", "init"));
     ("", "/repo/docs/quests/q1/nodes/n1/NODE.md", Some ("q1", "init"));
     ("", "/repo/docs/quests/q1/QUEST.red-ink.md", Some ("q1", "red-ink"));
     ("", "/repo/docs/quests/q1/QUEST.2b-reviewed.md", Some ("q1", "red-ink"));
@@ -259,7 +260,15 @@ let case_extract_quest_phase_tracks_init_red_ink_induct_and_fin _ =
     ("./bin/bp3 warden human-log q1", "", None);
     ("./bin/bp3 release q1 --dry-run", "", Some ("q1", "fin"));
     ("ls -la", "/repo/README.md", None);
-  ]
+  ];
+  assert_bool "same phase skipped"
+    (Hooks.should_skip_quest_phase ~last_sid:"s1" ~last_phase:"fin" ~sid:"s1" ~phase:"fin" ~readonly:false);
+  assert_bool "readonly q r does not downgrade fin -> induct"
+    (Hooks.should_skip_quest_phase ~last_sid:"s1" ~last_phase:"fin" ~sid:"s1" ~phase:"induct" ~readonly:true);
+  assert_bool "write edge after fin is not skipped"
+    (not (Hooks.should_skip_quest_phase ~last_sid:"s1" ~last_phase:"fin" ~sid:"s1" ~phase:"induct" ~readonly:false));
+  assert_bool "readonly q r still advances red-ink -> induct"
+    (not (Hooks.should_skip_quest_phase ~last_sid:"s1" ~last_phase:"red-ink" ~sid:"s1" ~phase:"induct" ~readonly:true))
 
 let () =
   run_test_tt_main

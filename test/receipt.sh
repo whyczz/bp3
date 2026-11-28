@@ -89,4 +89,14 @@ expect "env overrides backpack gate rc" 0 "$rc"
 echo "$out" | grep -q "^check-full: rc=0 env-wins$" || { echo "FAIL: env override line: $out" >&2; exit 1; }
 n=$((n + 2))
 
+# Case F (Q2-1): concurrent ./scripts/receipt in the same desk refuses cleanly (exit 2)
+mkdir -p "$fx/.git/bp3-receipt.lock"
+rc=0; err_out="$(cd "$fx" && BP3_RECEIPT_GATE="echo gate-ok" ./scripts/receipt HEAD 2>&1)" || rc=$?
+expect "concurrent receipt lock rc" 2 "$rc"
+echo "$err_out" | grep -q "already running" || { echo "FAIL: lock msg: $err_out" >&2; exit 1; }
+rmdir "$fx/.git/bp3-receipt.lock"
+rc=0; (cd "$fx" && BP3_RECEIPT_GATE="echo gate-ok" ./scripts/receipt HEAD) >/dev/null || rc=$?
+expect "receipt after lock cleared rc" 0 "$rc"
+n=$((n + 1))
+
 echo "receipt tests: ok ($n assertions)"
