@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: active
 home_repo: bp3
 date: 2026-11-27
 bump: minor
