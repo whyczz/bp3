@@ -588,4 +588,21 @@ for dir in "${core_dirs[@]}"; do
   assert test -z "$(grep -n 'parallel waves' "$ri" || true)"
 done
 
+# declarative-json-quest-init skills.1: quest.json schema v1, bp3 q c --file [--scaffold], and E_INVALID_SPEC
+for dir in "${core_dirs[@]}"; do
+  assert grep -qF 'quest.json' "$dir/quest/SKILL.md"
+  assert grep -qF -- '--file docs/quests/<quest>/quest.json [--scaffold]' "$dir/quest/SKILL.md"
+  assert grep -qF 'E_INVALID_SPEC' "$dir/quest/SKILL.md"
+  assert grep -qF 'quest.json' "$dir/red-ink/SKILL.md"
+  assert grep -qF -- '--file <path> [--scaffold]' "$dir/red-ink/SKILL.md"
+done
+for dir in "${dev_dirs[@]}"; do
+  ub="$dir/using-bp3/SKILL.md"
+  assert grep -qF -- '--file docs/quests/<quest>/quest.json [--scaffold]' "$ub"
+  assert grep -qF 'E_INVALID_SPEC' "$ub"
+done
+assert cmp -s "$repo/AGENTS.md" "$repo/CLAUDE.md"
+assert grep -qF -- '--file docs/quests/<quest>/quest.json [--scaffold]' "$repo/AGENTS.md"
+assert grep -qF 'E_INVALID_SPEC' "$repo/AGENTS.md"
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"

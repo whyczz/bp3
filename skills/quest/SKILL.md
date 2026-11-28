@@ -191,6 +191,16 @@ Choose the node flavor (`--kind`) to match the work:
 | `explore` | `todo` -> `e iterate --note` (capped by `--max-iterations` -> `E_EXPLORE_BOUND`) -> `handoff --outcome hit\|missed\|inconclusive` (docs-only under `docs/quests/<q>/explores/<node>/`, may refine downstream `todo` specs) | Bounded hands-on prototypes or benchmarks aimed at `--target` |
 | `human-gate` | `todo -> landed` on `e approve --reason` (no commit; `BP3_DECIDER=human`, or `BP3_DECIDER=human-approved-llm-yolo` under `induct-yolo`) | Explicit decision checkpoints; convention: place a `human-gate` after `research` or `explore` nodes that refine downstream specs |
 
+### Declarative `quest.json` (schema `version: 1`)
+
+Instead of initializing a quest and its nodes via `1 + N` imperative `bp3 q c` calls, you may encode the full quest graph (metadata, `bump`, `nodes[]`, `kind`, `depends_on`, `target`, `max_iterations`, and structured `acceptance: {objective, prove_by, done_when, trace}`) in `docs/quests/<quest>/quest.json` and initialize atomically in one command:
+
+```sh
+bp3 q c [<quest>] --file docs/quests/<quest>/quest.json [--scaffold]
+```
+
+`bp3 q c --file` validates the entire spec up front (`E_INVALID_SPEC`, zero partial refs on error), creates the quest and every node in topological order, and optionally scaffolds readable `QUEST.md` / `NODE.md` views with `--scaffold`. When `quest.json` is committed, `Brief.render` renders cold-grader acceptance directly from JSON (immune to markdown heading drift) and `handoff` protects `quest.json` under `E_PROTECTED_FILE` (`Research`/`Explore` may edit only non-self `todo` node entries).
+
 ## File shape
 
 ```markdown

@@ -30,7 +30,15 @@ General coding in this repo does not need this skill.
    then each node with
    `./bin/bp3 q <quest> c <node> [--kind code|direct|research|explore|human-gate]`
    (`explore` nodes require `--target "<goal>"` and accept
-   `--max-iterations <n>`). State is
+   `--max-iterations <n>`), **or** initialize the whole quest and all
+   nodes atomically from a declarative schema-v1 `quest.json` with
+   `./bin/bp3 q c [<quest>] --file docs/quests/<quest>/quest.json [--scaffold]`
+   (pre-validates the full DAG before writing any ref, refusing
+   `E_INVALID_SPEC` with zero partial refs; when `quest.json` is
+   committed, `bp3 q ... brief` renders structured acceptance straight
+   from JSON and `handoff` protects `quest.json` under
+   `E_PROTECTED_FILE`, with `Research`/`Explore` allowed to edit only
+   non-self `todo` node entries). State is
    written to bp3's state branches (`bp3/quest/<quest>`,
    `bp3/node/<quest>/<node>`), never to the working tree; QUEST.md
    and the node records are authored. `goal_type` is the plan in

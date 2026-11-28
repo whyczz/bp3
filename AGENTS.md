@@ -31,6 +31,7 @@ citing it.
 backpack.toml            authored: repo manifest (version, repo, [grade], [warden], [release])
 docs/quests/<quest>/     one folder per quest, flat, never moved
   QUEST.md              authored: plan of record (goal, scope, gates, status)
+  quest.json            authored (optional): declarative schema-v1 quest + nodes + structured acceptance gates
   LOG.md                authored: living run log (nodes, build notes, findings, lessons)
   FEEDBACK.md           authored: post-quest human feedback, Warden audit, proposals, disposition
   fsm.yaml               authored: the plan (from plans/ at init)
@@ -61,6 +62,7 @@ other repos point at it.
 ./bin/bp3 config                         # show resolved mode, backpack.toml, and global paths
 ./bin/bp3 skills prune-local             # remove legacy repo-local generated skills & hooks
 ./bin/bp3 q c <quest> --type default   # create a quest
+./bin/bp3 q c [<quest>] --file docs/quests/<quest>/quest.json [--scaffold]   # atomic declarative quest + nodes init (E_INVALID_SPEC on invalid graph)
 ./bin/bp3 q <quest> c <node> [--kind code|direct|research|explore|human-gate] [--target "..."] [--max-iterations N]
 ./bin/bp3 q r <quest>                  # rollup JSON: nodes, states, legal edges, yolo_approvals
 ./bin/bp3 q <quest> n <node> r         # read one node
