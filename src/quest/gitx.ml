@@ -1,6 +1,6 @@
 (* gitx — process/git plumbing for bp3 q. No quest knowledge. *)
 (* bp3 q — quest/node FSM CLI. Only writer of quest state. *)
-let bp3_version = "0.13.0"
+let bp3_version = "0.13.1"
 
 exception Verdict of (int * Yojson.Safe.t)
 
