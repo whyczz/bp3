@@ -73,7 +73,10 @@ General coding in this repo does not need this skill.
    - `human-gate`: `e approve --reason "<why>"` lands with no commit
      when `BP3_DECIDER=human` (or `BP3_DECIDER=human-approved-llm-yolo`
      under `induct-yolo`, surfaced in `bp3 q r <quest>`
-     `yolo_approvals`).
+     `yolo_approvals`). Model planned owner decisions and waits as
+     `--kind human-gate` nodes (surfaced in `bp3 warden`
+     `planned_gates`, `0` `human_steer`); reserve `e block` strictly
+     for unplanned mid-node blockers (`Major human_steer`).
    `resume` is strictly human-only (`BP3_DECIDER=human`), and
    `delete` (`./bin/bp3 q <quest> d <node>`) is the owner's
    call (the engine requires a human only to delete a blocked
@@ -127,7 +130,11 @@ General coding in this repo does not need this skill.
      and remove legacy local skill copies with `bp3 skills prune-local`
      (`SessionStart` emits read-only `W_LOCAL_SKILLS_LEGACY` instead of
      auto-committing). `bp3 warden` flags `missing_repo_config` when
-     `backpack.toml` is absent. See `RELEASING.md`.
+     `backpack.toml` is absent, surfaces `human-gate` approvals in
+     `planned_gates`, and exposes `bp3 warden human-log (<quest> |
+     --session <id|latest>)` and `bp3 warden query <session-id|latest>
+     --around <step>` for full-session human involvement auditing. See
+     `RELEASING.md`.
 10. Cross-repo SQLite control plane (`~/.local/share/bp3/bp3.sqlite`, `BP3_DB` override):
     - `./bin/bp3 db info [--format json|table]` — DB path, WAL status, and counts.
     - `./bin/bp3 repo add [<path>] [--name <slug>] | list | remove <name>` —

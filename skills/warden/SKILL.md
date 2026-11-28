@@ -12,13 +12,9 @@ waste. Replaces `/trial` as the single landing and self-improvement
 skill.
 
 One output:
-- With `<quest>`: diligence gate, Landing IIUC + runnable demo,
-  `bp3 warden <quest>` findings table, standalone
-  `docs/quests/<quest>/FEEDBACK.md`, and at most **3** concrete
-  proposals for owner disposal.
-- With no `<quest>`: repo-wide `bp3 warden` sweep (repo invariants +
-  last 5 unreviewed quests without `FEEDBACK.md`) and at most **3**
-  concrete proposals.
+- With `<quest>` (landed or proposed after `/red-ink`): diligence gate (when landing), Landing IIUC + runnable demo (when landing), `bp3 warden <quest>` findings + `planned_gates` table, full-lifecycle `bp3 warden human-log <quest>` insights, standalone `docs/quests/<quest>/FEEDBACK.md` (when landing), and at most **3** concrete proposals for owner disposal.
+- With `--session <id|latest>` (standalone post-`/red-ink` or ad-hoc review): `bp3 warden --session <id|latest>` + `bp3 warden human-log --session <id|latest>` (drilling in with `bp3 warden query`) and at most **3** concrete proposals in chat.
+- With no `<quest>`: repo-wide `bp3 warden` sweep (repo invariants + last 5 unreviewed quests without `FEEDBACK.md`) and at most **3** concrete proposals.
 
 Use `quest` to frame a new quest, `red-ink` while a design is still
 being settled, `induct` to run nodes, `using-bp3` for a
@@ -59,9 +55,21 @@ copy, owner as gate) and settle it first.
      `asciinema rec --overwrite --headless -c ./demo.sh demo.cast`
      when `asciinema` is installed, or run `demo.sh` live and quote
      its observed output.
-2. **Deterministic audit (`bp3 warden`):**
+2. **Deterministic audit (`bp3 warden`) & full-session human involvement (`human-log` / `query`):**
    - Run `./bin/bp3 warden <quest>` (or `bp3 warden <quest>` in host
-     mode; omit `<quest>` for a repo sweep).
+     mode; works on proposed quests with `QUEST.md` too; use
+     `--session latest` for standalone post-`/red-ink` sessions, or omit
+     `<quest>` for a repo sweep).
+   - `bp3 warden` reports intentional `--kind human-gate` approvals in
+     `planned_gates` (never as `Major human_steer`), keeping `human_steer`
+     strictly for unplanned `e block`, cycle-cap escalations, and mid-code
+     interruptions.
+   - Run `bp3 warden human-log <quest>` (or `--session latest` /
+     `--phase red-ink`) to inspect human turns across `init -> red-ink ->
+     induct -> fin`, and drill into interesting steps with
+     `bp3 warden query <session-id|latest> --around <step> [--window 5]`.
+     Mine recurring human friction, jargon gaps, or preferences into the
+     `<= 3` proposals below without inflating deterministic `findings[]`.
    - `bp3 warden` reads `backpack.toml` (`[warden].grade_wall_s`,
      default `300`) and emits `missing_repo_config` (`minor`) when
      `backpack.toml` is absent at the repo root — bootstrap it with

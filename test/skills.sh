@@ -579,4 +579,21 @@ assert grep -qF 'E_EXPLORE_BOUND' "$repo/AGENTS.md"
 assert grep -qF 'e iterate --note' "$repo/AGENTS.md"
 assert grep -qF 'e approve --reason' "$repo/AGENTS.md"
 
+# warden-planned-gates skills.1: human-gate hygiene (planned_gates) + full-session warden human-log/query
+for dir in "${core_dirs[@]}"; do
+  wd="$dir/warden/SKILL.md" ic="$dir/induct/SKILL.md" iy="$dir/induct-yolo/SKILL.md"
+  assert grep -qF 'planned_gates' "$wd"
+  assert grep -qF 'bp3 warden human-log' "$wd"
+  assert grep -qF 'bp3 warden query' "$wd"
+  assert grep -qF -- '--session latest' "$wd"
+  assert grep -qF 'planned_gates' "$ic"
+  assert grep -qF 'planned_gates' "$iy"
+done
+for dir in "${dev_dirs[@]}"; do
+  ub="$dir/using-bp3/SKILL.md"
+  assert grep -qF 'planned_gates' "$ub"
+  assert grep -qF 'bp3 warden human-log' "$ub"
+  assert grep -qF 'bp3 warden query' "$ub"
+done
+
 printf 'skills tests: ok (%s assertions)\n' "$checks"
