@@ -45,6 +45,6 @@ Commands: `./bin/bp3 warden human-log 2026-11-26-warden-planned-gates --format t
 
 | # | Decision | Ref |
 |---|---|---|
-| 1 | _pending owner disposal_ | — |
-| 2 | _pending owner disposal_ | — |
-| 3 | _pending owner disposal_ | — |
+| 1 | `applied` | `3c78fe30` |
+| 2 | `applied` | `3c78fe30` |
+| 3 | `applied` | `3c78fe30` |
