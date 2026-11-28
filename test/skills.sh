@@ -454,6 +454,7 @@ for dir in "${core_dirs[@]}"; do
   assert grep -qF '"flash"' "$ic"
   assert grep -qF '"pro"' "$ic"
   assert grep -qF 'mechanical delta re-grades' "$ic"
+  assert grep -A 2 -F 'mechanical delta re-grades' "$ic" | grep -qF 'Model: "flash"'
   assert test -z "$(grep -n '/swarm' "$ic" || true)"
 done
 
@@ -583,6 +584,12 @@ for dir in "${core_dirs[@]}"; do
   assert grep -qF 'Explicit owner LGTM before advancing' "$ri"
   assert grep -qF 'explicit owner confirmation' "$ri"
   assert grep -qF '| Internals: layout |' "$ri"
+  assert grep -qF '[wait: owner LGTM]' "$ri"
+  layout_ln=$(grep -nF '| Internals: layout |' "$ri" | head -n1 | cut -d: -f1)
+  names_ln=$(grep -nF '| Internals: names |' "$ri" | head -n1 | cut -d: -f1)
+  assert test -n "$layout_ln"
+  assert test -n "$names_ln"
+  assert test "$layout_ln" -lt "$names_ln"
   assert grep -qF '| Acceptance gates |' "$ri"
   assert test -z "$(grep -n '| Acceptance test |' "$ri" || true)"
   assert test -z "$(grep -n 'parallel waves' "$ri" || true)"

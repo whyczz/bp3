@@ -561,9 +561,32 @@ let law_phase_assignment_and_human_log_dedupe_idempotent =
         | _ -> true in
       phases_ok && once = twice && sorted_ts once)
 
+let case_session_turn_floor_and_filter_keep_earlier_mentions _ =
+  let fopt = function None -> "None" | Some f -> Printf.sprintf "Some(%.1f)" f in
+  assert_equal ~printer:fopt None
+    (Warden.session_turn_floor ~event_min_ts:None ~mention_min_ts:None ());
+  assert_equal ~printer:fopt (Some 880.)
+    (Warden.session_turn_floor ~event_min_ts:(Some 1000.) ~mention_min_ts:None ());
+  assert_equal ~printer:fopt (Some 480.)
+    (Warden.session_turn_floor ~event_min_ts:(Some 1000.) ~mention_min_ts:(Some 600.) ());
+  assert_equal ~printer:fopt (Some 880.)
+    (Warden.session_turn_floor ~event_min_ts:(Some 1000.) ~mention_min_ts:(Some 1200.) ());
+  let mk step ts = {
+    Tx.ht_step = step; ht_ts = ts; ht_iso = ""; ht_source = "user_input";
+    ht_agent_asked = ""; ht_human_said = "hi"; ht_nearby_edges = [];
+  } in
+  let turns = [ mk 1 200.; mk 2 480.; mk 3 700.; mk 4 0. ] in
+  let min_ts = Warden.session_turn_floor ~event_min_ts:(Some 1000.) ~mention_min_ts:(Some 600.) () in
+  let kept = Warden.filter_turns_from_floor ~min_ts turns in
+  assert_equal ~printer:(fun xs -> String.concat "," (List.map string_of_int xs))
+    [ 2; 3; 4 ] (List.map (fun (h : Tx.human_turn) -> h.ht_step) kept);
+  assert_equal ~printer:string_of_int 4
+    (List.length (Warden.filter_turns_from_floor ~min_ts:None turns))
+
 let suite =
   "warden" >::: [
     "case_clean_quest_produces_no_findings_and_layout_has_feedback" >:: case_clean_quest_produces_no_findings_and_layout_has_feedback;
+    "case_session_turn_floor_and_filter_keep_earlier_mentions" >:: case_session_turn_floor_and_filter_keep_earlier_mentions;
     "case_plug_1_multi_active_quest" >:: case_plug_1_multi_active_quest;
     "case_plug_missing_repo_config" >:: case_plug_missing_repo_config;
     "case_plug_2_cycle_outlier" >:: case_plug_2_cycle_outlier;

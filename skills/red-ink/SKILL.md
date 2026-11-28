@@ -166,7 +166,7 @@ Orient -> Decide -> Act -> IIUC        |
       owner probes / corrects          |
                             |          |
                             v          v
-                Slice TL;DR (before -> after) -> next slice
+                Slice TL;DR (before -> after) -> [wait: owner LGTM] -> next slice
 ```
 
 ### 100% confidence gate (per slice)

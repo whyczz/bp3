@@ -751,6 +751,19 @@ let assign_phase ~turn_ts ~events ~fallback =
               else best in
         go first.qse_phase sorted
 
+let session_turn_floor ?(pad_s = 120.) ~event_min_ts ~mention_min_ts () =
+  match event_min_ts, mention_min_ts with
+  | None, None -> None
+  | Some a, None -> Some (a -. pad_s)
+  | None, Some b -> Some (b -. pad_s)
+  | Some a, Some b -> Some (Float.min a b -. pad_s)
+
+let filter_turns_from_floor ~min_ts turns =
+  match min_ts with
+  | None -> turns
+  | Some cutoff ->
+      List.filter (fun (ht : Tx.human_turn) -> ht.ht_ts = 0. || ht.ht_ts >= cutoff) turns
+
 let build_human_log ?phase ?(limit = 200) raw =
   let cap = max 1 limit in
   let sorted =
