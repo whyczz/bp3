@@ -62,7 +62,10 @@ Scope: active in git repos with `backpack.toml` at root (or when explicitly invo
      - `human-gate`: stop and present the decision to the owner so they
        can run `BP3_DECIDER=human bp3 q <quest> n <node> e approve --reason "..."`
        (under `induct-yolo`, see `skills/induct-yolo/SKILL.md` for
-       `BP3_DECIDER=human-approved-llm-yolo`);
+       `BP3_DECIDER=human-approved-llm-yolo`). Planned owner waits and
+       decisions belong in `--kind human-gate` nodes (surfaced in Warden
+       `planned_gates`, `0` `human_steer`); keep `e block` strictly for
+       unplanned blockers;
    - at the **cast boundary** (right after that handoff, or when
      nothing is left to author), cast each finished verdict in
      handoff order (below) — `grade --verdict ship` auto-lands directly

@@ -46,8 +46,8 @@ safe with no human in the room.
 
   | Situation | induct | here |
   |---|---|---|
-  | `human-gate` node ready | stop for `BP3_DECIDER=human` `approve` | decide and cast `BP3_DECIDER=human-approved-llm-yolo` `approve`; justify options, rationale, and reversibility in `LOG.md` + report |
-  | node `blocked` (the cycle cap, or a block) | stop, report the owed decision | park; it stays in the inbox |
+  | `human-gate` node ready | stop for `BP3_DECIDER=human` `approve` (surfaced in Warden `planned_gates`, `0` `human_steer`) | decide and cast `BP3_DECIDER=human-approved-llm-yolo` `approve`; justify options, rationale, and reversibility in `LOG.md` + report |
+  | node `blocked` (the cycle cap, or an unplanned `e block`) | stop, report the owed decision | park; it stays in the inbox |
   | constraints-class `needs_fix` | stop, pitch to the owner (`/teach`) | park, with the pitch written in the report |
   | scope change or acceptance-gate edit | the owner's call | park |
   | no subagent tool | the owner judges | use pi only if the invocation names it, else park at `handed_off`; never self-grade |
